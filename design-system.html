@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Follow-Up Design System — Arfa Corporate Blue</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Encode+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ================= CANONICAL DESIGN TOKENS (source of truth) ================= */
+:root{
+  /* Brand — Arfa Corporate Blue */
+  --primary-blue:#0078D4; --primary-blue-hover:#005A9E; --primary-blue-light:rgba(0,120,212,.08);
+  --primary-blue-deep:#004578;               /* table header / deep accents */
+  --arfa-teal:#00B7C3; --arfa-teal-hover:#009CA8;
+  --teal-500:#00B7C3; --teal-700:#009CA8; --teal-100:#B8ECF0; --teal-accent:#33C7D1;
+  /* Neutrals — Fluent slate/grey */
+  --slate-900:#323130; --slate-700:#605E5C; --slate-500:#A19F9D; --slate-300:#C8C6C4;
+  --slate-150:#EDEBE9; --slate-100:#F3F2F1;
+  --canvas:#F3F2F1; --white:#FFFFFF; --filter-bg:#F8F9FA;
+  /* Semantic status (bg / ink pairs) */
+  --ok-bg:#DFF6DD; --ok-ink:#107C41; --warn-bg:#FFF4CE; --warn-ink:#795700;
+  --bad-bg:#FDE7E9; --bad-ink:#A80000; --info-bg:#EAF2FA; --info-ink:#2F7BD2;
+  --neu-bg:#ECEFF2; --neu-ink:#6B7480; --pur-bg:#F1EBF8; --pur-ink:#71519E;
+  --orange-bg:#FDF0EB; --orange-ink:#E05E23;
+  /* KPI solid accents */
+  --kpi-teal:#00B7C3; --kpi-blue:#0078D4; --kpi-green:#107C41; --kpi-amber:#FFB900; --kpi-orange:#F7630C; --kpi-red:#D83B01;
+  /* Typography */
+  --disp:'Encode Sans',system-ui,'Segoe UI',sans-serif;
+  --ui:'Encode Sans',system-ui,'Segoe UI',sans-serif;
+  --ar:'Cairo',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',Consolas,monospace;
+  /* Spacing scale */
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-6:24px; --space-8:32px;
+  /* Radius */
+  --r-sm:4px; --r-btn:5px; --r-md:6px; --r-lg:8px; --r-xl:12px; --r-input:10px; --r-pill:999px;
+  /* Elevation (Fluent depth) */
+  --shadow-xs:0 1.6px 3.6px 0 rgba(0,0,0,.132),0 .3px .9px 0 rgba(0,0,0,.108);
+  --shadow-sm:0 3.2px 7.2px 0 rgba(0,0,0,.132),0 .6px 1.8px 0 rgba(0,0,0,.108);
+  --shadow-md:0 6.4px 14.4px 0 rgba(0,0,0,.132),0 1.2px 3.6px 0 rgba(0,0,0,.108);
+  --shadow-pop:0 12px 20px -4px rgba(0,0,0,.15);
+}
+body.dark-theme{
+  --canvas:#11100F; --white:#201F1E; --filter-bg:#292827;
+  --slate-900:#F3F2F1; --slate-700:#EDEBE9; --slate-500:#C8C6C4; --slate-300:#484644;
+  --slate-150:#292827; --slate-100:#252423; --primary-blue-light:rgba(0,120,212,.16);
+  --ok-bg:#0b3d22; --ok-ink:#6ee7a8; --warn-bg:#4a3600; --warn-ink:#ffe08a;
+  --bad-bg:#4a0f14; --bad-ink:#ff9aa5; --info-bg:#13314f; --info-ink:#8bc0f5;
+  --neu-bg:#2a2f36; --neu-ink:#aeb7c2; --pur-bg:#2c2340; --pur-ink:#c3a6ef; --orange-bg:#3d2415; --orange-ink:#f2a883;
+  --shadow-xs:0 1.6px 3.6px 0 rgba(0,0,0,.4),0 .3px .9px 0 rgba(0,0,0,.3);
+  --shadow-sm:0 3.2px 7.2px 0 rgba(0,0,0,.4),0 .6px 1.8px 0 rgba(0,0,0,.3);
+  --shadow-md:0 6.4px 14.4px 0 rgba(0,0,0,.4),0 1.2px 3.6px 0 rgba(0,0,0,.3);
+  --shadow-pop:0 12px 20px -4px rgba(0,0,0,.5);
+}
+
+/* ================= DOC CHROME ================= */
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--canvas);color:var(--slate-700);font-family:var(--ui);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;transition:background .2s,color .2s}
+a{color:var(--primary-blue);text-decoration:none;font-weight:500}
+a:hover{color:var(--primary-blue-hover)}
+.appbar{position:sticky;top:0;z-index:60;height:60px;background:var(--primary-blue);color:#fff;display:flex;align-items:center;gap:16px;padding:0 22px;box-shadow:var(--shadow-sm)}
+.appbar .logo{background:#fff;border-radius:6px;padding:5px 11px;font-family:var(--disp);font-weight:800;color:var(--primary-blue);font-size:14px;letter-spacing:-.02em}
+.appbar .ttl{font-family:var(--disp);font-weight:600;font-size:15px;border-left:1px solid rgba(255,255,255,.3);padding-left:16px}
+.appbar .sp{flex:1}
+.appbar a{color:rgba(255,255,255,.85);font-size:13px}
+.appbar a:hover{color:#fff}
+.appbar .tbtn{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.25);color:#fff;border-radius:20px;padding:6px 14px;cursor:pointer;font-size:12.5px;font-weight:600;font-family:var(--ui)}
+.layout{max-width:1220px;margin:0 auto;display:grid;grid-template-columns:238px 1fr;gap:32px;padding:0 22px}
+.toc{position:sticky;top:76px;align-self:start;height:calc(100vh - 90px);overflow:auto;padding:22px 6px 40px;font-size:13px;border-right:1px solid var(--slate-150)}
+.toc h4{margin:16px 0 6px;font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--slate-500)}
+.toc a{display:block;padding:5px 10px;border-radius:6px;color:var(--slate-700);text-decoration:none}
+.toc a:hover{background:var(--slate-100);color:var(--slate-900)}
+.content{min-width:0;padding:26px 0 70px}
+.eyebrow{font-family:var(--disp);font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--primary-blue)}
+h1{font-family:var(--disp);font-size:38px;margin:8px 0 6px;letter-spacing:-.02em;color:var(--slate-900);font-weight:800}
+h2{font-family:var(--disp);font-size:24px;margin:48px 0 8px;padding-top:14px;border-top:2px solid var(--slate-150);color:var(--slate-900);scroll-margin-top:74px;font-weight:700}
+h3{font-family:var(--disp);font-size:17px;margin:26px 0 8px;color:var(--slate-900);scroll-margin-top:74px;font-weight:600}
+p{margin:9px 0;max-width:74ch}.lead{font-size:18px;color:var(--slate-700)}
+.muted{color:var(--slate-500)}
+code{background:var(--slate-100);border:1px solid var(--slate-150);border-radius:5px;padding:1px 6px;font-family:var(--mono);font-size:.86em;color:var(--slate-900)}
+pre{background:var(--slate-900);color:#F3F2F1;border-radius:10px;padding:16px 18px;overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.65;box-shadow:var(--shadow-sm)}
+body.dark-theme pre{background:#0a0a0a;border:1px solid var(--slate-150)}
+pre .c{color:#8fb7c9}pre .k{color:#7fd1dc}pre .v{color:#ffcf8f}
+ul{margin:8px 0;padding-left:22px}li{margin:4px 0;max-width:72ch}
+.note{border-radius:8px;padding:12px 16px;margin:16px 0;font-size:14px;background:var(--info-bg);border:1px solid rgba(47,123,210,.25);border-left:4px solid var(--info-ink);color:var(--slate-900)}
+.spec{background:var(--white);border:1px solid var(--slate-150);border-radius:12px;padding:24px;margin:16px 0;box-shadow:var(--shadow-xs)}
+.spec.pad0{padding:0;overflow:hidden}
+.spec-row{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+.speclabel{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-500);margin-bottom:12px}
+figure{margin:0}
+table.dt{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px;background:var(--white);border:1px solid var(--slate-150);border-radius:10px;overflow:hidden}
+table.dt th{background:var(--filter-bg);color:var(--slate-700);text-align:left;padding:9px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--slate-150)}
+table.dt td{padding:9px 12px;border-bottom:1px solid var(--slate-150);color:var(--slate-700);vertical-align:top}
+table.dt tr:last-child td{border-bottom:none}
+
+/* swatches */
+.sw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:12px;margin:14px 0}
+.sw{border:1px solid var(--slate-150);border-radius:10px;overflow:hidden;background:var(--white);box-shadow:var(--shadow-xs)}
+.sw .chip{height:66px}
+.sw .meta{padding:8px 10px}
+.sw .nm{font-size:12.5px;font-weight:700;color:var(--slate-900)}
+.sw .hx{font-family:var(--mono);font-size:11px;color:var(--slate-500);text-transform:uppercase}
+.pair{display:flex;border:1px solid var(--slate-150);border-radius:10px;overflow:hidden}
+.pair>div{flex:1;padding:12px;font-size:12px;font-weight:700}
+/* scale bars */
+.scale{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin:12px 0}
+.scale .u{background:var(--primary-blue-light);border:1px solid var(--primary-blue);border-radius:4px}
+.scale .cap{font-size:11px;color:var(--slate-500);text-align:center;margin-top:6px;font-family:var(--mono)}
+.radbox{display:flex;gap:16px;flex-wrap:wrap;margin:12px 0}
+.radbox .r{width:100px;height:70px;background:var(--primary-blue-light);border:2px solid var(--primary-blue);display:flex;align-items:flex-end;justify-content:center;font-size:11px;color:var(--primary-blue);font-family:var(--mono);padding-bottom:6px}
+.shadowbox{display:flex;gap:24px;flex-wrap:wrap;margin:16px 0}
+.shadowbox .s{width:130px;height:80px;background:var(--white);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--slate-700);font-family:var(--mono)}
+
+/* ====== APP COMPONENT CSS (faithful specimens) ====== */
+.btn{border:none;border-radius:var(--r-btn);padding:8px 16px;font-size:12.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:all .15s ease;font-family:var(--ui)}
+.btn-p{background:var(--primary-blue);color:#fff}.btn-p:hover{background:var(--primary-blue-hover)}
+.btn-s{background:var(--white);color:var(--slate-700);border:1px solid var(--slate-300)}.btn-s:hover{border-color:var(--primary-blue);color:var(--primary-blue);background:var(--primary-blue-light)}
+.btn-t{background:var(--arfa-teal);color:#fff}.btn-t:hover{background:var(--arfa-teal-hover)}
+.btn-d{background:var(--bad-ink);color:#fff}
+.btn-ghost{background:none;border:none;color:var(--primary-blue);font-size:12.5px;font-weight:600;cursor:pointer;padding:6px 10px;border-radius:4px}.btn-ghost:hover{background:var(--primary-blue-light)}
+.btn-mini{border-radius:5px;padding:4px 10px;font-size:11.5px;font-weight:600;cursor:pointer;background:var(--white);border:1px solid var(--slate-300);color:var(--slate-700)}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:600;line-height:1}
+.badge::before{content:"";width:5.5px;height:5.5px;border-radius:999px;background:currentColor}
+.b-ok{background:var(--ok-bg);color:var(--ok-ink)}.b-warn{background:var(--warn-bg);color:var(--warn-ink)}
+.b-bad{background:var(--bad-bg);color:var(--bad-ink)}.b-info{background:var(--info-bg);color:var(--info-ink)}
+.b-neu{background:var(--neu-bg);color:var(--neu-ink)}.b-pur{background:var(--pur-bg);color:var(--pur-ink)}
+.chip{padding:6px 14px;border-radius:999px;border:1px solid var(--slate-300);background:var(--white);color:var(--slate-700);font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center}
+.chip.on{border-color:var(--primary-blue);background:var(--primary-blue-light);color:var(--primary-blue)}
+.pill{padding:6px 14px;border-radius:999px;font-size:12px;font-weight:600;background:var(--white);border:1px solid var(--slate-150);color:var(--slate-700);display:inline-flex;gap:6px;align-items:center}
+.pill.on{background:var(--slate-900);color:var(--white);border-color:var(--slate-900)}
+.field{margin-bottom:14px;max-width:360px}
+.field label{display:block;font-size:12px;font-weight:600;color:var(--slate-900);margin-bottom:6px}
+.field label .req{color:var(--bad-ink);margin-left:2px}
+.field input,.field select{width:100%;border:1px solid var(--slate-300);border-radius:var(--r-input);padding:9px 12px;font-size:13px;font-family:var(--ui);color:var(--slate-900);background:var(--white);transition:border-color .15s,box-shadow .15s}
+.field input:focus,.field select:focus{outline:none;border-color:var(--teal-500);box-shadow:0 0 0 2px rgba(0,183,195,.5)}
+.dcard{background:var(--white);border:1px solid var(--slate-150);border-radius:var(--r-sm);box-shadow:var(--shadow-xs);overflow:hidden}
+.dcard .chead{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--slate-150);font-family:var(--disp);font-weight:600;font-size:14px;color:var(--slate-900)}
+.dcard .cbody{padding:18px}
+table.app{width:100%;border-collapse:collapse}
+table.app th{padding:10px 14px;text-align:start;font-size:11px;font-weight:700;color:#fff;background:var(--primary-blue-deep);text-transform:uppercase;letter-spacing:.06em}
+table.app td{padding:10px 14px;border-bottom:1px solid var(--slate-150);font-size:12.5px;color:var(--slate-700)}
+table.app tr:nth-child(even) td{background:var(--filter-bg)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.client-code{color:var(--primary-blue);font-weight:600}
+.kpi{background:var(--white);border:1px solid var(--slate-150);border-radius:8px;padding:16px 18px;box-shadow:var(--shadow-xs)}
+.kpi .lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-500);margin-bottom:6px}
+.kpi .val{font-family:var(--disp);font-weight:800;font-size:26px;color:var(--slate-900);line-height:1.1}
+.kpi .sub{font-size:11.5px;color:var(--slate-500);margin-top:4px}
+.kpi-teal{background:var(--kpi-teal);border-color:var(--kpi-teal)}.kpi-blue{background:var(--kpi-blue);border-color:var(--kpi-blue)}
+.kpi-green{background:var(--kpi-green);border-color:var(--kpi-green)}.kpi-amber{background:var(--kpi-amber);border-color:var(--kpi-amber)}
+.kpi-orange{background:var(--kpi-orange);border-color:var(--kpi-orange)}.kpi-red{background:var(--kpi-red);border-color:var(--kpi-red)}
+.kpi[class*="kpi-"] .lbl{color:rgba(255,255,255,.85)}.kpi[class*="kpi-"] .val{color:#fff}.kpi[class*="kpi-"] .sub{color:rgba(255,255,255,.78)}
+.bar{height:6px;background:var(--slate-150);border-radius:999px;overflow:hidden;margin-top:8px}
+.bar>div{height:100%;background:var(--teal-500);border-radius:999px}
+.inline-banner{padding:12px 16px;border-radius:6px;border:1px solid var(--slate-150);background:var(--white);box-shadow:var(--shadow-xs);display:flex;align-items:center;gap:10px;font-size:13px;color:var(--slate-900);margin-bottom:12px}
+.inline-banner-info{background:var(--info-bg);border-left:4px solid var(--info-ink)}
+.inline-banner-success{background:var(--ok-bg);border-left:4px solid var(--ok-ink)}
+.inline-banner-warning{background:var(--warn-bg);border-left:4px solid var(--orange-ink)}
+.dtoast{background:var(--slate-900);color:var(--white);padding:12px 24px;border-radius:8px;font-size:13px;font-weight:500;box-shadow:var(--shadow-pop);display:inline-block}
+body.dark-theme .dtoast{border:1px solid var(--slate-300)}
+/* nav mock */
+.navmock{width:230px;background:var(--white);border:1px solid var(--slate-150);border-radius:10px;padding:12px}
+.nav-item{display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:6px;font-size:13px;color:var(--slate-700);font-weight:500;margin-bottom:2px;border-left:3px solid transparent;cursor:pointer}
+.nav-item:hover{background:var(--slate-100);color:var(--slate-900)}
+.nav-item.on{background:var(--primary-blue-light);color:var(--primary-blue);font-weight:600;border-left-color:var(--primary-blue);border-radius:0 6px 6px 0}
+.nav-item .dot{width:16px;height:16px;border-radius:4px;background:currentColor;opacity:.55}
+.nav-group{font-size:10.5px;font-weight:700;color:var(--slate-500);text-transform:uppercase;letter-spacing:.05em;padding:14px 12px 6px}
+.nav-badge{margin-left:auto;border-radius:999px;font-size:10px;font-weight:600;padding:1px 7px;background:var(--bad-bg);color:var(--bad-ink)}
+/* modal mock */
+.modalmock{background:var(--white);border-radius:12px;box-shadow:var(--shadow-pop);width:420px;max-width:100%;border:1px solid var(--slate-150);overflow:hidden}
+.modalmock .mhead{padding:16px 20px;border-bottom:1px solid var(--slate-150);background:var(--filter-bg)}
+.modalmock .mhead b{font-family:var(--disp);font-size:16px;color:var(--slate-900);display:block}
+.modalmock .mhead span{font-size:12.5px;color:var(--slate-500)}
+.modalmock .mbody{padding:20px}
+.modalmock .mfoot{padding:14px 20px;border-top:1px solid var(--slate-150);background:var(--filter-bg);display:flex;justify-content:flex-end;gap:10px}
+/* type specimens */
+.typerow{display:flex;align-items:baseline;gap:18px;padding:10px 0;border-bottom:1px solid var(--slate-150)}
+.typerow .t{color:var(--slate-900)}
+.typerow .meta{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--slate-500);white-space:nowrap}
+.footer{border-top:1px solid var(--slate-150);margin-top:44px;padding:24px 0;color:var(--slate-500);font-size:13px}
+@media(max-width:940px){.layout{grid-template-columns:1fr}.toc{display:none}}
+@media print{.appbar,.toc{display:none}.layout{grid-template-columns:1fr}.spec{break-inside:avoid}}
+</style>
+</head>
+<body>
+<div class="appbar">
+  <span class="logo">FU</span>
+  <span class="ttl">Design System</span>
+  <span class="sp"></span>
+  <a href="index.html">SRS Package</a>
+  <button class="tbtn" onclick="document.body.classList.toggle('dark-theme')">◐ Toggle theme</button>
+</div>
+
+<div class="layout">
+<nav class="toc">
+  <h4>Foundations</h4>
+  <a href="#intro">Overview</a>
+  <a href="#principles">Design principles</a>
+  <a href="#color">Color</a>
+  <a href="#type">Typography</a>
+  <a href="#space">Spacing &amp; layout</a>
+  <a href="#radius">Radius</a>
+  <a href="#elevation">Elevation</a>
+  <a href="#icon">Iconography &amp; logo</a>
+  <a href="#motion">Motion</a>
+  <h4>Components</h4>
+  <a href="#buttons">Buttons</a>
+  <a href="#status">Status &amp; badges</a>
+  <a href="#filters">Chips &amp; pills</a>
+  <a href="#forms">Form controls</a>
+  <a href="#cards">Cards</a>
+  <a href="#kpi">KPI stat cards</a>
+  <a href="#tables">Data tables</a>
+  <a href="#nav">Navigation</a>
+  <a href="#feedback">Modals · toasts · banners</a>
+  <h4>Patterns</h4>
+  <a href="#shell">App shell</a>
+  <a href="#theming">Theming</a>
+  <a href="#rtl">Bilingual &amp; RTL</a>
+  <a href="#a11y">Accessibility</a>
+  <a href="#tokens">Token reference</a>
+</nav>
+
+<main class="content">
+<span class="eyebrow">Follow-Up Management System</span>
+<h1>Design System</h1>
+<p class="lead">The <b>Arfa Corporate Blue</b> design language — a Fluent-inspired system for the Follow-Up B2B laboratory operations platform. This is a living style guide: every component below is rendered with the real production tokens. Use the <b>Toggle theme</b> button to preview light and dark.</p>
+
+<!-- OVERVIEW -->
+<h2 id="intro">Overview</h2>
+<p>Follow-Up is a dense, information-first back-office application: operators scan boards, tables, and dashboards all day. The design language is therefore built for <b>clarity, density, and calm</b> — a Microsoft-Fluent lineage (Segoe-like geometry, restrained depth, a confident corporate blue) tuned for long working sessions and full English/Arabic (RTL) parity.</p>
+<div class="note"><b>How to use this document.</b> Foundations define the tokens (color, type, spacing, elevation). Components show live specimens with their class names and the tokens they consume. The <a href="#tokens">Token reference</a> at the end is the copy-paste <code>:root</code> block — the single source of truth.</div>
+
+<!-- PRINCIPLES -->
+<h2 id="principles">Design principles</h2>
+<div class="spec">
+<table class="dt">
+<tr><th>Principle</th><th>What it means in practice</th></tr>
+<tr><td><b>Clarity over decoration</b></td><td>Flat surfaces, hairline borders, one accent. Depth is used only to separate layers (header, cards, popovers), never for ornament.</td></tr>
+<tr><td><b>Density with breathing room</b></td><td>Compact 13&nbsp;px base UI text and tight tables, on an 4&nbsp;px spacing grid so rhythm stays consistent even when packed.</td></tr>
+<tr><td><b>One confident accent</b></td><td>Corporate blue <code>#0078D4</code> carries primary actions, active state, and links. Teal is the secondary/highlight accent. Everything else is neutral.</td></tr>
+<tr><td><b>Status is a language</b></td><td>A fixed palette of semantic <em>bg/ink</em> pairs (success, warning, error, info, neutral, purple) used consistently for badges, banners, and KPIs.</td></tr>
+<tr><td><b>Bilingual by construction</b></td><td>Every component works in LTR English and RTL Arabic; the type system swaps Encode&nbsp;Sans ↔ Cairo automatically.</td></tr>
+<tr><td><b>Accessible contrast</b></td><td>Text/background pairs meet WCAG AA; focus is always visible (teal ring); color is never the only signal (badges carry a dot, banners carry an icon + border).</td></tr>
+</table>
+</div>
+
+<!-- COLOR -->
+<h2 id="color">Color</h2>
+
+<h3>Brand</h3>
+<div class="spec">
+<div class="sw-grid">
+  <div class="sw"><div class="chip" style="background:#0078D4"></div><div class="meta"><div class="nm">Primary Blue</div><div class="hx">#0078D4</div></div></div>
+  <div class="sw"><div class="chip" style="background:#005A9E"></div><div class="meta"><div class="nm">Blue Hover</div><div class="hx">#005A9E</div></div></div>
+  <div class="sw"><div class="chip" style="background:#004578"></div><div class="meta"><div class="nm">Blue Deep</div><div class="hx">#004578</div></div></div>
+  <div class="sw"><div class="chip" style="background:#00B7C3"></div><div class="meta"><div class="nm">Arfa Teal</div><div class="hx">#00B7C3</div></div></div>
+  <div class="sw"><div class="chip" style="background:#009CA8"></div><div class="meta"><div class="nm">Teal Hover</div><div class="hx">#009CA8</div></div></div>
+  <div class="sw"><div class="chip" style="background:rgba(0,120,212,0.08)"></div><div class="meta"><div class="nm">Blue Light</div><div class="hx">rgba(0,120,212,.08)</div></div></div>
+</div>
+<p class="muted" style="font-size:13px">Primary Blue = primary buttons, active nav, links, client codes. Teal = secondary actions, focus ring, chart highlight, avatar. Blue Deep = table headers. Blue Light = active/hover tint.</p>
+</div>
+
+<h3>Neutrals — Fluent slate</h3>
+<div class="spec">
+<div class="sw-grid">
+  <div class="sw"><div class="chip" style="background:#323130"></div><div class="meta"><div class="nm">slate-900</div><div class="hx">#323130 · primary text</div></div></div>
+  <div class="sw"><div class="chip" style="background:#605E5C"></div><div class="meta"><div class="nm">slate-700</div><div class="hx">#605E5C · body text</div></div></div>
+  <div class="sw"><div class="chip" style="background:#A19F9D"></div><div class="meta"><div class="nm">slate-500</div><div class="hx">#A19F9D · muted</div></div></div>
+  <div class="sw"><div class="chip" style="background:#C8C6C4"></div><div class="meta"><div class="nm">slate-300</div><div class="hx">#C8C6C4 · input border</div></div></div>
+  <div class="sw"><div class="chip" style="background:#EDEBE9"></div><div class="meta"><div class="nm">slate-150</div><div class="hx">#EDEBE9 · hairline</div></div></div>
+  <div class="sw"><div class="chip" style="background:#F3F2F1"></div><div class="meta"><div class="nm">slate-100 / canvas</div><div class="hx">#F3F2F1</div></div></div>
+  <div class="sw"><div class="chip" style="background:#FFFFFF;border-bottom:1px solid #EDEBE9"></div><div class="meta"><div class="nm">white / surface</div><div class="hx">#FFFFFF</div></div></div>
+  <div class="sw"><div class="chip" style="background:#F8F9FA"></div><div class="meta"><div class="nm">filter-bg</div><div class="hx">#F8F9FA · zebra</div></div></div>
+</div>
+</div>
+
+<h3>Semantic status (bg / ink pairs)</h3>
+<div class="spec">
+<div class="sw-grid">
+  <div class="pair"><div style="background:#DFF6DD;color:#107C41">Success<br><span class="hx" style="color:#107C41">DFF6DD / 107C41</span></div></div>
+  <div class="pair"><div style="background:#FFF4CE;color:#795700">Warning<br><span class="hx" style="color:#795700">FFF4CE / 795700</span></div></div>
+  <div class="pair"><div style="background:#FDE7E9;color:#A80000">Error<br><span class="hx" style="color:#A80000">FDE7E9 / A80000</span></div></div>
+  <div class="pair"><div style="background:#EAF2FA;color:#2F7BD2">Info<br><span class="hx" style="color:#2F7BD2">EAF2FA / 2F7BD2</span></div></div>
+  <div class="pair"><div style="background:#ECEFF2;color:#6B7480">Neutral<br><span class="hx" style="color:#6B7480">ECEFF2 / 6B7480</span></div></div>
+  <div class="pair"><div style="background:#F1EBF8;color:#71519E">Purple<br><span class="hx" style="color:#71519E">F1EBF8 / 71519E</span></div></div>
+</div>
+<p class="muted" style="font-size:13px">Each status is a <b>tinted background + saturated ink</b> pair. In dark mode the pair inverts (deep bg, light ink) — see <a href="#theming">Theming</a>. Use for badges, inline banners, nav badges. Never restyle these hues ad-hoc.</p>
+</div>
+
+<h3>KPI accent fills</h3>
+<div class="spec">
+<div class="sw-grid">
+  <div class="sw"><div class="chip" style="background:#00B7C3"></div><div class="meta"><div class="nm">kpi-teal</div><div class="hx">#00B7C3</div></div></div>
+  <div class="sw"><div class="chip" style="background:#0078D4"></div><div class="meta"><div class="nm">kpi-blue</div><div class="hx">#0078D4</div></div></div>
+  <div class="sw"><div class="chip" style="background:#107C41"></div><div class="meta"><div class="nm">kpi-green</div><div class="hx">#107C41</div></div></div>
+  <div class="sw"><div class="chip" style="background:#FFB900"></div><div class="meta"><div class="nm">kpi-amber</div><div class="hx">#FFB900</div></div></div>
+  <div class="sw"><div class="chip" style="background:#F7630C"></div><div class="meta"><div class="nm">kpi-orange</div><div class="hx">#F7630C</div></div></div>
+  <div class="sw"><div class="chip" style="background:#D83B01"></div><div class="meta"><div class="nm">kpi-red</div><div class="hx">#D83B01</div></div></div>
+</div>
+<p class="muted" style="font-size:13px">Solid-fill accents reserved for dashboard KPI tiles (white text on the fill). See <a href="#kpi">KPI stat cards</a>.</p>
+</div>
+
+<!-- TYPOGRAPHY -->
+<h2 id="type">Typography</h2>
+<div class="spec">
+<div class="speclabel">Type families</div>
+<div class="spec-row" style="gap:32px">
+  <div><div style="font-family:var(--disp);font-size:30px;font-weight:800;color:var(--slate-900)">Encode Sans</div><div class="muted" style="font-size:13px">Display &amp; UI · headings, labels, numbers-as-headline · weights 400–800</div></div>
+  <div><div style="font-family:var(--ar);font-size:30px;font-weight:700;color:var(--slate-900)" dir="rtl">القاهرة Cairo</div><div class="muted" style="font-size:13px">Arabic UI (RTL) · weights 400–800</div></div>
+  <div><div style="font-family:var(--mono);font-size:26px;color:var(--slate-900)">IBM Plex Mono</div><div class="muted" style="font-size:13px">Codes, IDs, tabular numbers</div></div>
+</div>
+</div>
+<div class="spec">
+<div class="speclabel">Type scale</div>
+<div class="typerow"><span class="t" style="font-family:var(--disp);font-size:38px;font-weight:800">Page display</span><span class="meta">Encode Sans 800 · 38px</span></div>
+<div class="typerow"><span class="t" style="font-family:var(--disp);font-size:26px;font-weight:800">KPI value</span><span class="meta">Encode Sans 800 · 26px</span></div>
+<div class="typerow"><span class="t" style="font-family:var(--disp);font-size:18px;font-weight:700">Page title (h1)</span><span class="meta">Encode Sans 700 · 18px</span></div>
+<div class="typerow"><span class="t" style="font-family:var(--disp);font-size:14px;font-weight:600">Card / section header</span><span class="meta">Encode Sans 600 · 14px</span></div>
+<div class="typerow"><span class="t" style="font-size:13px">Body / UI default</span><span class="meta">Encode Sans 400 · 13px / 1.5</span></div>
+<div class="typerow"><span class="t" style="font-size:12.5px;font-weight:600">Buttons &amp; table cells</span><span class="meta">Encode Sans 600 · 12.5px</span></div>
+<div class="typerow"><span class="t" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-500)">Overline / label</span><span class="meta">Encode Sans 700 · 11px · UPPER · .06em</span></div>
+<div class="typerow"><span class="t mono" style="font-size:12px">MGL-000142 · 15,000</span><span class="meta">IBM Plex Mono · 12px · tabular</span></div>
+</div>
+<p class="muted" style="font-size:13px">Base UI size is <code>13px</code> with <code>1.5</code> line-height — deliberately compact for data density. Overlines/labels are uppercase 11&nbsp;px with 0.06em tracking. Codes and any aligned numbers use the mono family with <code>tabular-nums</code>.</p>
+
+<!-- SPACING -->
+<h2 id="space">Spacing &amp; layout</h2>
+<div class="spec">
+<div class="speclabel">4-px spacing scale</div>
+<div class="scale">
+  <div><div class="u" style="width:4px;height:4px"></div><div class="cap">1 · 4</div></div>
+  <div><div class="u" style="width:8px;height:8px"></div><div class="cap">2 · 8</div></div>
+  <div><div class="u" style="width:12px;height:12px"></div><div class="cap">3 · 12</div></div>
+  <div><div class="u" style="width:16px;height:16px"></div><div class="cap">4 · 16</div></div>
+  <div><div class="u" style="width:24px;height:24px"></div><div class="cap">6 · 24</div></div>
+  <div><div class="u" style="width:32px;height:32px"></div><div class="cap">8 · 32</div></div>
+</div>
+</div>
+<table class="dt">
+<tr><th>Layout element</th><th>Value</th></tr>
+<tr><td>App header height</td><td><code>64px</code> · primary-blue, fixed</td></tr>
+<tr><td>Sidebar width</td><td><code>240px</code> (collapsed <code>60px</code>)</td></tr>
+<tr><td>Main content padding</td><td><code>24px 28px 60px</code></td></tr>
+<tr><td>Card / section gap (grid)</td><td><code>20px</code></td></tr>
+<tr><td>Card padding</td><td>head <code>14px 18px</code> · body <code>18px</code></td></tr>
+<tr><td>Control padding</td><td>button <code>8px 16px</code> · input <code>8–9px 12px</code></td></tr>
+</table>
+
+<!-- RADIUS -->
+<h2 id="radius">Border radius</h2>
+<div class="spec">
+<div class="radbox">
+  <div class="r" style="border-radius:4px">4 · cards/table</div>
+  <div class="r" style="border-radius:5px">5 · buttons</div>
+  <div class="r" style="border-radius:6px">6 · nav/chips</div>
+  <div class="r" style="border-radius:8px">8 · KPI/toast</div>
+  <div class="r" style="border-radius:10px">10 · inputs</div>
+  <div class="r" style="border-radius:12px">12 · modals</div>
+  <div class="r" style="border-radius:999px;width:70px">999 · pills</div>
+</div>
+</div>
+
+<!-- ELEVATION -->
+<h2 id="elevation">Elevation</h2>
+<p>Fluent-style depth in four steps. Rest surfaces sit on <code>xs</code>; hovered/floating elements rise; overlays use <code>pop</code>.</p>
+<div class="spec">
+<div class="shadowbox">
+  <div class="s" style="box-shadow:var(--shadow-xs)">xs · rest</div>
+  <div class="s" style="box-shadow:var(--shadow-sm)">sm · header</div>
+  <div class="s" style="box-shadow:var(--shadow-md)">md · hover</div>
+  <div class="s" style="box-shadow:var(--shadow-pop)">pop · overlay</div>
+</div>
+</div>
+
+<!-- ICON -->
+<h2 id="icon">Iconography &amp; logo</h2>
+<table class="dt">
+<tr><th>Asset</th><th>Spec</th></tr>
+<tr><td>Icon set</td><td><b>Lucide</b> (self-hosted <code>vendor/lucide.min.js</code>). Stroke icons, <code>18px</code> in nav, <code>20px</code> in header, ~<code>14–16px</code> inline. Color inherits (<code>slate-500</code> resting, accent/ink on active).</td></tr>
+<tr><td>Logo</td><td>Mega Laboratory wordmark on a white rounded chip inside the blue header (<code>logo.png</code>). Always on white so it reads on the blue bar. Min height 30&nbsp;px in header.</td></tr>
+<tr><td>Avatar</td><td>32&nbsp;px teal circle, white uppercase initials, subtle white ring.</td></tr>
+<tr><td>Maps</td><td>Leaflet + OpenStreetMap tiles for lab geo; markers use primary blue.</td></tr>
+</table>
+
+<!-- MOTION -->
+<h2 id="motion">Motion</h2>
+<table class="dt">
+<tr><th>Token</th><th>Usage</th></tr>
+<tr><td><code>0.15s ease</code></td><td>Default — hover/active color, borders, button/nav state.</td></tr>
+<tr><td><code>0.2s cubic-bezier(.4,0,.2,1)</code></td><td>Layout — sidebar collapse, content margin.</td></tr>
+<tr><td><code>0.25s ease-out</code></td><td>Disclosure — sidebar group expand/collapse (max-height).</td></tr>
+<tr><td><code>0.3–0.4s ease</code></td><td>Data — progress bars, chart columns growing.</td></tr>
+<tr><td>Toast in</td><td>Fade + 12px rise over <code>0.2s</code>.</td></tr>
+</table>
+<p class="muted" style="font-size:13px">Motion is functional and short. Respect <code>prefers-reduced-motion</code> by disabling non-essential transitions.</p>
+
+<!-- ================= COMPONENTS ================= -->
+<h2 id="buttons">Buttons</h2>
+<div class="spec">
+<div class="speclabel">Variants</div>
+<div class="spec-row">
+  <button class="btn btn-p">Primary</button>
+  <button class="btn btn-s">Secondary</button>
+  <button class="btn btn-t">Teal</button>
+  <button class="btn btn-d">Danger</button>
+  <button class="btn btn-ghost">Ghost</button>
+  <button class="btn-mini">Mini</button>
+  <button class="btn btn-p" disabled>Disabled</button>
+</div>
+</div>
+<table class="dt">
+<tr><th>Class</th><th>Role</th><th>Style</th></tr>
+<tr><td><code>.btn.btn-p</code></td><td>Primary action (one per view)</td><td>Blue fill → hover <code>#005A9E</code></td></tr>
+<tr><td><code>.btn.btn-s</code></td><td>Secondary</td><td>White, slate-300 border → blue on hover</td></tr>
+<tr><td><code>.btn.btn-t</code></td><td>Alternate emphasis</td><td>Teal fill</td></tr>
+<tr><td><code>.btn-ghost</code></td><td>Low-emphasis inline</td><td>Text-blue, tinted hover; <code>.red</code> for destructive</td></tr>
+<tr><td><code>.btn-mini</code></td><td>Dense table/toolbar action</td><td>Small white; <code>.on</code> active, <code>.red</code> destructive</td></tr>
+</table>
+
+<h2 id="status">Status &amp; badges</h2>
+<div class="spec">
+<div class="speclabel">Status badges (dot + label)</div>
+<div class="spec-row">
+  <span class="badge b-ok">Active</span>
+  <span class="badge b-info">In Progress</span>
+  <span class="badge b-warn">Pending</span>
+  <span class="badge b-bad">Missed</span>
+  <span class="badge b-neu">Inactive</span>
+  <span class="badge b-pur">Scanned</span>
+</div>
+</div>
+<p class="muted" style="font-size:13px">Map domain states to semantic hues consistently: <b>ok</b> = Active/Received/Completed/Resolved; <b>info</b> = In&nbsp;Progress/Sent/Scheduled; <b>warn</b> = Pending/Suspended; <b>bad</b> = Missed/Stopped/Churned/Open-critical; <b>neu</b> = Inactive; <b>pur</b> = Scanned/Interactive.</p>
+
+<h2 id="filters">Chips &amp; pills (filters)</h2>
+<div class="spec">
+<div class="speclabel">Filter chips — segmented selection</div>
+<div class="spec-row" style="margin-bottom:16px">
+  <span class="chip on">All</span><span class="chip">Segment A</span><span class="chip">Segment B</span><span class="chip">Segment C</span>
+</div>
+<div class="speclabel">Pills — toggles</div>
+<div class="spec-row">
+  <span class="pill on">Today</span><span class="pill">This week</span><span class="pill">Month</span>
+</div>
+</div>
+
+<h2 id="forms">Form controls</h2>
+<div class="spec">
+<div style="max-width:380px">
+  <div class="field"><label>Laboratory name <span class="req">*</span></label><input type="text" placeholder="e.g. Nile Diagnostics" value="Nile Diagnostics"></div>
+  <div class="field"><label>Segment</label><select><option>A — Key account</option><option>B</option><option>C</option></select></div>
+  <div class="field"><label>Governorate</label><input type="text" placeholder="Cairo"></div>
+</div>
+<p class="muted" style="font-size:13px;margin-top:4px">Inputs: 1&nbsp;px <code>slate-300</code> border, <code>10px</code> radius; focus shows a <b>teal ring</b> (<code>box-shadow 0 0 0 2px</code>). Labels are 12&nbsp;px 600; required marked with a red asterisk. Section dividers use an uppercase <code>frm-sec</code> heading over a 2&nbsp;px rule.</p>
+</div>
+
+<h2 id="cards">Cards</h2>
+<div class="spec pad0">
+<div class="dcard" style="margin:0;border:none;border-radius:0;box-shadow:none">
+  <div class="chead">Laboratory summary <button class="btn-mini">Edit</button></div>
+  <div class="cbody"><p style="margin:0;color:var(--slate-700)">Cards are white surfaces with a hairline <code>slate-150</code> border, <code>4px</code> radius, and <code>shadow-xs</code>. A <code>.chead</code> carries the title (Encode Sans 600) and optional actions; the body holds content or a table (edge-to-edge).</p></div>
+</div>
+</div>
+
+<h2 id="kpi">KPI stat cards</h2>
+<div class="spec">
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px">
+  <div class="kpi"><div class="lbl">Active labs</div><div class="val">142</div><div class="sub">+6 this month</div></div>
+  <div class="kpi kpi-blue"><div class="lbl">Samples today</div><div class="val">3,180</div><div class="sub">88% of target</div></div>
+  <div class="kpi kpi-teal"><div class="lbl">On-track reps</div><div class="val">17</div><div class="sub">of 21</div></div>
+  <div class="kpi kpi-amber"><div class="lbl">Pending visits</div><div class="val">24</div><div class="sub">board open</div></div>
+  <div class="kpi kpi-red"><div class="lbl">Open complaints</div><div class="val">5</div><div class="sub">2 overdue</div></div>
+</div>
+</div>
+<p class="muted" style="font-size:13px">Neutral KPI = white card with slate value. Emphasis KPIs use a solid accent fill (<code>.kpi-blue/-teal/-green/-amber/-orange/-red</code>) with white text. Value is Encode Sans 800 · 26&nbsp;px; label is an overline; sub-text is 11.5&nbsp;px muted. Cards lift on hover.</p>
+
+<h2 id="tables">Data tables</h2>
+<div class="spec pad0">
+<table class="app">
+  <thead><tr><th>Code</th><th>Laboratory</th><th>Segment</th><th>Status</th><th>Samples</th></tr></thead>
+  <tbody>
+    <tr><td class="mono client-code">MGL-000142</td><td>Nile Diagnostics</td><td>A</td><td><span class="badge b-ok">Active</span></td><td class="mono">1,240</td></tr>
+    <tr><td class="mono client-code">MGL-000143</td><td>Delta Labs</td><td>B</td><td><span class="badge b-warn">Pending</span></td><td class="mono">860</td></tr>
+    <tr><td class="mono client-code">MGL-000144</td><td>Cairo Medical</td><td>A</td><td><span class="badge b-bad">Missed</span></td><td class="mono">0</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="muted" style="font-size:13px">Header row is <b>Blue Deep <code>#004578</code></b> with white uppercase 11&nbsp;px labels. Rows zebra with <code>filter-bg</code>; hover tints blue-light. Cells 12.5&nbsp;px. Codes use <code>.mono.client-code</code> (blue, tabular). Status shown as a badge, never bare text.</p>
+
+<h2 id="nav">Navigation</h2>
+<div class="spec">
+<div class="spec-row" style="align-items:flex-start;gap:28px">
+  <div class="navmock">
+    <div class="nav-group">Operations</div>
+    <div class="nav-item on"><span class="dot"></span> Dashboard</div>
+    <div class="nav-item"><span class="dot"></span> Daily board <span class="nav-badge">24</span></div>
+    <div class="nav-item"><span class="dot"></span> Complaints <span class="nav-badge">5</span></div>
+    <div class="nav-group">Data</div>
+    <div class="nav-item"><span class="dot"></span> Laboratories</div>
+    <div class="nav-item"><span class="dot"></span> Reports</div>
+  </div>
+  <div style="flex:1;min-width:220px">
+    <p style="margin-top:0">The sidebar is a <code>240px</code> white rail with collapsible groups (uppercase <code>slate-500</code> headers). A nav item is 13&nbsp;px 500 with an 18&nbsp;px Lucide icon. The <b>active</b> item takes a blue-light background, blue text/icon, weight 600, and a 3&nbsp;px left accent bar (mirrored to the right in RTL). Count badges use the semantic status hues.</p>
+  </div>
+</div>
+</div>
+
+<h2 id="feedback">Modals · toasts · banners</h2>
+<div class="spec">
+<div class="speclabel">Inline banners</div>
+<div class="inline-banner inline-banner-info">ℹ️ &nbsp;12 visits still pending on today's board.</div>
+<div class="inline-banner inline-banner-success">✓ &nbsp;Commission run saved and audited.</div>
+<div class="inline-banner inline-banner-warning">⚠ &nbsp;Oracle sync last ran 26 hours ago.</div>
+</div>
+<div class="spec">
+<div class="speclabel">Modal dialog</div>
+<div class="spec-row" style="align-items:flex-start;gap:28px">
+  <div class="modalmock">
+    <div class="mhead"><b>Resolve complaint</b><span>CMP-1042 · Nile Diagnostics</span></div>
+    <div class="mbody"><div class="field" style="max-width:none;margin:0"><label>Resolution note <span class="req">*</span></label><input placeholder="Root cause and action taken…"></div></div>
+    <div class="mfoot"><button class="btn btn-s">Cancel</button><button class="btn btn-p">Resolve</button></div>
+  </div>
+  <div style="flex:1;min-width:200px">
+    <div class="speclabel">Toast</div>
+    <div class="dtoast">✓ Changes saved</div>
+    <p class="muted" style="font-size:13px;margin-top:14px">Overlay: <code>rgba(30,36,44,.5)</code> + 2&nbsp;px blur. Modal: <code>12px</code> radius, <code>shadow-pop</code>, 480&nbsp;px (760&nbsp;px large); head/foot on <code>filter-bg</code>. Toast: slate-900 pill, bottom-center, auto-dismiss.</p>
+  </div>
+</div>
+</div>
+
+<!-- ================= PATTERNS ================= -->
+<h2 id="shell">App shell</h2>
+<div class="spec">
+<svg viewBox="0 0 760 300" style="width:100%;height:auto;display:block">
+  <rect x="0" y="0" width="760" height="42" fill="var(--primary-blue)"></rect>
+  <rect x="14" y="11" width="46" height="20" rx="4" fill="#fff"></rect><text x="37" y="25" text-anchor="middle" font-size="11" font-weight="800" fill="var(--primary-blue)" font-family="var(--disp)">FU</text>
+  <text x="76" y="26" fill="#fff" font-size="12" font-family="var(--ui)">Follow-Up · Mega Laboratory</text>
+  <circle cx="720" cy="21" r="12" fill="#00B7C3"></circle>
+  <rect x="0" y="42" width="150" height="258" fill="var(--white)" stroke="var(--slate-150)"></rect>
+  <rect x="12" y="60" width="126" height="22" rx="5" fill="var(--primary-blue-light)"></rect><text x="22" y="75" font-size="11" fill="var(--primary-blue)" font-weight="600" font-family="var(--ui)">Dashboard</text>
+  <rect x="12" y="88" width="126" height="20" rx="5" fill="none"></rect><text x="22" y="102" font-size="11" fill="var(--slate-700)" font-family="var(--ui)">Daily board</text>
+  <text x="22" y="126" font-size="11" fill="var(--slate-700)" font-family="var(--ui)">Complaints</text>
+  <text x="22" y="150" font-size="11" fill="var(--slate-700)" font-family="var(--ui)">Laboratories</text>
+  <rect x="166" y="56" width="580" height="34" rx="4" fill="var(--white)" stroke="var(--slate-150)"></rect>
+  <text x="180" y="77" font-size="13" font-weight="700" fill="var(--slate-900)" font-family="var(--disp)">Dashboard</text>
+  <rect x="166" y="102" width="180" height="60" rx="8" fill="var(--white)" stroke="var(--slate-150)"></rect>
+  <rect x="356" y="102" width="180" height="60" rx="8" fill="var(--primary-blue)"></rect>
+  <rect x="546" y="102" width="200" height="60" rx="8" fill="var(--white)" stroke="var(--slate-150)"></rect>
+  <rect x="166" y="176" width="580" height="112" rx="4" fill="var(--white)" stroke="var(--slate-150)"></rect>
+  <rect x="166" y="176" width="580" height="26" fill="var(--primary-blue-deep)"></rect>
+  <text x="180" y="193" font-size="10" fill="#fff" font-family="var(--ui)" letter-spacing="1">DATA TABLE</text>
+</svg>
+<p class="muted" style="font-size:13px">Fixed blue header (64&nbsp;px) → white sidebar rail (240&nbsp;px) → canvas content: a <b>page head</b> card, a KPI row, then cards/tables. Collapsing the sidebar to 60&nbsp;px slides the content margin.</p>
+</div>
+
+<h2 id="theming">Theming — light &amp; dark</h2>
+<p>Dark mode is a token swap on <code>body.dark-theme</code>: canvas → near-black, surfaces → charcoal, the slate ramp inverts, and every semantic pair flips to deep-bg/light-ink. Brand blue and teal are unchanged so identity holds. All components inherit automatically because they consume tokens, never hard-coded hex. <b>Try the toggle in the top bar.</b></p>
+<div class="note">Rule: components must reference tokens (<code>var(--…)</code>), never literal colors, so both themes and RTL stay correct with zero per-component work.</div>
+
+<h2 id="rtl">Bilingual &amp; RTL</h2>
+<div class="spec">
+<div class="spec-row" style="gap:28px;align-items:flex-start">
+  <div style="flex:1;min-width:200px"><div class="speclabel">English (LTR)</div><div class="dcard"><div class="chead">Laboratories</div><div class="cbody" style="font-size:13px">Active client accounts</div></div></div>
+  <div style="flex:1;min-width:200px" dir="rtl"><div class="speclabel">العربية (RTL)</div><div class="dcard"><div class="chead" style="font-family:var(--ar)">المعامل</div><div class="cbody" style="font-size:13px;font-family:var(--ar)">حسابات العملاء النشطة</div></div></div>
+</div>
+</div>
+<p class="muted" style="font-size:13px">Setting <code>dir="rtl"</code> mirrors layout: nav active-bar flips to the right, header divider and badges mirror, text aligns right, and the font swaps Encode Sans → Cairo. Use logical properties (<code>text-align:start</code>, <code>margin-inline</code>) so mirroring is automatic.</p>
+
+<h2 id="a11y">Accessibility</h2>
+<table class="dt">
+<tr><th>Area</th><th>Requirement</th></tr>
+<tr><td>Contrast</td><td>Text/background pairs meet WCAG AA (4.5:1 body, 3:1 large). Primary blue on white and white on primary blue both pass.</td></tr>
+<tr><td>Focus</td><td>Always-visible focus: 2&nbsp;px teal ring on inputs; keep a visible focus style on buttons/links/nav (do not remove outlines).</td></tr>
+<tr><td>Not color-alone</td><td>Status badges carry a dot; banners carry an icon + a left border; required fields carry an asterisk — meaning never rests on hue alone.</td></tr>
+<tr><td>Targets</td><td>Interactive targets ≥ 32&nbsp;px effective height; icon-only buttons get an accessible label.</td></tr>
+<tr><td>Keyboard</td><td>Every action reachable and activatable by keyboard; modals trap focus and close on Esc; a central normalizer labels controls and makes non-native elements keyboard-activable.</td></tr>
+<tr><td>Motion</td><td>Honor <code>prefers-reduced-motion</code>.</td></tr>
+</table>
+
+<!-- TOKENS -->
+<h2 id="tokens">Token reference (<code>:root</code>)</h2>
+<p>The canonical, copy-paste source of truth. Reconciles the production values into one clean set (including the teal scale used by links/focus/charts).</p>
+<pre><span class="c">/* Brand — Arfa Corporate Blue */</span>
+<span class="k">--primary-blue</span>:<span class="v">#0078D4</span>; <span class="k">--primary-blue-hover</span>:<span class="v">#005A9E</span>; <span class="k">--primary-blue-light</span>:<span class="v">rgba(0,120,212,.08)</span>;
+<span class="k">--primary-blue-deep</span>:<span class="v">#004578</span>;   <span class="c">/* table headers */</span>
+<span class="k">--arfa-teal</span>:<span class="v">#00B7C3</span>; <span class="k">--arfa-teal-hover</span>:<span class="v">#009CA8</span>;
+<span class="k">--teal-500</span>:<span class="v">#00B7C3</span>; <span class="k">--teal-700</span>:<span class="v">#009CA8</span>; <span class="k">--teal-100</span>:<span class="v">#B8ECF0</span>; <span class="k">--teal-accent</span>:<span class="v">#33C7D1</span>;
+
+<span class="c">/* Neutrals — Fluent slate */</span>
+<span class="k">--slate-900</span>:<span class="v">#323130</span>; <span class="k">--slate-700</span>:<span class="v">#605E5C</span>; <span class="k">--slate-500</span>:<span class="v">#A19F9D</span>;
+<span class="k">--slate-300</span>:<span class="v">#C8C6C4</span>; <span class="k">--slate-150</span>:<span class="v">#EDEBE9</span>; <span class="k">--slate-100</span>:<span class="v">#F3F2F1</span>;
+<span class="k">--canvas</span>:<span class="v">#F3F2F1</span>; <span class="k">--white</span>:<span class="v">#FFFFFF</span>; <span class="k">--filter-bg</span>:<span class="v">#F8F9FA</span>;
+
+<span class="c">/* Semantic status (bg / ink) */</span>
+<span class="k">--ok-bg</span>:<span class="v">#DFF6DD</span>;  <span class="k">--ok-ink</span>:<span class="v">#107C41</span>;   <span class="k">--warn-bg</span>:<span class="v">#FFF4CE</span>; <span class="k">--warn-ink</span>:<span class="v">#795700</span>;
+<span class="k">--bad-bg</span>:<span class="v">#FDE7E9</span>; <span class="k">--bad-ink</span>:<span class="v">#A80000</span>;  <span class="k">--info-bg</span>:<span class="v">#EAF2FA</span>; <span class="k">--info-ink</span>:<span class="v">#2F7BD2</span>;
+<span class="k">--neu-bg</span>:<span class="v">#ECEFF2</span>; <span class="k">--neu-ink</span>:<span class="v">#6B7480</span>;  <span class="k">--pur-bg</span>:<span class="v">#F1EBF8</span>;  <span class="k">--pur-ink</span>:<span class="v">#71519E</span>;
+<span class="k">--orange-bg</span>:<span class="v">#FDF0EB</span>; <span class="k">--orange-ink</span>:<span class="v">#E05E23</span>;
+
+<span class="c">/* KPI solid accents */</span>
+<span class="k">--kpi-teal</span>:<span class="v">#00B7C3</span>; <span class="k">--kpi-blue</span>:<span class="v">#0078D4</span>; <span class="k">--kpi-green</span>:<span class="v">#107C41</span>;
+<span class="k">--kpi-amber</span>:<span class="v">#FFB900</span>; <span class="k">--kpi-orange</span>:<span class="v">#F7630C</span>; <span class="k">--kpi-red</span>:<span class="v">#D83B01</span>;
+
+<span class="c">/* Typography */</span>
+<span class="k">--disp</span>:<span class="v">'Encode Sans',system-ui,sans-serif</span>;
+<span class="k">--ui</span>:<span class="v">'Encode Sans',system-ui,sans-serif</span>;
+<span class="k">--ar</span>:<span class="v">'Cairo',sans-serif</span>;  <span class="k">--mono</span>:<span class="v">'IBM Plex Mono',monospace</span>;
+
+<span class="c">/* Spacing (4-px grid) */</span>
+<span class="k">--space-1</span>:<span class="v">4px</span>; <span class="k">--space-2</span>:<span class="v">8px</span>; <span class="k">--space-3</span>:<span class="v">12px</span>; <span class="k">--space-4</span>:<span class="v">16px</span>; <span class="k">--space-6</span>:<span class="v">24px</span>; <span class="k">--space-8</span>:<span class="v">32px</span>;
+
+<span class="c">/* Radius */</span>
+<span class="k">--r-sm</span>:<span class="v">4px</span>; <span class="k">--r-btn</span>:<span class="v">5px</span>; <span class="k">--r-md</span>:<span class="v">6px</span>; <span class="k">--r-lg</span>:<span class="v">8px</span>; <span class="k">--r-input</span>:<span class="v">10px</span>; <span class="k">--r-xl</span>:<span class="v">12px</span>; <span class="k">--r-pill</span>:<span class="v">999px</span>;
+
+<span class="c">/* Elevation (Fluent depth) */</span>
+<span class="k">--shadow-xs</span>:<span class="v">0 1.6px 3.6px rgba(0,0,0,.132),0 .3px .9px rgba(0,0,0,.108)</span>;
+<span class="k">--shadow-sm</span>:<span class="v">0 3.2px 7.2px rgba(0,0,0,.132),0 .6px 1.8px rgba(0,0,0,.108)</span>;
+<span class="k">--shadow-md</span>:<span class="v">0 6.4px 14.4px rgba(0,0,0,.132),0 1.2px 3.6px rgba(0,0,0,.108)</span>;
+<span class="k">--shadow-pop</span>:<span class="v">0 12px 20px -4px rgba(0,0,0,.15)</span>;</pre>
+<div class="note"><b>Implementation note.</b> In the production SPA a few link/focus/chart rules reference <code>--teal-*</code> tokens that were not all defined in <code>:root</code> — this reference block defines the full teal scale so those styles resolve exactly as intended. Adopt this block verbatim as the design-system baseline.</div>
+
+<div class="footer">
+<b>Follow-Up Design System · Arfa Corporate Blue</b> — part of the SRS package (FU-SRS-001).<br>
+<a href="index.html">← SRS package cover</a> &nbsp;·&nbsp; <a href="03-architecture.html">Architecture</a> &nbsp;·&nbsp; <a href="01-srs.html">SRS</a>
+</div>
+</main>
+</div>
+</body>
+</html>
