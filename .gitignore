@@ -1,1 +1,36 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+artifacts/
+[Tt]est[Rr]esults/
+*.trx
+*.coverage
+*.coveragexml
+project.lock.json
+
+# EF / logs
+logs/
+*.log
+
+# Angular / Node
+node_modules/
+dist/
+.angular/
+npm-debug.log*
+yarn-error.log*
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+
+# Local settings
+appsettings.*.local.json
+.env
+.env.local
+
+# Claude local
 .claude/settings.local.json
