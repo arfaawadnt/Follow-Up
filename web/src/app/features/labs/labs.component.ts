@@ -1,18 +1,23 @@
 import { Component, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { LabListItem, PagedResult } from '../../core/models';
 import { StatusBadgePipe } from '../../shared/status-badge.pipe';
+import { TranslatePipe } from '../../core/i18n';
 
 @Component({
   selector: 'app-labs',
   standalone: true,
-  imports: [FormsModule, StatusBadgePipe],
+  imports: [FormsModule, RouterLink, StatusBadgePipe, TranslatePipe],
   template: `
     <div class="head">
-      <h1 class="display page-title">Laboratories</h1>
-      <input class="search" placeholder="Search by name…" [(ngModel)]="search" (keyup.enter)="load()">
+      <h1 class="display page-title">{{ 'labs.title' | t }}</h1>
+      <div class="tools">
+        <input class="search" [placeholder]="('action.search' | t) + '…'" [(ngModel)]="search" (keyup.enter)="load()">
+        <a class="btn btn-p" routerLink="/labs/new">{{ 'labs.new' | t }}</a>
+      </div>
     </div>
 
     <div class="dcard">
@@ -42,6 +47,7 @@ import { StatusBadgePipe } from '../../shared/status-badge.pipe';
   `,
   styles: [`
     .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 16px; }
+    .tools { display: flex; gap: 10px; align-items: center; }
     .page-title { font-size: 22px; margin: 0; }
     .search { border: 1px solid var(--slate-300); border-radius: var(--r-input); padding: 8px 12px; font-size: 13px; min-width: 260px; background: var(--white); color: var(--slate-900); }
     .foot { padding: 10px 14px; font-size: 12px; color: var(--slate-500); border-top: 1px solid var(--slate-150); }

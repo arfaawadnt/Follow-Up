@@ -97,7 +97,10 @@ internal sealed class InsightsQueries : IInsightsQueries
         var scopedLabIds = await _db.Laboratories.ApplyScope(scope).Select(l => l.Id).ToListAsync(ct);
         var monthStart = new DateOnly(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
         var samples = await _db.MonthlySamples.Where(m => scopedLabIds.Contains(m.LaboratoryId)).SumAsync(m => (int?)m.SampleCount, ct) ?? 0;
-        var income = await _db.DailyLabStatistics.Where(s => s.Date >= monthStart).SumAsync(s => (decimal?)s.Income.Amount, ct) ?? 0m;
+        // Income is a Money value object (converted) — its .Amount can't translate to SQL; sum the
+        // materialized month's incomes in memory (bounded by one month of per-lab rows).
+        var incomes = await _db.DailyLabStatistics.Where(s => s.Date >= monthStart).Select(s => s.Income).ToListAsync(ct);
+        var income = incomes.Sum(m => m.Amount);
         return new NetworkOverviewDto(total, activeLabs, samples, income);
     }
 

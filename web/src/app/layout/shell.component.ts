@@ -1,30 +1,33 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnDestroy, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../core/auth.service';
 import { UiService } from '../core/ui.service';
+import { RealtimeService } from '../core/realtime.service';
+import { TranslatePipe } from '../core/i18n';
 
-interface NavItem { label: string; icon: string; path: string; }
+interface NavItem { key: string; path: string; privilege?: string; }
 
 @Component({
   selector: 'app-shell',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslatePipe],
   template: `
     <header class="appbar">
       <span class="logo">FU</span>
-      <span class="ttl">Follow-Up · Mega Laboratory</span>
+      <span class="ttl">{{ 'app.title' | t }}</span>
       <span class="spacer"></span>
+      @if (rt.connected()) { <span class="live" title="Real-time connected">●</span> }
       <button class="tbtn" (click)="ui.toggleLang()">{{ ui.lang() === 'en' ? 'العربية' : 'English' }}</button>
       <button class="tbtn" (click)="ui.toggleTheme()">◐ {{ ui.theme() === 'light' ? 'Dark' : 'Light' }}</button>
       <span class="user">{{ auth.username() }} · {{ auth.roleName() }}</span>
-      <button class="tbtn" (click)="auth.logout()">Sign out</button>
+      <button class="tbtn" (click)="auth.logout()">{{ 'action.signout' | t }}</button>
     </header>
 
     <div class="body">
       <nav class="rail">
-        @for (item of nav; track item.path) {
-          <a class="nav-item" [routerLink]="item.path" routerLinkActive="on">
-            <span class="dot"></span>{{ item.label }}
+        @for (item of visibleNav(); track item.path) {
+          <a class="nav-item" [routerLink]="item.path" routerLinkActive="on" [routerLinkActiveOptions]="{ exact: item.path === '/dashboard' }">
+            <span class="dot"></span>{{ item.key | t }}
           </a>
         }
       </nav>
@@ -37,6 +40,7 @@ interface NavItem { label: string; icon: string; path: string; }
     .logo { background: #fff; color: var(--primary-blue); border-radius: var(--r-md); padding: 5px 11px; font: 800 14px var(--disp); letter-spacing: -.02em; }
     .ttl { font: 600 15px var(--disp); padding-inline-start: 16px; border-inline-start: 1px solid rgba(255,255,255,.3); }
     .spacer { flex: 1; }
+    .live { color: #6ee7a8; font-size: 10px; }
     .user { font-size: 12.5px; color: rgba(255,255,255,.9); }
     .tbtn { background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.25); color: #fff; border-radius: 20px;
       padding: 6px 14px; font: 600 12.5px var(--ui); cursor: pointer; }
@@ -51,13 +55,33 @@ interface NavItem { label: string; icon: string; path: string; }
     .content { flex: 1; padding: 24px 28px 60px; }
   `],
 })
-export class ShellComponent {
+export class ShellComponent implements OnDestroy {
   readonly auth = inject(AuthService);
   readonly ui = inject(UiService);
+  readonly rt = inject(RealtimeService);
 
-  readonly nav: NavItem[] = [
-    { label: 'Dashboard', icon: 'grid', path: '/dashboard' },
-    { label: 'Laboratories', icon: 'flask', path: '/labs' },
-    { label: 'Complaints', icon: 'alert', path: '/complaints' },
+  private readonly nav: NavItem[] = [
+    { key: 'nav.dashboard', path: '/dashboard' },
+    { key: 'nav.labs', path: '/labs' },
+    { key: 'nav.reps', path: '/reps', privilege: 'ViewReps' },
+    { key: 'nav.daily', path: '/daily', privilege: 'ViewDailyFollowup' },
+    { key: 'nav.marketing', path: '/marketing', privilege: 'ViewMarketing' },
+    { key: 'nav.complaints', path: '/complaints', privilege: 'ViewComplaints' },
+    { key: 'nav.reports', path: '/reports', privilege: 'ViewReports' },
+    { key: 'nav.notifications', path: '/notifications' },
+    { key: 'nav.setup', path: '/setup', privilege: 'SetupRefs' },
+    { key: 'nav.users', path: '/users', privilege: 'ManageUsers' },
   ];
+
+  constructor() {
+    void this.rt.start();
+  }
+
+  visibleNav(): NavItem[] {
+    return this.nav.filter((n) => !n.privilege || this.auth.has(n.privilege));
+  }
+
+  ngOnDestroy(): void {
+    void this.rt.stop();
+  }
 }

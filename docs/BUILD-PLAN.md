@@ -152,7 +152,7 @@ Application progress: **21 / 21 modules COMPLETE**. 28 app + 37 domain = 65 test
 - [ ] Automated API contract tests (WebApplicationFactory) — verified manually so far
 - [ ] Rate limiting on login; static SPA fallback (pairs with Phase 5 Angular build)
 
-### Phase 5 — Angular frontend  🟡 FOUNDATION DONE (runs vs live API)
+### Phase 5 — Angular frontend  ✅ DONE (runs vs live API; e2e/maps deferred)
 > Angular **19** (Node 20.18.1 caps at 19; ADR-0007 — forward-compatible with 22).
 - [x] Scaffolded `web/` (standalone, signals, strict TS, SCSS); design-system tokens in styles.scss
       ("Arfa Corporate Blue" — full light+dark palette, Encode Sans/Cairo/IBM Plex Mono, RTL-ready)
@@ -164,9 +164,18 @@ Application progress: **21 / 21 modules COMPLETE**. 28 app + 37 domain = 65 test
 - [x] Single-service integration: `ng build` → API wwwroot; API serves SPA + deep-link fallback on **:5088**
       (default-deny preserved for unmapped /api)
 - [x] Verified live: SPA served, proxy forwards, admin login returns token+privileges, assets 200, deep links 200
-- [ ] Remaining screens (reps, daily board, marketing, transfers, setup, users, notifications, reports, e-sign),
-      full EN/AR translation dictionary, SignalR client, Leaflet maps, create/edit forms, unit + e2e tests
-- [ ] Production CSP allowance for Google Fonts (or self-host) when served from the API
+- [x] **i18n (EN/AR)** — I18nService + impure `t` pipe + bilingual dictionary, wired into shell/labs/screens (RTL flips on <body>)
+- [x] **Screens:** Daily Board (check-in/miss/verify actions, privilege-gated), Representatives, Marketing,
+      Notifications (mark read/all), Reports (overview KPIs + rep performance), Setup (ref-data by type),
+      Users; **Lab create form** (typed reactive form) — all via centralized ApiService
+- [x] **SignalR client** (RealtimeService: access-token factory, auto-reconnect, dataChange→tick signal);
+      shell shows live indicator + starts/stops connection
+- [x] Centralized ApiService; privilege-gated nav; CSP updated to allow Google Fonts + ws/wss
+- [x] **Angular unit tests (7, headless Chrome): StatusBadgePipe + AuthService** — passing
+- [x] Fixed Insights overview (Money.Amount can't translate → materialize+sum). Full app builds; single
+      service on :5088 serves SPA + all endpoints (overview/performance/reps/daily/users verified)
+- [ ] Deferred: Leaflet maps (lab geo), e2e (Playwright/Cypress), remaining create/edit forms + e-sign UI,
+      full notification fan-out UI
 
 ### Phase 6 — Cross-cutting & delivery
 > **Publish/run on port 5088, NOT 5080** (5080 is busy on this host — user instruction 2026-08-15).

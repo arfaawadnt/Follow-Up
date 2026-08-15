@@ -33,8 +33,11 @@ public sealed class SecurityHeadersMiddleware
         headers["Referrer-Policy"] = "no-referrer";
         headers["Cross-Origin-Opener-Policy"] = "same-origin";
         headers["Content-Security-Policy"] =
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
-            "img-src 'self' data: https://*.tile.openstreetmap.org; connect-src 'self'; frame-ancestors 'none'";
+            "default-src 'self'; script-src 'self'; " +
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+            "font-src 'self' https://fonts.gstatic.com; " +
+            "img-src 'self' data: https://*.tile.openstreetmap.org; " +
+            "connect-src 'self' ws: wss:; frame-ancestors 'none'";
         await _next(context);
     }
 }

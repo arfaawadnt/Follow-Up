@@ -40,3 +40,25 @@ export interface ComplaintListItem {
   id: string; reference: string; laboratoryId: string; labDisplayCode: string;
   category: string; status: string; stage: string; createdAt: string;
 }
+
+export interface BoardItem {
+  visitId: string; laboratoryId: string; labDisplayCode: string; labName: string;
+  collectorRepId: string | null; visitDate: string; scheduledTime: string;
+  status: string; sampleCount: number | null; adminChecked: boolean;
+}
+
+export interface RepListItem {
+  id: string; fullName: string; type: string; goalDuration: string;
+  isActive: boolean; branch: string | null; governorate: string | null;
+}
+
+export interface MarketingVisit {
+  id: string; laboratoryId: string; labDisplayCode: string; labName: string;
+  representativeId: string; purpose: string; scheduledDate: string; status: string; outcome: string | null;
+}
+
+export interface NotificationItem { id: string; eventKey: string; title: string; body: string; createdAt: string; isRead: boolean; }
+export interface RefItem { id: string; type: string; code: string; nameEn: string; nameAr: string | null; sortOrder: number; }
+export interface UserListItem { id: string; username: string; roleName: string; email: string | null; isActive: boolean; isLocked: boolean; }
+export interface NetworkOverview { totalLabs: number; activeLabs: number; samplesThisMonth: number; incomeThisMonth: number; }
+export interface RepPerformanceRow { repId: string; repName: string; achievementPercent: number; pace: number; onTrack: boolean; salary: number; }
