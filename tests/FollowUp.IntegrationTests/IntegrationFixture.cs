@@ -52,11 +52,18 @@ public sealed class IntegrationFixture : IDisposable
     {
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FollowUpDbContext>();
-        // Clean slate for deterministic assertions. TRUNCATE is refused by the append-only trigger, so we
-        // DELETE — the audit purge is permitted only under the GUC, set in the SAME batch/connection.
+        // Clean slate for deterministic assertions, in FK-safe order (visit_history RESTRICTs laboratory).
+        // TRUNCATE is refused by the append-only trigger, so we DELETE — the audit purge is permitted only
+        // under the GUC, set in the SAME batch/connection.
         await db.Database.ExecuteSqlRawAsync(@"
 SET followup.allow_audit_purge='on';
 DELETE FROM outbox_message;
+DELETE FROM visit_history;
+DELETE FROM daily_visit;
+DELETE FROM monthly_sample;
+DELETE FROM outsource_sample;
+DELETE FROM marketing_visit;
+DELETE FROM complaint;
 DELETE FROM laboratory;
 DELETE FROM audit_entry;");
     }

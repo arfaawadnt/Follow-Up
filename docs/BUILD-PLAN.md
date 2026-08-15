@@ -120,10 +120,19 @@ Application progress: **21 / 21 modules COMPLETE**. 28 app + 37 domain = 65 test
       compensation config (placeholder tiers), reference items; idempotent DatabaseSeeder
 - [x] Read-path + seed integration tests (live DB): scope+segment SQL filtering, ENC masking, dashboard,
       seeder baseline + **admin login end-to-end** (PBKDF2→session→token), idempotency — 72 tests total
-- [ ] Domain-event → MediatR notification dispatch (outbox dispatcher — pairs with Hangfire)
-- [ ] ICurrentUser impl (API layer); sessions wiring in token-auth middleware, rate-limit store
-- [ ] Gateways: SMTP/WhatsApp/Oracle/Maps + IElectronicSignatureGate + IRecordHasher + ISpreadsheetReader
-      + IOracleSyncRunner (currently unimplemented — needed by their handlers at runtime)
+- [x] **Gateways:** SmtpEmailSender, WhatsAppSender (Meta), MapLinkResolver (SSRF host allow-list, no
+      auto-redirect, 5s), XlsxSpreadsheetReader (hand-written, no lib), RecordHasher + ElectronicSignatureGate,
+      ConfiguredOracleReader + OracleSyncRunner (enabled/due/allow-list/audit/status)
+- [x] **Outbox dispatcher** (drains → MediatR notifications, bounded retries JOBS-006); DomainEventNotification
+- [x] **Background jobs (Hangfire, ADR-0004):** BoardService (roll-over + evening missed-sweep JOBS-001),
+      RetentionService (GUC-gated purge, summary-audit-first), 5 thin [DisableConcurrentExecution] job classes,
+      RecurringJobsInitializer (Cairo cron); AddBackgroundJobs kept separate from AddInfrastructure
+- [x] SystemCurrentUser for jobs/seeding (API overrides ICurrentUser)
+- [x] Job/gateway integration tests (live DB): board generate+sweep, outbox drain, xlsx parse — 75 tests total
+- [ ] ICurrentUser impl (API layer, HttpContext); sessions wiring in token-auth middleware, rate-limit store
+- [ ] Notification fan-out (recipient resolution + template render + channel delivery) — dispatcher drains
+      outbox now; full pipeline is a documented simplification pending
+- [ ] OpenTelemetry wiring (Serilog present via API); SignalR hub (Phase 4)
 - [ ] Gateways: SMTP (escaped HTML), WhatsApp (Meta), Oracle (allow-listed SELECTs), Maps (SSRF-guarded)
 - [ ] **Hangfire** jobs (ADR-0004): board-rollover, missed-sweep, notification-dispatcher, oracle-sync, retention
 - [ ] **SignalR** hub (ADR-0003) + group authorization; xlsx reader

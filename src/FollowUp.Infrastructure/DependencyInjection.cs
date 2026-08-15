@@ -11,6 +11,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace FollowUp.Infrastructure;
 
@@ -51,9 +52,34 @@ public static class DependencyInjection
         services.AddSingleton<IAuthPolicy, AuthPolicy>();
         services.AddSingleton<ITokenService, HmacTokenService>();
 
+        // System principal for jobs/seeding; the API overrides ICurrentUser with an HttpContext-backed one.
+        services.TryAddScoped<ICurrentUser, Security.SystemCurrentUser>();
+
         services.AddRepositories();
         services.AddQueries();
+        services.AddGatewaysAndJobs();
         services.AddScoped<Persistence.Seeding.DatabaseSeeder>();
+        return services;
+    }
+
+    private static IServiceCollection AddGatewaysAndJobs(this IServiceCollection services)
+    {
+        services.AddHttpClient();
+
+        // Outbound gateways.
+        services.AddScoped<IEmailSender, Gateways.SmtpEmailSender>();
+        services.AddScoped<IWhatsAppSender, Gateways.WhatsAppSender>();
+        services.AddScoped<IMapLinkResolver, Gateways.MapLinkResolver>();
+        services.AddSingleton<ISpreadsheetReader, Gateways.XlsxSpreadsheetReader>();
+        services.AddScoped<IRecordHasher, Gateways.RecordHasher>();
+        services.AddScoped<IElectronicSignatureGate, Gateways.ElectronicSignatureGate>();
+        services.AddScoped<IOracleReader, Jobs.ConfiguredOracleReader>();
+        services.AddScoped<IOracleSyncRunner, Jobs.OracleSyncRunner>();
+
+        // Background-job orchestration services (the Hangfire jobs invoke these).
+        services.AddScoped<Jobs.BoardService>();
+        services.AddScoped<Jobs.RetentionService>();
+        services.AddScoped<Jobs.OutboxDispatcher>();
         return services;
     }
 
