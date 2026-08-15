@@ -104,6 +104,30 @@ app.MapHangfireDashboard("/jobs", new DashboardOptions
     Authorization = new[] { new LocalRequestsOnlyDashboardAuthorization() },
 });
 
+// SPA fallback: serve the Angular index.html for client routes; keep default-deny for unmapped API paths.
+app.MapFallback(async ctx =>
+{
+    var path = ctx.Request.Path.Value ?? string.Empty;
+    foreach (var prefix in new[] { "/api", "/healthz", "/hubs", "/jobs", "/swagger" })
+    {
+        if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            ctx.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+    }
+    var index = Path.Combine(app.Environment.WebRootPath ?? "wwwroot", "index.html");
+    if (File.Exists(index))
+    {
+        ctx.Response.ContentType = "text/html";
+        await ctx.Response.SendFileAsync(index);
+    }
+    else
+    {
+        ctx.Response.StatusCode = StatusCodes.Status404NotFound;
+    }
+});
+
 app.Run();
 
 public partial class Program;

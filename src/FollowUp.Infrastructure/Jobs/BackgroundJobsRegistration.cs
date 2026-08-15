@@ -16,9 +16,11 @@ public static class BackgroundJobsRegistration
 {
     public static IServiceCollection AddBackgroundJobs(this IServiceCollection services, IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString("FollowUp")
-            ?? Environment.GetEnvironmentVariable("FOLLOWUP_DB")
-            ?? throw new InvalidOperationException("No database connection string for Hangfire storage.");
+        var connectionString = configuration.GetConnectionString("FollowUp");
+        if (string.IsNullOrWhiteSpace(connectionString))
+            connectionString = Environment.GetEnvironmentVariable("FOLLOWUP_DB");
+        if (string.IsNullOrWhiteSpace(connectionString))
+            throw new InvalidOperationException("No database connection string for Hangfire storage.");
 
         services.AddHangfire(cfg => cfg
             .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)

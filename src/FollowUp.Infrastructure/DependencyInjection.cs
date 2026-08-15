@@ -20,10 +20,12 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        // Connection string: ConnectionStrings:FollowUp, else FOLLOWUP_DB env var.
-        var connectionString = configuration.GetConnectionString("FollowUp")
-            ?? Environment.GetEnvironmentVariable("FOLLOWUP_DB")
-            ?? throw new InvalidOperationException("No database connection string configured (ConnectionStrings:FollowUp or FOLLOWUP_DB).");
+        // Connection string: ConnectionStrings:FollowUp, else FOLLOWUP_DB env var (treat empty as absent).
+        var connectionString = configuration.GetConnectionString("FollowUp");
+        if (string.IsNullOrWhiteSpace(connectionString))
+            connectionString = Environment.GetEnvironmentVariable("FOLLOWUP_DB");
+        if (string.IsNullOrWhiteSpace(connectionString))
+            throw new InvalidOperationException("No database connection string configured (ConnectionStrings:FollowUp or FOLLOWUP_DB).");
 
         // Auth options (signing secret validated at token-service construction).
         var authOptions = new AuthOptions();

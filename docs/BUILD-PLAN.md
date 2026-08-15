@@ -152,9 +152,21 @@ Application progress: **21 / 21 modules COMPLETE**. 28 app + 37 domain = 65 test
 - [ ] Automated API contract tests (WebApplicationFactory) — verified manually so far
 - [ ] Rate limiting on login; static SPA fallback (pairs with Phase 5 Angular build)
 
-### Phase 5 — Angular frontend
-- [ ] App shell (64px header, 240px rail), design-system tokens, EN/AR + RTL, light/dark
-- [ ] Auth, module screens, SSE client, maps
+### Phase 5 — Angular frontend  🟡 FOUNDATION DONE (runs vs live API)
+> Angular **19** (Node 20.18.1 caps at 19; ADR-0007 — forward-compatible with 22).
+- [x] Scaffolded `web/` (standalone, signals, strict TS, SCSS); design-system tokens in styles.scss
+      ("Arfa Corporate Blue" — full light+dark palette, Encode Sans/Cairo/IBM Plex Mono, RTL-ready)
+- [x] Core: AuthService (signals, token persist), authInterceptor (Bearer + 401→login), authGuard,
+      UiService (theme + EN/AR dir on <body>), typed models, StatusBadgePipe
+- [x] App shell (64px header + logo chip + theme/lang toggles + sign-out, 240px rail), lazy-loaded routes
+- [x] Features: Login (typed reactive form), Dashboard (KPIs + schedule + complaints), Labs (paged search),
+      Complaints (list) — all wired to /api/v1 via proxy
+- [x] Single-service integration: `ng build` → API wwwroot; API serves SPA + deep-link fallback on **:5088**
+      (default-deny preserved for unmapped /api)
+- [x] Verified live: SPA served, proxy forwards, admin login returns token+privileges, assets 200, deep links 200
+- [ ] Remaining screens (reps, daily board, marketing, transfers, setup, users, notifications, reports, e-sign),
+      full EN/AR translation dictionary, SignalR client, Leaflet maps, create/edit forms, unit + e2e tests
+- [ ] Production CSP allowance for Google Fonts (or self-host) when served from the API
 
 ### Phase 6 — Cross-cutting & delivery
 > **Publish/run on port 5088, NOT 5080** (5080 is busy on this host — user instruction 2026-08-15).

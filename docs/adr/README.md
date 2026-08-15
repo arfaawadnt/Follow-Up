@@ -11,3 +11,4 @@ Architect ruleset. Each ADR: Context · Decision · Alternatives · Consequences
 | [0004](0004-hangfire-for-background-jobs.md) | Hangfire for background jobs (replaces advisory-locked hosted services) | Accepted |
 | [0005](0005-ef-core-aggregate-repositories.md) | EF Core: aggregate repositories + DTO-projecting read services | Accepted |
 | [0006](0006-api-versioning.md) | API versioning under /api/v1 | Accepted |
+| [0007](0007-angular-19-node-constraint.md) | Angular 19 (Node runtime constraint) | Accepted |
