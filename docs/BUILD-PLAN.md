@@ -75,11 +75,14 @@
 - [x] **User & role administration** (FR-2, BR-12): Roles (create/update/delete, built-in & in-use protection);
       Users (create/update/delete/unlock, self password/language); **anti-amplification** (privileges ⊆ caller,
       scope IsWithin caller) + self-role-change block; queries (users/lookup/roles). 4 security tests
+- [x] **Reference & Setup** (FR-18): RefItem create/delete (dup guard), City create/delete, Area create/delete
+      (transfer reps/transportation); list queries (refs/cities/areas, dropdown-open); repos + ISetupQueries
+      — retention run + settings write deferred to pair with Infra
 - [ ] Remaining modules (Application): Auth & sessions, Loyalty/commissions, Lab stats, Test catalogue/stats,
-      Insights (dashboard/reports), Notifications, Oracle integration, Reference/setup, E-signature
+      Insights (dashboard/reports), Notifications, Oracle integration, E-signature
 - [ ] Behaviors needing Infrastructure (Transaction, Idempotency, Audit, Outbox-dispatch) — Phase 3
 
-Application progress: **12 / 21 modules** (…, User & role admin). 16 app tests.
+Application progress: **13 / 21 modules**. 18 app tests.
 
 ### Phase 3 — Infrastructure layer
 - [ ] EF Core DbContext + IEntityTypeConfiguration per aggregate (31 tables), CHECK constraints, indexes,

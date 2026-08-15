@@ -158,3 +158,14 @@ public sealed class FakePasswordHasher : IPasswordHasher
     public bool Verify(string password, PasswordHash hash) =>
         hash.Hash == Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(password));
 }
+
+public sealed class FakeRefItemRepository : IRefItemRepository
+{
+    public readonly List<Domain.Reference.RefItem> Store = new();
+    public Task<Domain.Reference.RefItem?> GetByIdAsync(Domain.Reference.RefItemId id, CancellationToken ct) =>
+        Task.FromResult(Store.FirstOrDefault(r => r.Id == id));
+    public Task<bool> ExistsAsync(Domain.Reference.RefType type, string code, CancellationToken ct) =>
+        Task.FromResult(Store.Any(r => r.Type == type && string.Equals(r.Code, code, StringComparison.OrdinalIgnoreCase)));
+    public void Add(Domain.Reference.RefItem item) => Store.Add(item);
+    public void Remove(Domain.Reference.RefItem item) => Store.Remove(item);
+}
