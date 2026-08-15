@@ -104,8 +104,9 @@ Application progress: **21 / 21 modules COMPLETE**. 28 app + 37 domain = 65 test
       FK policies (12 CASCADE / 8 RESTRICT / 1 SET NULL), strongly-typed-id + Enumeration + VO converters,
       `xmin` row-version concurrency on lab+rep, snake_case naming, 8 jsonb columns for VO collections
 - [x] Migrations: InitialCreate (31 tables) + SchemaHardening (enum CHECK constraints + append-only
-      audit-trail triggers refusing UPDATE/DELETE/TRUNCATE). Idempotent SQL script generates (1033 lines).
-      ⚠ NOT yet applied to a live DB (no Docker daemon / no creds for the existing local Postgres) — pending.
+      audit-trail triggers refusing UPDATE/DELETE/TRUNCATE). **APPLIED & VERIFIED** against a live
+      PostgreSQL 17 dev cluster (port 5442): 31 tables, 21 FKs, 8 CHECKs, 3 audit triggers; append-only
+      immutability and CHECK rejection tested live. See docs/DEV-DATABASE.md.
 - [ ] Aggregate repository impls; TransactionBehavior = UoW (no IUnitOfWork wrapper); read/query impls
 - [ ] **Outbox** table + dispatcher; domain-event → MediatR notification adaptation
 - [ ] Seed (roles, 6 templates, refs); ICurrentUser/IClock impls
