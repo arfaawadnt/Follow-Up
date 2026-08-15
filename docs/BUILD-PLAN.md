@@ -68,13 +68,17 @@
 - [x] **Lab check-in** (FR-7): GetLabCheckIn query + ConfirmReceipt command (derives lab Active)
 - [x] **Outsource** (FR-9): list + create (unique per lab/date) + advance status + delete
 - [x] **Marketing** (FR-10): list (scheduled-first BR-10) + schedule/complete/cancel
+- [x] **Sample tracking** (FR-8): list + lifecycle report; data-entry (single/batch) + advance Review/Sort;
+      area-scope enforcement (EnsureAreaInScope)
+- [x] **Audit** (FR-20): GetAudit query (filtered, admin-only); IAuditQueries
+- [x] **Platform** (FR-21): ResolveMapLink query (authenticated-only; SSRF guard in Infra resolver)
 - [ ] Remaining modules (Application): Auth & sessions, User & role admin (+anti-amplification),
-      Sample tracking, Loyalty/commissions, Lab stats, Test catalogue/stats, Insights (dashboard/reports),
-      Notifications, Oracle integration, Reference/setup, E-signature, Audit, Platform
+      Loyalty/commissions, Lab stats, Test catalogue/stats, Insights (dashboard/reports),
+      Notifications, Oracle integration, Reference/setup, E-signature
 - [ ] Behaviors needing Infrastructure (Transaction, Idempotency, Audit, Outbox-dispatch) — Phase 3
 
-Application progress: **8 / 21 modules** (Laboratories, Representatives, Daily Board, Complaints, Transfers,
-Lab check-in, Outsource, Marketing). 10 app tests.
+Application progress: **11 / 21 modules** (Laboratories, Representatives, Daily Board, Complaints, Transfers,
+Lab check-in, Outsource, Marketing, Sample tracking, Audit, Platform). 12 app tests.
 
 ### Phase 3 — Infrastructure layer
 - [ ] EF Core DbContext + IEntityTypeConfiguration per aggregate (31 tables), CHECK constraints, indexes,

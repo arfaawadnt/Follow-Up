@@ -38,4 +38,12 @@ public static class ScopeGuard
         if (user.RepresentativeId is { } mine && ownerRepId != mine)
             throw new ForbiddenException("This record is not assigned to you.");
     }
+
+    /// <summary>Ensures the caller's area scope permits the given area (SRS FR-8 area allow-list).</summary>
+    public static void EnsureAreaInScope(this ICurrentUser user, string area)
+    {
+        var areas = user.Scope.Areas;
+        if (!areas.Contains(FollowUp.Domain.Identity.OrgScope.Wildcard) && !areas.Contains(area))
+            throw new ForbiddenException("This area is outside your organizational scope.");
+    }
 }

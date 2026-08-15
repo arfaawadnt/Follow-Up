@@ -114,3 +114,13 @@ public sealed class FakeOutsourceSampleRepository : IOutsourceSampleRepository
     public void Add(OutsourceSample sample) => Store.Add(sample);
     public void Remove(OutsourceSample sample) => Store.Remove(sample);
 }
+
+public sealed class FakeSampleTrackingRepository : ISampleTrackingRepository
+{
+    public readonly List<Domain.Operations.SampleTracking> Store = new();
+    public Task<Domain.Operations.SampleTracking?> GetByIdAsync(SampleTrackingId id, CancellationToken ct) =>
+        Task.FromResult(Store.FirstOrDefault(s => s.Id == id));
+    public Task<Domain.Operations.SampleTracking?> GetByAreaDateAsync(string area, DateOnly date, CancellationToken ct) =>
+        Task.FromResult(Store.FirstOrDefault(s => s.Area == area && s.Date == date));
+    public void Add(Domain.Operations.SampleTracking tracking) => Store.Add(tracking);
+}
