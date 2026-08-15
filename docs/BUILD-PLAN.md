@@ -64,12 +64,17 @@
 - [x] **Complaints** module (log + start/resolve/reopen/stage; e-sign gate on resolve via IElectronicSignatureGate;
       list/detail/audit queries; IComplaintRepository) — 3 resolve-gate tests
 - [x] Persistence interfaces added: IOperationsRepositories (visit/outsource/sample-tracking), IComplaintRepository
-- [ ] Remaining modules (Application): Auth & sessions, User & role admin (+anti-amplification), Transfers,
-      Lab check-in, Sample tracking, Outsource, Marketing, Loyalty/commissions, Lab stats, Test catalogue/stats,
-      Insights (dashboard/reports), Notifications, Oracle integration, Reference/setup, E-signature, Audit, Platform
+- [x] **Transfers** (FR-6): GetTransfers query + ConfirmTransfer command (driver details, scope+ownership)
+- [x] **Lab check-in** (FR-7): GetLabCheckIn query + ConfirmReceipt command (derives lab Active)
+- [x] **Outsource** (FR-9): list + create (unique per lab/date) + advance status + delete
+- [x] **Marketing** (FR-10): list (scheduled-first BR-10) + schedule/complete/cancel
+- [ ] Remaining modules (Application): Auth & sessions, User & role admin (+anti-amplification),
+      Sample tracking, Loyalty/commissions, Lab stats, Test catalogue/stats, Insights (dashboard/reports),
+      Notifications, Oracle integration, Reference/setup, E-signature, Audit, Platform
 - [ ] Behaviors needing Infrastructure (Transaction, Idempotency, Audit, Outbox-dispatch) — Phase 3
 
-Application progress: **4 / 21 modules** (Laboratories, Representatives, Daily Board, Complaints). 6 app tests.
+Application progress: **8 / 21 modules** (Laboratories, Representatives, Daily Board, Complaints, Transfers,
+Lab check-in, Outsource, Marketing). 10 app tests.
 
 ### Phase 3 — Infrastructure layer
 - [ ] EF Core DbContext + IEntityTypeConfiguration per aggregate (31 tables), CHECK constraints, indexes,

@@ -3,6 +3,8 @@ using FollowUp.Application.Common.Abstractions.Persistence;
 using FollowUp.Domain.Complaints;
 using FollowUp.Domain.Identity;
 using FollowUp.Domain.Laboratories;
+using FollowUp.Domain.Marketing;
+using FollowUp.Domain.Operations;
 using FollowUp.Domain.Representatives;
 
 namespace FollowUp.Application.Tests.Common;
@@ -74,4 +76,41 @@ public sealed class FakeSignatureGate : IElectronicSignatureGate
     public bool HasValid { get; init; }
     public Task<bool> IsEnforcedAsync(string module, CancellationToken ct) => Task.FromResult(Enforced);
     public Task<bool> HasValidSignatureAsync(string module, string recordId, CancellationToken ct) => Task.FromResult(HasValid);
+}
+
+public sealed class FakeRepresentativeRepository : IRepresentativeRepository
+{
+    public readonly List<Representative> Store = new();
+    public Task<Representative?> GetByIdAsync(RepresentativeId id, CancellationToken ct) =>
+        Task.FromResult(Store.FirstOrDefault(r => r.Id == id));
+    public Task<bool> ExistsAsync(RepresentativeId id, CancellationToken ct) =>
+        Task.FromResult(Store.Any(r => r.Id == id));
+    public void Add(Representative representative) => Store.Add(representative);
+}
+
+public sealed class FakeDailyVisitRepository : IDailyVisitRepository
+{
+    public readonly List<DailyVisit> Store = new();
+    public Task<DailyVisit?> GetByIdAsync(DailyVisitId id, CancellationToken ct) =>
+        Task.FromResult(Store.FirstOrDefault(v => v.Id == id));
+    public void Add(DailyVisit visit) => Store.Add(visit);
+}
+
+public sealed class FakeMarketingVisitRepository : IMarketingVisitRepository
+{
+    public readonly List<MarketingVisit> Store = new();
+    public Task<MarketingVisit?> GetByIdAsync(MarketingVisitId id, CancellationToken ct) =>
+        Task.FromResult(Store.FirstOrDefault(v => v.Id == id));
+    public void Add(MarketingVisit visit) => Store.Add(visit);
+}
+
+public sealed class FakeOutsourceSampleRepository : IOutsourceSampleRepository
+{
+    public readonly List<OutsourceSample> Store = new();
+    public Task<OutsourceSample?> GetByIdAsync(OutsourceSampleId id, CancellationToken ct) =>
+        Task.FromResult(Store.FirstOrDefault(s => s.Id == id));
+    public Task<bool> ExistsForAsync(LaboratoryId labId, DateOnly visitDate, CancellationToken ct) =>
+        Task.FromResult(Store.Any(s => s.LaboratoryId == labId && s.VisitDate == visitDate));
+    public void Add(OutsourceSample sample) => Store.Add(sample);
+    public void Remove(OutsourceSample sample) => Store.Remove(sample);
 }
