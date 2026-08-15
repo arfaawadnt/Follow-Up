@@ -10,3 +10,13 @@ public interface IDomainEvent
     /// <summary>When the event occurred (UTC).</summary>
     DateTimeOffset OccurredOn { get; }
 }
+
+/// <summary>
+/// Non-generic access to an entity's raised domain events, so infrastructure (the outbox interceptor) can
+/// collect them without knowing the entity's id type.
+/// </summary>
+public interface IHasDomainEvents
+{
+    IReadOnlyCollection<IDomainEvent> DomainEvents { get; }
+    void ClearDomainEvents();
+}

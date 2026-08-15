@@ -69,6 +69,9 @@ public sealed class FollowUpDbContext : DbContext
     public DbSet<NotificationDeliveryLog> DeliveryLogs => Set<NotificationDeliveryLog>();
     public DbSet<OracleConfig> OracleConfigs => Set<OracleConfig>();
 
+    // Infrastructure
+    public DbSet<Outbox.OutboxMessage> OutboxMessages => Set<Outbox.OutboxMessage>();
+
     protected override void ConfigureConventions(ModelConfigurationBuilder c)
     {
         // Value objects

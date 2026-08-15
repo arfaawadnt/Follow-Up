@@ -107,18 +107,26 @@ Application progress: **21 / 21 modules COMPLETE**. 28 app + 37 domain = 65 test
       audit-trail triggers refusing UPDATE/DELETE/TRUNCATE). **APPLIED & VERIFIED** against a live
       PostgreSQL 17 dev cluster (port 5442): 31 tables, 21 FKs, 8 CHECKs, 3 audit triggers; append-only
       immutability and CHECK rejection tested live. See docs/DEV-DATABASE.md.
-- [ ] Aggregate repository impls; TransactionBehavior = UoW (no IUnitOfWork wrapper); read/query impls
-- [ ] **Outbox** table + dispatcher; domain-event → MediatR notification adaptation
-- [ ] Seed (roles, 6 templates, refs); ICurrentUser/IClock impls
-- [ ] Auth: PBKDF2-SHA256 (100k), HMAC-SHA256 token (~10h), sessions, lockout, rate-limit store
+- [x] Aggregate repository impls (26); TransactionBehavior = UoW (no IUnitOfWork wrapper); DbOutbox
+- [x] AuditAndOutboxInterceptor: provenance stamps + immutable audit entry per change + domain-events→outbox,
+      all in one transaction; outbox_message table + migration (AddOutbox, applied)
+- [x] IClock (Cairo), PBKDF2-SHA256 hasher (100k), HMAC-SHA256 token service (~10h, secret from config),
+      AuthPolicy; AddInfrastructure DI composition
+- [x] **Integration tests (live DB):** create-lab persists state+contacts+audit+outbox atomically;
+      duplicate rolls back with no partial state — 2 passing (67 total)
+- [ ] read/query impls (per-module DTO projections)
+- [ ] Domain-event → MediatR notification dispatch (outbox dispatcher — pairs with Hangfire)
+- [ ] Seed (roles, 6 templates, refs); ICurrentUser impl (API layer)
+- [ ] Auth remaining: sessions wiring in token-auth middleware, lockout surfacing, rate-limit store
 - [ ] Gateways: SMTP (escaped HTML), WhatsApp (Meta), Oracle (allow-listed SELECTs), Maps (SSRF-guarded)
 - [ ] **Hangfire** jobs (ADR-0004): board-rollover, missed-sweep, notification-dispatcher, oracle-sync, retention
 - [ ] **SignalR** hub (ADR-0003) + group authorization; xlsx reader
 - [ ] Serilog + **OpenTelemetry** (HTTP, EF, MediatR, Hangfire, SignalR) wiring
 
 ### Phase 4 — API layer
+> **Serve on port 5088** (NOT 5080 — busy on this host, user instruction 2026-08-15).
 - [ ] Middleware pipeline (exception→Problem Details, security headers/CSP, correlation, rate-limit,
-      token auth, default-deny + privilege, endpoint + scope)
+      token auth, default-deny + privilege, endpoint + scope); ICurrentUser impl (HttpContext-backed)
 - [ ] Thin endpoint classes per module under **/api/v1**; route policy table (116 routes); OpenAPI + versioning
 - [ ] Health endpoints (live/ready/version); static SPA hosting; SignalR hub mapping; secured Hangfire dashboard
 
@@ -127,12 +135,15 @@ Application progress: **21 / 21 modules COMPLETE**. 28 app + 37 domain = 65 test
 - [ ] Auth, module screens, SSE client, maps
 
 ### Phase 6 — Cross-cutting & delivery
-- [ ] Integration tests, Dockerfile (multi-stage), CI (build/test/architecture-conformance), seed & run on :5080
+> **Publish/run on port 5088, NOT 5080** (5080 is busy on this host — user instruction 2026-08-15).
+> Dockerfile `EXPOSE 5088`, `ASPNETCORE_URLS=http://+:5088`, host mapping `-p 5088:5088`.
+- [ ] Integration tests (started — write path green), Dockerfile (multi-stage), CI (build/test/
+      architecture-conformance), seed & run on **:5088**
 
 ## Current position
-Phases 1 & 2 COMPLETE. Domain: every bounded context (~30 aggregates), all state machines, authz model.
-Application: all **21 modules** (CQRS commands/queries, validators, DTOs, read interfaces, aggregate repos,
-scope+ownership+anti-amplification), MediatR behaviors (authorization/validation/logging). **65 tests**,
-clean build (0 warnings). Next: **Phase 3 (Infrastructure)** — EF Core DbContext + configs (31 tables) +
-migrations, repository/query implementations, Transaction/Idempotency/Audit/Outbox behaviors, PBKDF2/token
-auth, gateways (SMTP/WhatsApp/Oracle/Maps), Hangfire jobs, SignalR hub, OpenTelemetry.
+Phases 1 & 2 COMPLETE. Phase 3 well underway: EF Core model + migrations (31 tables) **applied & verified
+live**; all 26 aggregate repositories; TransactionBehavior (UoW); AuditAndOutboxInterceptor (audit trail +
+outbox atomic); PBKDF2 hasher, HMAC token service, Cairo clock; DI composition. **67 tests** (37 domain +
+28 app + 2 live integration), clean build. Remaining Phase 3: read/query implementations, outbox dispatcher,
+seed data, gateways (SMTP/WhatsApp/Oracle/Maps), Hangfire jobs, SignalR hub, OpenTelemetry. Then Phase 4
+(API on **:5088**) and Phase 5 (Angular).

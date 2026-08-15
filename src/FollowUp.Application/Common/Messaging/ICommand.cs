@@ -2,11 +2,14 @@ using MediatR;
 
 namespace FollowUp.Application.Common.Messaging;
 
+/// <summary>Non-generic marker so infrastructure behaviors (transaction) can identify write requests.</summary>
+public interface IBaseCommand { }
+
 /// <summary>A command that changes state and returns a result (CQRS write side).</summary>
-public interface ICommand<out TResponse> : IRequest<TResponse> { }
+public interface ICommand<out TResponse> : IRequest<TResponse>, IBaseCommand { }
 
 /// <summary>A command that changes state without returning a payload.</summary>
-public interface ICommand : IRequest<Unit> { }
+public interface ICommand : IRequest<Unit>, IBaseCommand { }
 
 /// <summary>Handler for a <see cref="ICommand{TResponse}"/>.</summary>
 public interface ICommandHandler<in TCommand, TResponse> : IRequestHandler<TCommand, TResponse>

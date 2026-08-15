@@ -4,7 +4,7 @@ namespace FollowUp.Domain.Common;
 /// Base class for domain entities. Identity-based equality and a private domain-event buffer.
 /// </summary>
 /// <typeparam name="TId">The strongly-typed identifier of the entity.</typeparam>
-public abstract class Entity<TId> : IEquatable<Entity<TId>>
+public abstract class Entity<TId> : IEquatable<Entity<TId>>, IHasDomainEvents
     where TId : notnull
 {
     private readonly List<IDomainEvent> _domainEvents = new();
