@@ -39,14 +39,18 @@ public sealed class UserSession : AggregateRoot<UserSessionId>
     public string? Ip { get; private set; }
     public string? UserAgent { get; private set; }
 
-    public static UserSession Issue(AppUserId userId, string tokenHash, DateTimeOffset issuedAt,
+    /// <summary>
+    /// Issues a session with an explicit id. The id is generated first so it can be embedded in the signed
+    /// token, whose hash is then stored here — the raw token is never persisted.
+    /// </summary>
+    public static UserSession Issue(UserSessionId id, AppUserId userId, string tokenHash, DateTimeOffset issuedAt,
         DateTimeOffset expiresAt, string? ip, string? userAgent)
     {
         if (string.IsNullOrWhiteSpace(tokenHash))
             throw new DomainException("Session token hash is required.");
         if (expiresAt <= issuedAt)
             throw new DomainException("Session expiry must be after issuance.");
-        return new UserSession(UserSessionId.New(), userId, tokenHash, issuedAt, expiresAt, ip, userAgent);
+        return new UserSession(id, userId, tokenHash, issuedAt, expiresAt, ip, userAgent);
     }
 
     public bool IsActive(DateTimeOffset now) => RevokedAt is null && ExpiresAt > now;

@@ -15,6 +15,9 @@ public interface ICurrentUser
     string Username { get; }
     RoleId RoleId { get; }
 
+    /// <summary>The session backing the current request's token (used by logout).</summary>
+    UserSessionId? SessionId { get; }
+
     /// <summary>Effective (expanded) privileges the caller holds.</summary>
     IReadOnlySet<string> Privileges { get; }
 

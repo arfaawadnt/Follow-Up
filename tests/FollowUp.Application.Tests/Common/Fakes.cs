@@ -37,6 +37,7 @@ public sealed class FakeCurrentUser : ICurrentUser
     public AppUserId UserId { get; init; } = AppUserId.New();
     public string Username { get; init; } = "tester";
     public RoleId RoleId { get; init; } = RoleId.New();
+    public UserSessionId? SessionId { get; init; }
     public IReadOnlySet<string> Privileges { get; init; } = new HashSet<string>();
     public OrgScope Scope { get; init; } = OrgScope.Global;
     public RepresentativeId? RepresentativeId { get; init; }
@@ -157,6 +158,50 @@ public sealed class FakePasswordHasher : IPasswordHasher
     public PasswordHash Hash(string password) => new("FAKE", 1, "c2FsdA==", Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(password)));
     public bool Verify(string password, PasswordHash hash) =>
         hash.Hash == Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(password));
+}
+
+public sealed class FakeUserSessionRepository : IUserSessionRepository
+{
+    public readonly List<UserSession> Store = new();
+    public Task<UserSession?> GetByIdAsync(UserSessionId id, CancellationToken ct) =>
+        Task.FromResult(Store.FirstOrDefault(s => s.Id == id));
+    public Task<UserSession?> GetActiveByTokenHashAsync(string tokenHash, CancellationToken ct) =>
+        Task.FromResult(Store.FirstOrDefault(s => s.TokenHash == tokenHash));
+    public void Add(UserSession session) => Store.Add(session);
+}
+
+public sealed class FakeTokenService : ITokenService
+{
+    public IssuedToken Issue(AppUserId userId, UserSessionId sessionId, DateTimeOffset issuedAt) =>
+        new($"tok-{sessionId.Value}", $"hash-{sessionId.Value}", issuedAt.AddHours(10));
+    public UserSessionId? ReadSessionId(string token) => null;
+    public string HashToken(string token) => $"h:{token}";
+}
+
+public sealed class FakeAuthPolicy : IAuthPolicy
+{
+    public int MaxFailedAttempts { get; init; } = 10;
+    public TimeSpan LockoutWindow { get; init; } = TimeSpan.FromMinutes(15);
+    public TimeSpan TokenLifetime { get; init; } = TimeSpan.FromHours(10);
+}
+
+public sealed class FakeElectronicSignatureRepository : IElectronicSignatureRepository
+{
+    public readonly List<Domain.Signatures.ElectronicSignature> Store = new();
+    public void Add(Domain.Signatures.ElectronicSignature signature) => Store.Add(signature);
+    public Task<Domain.Signatures.ElectronicSignature?> GetLatestAsync(string module, string recordId, CancellationToken ct) =>
+        Task.FromResult(Store.Where(s => s.Module == module && s.RecordId == recordId)
+            .OrderByDescending(s => s.SignedAt).FirstOrDefault());
+}
+
+/// <summary>Record hasher whose returned hash/version can be changed to simulate a record edit.</summary>
+public sealed class FakeRecordHasher : IRecordHasher
+{
+    public string Hash { get; set; } = "HASH-1";
+    public uint Version { get; set; } = 1;
+    public bool Exists { get; set; } = true;
+    public Task<(string ContentHash, uint Version)?> ComputeAsync(string module, string recordId, CancellationToken ct) =>
+        Task.FromResult(Exists ? ((string, uint)?)(Hash, Version) : null);
 }
 
 public sealed class FakeRefItemRepository : IRefItemRepository

@@ -78,11 +78,15 @@
 - [x] **Reference & Setup** (FR-18): RefItem create/delete (dup guard), City create/delete, Area create/delete
       (transfer reps/transportation); list queries (refs/cities/areas, dropdown-open); repos + ISetupQueries
       — retention run + settings write deferred to pair with Infra
-- [ ] Remaining modules (Application): Auth & sessions, Loyalty/commissions, Lab stats, Test catalogue/stats,
-      Insights (dashboard/reports), Notifications, Oracle integration, E-signature
+- [x] **Auth & sessions** (FR-1): Login (lockout, PBKDF2 verify, session+token issue, effective privileges/scope),
+      Logout (revoke current session), GetMySessions; IAuthPolicy; ISessionQueries — 3 tests
+- [x] **E-signature** (FR-19): SignRecord (re-auth + server-computed hash/version, meaning/reason binding),
+      VerifySignature (tamper evidence); IRecordHasher, IElectronicSignatureRepository — 2 tests
+- [ ] Remaining modules (Application): Loyalty/commissions, Lab stats, Test catalogue/stats,
+      Insights (dashboard/reports), Notifications, Oracle integration
 - [ ] Behaviors needing Infrastructure (Transaction, Idempotency, Audit, Outbox-dispatch) — Phase 3
 
-Application progress: **13 / 21 modules**. 18 app tests.
+Application progress: **15 / 21 modules**. 23 app tests.
 
 ### Phase 3 — Infrastructure layer
 - [ ] EF Core DbContext + IEntityTypeConfiguration per aggregate (31 tables), CHECK constraints, indexes,
