@@ -26,6 +26,12 @@ public interface INotificationDeliveryLogRepository
     void Add(NotificationDeliveryLog log);
 }
 
+/// <summary>Read access to bilingual notification templates by their stable event key (SRS FR-16).</summary>
+public interface INotificationTemplateRepository
+{
+    Task<NotificationTemplate?> GetByEventKeyAsync(string eventKey, CancellationToken ct);
+}
+
 /// <summary>Aggregate repository for the singleton <see cref="Domain.Integration.OracleConfig"/>.</summary>
 public interface IOracleConfigRepository
 {

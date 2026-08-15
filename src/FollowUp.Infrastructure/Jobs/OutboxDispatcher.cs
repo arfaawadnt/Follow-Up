@@ -1,4 +1,5 @@
 using System.Text.Json;
+using FollowUp.Application.Common.Messaging;
 using FollowUp.Domain.Common;
 using FollowUp.Infrastructure.Persistence;
 using MediatR;
@@ -66,6 +67,3 @@ public sealed class OutboxDispatcher
             .SelectMany(a => a.GetTypes())
             .FirstOrDefault(t => t.Name == shortName && typeof(IDomainEvent).IsAssignableFrom(t));
 }
-
-/// <summary>Wraps a domain event so it can be published through MediatR without the Domain referencing MediatR.</summary>
-public sealed record DomainEventNotification(IDomainEvent DomainEvent) : INotification;

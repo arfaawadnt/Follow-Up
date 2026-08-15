@@ -56,6 +56,10 @@ public static class DependencyInjection
 
         // System principal for jobs/seeding; the API overrides ICurrentUser with an HttpContext-backed one.
         services.TryAddScoped<ICurrentUser, Security.SystemCurrentUser>();
+        // No-op realtime by default; the API overrides with the SignalR implementation.
+        services.TryAddScoped<IRealtimeNotifier, Notifications.NullRealtimeNotifier>();
+        services.AddScoped<INotificationTemplateRepository, Notifications.NotificationTemplateRepository>();
+        services.AddScoped<INotificationRecipients, Notifications.NotificationRecipients>();
 
         services.AddRepositories();
         services.AddQueries();

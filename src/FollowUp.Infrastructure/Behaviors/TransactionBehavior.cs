@@ -1,3 +1,4 @@
+using FollowUp.Application.Common.Abstractions;
 using FollowUp.Application.Common.Messaging;
 using FollowUp.Infrastructure.Persistence;
 using MediatR;
@@ -14,8 +15,13 @@ public sealed class TransactionBehavior<TRequest, TResponse> : IPipelineBehavior
     where TRequest : notnull
 {
     private readonly FollowUpDbContext _dbContext;
+    private readonly IRealtimeNotifier _realtime;
 
-    public TransactionBehavior(FollowUpDbContext dbContext) => _dbContext = dbContext;
+    public TransactionBehavior(FollowUpDbContext dbContext, IRealtimeNotifier realtime)
+    {
+        _dbContext = dbContext;
+        _realtime = realtime;
+    }
 
     public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken ct)
     {
@@ -25,13 +31,17 @@ public sealed class TransactionBehavior<TRequest, TResponse> : IPipelineBehavior
         // A single SaveChanges is atomic; wrap explicitly so a handler that performs several operations —
         // and the audit/outbox writes triggered on save — commit or roll back together.
         var strategy = _dbContext.Database.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        var response = await strategy.ExecuteAsync(async () =>
         {
             await using var transaction = await _dbContext.Database.BeginTransactionAsync(ct);
-            var response = await next();
+            var r = await next();
             await _dbContext.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
-            return response;
+            return r;
         });
+
+        // Post-commit refetch hint to connected clients (Workflows §2.1). Best-effort — never fail the command.
+        try { await _realtime.DataChangedAsync(typeof(TRequest).Name, ct); } catch { /* hints are best-effort */ }
+        return response;
     }
 }

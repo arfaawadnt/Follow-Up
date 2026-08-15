@@ -33,6 +33,7 @@ builder.Services.AddBackgroundJobs(builder.Configuration);
 // API concerns.
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, CurrentUser>(); // overrides Infrastructure's SystemCurrentUser for HTTP
+builder.Services.AddScoped<IRealtimeNotifier, FollowUp.Api.Realtime.SignalRRealtimeNotifier>(); // overrides the no-op
 builder.Services.AddSignalR();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

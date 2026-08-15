@@ -130,8 +130,12 @@ Application progress: **21 / 21 modules COMPLETE**. 28 app + 37 domain = 65 test
 - [x] SystemCurrentUser for jobs/seeding (API overrides ICurrentUser)
 - [x] Job/gateway integration tests (live DB): board generate+sweep, outbox drain, xlsx parse — 75 tests total
 - [ ] ICurrentUser impl (API layer, HttpContext); sessions wiring in token-auth middleware, rate-limit store
-- [ ] Notification fan-out (recipient resolution + template render + channel delivery) — dispatcher drains
-      outbox now; full pipeline is a documented simplification pending
+- [x] **Notification fan-out** — DomainEventNotificationHandler maps events→template+recipients (by privilege),
+      honours per-user channel prefs, writes the in-app feed + SignalR push + Mail/WhatsApp delivery logs;
+      lab codes masked before external egress, email vars HTML-escaped (JOBS-003). **Verified live** (complaint
+      → feed entry after the dispatcher) + an integration test
+- [x] **Real-time broadcasts** — IRealtimeNotifier (SignalR in API, no-op elsewhere); TransactionBehavior
+      pushes a `dataChange` hint after every committed command (Workflows §2.1); handler pushes per-user `notification`
 - [ ] OpenTelemetry wiring (Serilog present via API); SignalR hub (Phase 4)
 - [ ] Gateways: SMTP (escaped HTML), WhatsApp (Meta), Oracle (allow-listed SELECTs), Maps (SSRF-guarded)
 - [ ] **Hangfire** jobs (ADR-0004): board-rollover, missed-sweep, notification-dispatcher, oracle-sync, retention
@@ -198,5 +202,9 @@ dashboard) + Angular SPA (i18n, all screens, SignalR client) + delivery (Dockerf
 **87 tests** (37 domain + 28 application + 5 architecture + 10 live integration + 7 Angular). Runs as a single
 service on **:5088** (SPA + API + jobs), verified end-to-end against a live PostgreSQL 17.
 
-Remaining polish (not blocking): Leaflet maps, e2e suite, remaining create/edit forms + e-sign UI, full
-notification fan-out (recipient/template/channel delivery); `docker build`/CI run pending a Docker daemon.
+**Post-completion hardening:** notification fan-out + real-time `dataChange`/`notification` broadcasts are now
+implemented and verified live (was the #1 gap). Docker image build verified in WSL2.
+
+Remaining polish (not blocking): Leaflet maps, e2e suite, remaining create/edit forms + e-sign UI, the missing
+update/upload/settings/retention endpoints + optimistic-concurrency flow, IdempotencyBehavior, login
+rate-limiting, and the missing test categories (validator/authorization/idempotency/concurrency/API-contract).

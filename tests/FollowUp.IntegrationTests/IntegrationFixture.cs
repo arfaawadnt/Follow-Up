@@ -40,6 +40,7 @@ public sealed class IntegrationFixture : IDisposable
 
         var services = new ServiceCollection();
         services.AddLogging();
+        services.AddSingleton<IConfiguration>(config); // the real host registers this; gateways depend on it
         services.AddApplication();
         services.AddInfrastructure(config);
         services.AddScoped<ICurrentUser>(_ => TestCurrentUser);
@@ -58,6 +59,8 @@ public sealed class IntegrationFixture : IDisposable
         await db.Database.ExecuteSqlRawAsync(@"
 SET followup.allow_audit_purge='on';
 DELETE FROM outbox_message;
+DELETE FROM system_notification;
+DELETE FROM notification_delivery_log;
 DELETE FROM visit_history;
 DELETE FROM daily_visit;
 DELETE FROM monthly_sample;
