@@ -1,0 +1,35 @@
+# Single-service app (SPA + API + jobs) on :5088 with its own PostgreSQL 17.
+# Provide FOLLOWUP_AUTH_SECRET (and optionally FOLLOWUP_ADMIN_PASSWORD) via the environment or a .env file.
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: followup
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-followup_dev}
+      POSTGRES_DB: followup
+    volumes:
+      - followup-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U followup -d followup"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # The API applies migrations + seeds on startup, so a fresh DB is provisioned automatically.
+      FOLLOWUP_DB: "Host=db;Port=5432;Database=followup;Username=followup;Password=${DB_PASSWORD:-followup_dev}"
+      FOLLOWUP_AUTH_SECRET: "${FOLLOWUP_AUTH_SECRET:?set a strong signing secret}"
+      FOLLOWUP_ADMIN_PASSWORD: "${FOLLOWUP_ADMIN_PASSWORD:-ChangeMe_Admin_2026!}"
+      ASPNETCORE_ENVIRONMENT: Production
+    ports:
+      - "5088:5088"
+
+volumes:
+  followup-pgdata:

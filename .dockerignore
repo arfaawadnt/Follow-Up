@@ -1,0 +1,17 @@
+**/bin
+**/obj
+**/node_modules
+**/dist
+**/.angular
+src/FollowUp.Api/wwwroot
+.git
+.github
+.vs
+.idea
+logs
+tests
+docs
+*.md
+*.html
+*.png
+*.docx

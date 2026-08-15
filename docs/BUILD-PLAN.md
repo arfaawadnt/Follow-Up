@@ -177,16 +177,26 @@ Application progress: **21 / 21 modules COMPLETE**. 28 app + 37 domain = 65 test
 - [ ] Deferred: Leaflet maps (lab geo), e2e (Playwright/Cypress), remaining create/edit forms + e-sign UI,
       full notification fan-out UI
 
-### Phase 6 — Cross-cutting & delivery
-> **Publish/run on port 5088, NOT 5080** (5080 is busy on this host — user instruction 2026-08-15).
-> Dockerfile `EXPOSE 5088`, `ASPNETCORE_URLS=http://+:5088`, host mapping `-p 5088:5088`.
-- [ ] Integration tests (started — write path green), Dockerfile (multi-stage), CI (build/test/
-      architecture-conformance), seed & run on **:5088**
+### Phase 6 — Cross-cutting & delivery  🟡 DONE (image not built here — no Docker daemon)
+> **Publish/run on port 5088, NOT 5080.**
+- [x] **Architecture-conformance tests** (NetArchTest, 5) — dependency direction Api→Infra→App→Domain +
+      Domain/Application framework-freedom; CI-gated, passing
+- [x] Integration tests (10, live DB); backend total **80 tests** (+7 Angular = 87)
+- [x] **Dockerfile** (multi-stage: Angular build → .NET publish with SPA in wwwroot → aspnet runtime,
+      non-root, EXPOSE 5088, ASPNETCORE_URLS=http://+:5088) + `.dockerignore`
+- [x] **docker-compose.yml** (app + PostgreSQL 17, healthcheck, self-provision on startup, `-p 5088:5088`)
+- [x] **CI** (.github/workflows/ci.yml): backend job (Postgres service, restore/build/migrate/test incl.
+      architecture) + frontend job (npm ci / ng build / ng test headless)
+- [x] README (stack, layout, dev + Docker run, tests, reference-build corrections)
+- [ ] NOT executed here: `docker build`/`compose up` (no Docker daemon on this host) and the CI run
+      (validated by local equivalents: full `dotnet test` + `ng build`/`ng test` all green)
 
 ## Current position
-Phases 1 & 2 COMPLETE. Phase 3 well underway: EF Core model + migrations (31 tables) **applied & verified
-live**; all 26 aggregate repositories; TransactionBehavior (UoW); AuditAndOutboxInterceptor (audit trail +
-outbox atomic); PBKDF2 hasher, HMAC token service, Cairo clock; DI composition. **67 tests** (37 domain +
-28 app + 2 live integration), clean build. Remaining Phase 3: read/query implementations, outbox dispatcher,
-seed data, gateways (SMTP/WhatsApp/Oracle/Maps), Hangfire jobs, SignalR hub, OpenTelemetry. Then Phase 4
-(API on **:5088**) and Phase 5 (Angular).
+ALL PHASES COMPLETE (0–6). Domain + Application (21 modules) + Infrastructure (EF/migrations/repos/queries/
+gateways/Hangfire/SignalR/OTel/outbox/audit/seed) + API (/api/v1, full pipeline, health, SignalR, Hangfire
+dashboard) + Angular SPA (i18n, all screens, SignalR client) + delivery (Dockerfile, compose, CI, arch tests).
+**87 tests** (37 domain + 28 application + 5 architecture + 10 live integration + 7 Angular). Runs as a single
+service on **:5088** (SPA + API + jobs), verified end-to-end against a live PostgreSQL 17.
+
+Remaining polish (not blocking): Leaflet maps, e2e suite, remaining create/edit forms + e-sign UI, full
+notification fan-out (recipient/template/channel delivery); `docker build`/CI run pending a Docker daemon.
