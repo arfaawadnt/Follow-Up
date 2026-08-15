@@ -99,12 +99,16 @@
 
 Application progress: **21 / 21 modules COMPLETE**. 28 app + 37 domain = 65 tests passing.
 
-### Phase 3 — Infrastructure layer
-- [ ] EF Core DbContext + IEntityTypeConfiguration per aggregate (31 tables), CHECK constraints, indexes,
-      FK policies (RESTRICT/CASCADE/SET NULL), strongly-typed-id + Enumeration + VO converters, row-version
+### Phase 3 — Infrastructure layer  🟡 IN PROGRESS
+- [x] EF Core DbContext (31 DbSets) + IEntityTypeConfiguration per aggregate (31 tables), indexes,
+      FK policies (12 CASCADE / 8 RESTRICT / 1 SET NULL), strongly-typed-id + Enumeration + VO converters,
+      `xmin` row-version concurrency on lab+rep, snake_case naming, 8 jsonb columns for VO collections
+- [x] Migrations: InitialCreate (31 tables) + SchemaHardening (enum CHECK constraints + append-only
+      audit-trail triggers refusing UPDATE/DELETE/TRUNCATE). Idempotent SQL script generates (1033 lines).
+      ⚠ NOT yet applied to a live DB (no Docker daemon / no creds for the existing local Postgres) — pending.
 - [ ] Aggregate repository impls; TransactionBehavior = UoW (no IUnitOfWork wrapper); read/query impls
 - [ ] **Outbox** table + dispatcher; domain-event → MediatR notification adaptation
-- [ ] Migrations (idempotent provisioning), audit immutability triggers, seed (roles, 6 templates, refs)
+- [ ] Seed (roles, 6 templates, refs); ICurrentUser/IClock impls
 - [ ] Auth: PBKDF2-SHA256 (100k), HMAC-SHA256 token (~10h), sessions, lockout, rate-limit store
 - [ ] Gateways: SMTP (escaped HTML), WhatsApp (Meta), Oracle (allow-listed SELECTs), Maps (SSRF-guarded)
 - [ ] **Hangfire** jobs (ADR-0004): board-rollover, missed-sweep, notification-dispatcher, oracle-sync, retention
