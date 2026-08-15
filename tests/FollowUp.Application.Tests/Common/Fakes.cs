@@ -160,6 +160,31 @@ public sealed class FakePasswordHasher : IPasswordHasher
         hash.Hash == Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(password));
 }
 
+public sealed class FakeRepCommissionRepository : IRepCommissionRepository
+{
+    public readonly List<Domain.Compensation.RepCommission> Store = new();
+    public Task<Domain.Compensation.RepCommission?> GetAsync(RepresentativeId repId, Domain.Common.YearMonth period, CancellationToken ct) =>
+        Task.FromResult(Store.FirstOrDefault(c => c.RepresentativeId == repId && c.Period == period));
+    public void Add(Domain.Compensation.RepCommission commission) => Store.Add(commission);
+}
+
+public sealed class FakeCompensationConfigRepository : ICompensationConfigRepository
+{
+    public Domain.Compensation.CompensationConfig? Config;
+    public Task<Domain.Compensation.CompensationConfig?> GetAsync(CancellationToken ct) => Task.FromResult(Config);
+    public void Add(Domain.Compensation.CompensationConfig config) => Config = config;
+}
+
+public sealed class FakeCompensationData : ICompensationData
+{
+    public int LabAchieved { get; init; }
+    public int RepAchieved { get; init; }
+    public Task<int> GetLabAchievedSamplesAsync(LaboratoryId labId, Domain.Common.YearMonth period, CancellationToken ct) =>
+        Task.FromResult(LabAchieved);
+    public Task<int> GetRepAchievedSamplesAsync(RepresentativeId repId, Domain.Common.YearMonth period, CancellationToken ct) =>
+        Task.FromResult(RepAchieved);
+}
+
 public sealed class FakeUserSessionRepository : IUserSessionRepository
 {
     public readonly List<UserSession> Store = new();

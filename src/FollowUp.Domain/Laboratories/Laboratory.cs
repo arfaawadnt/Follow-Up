@@ -116,6 +116,13 @@ public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAudit
         LoyaltyTier = tier;
     }
 
+    /// <summary>Sets the monthly loyalty target only (SRS FR-12 set-target), leaving computed points/tier intact.</summary>
+    public void SetMonthlyTarget(int monthlyTarget)
+    {
+        if (monthlyTarget < 0) throw new DomainException("Loyalty target cannot be negative.");
+        MonthlyTarget = monthlyTarget;
+    }
+
     /// <summary>Explicit status change through the validated set (audited by the caller).</summary>
     public void ChangeStatus(LaboratoryStatus status)
     {

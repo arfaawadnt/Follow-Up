@@ -82,11 +82,17 @@
       Logout (revoke current session), GetMySessions; IAuthPolicy; ISessionQueries — 3 tests
 - [x] **E-signature** (FR-19): SignRecord (re-auth + server-computed hash/version, meaning/reason binding),
       VerifySignature (tamper evidence); IRecordHasher, IElectronicSignatureRepository — 2 tests
-- [ ] Remaining modules (Application): Loyalty/commissions, Lab stats, Test catalogue/stats,
-      Insights (dashboard/reports), Notifications, Oracle integration
+- [x] **Loyalty & commissions** (FR-12, BR-9): CompensationCalculator domain service (loyalty tier/points,
+      commission+bonus); SetLabTarget, RecalculateLoyalty, SaveCommission (server-side recompute),
+      SetCompensationConfig; ledger/commission/config queries; ICompensationData/repos — 4 tests
+- [x] **Lab stats** (FR-13): GetLabStats + ImportLabStats (xlsx via ISpreadsheetReader, upsert by date+code,
+      summary with skipped/warnings)
+- [x] **Test catalogue/stats** (FR-14): TestGroup CRUD (delete ungroups its setups), TestSetup CRUD,
+      ImportTestStats; queries
+- [ ] Remaining modules (Application): Insights (dashboard/reports), Notifications, Oracle integration
 - [ ] Behaviors needing Infrastructure (Transaction, Idempotency, Audit, Outbox-dispatch) — Phase 3
 
-Application progress: **15 / 21 modules**. 23 app tests.
+Application progress: **18 / 21 modules**. 24 app + 37 domain tests.
 
 ### Phase 3 — Infrastructure layer
 - [ ] EF Core DbContext + IEntityTypeConfiguration per aggregate (31 tables), CHECK constraints, indexes,
