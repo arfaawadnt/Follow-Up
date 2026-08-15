@@ -32,7 +32,7 @@
 - [x] Central package management, Directory.Build.props, global.json, .gitignore
 - [x] Clean build, 0 warnings
 
-### Phase 1 — Domain layer  🟡 IN PROGRESS
+### Phase 1 — Domain layer  ✅ DONE
 - [x] SeedWork: Entity, AggregateRoot, ValueObject, Enumeration, IDomainEvent, DomainException, IAuditable, Money, GeoLocation
 - [x] Status VOs w/ transition rules: LaboratoryStatus(8, inferred), VisitStatus(4), ComplaintStatus(3),
       MarketingVisitStatus(3), OutsourceStatus(3), RepresentativeType(4)+GoalDuration, SignatureMeaning(5),
@@ -43,10 +43,11 @@
 - [x] Privileges catalogue (~45) + expansion rules
 - [x] Domain events (Lab/Visit/Complaint/Marketing)
 - [x] Domain unit tests — 24 passing (state machines, scope, privilege expansion, lockout, lab code)
-- [ ] Remaining aggregates: UserSession, SampleTracking, MonthlySample, Statistics (daily_lab_statistic,
-      test_statistic, test_group, test_setup), Compensation (LabLoyaltyLedger, RepCommission),
-      Reference (RefItem, City, Area, AppSetting), Notifications (Template, Preference, SystemNotification,
-      DeliveryLog), Integration (OracleConfig), Audit (AuditEntry), ElectronicSignature, VisitHistory
+- [x] Remaining aggregates: UserSession, AuditEntry, ElectronicSignature (version-bound), VisitHistory,
+      SampleTracking, MonthlySample, DailyLabStatistic, TestStatistic, TestGroup, TestSetup,
+      LabLoyaltyLedger, RepCommission, CompensationConfig, RefItem/City/Area/AppSetting,
+      NotificationTemplate/Preference/SystemNotification/DeliveryLog, OracleConfig (+AllowListedQuery)
+- [x] Shared VOs: YearMonth. All 34 domain tests passing.
 
 ### Phase 2 — Application layer
 - [ ] Abstractions: aggregate repository interfaces (per root), read/query interfaces (DTO projections),
@@ -83,6 +84,7 @@
 - [ ] Integration tests, Dockerfile (multi-stage), CI (build/test/architecture-conformance), seed & run on :5080
 
 ## Current position
-Phase 1 ~70% — SeedWork, all specified state machines, the authorization model (OrgScope + Privileges),
-and 8 aggregates done with 24 passing tests. Next: remaining aggregates (statistics, compensation,
-reference, notifications, integration, audit, e-signature, sessions, sample tracking), then Phase 2 (Application).
+Phase 1 (Domain) COMPLETE — every bounded context modeled: ~30 aggregates/entities, all state machines,
+the authorization model (OrgScope + Privileges), value objects, domain events; 34 passing tests; clean
+build under warnings-as-errors. Next: Phase 2 (Application) — abstractions, MediatR pipeline behaviors,
+then commands/queries per module.
