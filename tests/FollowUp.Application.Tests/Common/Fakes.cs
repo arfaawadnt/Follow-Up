@@ -160,6 +160,23 @@ public sealed class FakePasswordHasher : IPasswordHasher
         hash.Hash == Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(password));
 }
 
+public sealed class FakeSystemNotificationRepository : ISystemNotificationRepository
+{
+    public readonly List<Domain.Notifications.SystemNotification> Store = new();
+    public Task<Domain.Notifications.SystemNotification?> GetByIdAsync(Domain.Notifications.SystemNotificationId id, CancellationToken ct) =>
+        Task.FromResult(Store.FirstOrDefault(n => n.Id == id));
+    public Task<IReadOnlyList<Domain.Notifications.SystemNotification>> GetUnreadForUserAsync(AppUserId userId, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Domain.Notifications.SystemNotification>>(Store.Where(n => n.RecipientUserId == userId && !n.IsRead).ToList());
+    public void Add(Domain.Notifications.SystemNotification notification) => Store.Add(notification);
+}
+
+public sealed class FakeOracleConfigRepository : IOracleConfigRepository
+{
+    public Domain.Integration.OracleConfig? Config;
+    public Task<Domain.Integration.OracleConfig?> GetAsync(CancellationToken ct) => Task.FromResult(Config);
+    public void Add(Domain.Integration.OracleConfig config) => Config = config;
+}
+
 public sealed class FakeRepCommissionRepository : IRepCommissionRepository
 {
     public readonly List<Domain.Compensation.RepCommission> Store = new();

@@ -198,6 +198,14 @@ public sealed class NotificationDeliveryLog : AggregateRoot<NotificationDelivery
         LastAttemptAt = when;
     }
 
+    /// <summary>Resets a failed delivery to Pending so the dispatcher re-attempts it (manual retry, JOBS-006).</summary>
+    public void RequeueForRetry()
+    {
+        if (Status == "Sent")
+            throw new DomainException("A delivered notification cannot be retried.");
+        Status = "Pending";
+    }
+
     /// <summary>Whether the dispatcher should retry (failed and under the bounded attempt ceiling).</summary>
     public bool ShouldRetry(int maxAttempts) => Status == "Failed" && Attempts < maxAttempts;
 }

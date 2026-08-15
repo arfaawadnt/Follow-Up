@@ -49,7 +49,7 @@
       NotificationTemplate/Preference/SystemNotification/DeliveryLog, OracleConfig (+AllowListedQuery)
 - [x] Shared VOs: YearMonth. All 34 domain tests passing.
 
-### Phase 2 — Application layer  🟡 IN PROGRESS
+### Phase 2 — Application layer  ✅ DONE (all 21 modules; Infra-dependent behaviors deferred to Phase 3)
 - [x] CQRS base: ICommand/IQuery/handlers, IAuthorizedRequest; application exceptions
       (NotFound/Forbidden/Unauthorized/Conflict/Validation)
 - [x] Abstractions: ICurrentUser, IClock, IOutbox, IPasswordHasher/ITokenService,
@@ -89,10 +89,15 @@
       summary with skipped/warnings)
 - [x] **Test catalogue/stats** (FR-14): TestGroup CRUD (delete ungroups its setups), TestSetup CRUD,
       ImportTestStats; queries
-- [ ] Remaining modules (Application): Insights (dashboard/reports), Notifications, Oracle integration
+- [x] **Insights** (FR-15): dashboard + 4 reports (overview/performance/lab-history/rep-intervals);
+      IInsightsQueries; scope + encrypted-alias aware
+- [x] **Notifications** (FR-16): feed (self), mark-read (ownership), mark-all, preferences get/update,
+      gateways (masked)/logs/retry (RequeueForRetry, JOBS-006); notification repos
+- [x] **Oracle integration** (FR-17): GetConfig (never returns connection string), UpdateConfig
+      (enable+interval only), SyncNow (IOracleSyncRunner); IOracleConfigRepository
 - [ ] Behaviors needing Infrastructure (Transaction, Idempotency, Audit, Outbox-dispatch) — Phase 3
 
-Application progress: **18 / 21 modules**. 24 app + 37 domain tests.
+Application progress: **21 / 21 modules COMPLETE**. 28 app + 37 domain = 65 tests passing.
 
 ### Phase 3 — Infrastructure layer
 - [ ] EF Core DbContext + IEntityTypeConfiguration per aggregate (31 tables), CHECK constraints, indexes,
@@ -120,7 +125,9 @@ Application progress: **18 / 21 modules**. 24 app + 37 domain tests.
 - [ ] Integration tests, Dockerfile (multi-stage), CI (build/test/architecture-conformance), seed & run on :5080
 
 ## Current position
-Phase 1 (Domain) COMPLETE — every bounded context modeled: ~30 aggregates/entities, all state machines,
-the authorization model (OrgScope + Privileges), value objects, domain events; 34 passing tests; clean
-build under warnings-as-errors. Next: Phase 2 (Application) — abstractions, MediatR pipeline behaviors,
-then commands/queries per module.
+Phases 1 & 2 COMPLETE. Domain: every bounded context (~30 aggregates), all state machines, authz model.
+Application: all **21 modules** (CQRS commands/queries, validators, DTOs, read interfaces, aggregate repos,
+scope+ownership+anti-amplification), MediatR behaviors (authorization/validation/logging). **65 tests**,
+clean build (0 warnings). Next: **Phase 3 (Infrastructure)** — EF Core DbContext + configs (31 tables) +
+migrations, repository/query implementations, Transaction/Idempotency/Audit/Outbox behaviors, PBKDF2/token
+auth, gateways (SMTP/WhatsApp/Oracle/Maps), Hangfire jobs, SignalR hub, OpenTelemetry.
