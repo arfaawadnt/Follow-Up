@@ -52,6 +52,31 @@ public static class DependencyInjection
         services.AddSingleton<ITokenService, HmacTokenService>();
 
         services.AddRepositories();
+        services.AddQueries();
+        services.AddScoped<Persistence.Seeding.DatabaseSeeder>();
+        return services;
+    }
+
+    private static IServiceCollection AddQueries(this IServiceCollection services)
+    {
+        services.AddScoped<Application.Features.Laboratories.Contracts.ILaboratoryQueries, Persistence.Queries.LaboratoryQueries>();
+        services.AddScoped<Application.Features.Representatives.Contracts.IRepresentativeQueries, Persistence.Queries.RepresentativeQueries>();
+        services.AddScoped<Application.Features.DailyBoard.Contracts.IDailyBoardQueries, Persistence.Queries.DailyBoardQueries>();
+        services.AddScoped<Application.Features.Transfers.ITransferQueries, Persistence.Queries.TransferQueries>();
+        services.AddScoped<Application.Features.LabCheckIn.ILabCheckInQueries, Persistence.Queries.LabCheckInQueries>();
+        services.AddScoped<Application.Features.Outsource.IOutsourceQueries, Persistence.Queries.OutsourceQueries>();
+        services.AddScoped<Application.Features.SampleTracking.ISampleTrackingQueries, Persistence.Queries.SampleTrackingQueries>();
+        services.AddScoped<Application.Features.Complaints.Contracts.IComplaintQueries, Persistence.Queries.ComplaintQueries>();
+        services.AddScoped<Application.Features.Marketing.IMarketingQueries, Persistence.Queries.MarketingQueries>();
+        services.AddScoped<Application.Features.UserAdmin.Queries.IUserAdminQueries, Persistence.Queries.UserAdminQueries>();
+        services.AddScoped<Application.Features.Setup.ISetupQueries, Persistence.Queries.SetupQueries>();
+        services.AddScoped<Application.Features.Audit.IAuditQueries, Persistence.Queries.AuditQueries>();
+        services.AddScoped<Application.Features.Auth.ISessionQueries, Persistence.Queries.SessionQueries>();
+        services.AddScoped<Application.Features.LabStats.ILabStatsQueries, Persistence.Queries.LabStatsQueries>();
+        services.AddScoped<Application.Features.TestCatalogue.ITestCatalogueQueries, Persistence.Queries.TestCatalogueQueries>();
+        services.AddScoped<Application.Features.Compensation.ICompensationQueries, Persistence.Queries.CompensationQueries>();
+        services.AddScoped<Application.Features.Notifications.INotificationQueries, Persistence.Queries.NotificationQueries>();
+        services.AddScoped<Application.Features.Insights.IInsightsQueries, Persistence.Queries.InsightsQueries>();
         return services;
     }
 

@@ -114,10 +114,16 @@ Application progress: **21 / 21 modules COMPLETE**. 28 app + 37 domain = 65 test
       AuthPolicy; AddInfrastructure DI composition
 - [x] **Integration tests (live DB):** create-lab persists state+contacts+audit+outbox atomically;
       duplicate rolls back with no partial state — 2 passing (67 total)
-- [ ] read/query impls (per-module DTO projections)
+- [x] **Read/query implementations (18 query services)** — DTO projections, no IQueryable leak; ScopeFilter
+      pushes the 6-dimension scope into SQL (incl. enum IN); ENC alias post-projection; dashboard/reports/insights
+- [x] **Seed data** — 4 roles (Admin built-in + Ops/Collector/Marketing), admin login, 6 bilingual templates,
+      compensation config (placeholder tiers), reference items; idempotent DatabaseSeeder
+- [x] Read-path + seed integration tests (live DB): scope+segment SQL filtering, ENC masking, dashboard,
+      seeder baseline + **admin login end-to-end** (PBKDF2→session→token), idempotency — 72 tests total
 - [ ] Domain-event → MediatR notification dispatch (outbox dispatcher — pairs with Hangfire)
-- [ ] Seed (roles, 6 templates, refs); ICurrentUser impl (API layer)
-- [ ] Auth remaining: sessions wiring in token-auth middleware, lockout surfacing, rate-limit store
+- [ ] ICurrentUser impl (API layer); sessions wiring in token-auth middleware, rate-limit store
+- [ ] Gateways: SMTP/WhatsApp/Oracle/Maps + IElectronicSignatureGate + IRecordHasher + ISpreadsheetReader
+      + IOracleSyncRunner (currently unimplemented — needed by their handlers at runtime)
 - [ ] Gateways: SMTP (escaped HTML), WhatsApp (Meta), Oracle (allow-listed SELECTs), Maps (SSRF-guarded)
 - [ ] **Hangfire** jobs (ADR-0004): board-rollover, missed-sweep, notification-dispatcher, oracle-sync, retention
 - [ ] **SignalR** hub (ADR-0003) + group authorization; xlsx reader
