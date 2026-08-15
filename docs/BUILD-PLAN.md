@@ -49,14 +49,20 @@
       NotificationTemplate/Preference/SystemNotification/DeliveryLog, OracleConfig (+AllowListedQuery)
 - [x] Shared VOs: YearMonth. All 34 domain tests passing.
 
-### Phase 2 — Application layer
-- [ ] Abstractions: aggregate repository interfaces (per root), read/query interfaces (DTO projections),
-      ICurrentUser, IClock, IOutbox, gateways (mail/whatsapp/oracle/maps), IPasswordHasher/ITokenService
-- [ ] MediatR pipeline behaviors: Validation, AuthContext, Authorization, Logging, Tracing, Transaction,
-      Idempotency, Audit, ExceptionMapping, Performance
-- [ ] Privilege model (~45) + expansion [done in Domain]; 6-dimension scope evaluator [OrgScope done]
-- [ ] Commands/Queries per module (21 modules, 116 endpoints), DTOs, validators
-- [ ] Result/envelope types (Problem Details, bounded paged lists max 1000, sorting/filtering)
+### Phase 2 — Application layer  🟡 IN PROGRESS
+- [x] CQRS base: ICommand/IQuery/handlers, IAuthorizedRequest; application exceptions
+      (NotFound/Forbidden/Unauthorized/Conflict/Validation)
+- [x] Abstractions: ICurrentUser, IClock, IOutbox, IPasswordHasher/ITokenService,
+      gateways (IEmailSender/IWhatsAppSender/IOracleReader/IMapLinkResolver), ILaboratoryRepository
+- [x] Behaviors (Application-side): Authorization, Validation, Logging/Performance; AddApplication DI
+- [x] Models: PagedResult/ListQuery (bounded 1000); ScopeGuard (record-level scope)
+- [x] **Exemplar slice — Laboratories:** Create (uniqueness BR-1 + scope + contacts + schedule),
+      ChangeStatus, GetLaboratories, GetLaboratoryById (+ ILaboratoryQueries read interface); 3 handler tests
+- [ ] Remaining aggregate repositories + read/query interfaces per module
+- [ ] Commands/Queries for the other 20 modules (auth/users, reps, daily board, transfers, lab check-in,
+      sample tracking, outsource, marketing, complaints, loyalty/commissions, stats, catalogue, insights,
+      notifications, oracle, setup, e-sign, audit, platform), DTOs, validators
+- [ ] Behaviors needing Infrastructure (Transaction, Idempotency, Audit, Outbox-dispatch) — Phase 3
 
 ### Phase 3 — Infrastructure layer
 - [ ] EF Core DbContext + IEntityTypeConfiguration per aggregate (31 tables), CHECK constraints, indexes,
