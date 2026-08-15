@@ -1,6 +1,7 @@
 using FollowUp.Application.Common.Abstractions;
 using FollowUp.Application.Common.Exceptions;
 using FollowUp.Domain.Laboratories;
+using FollowUp.Domain.Representatives;
 
 namespace FollowUp.Application.Common.Security;
 
@@ -26,5 +27,15 @@ public static class ScopeGuard
     {
         if (!user.Scope.Allows(branch, governorate, city, area, category, segment))
             throw new ForbiddenException("The target location is outside your organizational scope.");
+    }
+
+    /// <summary>
+    /// For rep-linked accounts, ensures the record is owned by the caller's representative (SRS Layer 3
+    /// ownership). Office/supervisor accounts (not rep-linked) are not constrained by ownership.
+    /// </summary>
+    public static void EnsureOwnedIfRepLinked(this ICurrentUser user, RepresentativeId? ownerRepId)
+    {
+        if (user.RepresentativeId is { } mine && ownerRepId != mine)
+            throw new ForbiddenException("This record is not assigned to you.");
     }
 }

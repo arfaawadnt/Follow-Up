@@ -58,11 +58,18 @@
 - [x] Models: PagedResult/ListQuery (bounded 1000); ScopeGuard (record-level scope)
 - [x] **Exemplar slice — Laboratories:** Create (uniqueness BR-1 + scope + contacts + schedule),
       ChangeStatus, GetLaboratories, GetLaboratoryById (+ ILaboratoryQueries read interface); 3 handler tests
-- [ ] Remaining aggregate repositories + read/query interfaces per module
-- [ ] Commands/Queries for the other 20 modules (auth/users, reps, daily board, transfers, lab check-in,
-      sample tracking, outsource, marketing, complaints, loyalty/commissions, stats, catalogue, insights,
-      notifications, oracle, setup, e-sign, audit, platform), DTOs, validators
+- [x] **Representatives** module (create + list; repo + queries)
+- [x] **Daily Board** module (check-in/miss/undo/verify commands with scope+ownership; board query + suggest;
+      IDailyVisitRepository, IDailyBoardQueries)
+- [x] **Complaints** module (log + start/resolve/reopen/stage; e-sign gate on resolve via IElectronicSignatureGate;
+      list/detail/audit queries; IComplaintRepository) — 3 resolve-gate tests
+- [x] Persistence interfaces added: IOperationsRepositories (visit/outsource/sample-tracking), IComplaintRepository
+- [ ] Remaining modules (Application): Auth & sessions, User & role admin (+anti-amplification), Transfers,
+      Lab check-in, Sample tracking, Outsource, Marketing, Loyalty/commissions, Lab stats, Test catalogue/stats,
+      Insights (dashboard/reports), Notifications, Oracle integration, Reference/setup, E-signature, Audit, Platform
 - [ ] Behaviors needing Infrastructure (Transaction, Idempotency, Audit, Outbox-dispatch) — Phase 3
+
+Application progress: **4 / 21 modules** (Laboratories, Representatives, Daily Board, Complaints). 6 app tests.
 
 ### Phase 3 — Infrastructure layer
 - [ ] EF Core DbContext + IEntityTypeConfiguration per aggregate (31 tables), CHECK constraints, indexes,
