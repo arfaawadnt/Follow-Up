@@ -124,3 +124,37 @@ public sealed class FakeSampleTrackingRepository : ISampleTrackingRepository
         Task.FromResult(Store.FirstOrDefault(s => s.Area == area && s.Date == date));
     public void Add(Domain.Operations.SampleTracking tracking) => Store.Add(tracking);
 }
+
+public sealed class FakeRoleRepository : IRoleRepository
+{
+    public readonly List<Role> Store = new();
+    public HashSet<RoleId> InUse { get; } = new();
+    public Task<Role?> GetByIdAsync(RoleId id, CancellationToken ct) => Task.FromResult(Store.FirstOrDefault(r => r.Id == id));
+    public Task<Role?> GetByNameAsync(string name, CancellationToken ct) =>
+        Task.FromResult(Store.FirstOrDefault(r => string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase)));
+    public Task<bool> IsInUseAsync(RoleId id, CancellationToken ct) => Task.FromResult(InUse.Contains(id));
+    public void Add(Role role) => Store.Add(role);
+    public void Remove(Role role) => Store.Remove(role);
+}
+
+public sealed class FakeAppUserRepository : IAppUserRepository
+{
+    public readonly List<AppUser> Store = new();
+    public Task<AppUser?> GetByIdAsync(AppUserId id, CancellationToken ct) => Task.FromResult(Store.FirstOrDefault(u => u.Id == id));
+    public Task<AppUser?> GetByUsernameAsync(string username, CancellationToken ct) =>
+        Task.FromResult(Store.FirstOrDefault(u => string.Equals(u.Username, username, StringComparison.OrdinalIgnoreCase)));
+    public Task<bool> UsernameExistsAsync(string username, CancellationToken ct) =>
+        Task.FromResult(Store.Any(u => string.Equals(u.Username, username, StringComparison.OrdinalIgnoreCase)));
+    public Task<bool> AnyLinkedToRepAsync(RepresentativeId repId, CancellationToken ct) =>
+        Task.FromResult(Store.Any(u => u.RepresentativeId == repId));
+    public void Add(AppUser user) => Store.Add(user);
+    public void Remove(AppUser user) => Store.Remove(user);
+}
+
+/// <summary>Deterministic password hasher stub (not real crypto; Infra provides PBKDF2).</summary>
+public sealed class FakePasswordHasher : IPasswordHasher
+{
+    public PasswordHash Hash(string password) => new("FAKE", 1, "c2FsdA==", Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(password)));
+    public bool Verify(string password, PasswordHash hash) =>
+        hash.Hash == Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(password));
+}
