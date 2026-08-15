@@ -46,8 +46,9 @@ public sealed class AuditAndOutboxInterceptor : SaveChangesInterceptor
         var correlationId = _currentUser.CorrelationId;
 
         // Snapshot the tracked aggregate changes BEFORE we add audit/outbox rows (so they aren't re-processed).
+        // UserSession is excluded — last-seen touches and session bookkeeping are not business audit events.
         var entries = context.ChangeTracker.Entries()
-            .Where(e => e.Entity is not AuditEntry and not OutboxMessage)
+            .Where(e => e.Entity is not AuditEntry and not OutboxMessage and not Domain.Identity.UserSession)
             .Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
             .ToList();
 

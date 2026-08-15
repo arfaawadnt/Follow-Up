@@ -1,15 +1,109 @@
-// Follow-Up Management System — API host.
-// The full middleware pipeline (exception→RFC7807, security headers/CSP, correlation id, rate-limit,
-// token auth, default-deny + privilege, endpoint + scope), endpoint classes and SPA hosting are built
-// in Phase 4 (see docs/BUILD-PLAN.md). This is the minimal bootstrap that composes the layers.
+using FollowUp.Api.Auth;
+using FollowUp.Api.Endpoints;
+using FollowUp.Api.Middleware;
+using FollowUp.Api.Realtime;
+using FollowUp.Application;
+using FollowUp.Application.Common.Abstractions;
+using FollowUp.Infrastructure;
+using FollowUp.Infrastructure.Jobs;
+using FollowUp.Infrastructure.Persistence;
+using FollowUp.Infrastructure.Persistence.Seeding;
+using Hangfire;
+using Microsoft.EntityFrameworkCore;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Serve on 5088 (5080 is busy on this host).
+builder.WebHost.UseUrls(Environment.GetEnvironmentVariable("ASPNETCORE_URLS") ?? "http://localhost:5088");
+
+builder.Host.UseSerilog((ctx, cfg) => cfg
+    .ReadFrom.Configuration(ctx.Configuration)
+    .Enrich.FromLogContext()
+    .WriteTo.Console()
+    .WriteTo.File("logs/followup-.log", rollingInterval: Serilog.RollingInterval.Day, retainedFileCountLimit: 14));
+
+// Layers.
+builder.Services.AddApplication();
+builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddBackgroundJobs(builder.Configuration);
+
+// API concerns.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUser, CurrentUser>(); // overrides Infrastructure's SystemCurrentUser for HTTP
+builder.Services.AddSignalR();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
+    .WithOrigins(builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? new[] { "http://localhost:4200" })
+    .AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
+
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(r => r.AddService("FollowUp"))
+    .WithTracing(t => t
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddSource("FollowUp"));
+
 var app = builder.Build();
 
-app.MapGet("/healthz/live", () => Results.Ok(new { status = "live" }));
+// Self-provision: apply migrations and seed baseline (NFR-REL-1).
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<FollowUpDbContext>();
+    await db.Database.MigrateAsync();
+    var adminPassword = Environment.GetEnvironmentVariable("FOLLOWUP_ADMIN_PASSWORD") ?? "ChangeMe_Admin_2026!";
+    var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
+    var created = await seeder.SeedAsync(adminPassword);
+    if (created is not null)
+        Log.Warning("Seeded built-in admin '{Admin}' — change its password immediately.", created);
+}
+
+// Pipeline (order matters — architect request-pipeline).
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseMiddleware<CorrelationMiddleware>();
+app.UseMiddleware<SecurityHeadersMiddleware>();
+app.UseSerilogRequestLogging();
+app.UseCors();
+app.UseDefaultFiles();
+app.UseStaticFiles();
+app.UseMiddleware<TokenAuthMiddleware>();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+// Health + platform (anonymous, unversioned).
+app.MapHealthEndpoints();
+
+// Versioned API surface under /api/v1 (ADR-0006).
+var api = app.MapGroup("/api/v1");
+api.MapAuthEndpoints();
+api.MapLaboratoryEndpoints();
+api.MapInsightsEndpoints();
+api.MapMapsEndpoints();
+api.MapOperationsEndpoints();
+api.MapComplaintEndpoints();
+api.MapSignatureEndpoints();
+api.MapNotificationEndpoints();
+api.MapUserAdminEndpoints();
+api.MapSetupEndpoints();
+api.MapAuditEndpoints();
+api.MapCompensationEndpoints();
+api.MapStatsEndpoints();
+api.MapIntegrationEndpoints();
+
+app.MapHub<NotificationsHub>("/hubs/notifications");
+app.MapHangfireDashboard("/jobs", new DashboardOptions
+{
+    Authorization = new[] { new LocalRequestsOnlyDashboardAuthorization() },
+});
 
 app.Run();
 
-// Exposed for integration tests (WebApplicationFactory).
 public partial class Program;

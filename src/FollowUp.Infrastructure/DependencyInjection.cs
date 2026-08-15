@@ -134,6 +134,7 @@ public static class DependencyInjection
         services.AddScoped<INotificationDeliveryLogRepository, NotificationDeliveryLogRepository>();
         services.AddScoped<IOracleConfigRepository, OracleConfigRepository>();
         services.AddScoped<IElectronicSignatureRepository, ElectronicSignatureRepository>();
+        services.AddScoped<ICompensationData, CompensationData>();
         return services;
     }
 }

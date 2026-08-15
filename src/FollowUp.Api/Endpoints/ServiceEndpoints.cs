@@ -1,0 +1,62 @@
+using FollowUp.Application.Features.Complaints.Commands;
+using FollowUp.Application.Features.Complaints.Queries;
+using FollowUp.Application.Features.Notifications;
+using FollowUp.Application.Features.Signatures;
+using MediatR;
+
+namespace FollowUp.Api.Endpoints;
+
+public static class ServiceEndpoints
+{
+    public sealed record StageBody(string Stage);
+    public sealed record SignBody(string Module, string RecordId, string Meaning, string? Reason, string Password);
+    public sealed record PreferenceBody(string EventKey, bool System, bool Mail, bool WhatsApp);
+
+    public static void MapComplaintEndpoints(this RouteGroupBuilder api)
+    {
+        api.MapGet("/complaints", async (int? page, int? pageSize, string? status, string? category, Guid? laboratoryId, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetComplaintsQuery { Page = page ?? 1, PageSize = pageSize ?? 50, Status = status, Category = category, LaboratoryId = laboratoryId }, ct))).WithTags("Complaints");
+        api.MapGet("/complaints/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetComplaintByIdQuery(id), ct))).WithTags("Complaints");
+        api.MapGet("/complaints/{id:guid}/audit", async (Guid id, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetComplaintAuditQuery(id), ct))).WithTags("Complaints");
+        api.MapPost("/complaints", async (LogComplaintCommand cmd, IMediator m, CancellationToken ct) =>
+        { var reference = await m.Send(cmd, ct); return Results.Created($"/api/v1/complaints", new { reference }); }).WithTags("Complaints");
+        api.MapPost("/complaints/{id:guid}/start", async (Guid id, IMediator m, CancellationToken ct) =>
+        { await m.Send(new StartComplaintCommand(id), ct); return Results.NoContent(); }).WithTags("Complaints");
+        api.MapPost("/complaints/{id:guid}/resolve", async (Guid id, IMediator m, CancellationToken ct) =>
+        { await m.Send(new ResolveComplaintCommand(id), ct); return Results.NoContent(); }).WithTags("Complaints");
+        api.MapPost("/complaints/{id:guid}/reopen", async (Guid id, IMediator m, CancellationToken ct) =>
+        { await m.Send(new ReopenComplaintCommand(id), ct); return Results.NoContent(); }).WithTags("Complaints");
+        api.MapPost("/complaints/{id:guid}/stage", async (Guid id, StageBody b, IMediator m, CancellationToken ct) =>
+        { await m.Send(new MoveComplaintStageCommand(id, b.Stage), ct); return Results.NoContent(); }).WithTags("Complaints");
+    }
+
+    public static void MapSignatureEndpoints(this RouteGroupBuilder api)
+    {
+        api.MapPost("/esign/sign", async (SignBody b, IMediator m, CancellationToken ct) =>
+        { var id = await m.Send(new SignRecordCommand(b.Module, b.RecordId, b.Meaning, b.Reason, b.Password), ct); return Results.Ok(new { id }); }).WithTags("Signatures");
+        api.MapGet("/esign/{module}/{recordId}", async (string module, string recordId, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new VerifySignatureQuery(module, recordId), ct))).WithTags("Signatures");
+    }
+
+    public static void MapNotificationEndpoints(this RouteGroupBuilder api)
+    {
+        api.MapGet("/notifications", async (bool? unreadOnly, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetNotificationsQuery(unreadOnly ?? false), ct))).WithTags("Notifications");
+        api.MapPost("/notifications/{id:guid}/read", async (Guid id, IMediator m, CancellationToken ct) =>
+        { await m.Send(new MarkNotificationReadCommand(id), ct); return Results.NoContent(); }).WithTags("Notifications");
+        api.MapPost("/notifications/read-all", async (IMediator m, CancellationToken ct) =>
+        { await m.Send(new MarkAllNotificationsReadCommand(), ct); return Results.NoContent(); }).WithTags("Notifications");
+        api.MapGet("/notifications/preferences", async (IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetNotificationPreferencesQuery(), ct))).WithTags("Notifications");
+        api.MapPut("/notifications/preferences", async (PreferenceBody b, IMediator m, CancellationToken ct) =>
+        { await m.Send(new UpdateNotificationPreferenceCommand(b.EventKey, b.System, b.Mail, b.WhatsApp), ct); return Results.NoContent(); }).WithTags("Notifications");
+        api.MapGet("/notifications/gateways", async (IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetNotificationGatewaysQuery(), ct))).WithTags("Notifications");
+        api.MapGet("/notifications/logs", async (IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetDeliveryLogsQuery(), ct))).WithTags("Notifications");
+        api.MapPost("/notifications/logs/{id:guid}/retry", async (Guid id, IMediator m, CancellationToken ct) =>
+        { await m.Send(new RetryDeliveryCommand(id), ct); return Results.NoContent(); }).WithTags("Notifications");
+    }
+}

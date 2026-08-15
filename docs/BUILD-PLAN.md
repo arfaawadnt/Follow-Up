@@ -138,12 +138,19 @@ Application progress: **21 / 21 modules COMPLETE**. 28 app + 37 domain = 65 test
 - [ ] **SignalR** hub (ADR-0003) + group authorization; xlsx reader
 - [ ] Serilog + **OpenTelemetry** (HTTP, EF, MediatR, Hangfire, SignalR) wiring
 
-### Phase 4 — API layer
-> **Serve on port 5088** (NOT 5080 — busy on this host, user instruction 2026-08-15).
-- [ ] Middleware pipeline (exception→Problem Details, security headers/CSP, correlation, rate-limit,
-      token auth, default-deny + privilege, endpoint + scope); ICurrentUser impl (HttpContext-backed)
-- [ ] Thin endpoint classes per module under **/api/v1**; route policy table (116 routes); OpenAPI + versioning
-- [ ] Health endpoints (live/ready/version); static SPA hosting; SignalR hub mapping; secured Hangfire dashboard
+### Phase 4 — API layer  🟡 MOSTLY DONE (running & verified on :5088)
+> **Serves on port 5088** (NOT 5080 — busy on this host).
+- [x] Middleware pipeline: ExceptionHandling→Problem Details (RFC 7807, no leak), Correlation, SecurityHeaders/CSP,
+      Serilog request logging, CORS, static files, **TokenAuthMiddleware** (HMAC validate → session check →
+      re-read privileges/scope from DB per request), ICurrentUser (HttpContext-backed; system principal for jobs)
+- [x] Thin endpoint classes for all 21 modules under **/api/v1** (~105 mapped routes + 3 health); OpenAPI/Swagger
+- [x] Health (live/ready/version), SignalR NotificationsHub (/hubs/notifications, authenticated), secured
+      Hangfire dashboard (/jobs), OpenTelemetry tracing (ASP.NET Core + HttpClient), self-provision
+      (Migrate + Seed on startup)
+- [x] **Verified live over HTTP:** login (seeded admin → HMAC token + privileges/scope), auth gate (401),
+      create/list labs, create complaint (CMP-1), dashboard, setup refs, RFC 7807 validation errors
+- [ ] Automated API contract tests (WebApplicationFactory) — verified manually so far
+- [ ] Rate limiting on login; static SPA fallback (pairs with Phase 5 Angular build)
 
 ### Phase 5 — Angular frontend
 - [ ] App shell (64px header, 240px rail), design-system tokens, EN/AR + RTL, light/dark
