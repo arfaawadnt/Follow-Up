@@ -223,5 +223,14 @@ retention (GET/PUT min-30, POST run). 4 new integration tests (85 backend total)
   `IdempotencyTests` (same-key dedup). Full suite green: Domain 37, Application 35, Architecture 5,
   Integration 16 = **93 backend** + 7 Angular = 100.
 
-Remaining polish (not blocking): Leaflet maps, e2e suite, remaining Angular create/edit forms + e-sign UI,
-API contract tests (WebApplicationFactory).
+**Frontend depth #3 (2026-08-16):** filling the Angular screen gaps in batches (all build clean, 7 unit tests green).
+- **Batch A** — live notification badge (`NotificationStore`, unread count refreshed on real-time tick);
+  complaints workflow (log-complaint form + start/resolve/reopen/advance-stage); marketing (schedule form +
+  complete/cancel).
+- **Batch B** — laboratory detail/edit screen: profile + contacts view, inline edit carrying `RowVersion`
+  (409 → reload prompt), status change, PNG/JPEG image upload; list rows open the detail.
+- **Batch C** — transfers (confirm form), lab check-in (confirm receipt), sample-tracking (new entry +
+  Review/Sort advance). Nav entries EN/AR + lazy routes. All three GET endpoints + SPA verified 200 live.
+
+Remaining polish (not blocking): settings/retention admin UI, analytics screens (loyalty/commissions/lab-stats),
+test-catalogue UI, e-signature UI, Leaflet maps, e2e suite, API contract tests (WebApplicationFactory).
