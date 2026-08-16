@@ -71,6 +71,7 @@ public sealed class FollowUpDbContext : DbContext
 
     // Infrastructure
     public DbSet<Outbox.OutboxMessage> OutboxMessages => Set<Outbox.OutboxMessage>();
+    public DbSet<Idempotency.IdempotencyRecord> IdempotencyRecords => Set<Idempotency.IdempotencyRecord>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder c)
     {

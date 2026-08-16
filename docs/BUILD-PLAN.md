@@ -210,6 +210,18 @@ xmin + app-level version check; DbUpdateConcurrencyException→409 in Transactio
 (content-sniff JPEG/PNG, 5 MB cap, GUID name, /uploads volume served), settings (GET/PUT, secret masking),
 retention (GET/PUT min-30, POST run). 4 new integration tests (85 backend total). Route surface now ~113/116.
 
+**Hardening #4 done (2026-08-16):** cross-cutting hardening.
+- **IdempotencyBehavior** — `Idempotency-Key` header → `IIdempotencyKeyProvider` (Http impl in Api, Null default
+  in Infra). Registered innermost, *inside* the transaction (after TransactionBehavior). First call runs and
+  persists the serialized response to `idempotency_record` (jsonb); a retry with the same key replays the cached
+  response instead of re-executing. Migration `AddIdempotency` applied. Verified live: two `POST /labs` with the
+  same key return the same id (no duplicate-code 409).
+- **Login rate-limiting** — `AddRateLimiter` fixed-window policy `"login"`, per-IP 10/min → 429; `.RequireRateLimiting`
+  on the login endpoint. Verified live: 12 rapid logins → `401×9, 429×3`.
+- **Missing test categories** — `ValidatorTests` (CreateLaboratory/CreateUser/SetRetention),
+  `AuthorizationBehaviorTests` (unauthenticated→401, missing-privilege→403, held→pass),
+  `IdempotencyTests` (same-key dedup). Full suite green: Domain 37, Application 35, Architecture 5,
+  Integration 16 = **93 backend** + 7 Angular = 100.
+
 Remaining polish (not blocking): Leaflet maps, e2e suite, remaining Angular create/edit forms + e-sign UI,
-IdempotencyBehavior, login rate-limiting, and the missing test categories (validator/authorization/
-idempotency/concurrency/API-contract).
+API contract tests (WebApplicationFactory).

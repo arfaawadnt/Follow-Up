@@ -46,8 +46,11 @@ public static class DependencyInjection
         });
         services.AddScoped<IOutbox, DbOutbox>();
 
-        // Transaction behavior runs innermost (closest to the handler), inside auth/validation/logging.
+        // Transaction behavior wraps the handler (inside auth/validation/logging); idempotency runs inside the
+        // transaction so a recorded key commits with the command's effect.
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(TransactionBehavior<,>));
+        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(IdempotencyBehavior<,>));
+        services.TryAddScoped<IIdempotencyKeyProvider, NullIdempotencyKeyProvider>();
 
         // Auth / time.
         services.AddSingleton<IClock, SystemClock>();

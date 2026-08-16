@@ -34,7 +34,22 @@ builder.Services.AddBackgroundJobs(builder.Configuration);
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, CurrentUser>(); // overrides Infrastructure's SystemCurrentUser for HTTP
 builder.Services.AddScoped<IRealtimeNotifier, FollowUp.Api.Realtime.SignalRRealtimeNotifier>(); // overrides the no-op
+builder.Services.AddScoped<IIdempotencyKeyProvider, FollowUp.Api.Auth.HttpIdempotencyKeyProvider>();
 builder.Services.AddSignalR();
+
+// Per-IP rate limiting on login (SRS NFR-SEC-4) — complements per-account lockout.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("login", http => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+        }));
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -69,6 +84,7 @@ app.UseMiddleware<CorrelationMiddleware>();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseSerilogRequestLogging();
 app.UseCors();
+app.UseRateLimiter();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 

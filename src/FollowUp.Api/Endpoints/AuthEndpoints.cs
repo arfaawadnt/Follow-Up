@@ -18,7 +18,7 @@ public static class AuthEndpoints
             var ua = http.Request.Headers.UserAgent.ToString();
             var result = await m.Send(new LoginCommand(req.Username, req.Password, ip, ua), ct);
             return Results.Ok(result);
-        }).WithTags("Auth").AllowAnonymous();
+        }).WithTags("Auth").AllowAnonymous().RequireRateLimiting("login");
 
         api.MapPost("/auth/logout", async (IMediator m, CancellationToken ct) =>
         {
