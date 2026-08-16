@@ -3,9 +3,12 @@ using FollowUp.Application.Features.Laboratories.ChangeLaboratoryStatus;
 using FollowUp.Application.Features.Laboratories.CreateLaboratory;
 using FollowUp.Application.Features.Laboratories.GetLaboratories;
 using FollowUp.Application.Features.Laboratories.GetLaboratoryById;
+using FollowUp.Application.Features.Laboratories.UpdateLaboratory;
+using FollowUp.Application.Features.Laboratories.UploadImage;
 using FollowUp.Application.Features.Representatives.Contracts;
 using FollowUp.Application.Features.Representatives.CreateRepresentative;
 using FollowUp.Application.Features.Representatives.GetRepresentatives;
+using FollowUp.Application.Features.Representatives.UpdateRepresentative;
 using MediatR;
 
 namespace FollowUp.Api.Endpoints;
@@ -33,6 +36,12 @@ public static class LaboratoryEndpoints
             return Results.Created($"/api/v1/labs/{id}", new { id });
         }).WithTags("Laboratories");
 
+        api.MapPut("/labs/{id:guid}", async (Guid id, UpdateLaboratoryCommand cmd, IMediator m, CancellationToken ct) =>
+        {
+            await m.Send(cmd with { Id = id }, ct);
+            return Results.NoContent();
+        }).WithTags("Laboratories");
+
         api.MapPut("/labs/{id:guid}/status", async (Guid id, StatusRequest req, IMediator m, CancellationToken ct) =>
         {
             await m.Send(new ChangeLaboratoryStatusCommand(id, req.Status), ct);
@@ -41,6 +50,14 @@ public static class LaboratoryEndpoints
 
         api.MapGet("/labs/nextcode", async (ILaboratoryRepository repo, CancellationToken ct) =>
             Results.Ok(new { code = await repo.NextCodeAsync(ct) })).WithTags("Laboratories");
+
+        api.MapPost("/labs/upload", async (IFormFile file, IMediator m, CancellationToken ct) =>
+        {
+            using var ms = new MemoryStream();
+            await file.CopyToAsync(ms, ct);
+            var path = await m.Send(new UploadLabImageCommand(ms.ToArray()), ct);
+            return Results.Ok(new { path });
+        }).WithTags("Laboratories").DisableAntiforgery();
 
         // Representatives
         api.MapGet("/reps", async (int? page, int? pageSize, string? search, string? type, bool? activeOnly,
@@ -54,6 +71,12 @@ public static class LaboratoryEndpoints
         {
             var id = await m.Send(cmd, ct);
             return Results.Created($"/api/v1/reps/{id}", new { id });
+        }).WithTags("Representatives");
+
+        api.MapPut("/reps/{id:guid}", async (Guid id, UpdateRepresentativeCommand cmd, IMediator m, CancellationToken ct) =>
+        {
+            await m.Send(cmd with { Id = id }, ct);
+            return Results.NoContent();
         }).WithTags("Representatives");
     }
 }

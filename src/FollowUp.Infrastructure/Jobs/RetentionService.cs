@@ -1,5 +1,6 @@
 using FollowUp.Application.Common.Abstractions;
 using FollowUp.Application.Common.Abstractions.Persistence;
+using FollowUp.Application.Features.Setup;
 using FollowUp.Domain.Audit;
 using FollowUp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +13,7 @@ namespace FollowUp.Infrastructure.Jobs;
 /// default keep-everything), writes a summary audit entry FIRST, then deletes rows older than a
 /// transaction-local declared cutoff — the only permitted audit deletion, gated by the DB GUC.
 /// </summary>
-public sealed class RetentionService
+public sealed class RetentionService : IRetentionRunner
 {
     private readonly FollowUpDbContext _db;
     private readonly IAppSettingRepository _settings;

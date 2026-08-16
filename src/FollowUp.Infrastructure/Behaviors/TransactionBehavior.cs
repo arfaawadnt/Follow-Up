@@ -1,4 +1,5 @@
 using FollowUp.Application.Common.Abstractions;
+using FollowUp.Application.Common.Exceptions;
 using FollowUp.Application.Common.Messaging;
 using FollowUp.Infrastructure.Persistence;
 using MediatR;
@@ -31,14 +32,23 @@ public sealed class TransactionBehavior<TRequest, TResponse> : IPipelineBehavior
         // A single SaveChanges is atomic; wrap explicitly so a handler that performs several operations —
         // and the audit/outbox writes triggered on save — commit or roll back together.
         var strategy = _dbContext.Database.CreateExecutionStrategy();
-        var response = await strategy.ExecuteAsync(async () =>
+        TResponse response;
+        try
         {
-            await using var transaction = await _dbContext.Database.BeginTransactionAsync(ct);
-            var r = await next();
-            await _dbContext.SaveChangesAsync(ct);
-            await transaction.CommitAsync(ct);
-            return r;
-        });
+            response = await strategy.ExecuteAsync(async () =>
+            {
+                await using var transaction = await _dbContext.Database.BeginTransactionAsync(ct);
+                var r = await next();
+                await _dbContext.SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
+                return r;
+            });
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Optimistic-concurrency clash (xmin token) — surface as 409 (SRS FR-3/FR-4).
+            throw new ConflictException("The record was modified by someone else. Reload and try again.");
+        }
 
         // Post-commit refetch hint to connected clients (Workflows §2.1). Best-effort — never fail the command.
         try { await _realtime.DataChangedAsync(typeof(TRequest).Name, ct); } catch { /* hints are best-effort */ }

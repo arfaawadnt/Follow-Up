@@ -61,6 +61,26 @@ public static class AdminEndpoints
         { await m.Send(new DeleteAreaCommand(id), ct); return Results.NoContent(); }).WithTags("Setup");
     }
 
+    public sealed record SettingBody(string? Value, bool IsSecret);
+    public sealed record RetentionBody(int Days);
+
+    public static void MapSettingsAndRetentionEndpoints(this RouteGroupBuilder api)
+    {
+        // Application settings (FR-2) — secrets masked on read.
+        api.MapGet("/settings", async (IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetSettingsQuery(), ct))).WithTags("Settings");
+        api.MapPut("/settings/{key}", async (string key, SettingBody b, IMediator m, CancellationToken ct) =>
+        { await m.Send(new UpsertSettingCommand(key, b.Value, b.IsSecret), ct); return Results.NoContent(); }).WithTags("Settings");
+
+        // Data retention (FR-18).
+        api.MapGet("/setup/retention", async (IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetRetentionQuery(), ct))).WithTags("Setup");
+        api.MapPut("/setup/retention", async (RetentionBody b, IMediator m, CancellationToken ct) =>
+        { await m.Send(new SetRetentionCommand(b.Days), ct); return Results.NoContent(); }).WithTags("Setup");
+        api.MapPost("/setup/retention/run", async (IMediator m, CancellationToken ct) =>
+            Results.Ok(new { purged = await m.Send(new RunRetentionCommand(), ct) })).WithTags("Setup");
+    }
+
     public static void MapAuditEndpoints(this RouteGroupBuilder api)
     {
         api.MapGet("/audit", async (int? page, int? pageSize, string? entity, string? actor, string? action, IMediator m, CancellationToken ct) =>

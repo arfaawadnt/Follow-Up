@@ -205,6 +205,11 @@ service on **:5088** (SPA + API + jobs), verified end-to-end against a live Post
 **Post-completion hardening:** notification fan-out + real-time `dataChange`/`notification` broadcasts are now
 implemented and verified live (was the #1 gap). Docker image build verified in WSL2.
 
-Remaining polish (not blocking): Leaflet maps, e2e suite, remaining create/edit forms + e-sign UI, the missing
-update/upload/settings/retention endpoints + optimistic-concurrency flow, IdempotencyBehavior, login
-rate-limiting, and the missing test categories (validator/authorization/idempotency/concurrency/API-contract).
+**Hardening #2 done (2026-08-16):** UpdateLaboratory + UpdateRepresentative (optimistic-concurrency 409 via
+xmin + app-level version check; DbUpdateConcurrencyException→409 in TransactionBehavior), lab image upload
+(content-sniff JPEG/PNG, 5 MB cap, GUID name, /uploads volume served), settings (GET/PUT, secret masking),
+retention (GET/PUT min-30, POST run). 4 new integration tests (85 backend total). Route surface now ~113/116.
+
+Remaining polish (not blocking): Leaflet maps, e2e suite, remaining Angular create/edit forms + e-sign UI,
+IdempotencyBehavior, login rate-limiting, and the missing test categories (validator/authorization/
+idempotency/concurrency/API-contract).

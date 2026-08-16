@@ -71,6 +71,16 @@ app.UseSerilogRequestLogging();
 app.UseCors();
 app.UseDefaultFiles();
 app.UseStaticFiles();
+
+// Serve uploaded images from the uploads volume at /uploads.
+var uploadsPath = builder.Configuration["Uploads:Path"] ?? Path.Combine(AppContext.BaseDirectory, "uploads");
+Directory.CreateDirectory(uploadsPath);
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(uploadsPath),
+    RequestPath = "/uploads",
+});
+
 app.UseMiddleware<TokenAuthMiddleware>();
 
 if (app.Environment.IsDevelopment())
@@ -94,6 +104,7 @@ api.MapSignatureEndpoints();
 api.MapNotificationEndpoints();
 api.MapUserAdminEndpoints();
 api.MapSetupEndpoints();
+api.MapSettingsAndRetentionEndpoints();
 api.MapAuditEndpoints();
 api.MapCompensationEndpoints();
 api.MapStatsEndpoints();

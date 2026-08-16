@@ -1,5 +1,6 @@
 using FollowUp.Application.Common.Abstractions;
 using FollowUp.Application.Common.Abstractions.Persistence;
+using FollowUp.Application.Features.Setup;
 using FollowUp.Infrastructure.Behaviors;
 using FollowUp.Infrastructure.Persistence;
 using FollowUp.Infrastructure.Persistence.Interceptors;
@@ -82,9 +83,12 @@ public static class DependencyInjection
         services.AddScoped<IOracleReader, Jobs.ConfiguredOracleReader>();
         services.AddScoped<IOracleSyncRunner, Jobs.OracleSyncRunner>();
 
+        services.AddSingleton<IFileStorage, Gateways.LocalFileStorage>();
+
         // Background-job orchestration services (the Hangfire jobs invoke these).
         services.AddScoped<Jobs.BoardService>();
         services.AddScoped<Jobs.RetentionService>();
+        services.AddScoped<IRetentionRunner>(sp => sp.GetRequiredService<Jobs.RetentionService>());
         services.AddScoped<Jobs.OutboxDispatcher>();
         return services;
     }
@@ -109,6 +113,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Features.Compensation.ICompensationQueries, Persistence.Queries.CompensationQueries>();
         services.AddScoped<Application.Features.Notifications.INotificationQueries, Persistence.Queries.NotificationQueries>();
         services.AddScoped<Application.Features.Insights.IInsightsQueries, Persistence.Queries.InsightsQueries>();
+        services.AddScoped<Application.Features.Setup.ISettingsQueries, Persistence.Queries.SettingsQueries>();
         return services;
     }
 
