@@ -1,6 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { ApiService } from '../../core/api.service';
+import { NotificationStore } from '../../core/notification.store';
 import { NotificationItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
 
@@ -34,13 +35,14 @@ import { TranslatePipe } from '../../core/i18n';
 })
 export class NotificationsComponent {
   private readonly api = inject(ApiService);
+  private readonly store = inject(NotificationStore);
   readonly loading = signal(true);
   readonly items = signal<NotificationItem[]>([]);
   constructor() { this.load(); }
   load(): void {
     this.loading.set(true);
     this.api.get<NotificationItem[]>('/notifications').subscribe({
-      next: (n) => { this.items.set(n); this.loading.set(false); }, error: () => this.loading.set(false),
+      next: (n) => { this.items.set(n); this.loading.set(false); this.store.refresh(); }, error: () => this.loading.set(false),
     });
   }
   read(n: NotificationItem): void { if (!n.isRead) this.api.post(`/notifications/${n.id}/read`).subscribe({ next: () => this.load() }); }

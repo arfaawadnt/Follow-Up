@@ -3,6 +3,7 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../core/auth.service';
 import { UiService } from '../core/ui.service';
 import { RealtimeService } from '../core/realtime.service';
+import { NotificationStore } from '../core/notification.store';
 import { TranslatePipe } from '../core/i18n';
 
 interface NavItem { key: string; path: string; privilege?: string; }
@@ -28,6 +29,9 @@ interface NavItem { key: string; path: string; privilege?: string; }
         @for (item of visibleNav(); track item.path) {
           <a class="nav-item" [routerLink]="item.path" routerLinkActive="on" [routerLinkActiveOptions]="{ exact: item.path === '/dashboard' }">
             <span class="dot"></span>{{ item.key | t }}
+            @if (item.path === '/notifications' && notes.unread() > 0) {
+              <span class="badge-count">{{ notes.unread() > 99 ? '99+' : notes.unread() }}</span>
+            }
           </a>
         }
       </nav>
@@ -52,6 +56,8 @@ interface NavItem { key: string; path: string; privilege?: string; }
     .nav-item:hover { background: var(--slate-100); color: var(--slate-900); }
     .nav-item.on { background: var(--primary-blue-light); color: var(--primary-blue); font-weight: 600; border-inline-start-color: var(--primary-blue); }
     .nav-item .dot { width: 16px; height: 16px; border-radius: 4px; background: currentColor; opacity: .55; }
+    .nav-item .badge-count { margin-inline-start: auto; background: var(--danger, #dc2626); color: #fff; font: 700 10.5px var(--ui);
+      min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; }
     .content { flex: 1; padding: 24px 28px 60px; }
   `],
 })
@@ -59,6 +65,7 @@ export class ShellComponent implements OnDestroy {
   readonly auth = inject(AuthService);
   readonly ui = inject(UiService);
   readonly rt = inject(RealtimeService);
+  readonly notes = inject(NotificationStore);
 
   private readonly nav: NavItem[] = [
     { key: 'nav.dashboard', path: '/dashboard' },
