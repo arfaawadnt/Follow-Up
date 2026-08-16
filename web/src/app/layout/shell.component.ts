@@ -6,7 +6,7 @@ import { RealtimeService } from '../core/realtime.service';
 import { NotificationStore } from '../core/notification.store';
 import { TranslatePipe } from '../core/i18n';
 
-interface NavItem { key: string; path: string; privilege?: string; }
+interface NavItem { key: string; path: string; privilege?: string; anyOf?: string[]; }
 
 @Component({
   selector: 'app-shell',
@@ -78,8 +78,10 @@ export class ShellComponent implements OnDestroy {
     { key: 'nav.marketing', path: '/marketing', privilege: 'ViewMarketing' },
     { key: 'nav.complaints', path: '/complaints', privilege: 'ViewComplaints' },
     { key: 'nav.reports', path: '/reports', privilege: 'ViewReports' },
+    { key: 'nav.analytics', path: '/analytics', anyOf: ['ManageLoyalty', 'ManageCommissions', 'ViewLabStats'] },
     { key: 'nav.notifications', path: '/notifications' },
     { key: 'nav.setup', path: '/setup', privilege: 'SetupRefs' },
+    { key: 'nav.settings', path: '/settings', privilege: 'SetupRefs' },
     { key: 'nav.users', path: '/users', privilege: 'ManageUsers' },
   ];
 
@@ -88,7 +90,9 @@ export class ShellComponent implements OnDestroy {
   }
 
   visibleNav(): NavItem[] {
-    return this.nav.filter((n) => !n.privilege || this.auth.has(n.privilege));
+    return this.nav.filter((n) =>
+      (!n.privilege || this.auth.has(n.privilege)) &&
+      (!n.anyOf || n.anyOf.some((p) => this.auth.has(p))));
   }
 
   ngOnDestroy(): void {

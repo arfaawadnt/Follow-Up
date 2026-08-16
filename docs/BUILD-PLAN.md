@@ -232,5 +232,10 @@ retention (GET/PUT min-30, POST run). 4 new integration tests (85 backend total)
 - **Batch C** — transfers (confirm form), lab check-in (confirm receipt), sample-tracking (new entry +
   Review/Sort advance). Nav entries EN/AR + lazy routes. All three GET endpoints + SPA verified 200 live.
 
-Remaining polish (not blocking): settings/retention admin UI, analytics screens (loyalty/commissions/lab-stats),
-test-catalogue UI, e-signature UI, Leaflet maps, e2e suite, API contract tests (WebApplicationFactory).
+- **Batch D** — **Settings** admin screen (app settings with write-only secret handling + data-retention
+  panel: set window min-30, run purge now) and **Analytics** screen (tabbed Loyalty / Commissions / Lab
+  statistics with period + date-range filters; lab/rep name maps; per-tab privilege gating). Shell nav gained
+  `anyOf` privilege support. All five endpoints verified 200 live; secrets confirmed masked (`********`).
+
+Remaining polish (not blocking): test-catalogue UI (test-groups/test-setups), e-signature UI, Leaflet maps,
+e2e suite, API contract tests (WebApplicationFactory).

@@ -82,4 +82,10 @@ export interface NotificationItem { id: string; eventKey: string; title: string;
 export interface RefItem { id: string; type: string; code: string; nameEn: string; nameAr: string | null; sortOrder: number; }
 export interface UserListItem { id: string; username: string; roleName: string; email: string | null; isActive: boolean; isLocked: boolean; }
 export interface NetworkOverview { totalLabs: number; activeLabs: number; samplesThisMonth: number; incomeThisMonth: number; }
+
+export interface SettingDto { key: string; value: string | null; isSecret: boolean; }
+export interface RetentionDto { days: number | null; enabled: boolean; }
+export interface LoyaltyLedger { laboratoryId: string; period: number; target: number; achieved: number; points: number; tier: string | null; }
+export interface Commission { representativeId: string; period: number; target: number; achieved: number; baseSalary: number; commission: number; bonus: number; total: number; }
+export interface LabStat { date: string; labCode: string; registrations: number; testCount: number; income: number; }
 export interface RepPerformanceRow { repId: string; repName: string; achievementPercent: number; pace: number; onTrack: boolean; salary: number; }
