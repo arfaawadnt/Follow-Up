@@ -69,6 +69,15 @@ export interface MarketingVisit {
   representativeId: string; purpose: string; scheduledDate: string; status: string; outcome: string | null;
 }
 
+export interface TransferItem { visitId: string; laboratoryId: string; labDisplayCode: string; labName: string; visitDate: string; sampleCount: number | null; }
+export type ReceivingItem = TransferItem;
+export interface SampleTracking {
+  id: string; area: string; date: string; count: number;
+  dataEntryBy: string | null; dataEntryAt: string | null;
+  reviewBy: string | null; reviewAt: string | null;
+  sortBy: string | null; sortAt: string | null; isComplete: boolean;
+}
+
 export interface NotificationItem { id: string; eventKey: string; title: string; body: string; createdAt: string; isRead: boolean; }
 export interface RefItem { id: string; type: string; code: string; nameEn: string; nameAr: string | null; sortOrder: number; }
 export interface UserListItem { id: string; username: string; roleName: string; email: string | null; isActive: boolean; isLocked: boolean; }
