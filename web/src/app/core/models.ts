@@ -25,6 +25,18 @@ export interface LabListItem {
   governorate: string | null; city: string | null; area: string | null; encrypted: boolean;
 }
 
+export interface ContactDto { id: string; name: string; role: string; phone: string | null; birthday: string | null; }
+
+export interface LabDetail {
+  id: string; displayCode: string; name: string; segment: string; status: string;
+  branch: string | null; governorate: string | null; city: string | null; area: string | null;
+  category: string | null; payer: string | null; contractType: string | null;
+  latitude: number | null; longitude: number | null; monthlyTarget: number;
+  loyaltyPoints: number; loyaltyTier: string | null;
+  collectorRepId: string | null; marketingRepId: string | null;
+  workDays: string[]; visitTimes: string[]; contacts: ContactDto[]; rowVersion: number;
+}
+
 export interface ScheduleItem { visitId: string; labDisplayCode: string; labName: string; status: string; time: string; }
 export interface UnresolvedComplaint { id: string; reference: string; labDisplayCode: string; status: string; }
 export interface RepProgress { repId: string; repName: string; achievementPercent: number; onTrack: boolean; }

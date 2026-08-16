@@ -15,6 +15,7 @@ export const routes: Routes = [
       { path: 'dashboard', loadComponent: () => import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent) },
       { path: 'labs', loadComponent: () => import('./features/labs/labs.component').then((m) => m.LabsComponent) },
       { path: 'labs/new', loadComponent: () => import('./features/labs/lab-create.component').then((m) => m.LabCreateComponent) },
+      { path: 'labs/:id', loadComponent: () => import('./features/labs/lab-detail.component').then((m) => m.LabDetailComponent) },
       { path: 'reps', loadComponent: () => import('./features/reps/reps.component').then((m) => m.RepsComponent) },
       { path: 'daily', loadComponent: () => import('./features/daily/daily.component').then((m) => m.DailyComponent) },
       { path: 'marketing', loadComponent: () => import('./features/marketing/marketing.component').then((m) => m.MarketingComponent) },

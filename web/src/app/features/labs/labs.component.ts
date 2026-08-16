@@ -1,7 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { LabListItem, PagedResult } from '../../core/models';
 import { StatusBadgePipe } from '../../shared/status-badge.pipe';
@@ -28,7 +28,7 @@ import { TranslatePipe } from '../../core/i18n';
             <thead><tr><th>Code</th><th>Name</th><th>Segment</th><th>Governorate</th><th>Status</th></tr></thead>
             <tbody>
               @for (lab of r.items; track lab.id) {
-                <tr>
+                <tr class="clickable" (click)="open(lab.id)">
                   <td class="client-code mono">{{ lab.displayCode }}</td>
                   <td>{{ lab.name }}</td>
                   <td>{{ lab.segment }}</td>
@@ -52,15 +52,20 @@ import { TranslatePipe } from '../../core/i18n';
     .search { border: 1px solid var(--slate-300); border-radius: var(--r-input); padding: 8px 12px; font-size: 13px; min-width: 260px; background: var(--white); color: var(--slate-900); }
     .foot { padding: 10px 14px; font-size: 12px; color: var(--slate-500); border-top: 1px solid var(--slate-150); }
     .empty { color: var(--slate-500); text-align: center; padding: 24px; }
+    tr.clickable { cursor: pointer; }
+    tr.clickable:hover { background: var(--slate-100); }
   `],
 })
 export class LabsComponent {
   private readonly http = inject(HttpClient);
+  private readonly router = inject(Router);
   readonly loading = signal(true);
   readonly result = signal<PagedResult<LabListItem> | null>(null);
   search = '';
 
   constructor() { this.load(); }
+
+  open(id: string): void { void this.router.navigate(['/labs', id]); }
 
   load(): void {
     this.loading.set(true);
