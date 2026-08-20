@@ -52,7 +52,7 @@ export const routes: Routes = [
       { path: 'setup', loadComponent: () => import('./features/setup/setup.component').then((m) => m.SetupComponent) },
       { path: 'integration', loadComponent: () => import('./features/integration/integration.component').then((m) => m.IntegrationComponent) },
       { path: 'notifications', loadComponent: () => import('./features/notifications/notifications.component').then((m) => m.NotificationsComponent) },
-      { path: 'sessions', ...ph('active_sessions') },
+      { path: 'sessions', loadComponent: () => import('./features/sessions/sessions.component').then((m) => m.SessionsComponent) },
       { path: 'audit', loadComponent: () => import('./features/audit/audit.component').then((m) => m.AuditComponent) },
     ],
   },

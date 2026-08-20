@@ -115,4 +115,21 @@ internal sealed class SessionQueries : ISessionQueries
             .OrderByDescending(s => s.IssuedAt)
             .Select(s => new SessionDto(s.Id.Value, s.IssuedAt, s.LastSeenAt, s.ExpiresAt, s.RevokedAt != null, s.Ip))
             .ToListAsync(ct);
+
+    public async Task<IReadOnlyList<AdminSessionDto>> GetAllAsync(CancellationToken ct)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var rows = await (from s in _db.Sessions.AsNoTracking()
+                          join u in _db.Users.AsNoTracking() on s.UserId equals u.Id
+                          orderby s.IssuedAt descending
+                          select new { s.Id, u.Username, s.Ip, s.UserAgent, s.IssuedAt, s.LastSeenAt, s.ExpiresAt, s.RevokedAt })
+                         .Take(500).ToListAsync(ct);
+        return rows.Select(r =>
+        {
+            var end = r.RevokedAt ?? r.LastSeenAt;
+            var status = r.RevokedAt != null ? "Revoked" : r.ExpiresAt < now ? "Expired" : "Active";
+            return new AdminSessionDto(r.Id.Value, r.Username, r.Ip, r.UserAgent, r.IssuedAt, r.RevokedAt, r.LastSeenAt,
+                (long)Math.Max(0, (end - r.IssuedAt).TotalSeconds), status);
+        }).ToList();
+    }
 }

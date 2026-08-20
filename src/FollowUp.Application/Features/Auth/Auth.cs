@@ -124,9 +124,25 @@ public sealed class LogoutHandler : ICommandHandler<LogoutCommand>
 public sealed record SessionDto(Guid Id, DateTimeOffset IssuedAt, DateTimeOffset LastSeenAt,
     DateTimeOffset ExpiresAt, bool Revoked, string? Ip);
 
+public sealed record AdminSessionDto(Guid Id, string Username, string? IpAddress, string? Terminal,
+    DateTimeOffset LoginAt, DateTimeOffset? LogoutAt, DateTimeOffset LastSeenAt, long DurationSec, string Status);
+
 public interface ISessionQueries
 {
     Task<IReadOnlyList<SessionDto>> GetForUserAsync(AppUserId userId, CancellationToken ct);
+    Task<IReadOnlyList<AdminSessionDto>> GetAllAsync(CancellationToken ct);
+}
+
+public sealed record GetAllSessionsQuery : IQuery<IReadOnlyList<AdminSessionDto>>, IAuthorizedRequest
+{
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageUsers };
+}
+
+public sealed class GetAllSessionsHandler : IQueryHandler<GetAllSessionsQuery, IReadOnlyList<AdminSessionDto>>
+{
+    private readonly ISessionQueries _queries;
+    public GetAllSessionsHandler(ISessionQueries queries) => _queries = queries;
+    public Task<IReadOnlyList<AdminSessionDto>> Handle(GetAllSessionsQuery request, CancellationToken ct) => _queries.GetAllAsync(ct);
 }
 
 public sealed record GetMySessionsQuery : IQuery<IReadOnlyList<SessionDto>>, IAuthorizedRequest

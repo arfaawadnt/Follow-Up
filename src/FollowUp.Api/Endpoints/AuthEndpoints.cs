@@ -29,6 +29,9 @@ public static class AuthEndpoints
         api.MapGet("/sessions", async (IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetMySessionsQuery(), ct))).WithTags("Auth");
 
+        api.MapGet("/sessions/all", async (IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetAllSessionsQuery(), ct))).WithTags("Auth");
+
         api.MapPost("/user/change-password", async (ChangePasswordRequest req, IMediator m, CancellationToken ct) =>
         {
             await m.Send(new ChangeOwnPasswordCommand(req.OldPassword, req.NewPassword), ct);
