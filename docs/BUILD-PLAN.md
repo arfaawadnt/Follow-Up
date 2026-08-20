@@ -251,4 +251,15 @@ retention (GET/PUT min-30, POST run). 4 new integration tests (85 backend total)
   Verified live: `/maps/resolve-redirect` 200 and coordinate round-trip PUT 204 → GET returns the coords.
   (Live OSM tile rendering not verifiable in this sandbox — the browser pane can't reach host localhost.)
 
-Remaining polish (not blocking): Playwright e2e suite, API contract tests (WebApplicationFactory).
+**Test suites added (2026-08-20):**
+- **API contract tests** (`FollowUp.ApiTests`, WebApplicationFactory, 9 tests) exercise routing, the auth
+  gate, the login rate limiter, validation, and idempotency over the real in-process HTTP pipeline. Full
+  backend suite now **102 tests** (Domain 37, Application 35, Architecture 5, Integration 16, ApiTests 9).
+  These caught + fixed a defense-in-depth gap (unauthenticated `/api/v1` queries returned 200/empty instead
+  of 401 — added an edge gate) and a test-hermeticity flaw (idempotency_record not cleared on reset).
+- **Playwright e2e** (`web/e2e`, 4 tests, `npm run e2e`) drive a real browser against the SPA: login redirect,
+  bad-credentials error, dashboard landing, and navigation to the labs list. The config auto-launches the API
+  (health-gated) inheriting FOLLOWUP_DB/FOLLOWUP_AUTH_SECRET. All 4 pass.
+
+The build is now feature-complete against the SRS with backend + frontend + contract + e2e coverage; no
+blocking gaps remain.
