@@ -3,8 +3,10 @@ using FollowUp.Application.Features.LabCheckIn;
 using FollowUp.Application.Features.Outsource;
 using FollowUp.Application.Features.SampleTracking;
 using FollowUp.Application.Features.Transfers;
+using FollowUp.Domain.Common;
 using FollowUp.Domain.Identity;
 using FollowUp.Domain.Operations;
+using FollowUp.Domain.Representatives;
 using Microsoft.EntityFrameworkCore;
 
 namespace FollowUp.Infrastructure.Persistence.Queries;
@@ -14,20 +16,42 @@ internal sealed class DailyBoardQueries : IDailyBoardQueries
     private readonly FollowUpDbContext _db;
     public DailyBoardQueries(FollowUpDbContext db) => _db = db;
 
-    public async Task<IReadOnlyList<BoardItemDto>> GetBoardAsync(DateOnly date, OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
+    public async Task<IReadOnlyList<BoardItemDto>> GetBoardAsync(
+        DateOnly start, DateOnly end, Guid? repId, string? status, OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
     {
         var scopedLabs = _db.Laboratories.ApplyScope(scope).Select(l => l.Id);
-        var rows = await (from v in _db.DailyVisits.AsNoTracking()
-                          where v.VisitDate == date && scopedLabs.Contains(v.LaboratoryId)
+        var q = _db.DailyVisits.AsNoTracking()
+            .Where(v => v.VisitDate >= start && v.VisitDate <= end && scopedLabs.Contains(v.LaboratoryId));
+
+        if (repId is { } rid)
+            q = q.Where(v => v.CollectorRepId == new RepresentativeId(rid));
+        if (status is { Length: > 0 })
+        {
+            // "Visited" spans the collected + received states; other pills match exactly (converted equality translates).
+            if (status == "Visited")
+                q = q.Where(v => v.Status == VisitStatus.Visited || v.Status == VisitStatus.Received);
+            else
+                q = q.Where(v => v.Status == Enumeration.FromName<VisitStatus>(status));
+        }
+
+        var rows = await (from v in q
                           join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
-                          orderby v.ScheduledTime
-                          select new { v.Id, v.LaboratoryId, l.Code, l.Name, v.CollectorRepId, v.VisitDate, v.ScheduledTime, v.Status, v.SampleCount, v.AdminChecked })
+                          orderby v.VisitDate, v.ScheduledTime
+                          select new { v.Id, v.LaboratoryId, l.Code, l.Name, l.Branch, l.Governorate, l.City, l.Area,
+                              v.CollectorRepId, v.VisitDate, v.ScheduledTime, v.Status, v.SampleCount, v.AdminChecked, v.TransferConfirmedAt })
                          .ToListAsync(ct);
 
+        var repIds = rows.Where(r => r.CollectorRepId != null).Select(r => r.CollectorRepId!.Value).Distinct().ToList();
+        var repName = (await _db.Representatives.AsNoTracking().Where(r => repIds.Contains(r.Id))
+            .Select(r => new { r.Id, r.FullName }).ToListAsync(ct)).ToDictionary(r => r.Id, r => r.FullName);
+
         return rows.Select(r => new BoardItemDto(
-            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Name,
+            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Code.Value, r.Name,
             r.CollectorRepId != null ? r.CollectorRepId.Value.Value : (Guid?)null,
-            r.VisitDate, r.ScheduledTime.ToString("HH:mm"), r.Status.Name, r.SampleCount, r.AdminChecked)).ToList();
+            r.CollectorRepId != null && repName.TryGetValue(r.CollectorRepId.Value, out var n) ? n : null,
+            r.Branch, r.Governorate, r.City, r.Area,
+            r.VisitDate, r.ScheduledTime.ToString("HH:mm"), r.Status.Name, r.SampleCount, r.AdminChecked,
+            r.TransferConfirmedAt != null)).ToList();
     }
 
     public async Task<int?> GetSuggestedSampleCountAsync(Guid visitId, CancellationToken ct)

@@ -54,9 +54,11 @@ export interface ComplaintListItem {
 }
 
 export interface BoardItem {
-  visitId: string; laboratoryId: string; labDisplayCode: string; labName: string;
-  collectorRepId: string | null; visitDate: string; scheduledTime: string;
-  status: string; sampleCount: number | null; adminChecked: boolean;
+  visitId: string; laboratoryId: string; labDisplayCode: string; labCode: string; lab: string;
+  collectorRepId: string | null; rep: string | null;
+  branch: string | null; governorate: string | null; city: string | null; area: string | null;
+  visitDate: string; scheduledTime: string;
+  status: string; samples: number | null; adminChecked: boolean; transferDone: boolean;
 }
 
 export interface RepListItem {

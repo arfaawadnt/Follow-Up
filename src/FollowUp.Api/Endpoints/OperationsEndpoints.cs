@@ -19,8 +19,11 @@ public static class OperationsEndpoints
     public static void MapOperationsEndpoints(this RouteGroupBuilder api)
     {
         // Daily board (FR-5)
-        api.MapGet("/daily", async (DateOnly? date, IMediator m, CancellationToken ct) =>
-            Results.Ok(await m.Send(new GetDailyBoardQuery(date), ct))).WithTags("DailyBoard");
+        api.MapGet("/daily", async (DateOnly? start, DateOnly? end, DateOnly? date, string? rep, string? status, IMediator m, CancellationToken ct) =>
+        {
+            Guid? repId = Guid.TryParse(rep, out var g) ? g : null;
+            return Results.Ok(await m.Send(new GetDailyBoardQuery(start ?? date, end ?? date, repId, status), ct));
+        }).WithTags("DailyBoard");
         api.MapPost("/daily/{id:guid}/checkin", async (Guid id, CheckInBody b, IMediator m, CancellationToken ct) =>
         { await m.Send(new CheckInVisitCommand(id, b.SampleCount), ct); return Results.NoContent(); }).WithTags("DailyBoard");
         api.MapPost("/daily/{id:guid}/miss", async (Guid id, IMediator m, CancellationToken ct) =>
