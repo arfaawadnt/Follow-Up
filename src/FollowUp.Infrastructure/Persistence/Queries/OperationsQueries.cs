@@ -156,10 +156,10 @@ internal sealed class SampleTrackingQueries : ISampleTrackingQueries
     private readonly FollowUpDbContext _db;
     public SampleTrackingQueries(FollowUpDbContext db) => _db = db;
 
-    public async Task<IReadOnlyList<SampleTrackingDto>> ListAsync(DateOnly date, OrgScope scope, CancellationToken ct)
+    public async Task<IReadOnlyList<SampleTrackingDto>> ListAsync(DateOnly start, DateOnly end, OrgScope scope, CancellationToken ct)
     {
         // Area-scoped (scope.Areas). Wildcard => all areas.
-        var q = _db.SampleTracking.AsNoTracking().Where(s => s.Date == date);
+        var q = _db.SampleTracking.AsNoTracking().Where(s => s.Date >= start && s.Date <= end);
         if (!scope.Areas.Contains(OrgScope.Wildcard))
         {
             var areas = scope.Areas.ToList();

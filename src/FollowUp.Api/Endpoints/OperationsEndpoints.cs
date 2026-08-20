@@ -56,8 +56,8 @@ public static class OperationsEndpoints
         { await m.Send(new DeleteOutsourceSampleCommand(id), ct); return Results.NoContent(); }).WithTags("Outsource");
 
         // Sample tracking (FR-8)
-        api.MapGet("/sample-tracking", async (DateOnly date, IMediator m, CancellationToken ct) =>
-            Results.Ok(await m.Send(new GetSampleTrackingQuery(date), ct))).WithTags("SampleTracking");
+        api.MapGet("/sample-tracking", async (DateOnly? start, DateOnly? end, DateOnly? date, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetSampleTrackingQuery(start ?? date, end ?? date), ct))).WithTags("SampleTracking");
         api.MapPost("/sample-tracking", async (RecordSampleDataEntryCommand cmd, IMediator m, CancellationToken ct) =>
         { var id = await m.Send(cmd, ct); return Results.Ok(new { id }); }).WithTags("SampleTracking");
         api.MapPost("/sample-tracking/batch", async (BatchRecordSampleDataEntryCommand cmd, IMediator m, CancellationToken ct) =>

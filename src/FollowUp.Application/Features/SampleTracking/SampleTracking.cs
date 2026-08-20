@@ -24,12 +24,12 @@ public sealed record SampleLifecycleReportRowDto(string Area, DateOnly Date, int
 
 public interface ISampleTrackingQueries
 {
-    Task<IReadOnlyList<SampleTrackingDto>> ListAsync(DateOnly date, OrgScope scope, CancellationToken ct);
+    Task<IReadOnlyList<SampleTrackingDto>> ListAsync(DateOnly start, DateOnly end, OrgScope scope, CancellationToken ct);
     Task<IReadOnlyList<SampleLifecycleReportRowDto>> ReportAsync(DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct);
 }
 
-/// <summary>Lists sample-tracking rows for a date within scope (SRS FR-8).</summary>
-public sealed record GetSampleTrackingQuery(DateOnly Date) : IQuery<IReadOnlyList<SampleTrackingDto>>, IAuthorizedRequest
+/// <summary>Lists sample-tracking rows for a date range within scope (SRS FR-8).</summary>
+public sealed record GetSampleTrackingQuery(DateOnly? Start = null, DateOnly? End = null) : IQuery<IReadOnlyList<SampleTrackingDto>>, IAuthorizedRequest
 {
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.SampleTracking };
 }
@@ -38,11 +38,16 @@ public sealed class GetSampleTrackingHandler : IQueryHandler<GetSampleTrackingQu
 {
     private readonly ISampleTrackingQueries _queries;
     private readonly ICurrentUser _user;
+    private readonly IClock _clock;
 
-    public GetSampleTrackingHandler(ISampleTrackingQueries queries, ICurrentUser user) { _queries = queries; _user = user; }
+    public GetSampleTrackingHandler(ISampleTrackingQueries queries, ICurrentUser user, IClock clock) { _queries = queries; _user = user; _clock = clock; }
 
-    public Task<IReadOnlyList<SampleTrackingDto>> Handle(GetSampleTrackingQuery request, CancellationToken ct) =>
-        _queries.ListAsync(request.Date, _user.Scope, ct);
+    public Task<IReadOnlyList<SampleTrackingDto>> Handle(GetSampleTrackingQuery request, CancellationToken ct)
+    {
+        var start = request.Start ?? _clock.CairoToday;
+        var end = request.End ?? start;
+        return _queries.ListAsync(start, end, _user.Scope, ct);
+    }
 }
 
 /// <summary>Sample lifecycle report over a date range (SRS FR-8).</summary>
