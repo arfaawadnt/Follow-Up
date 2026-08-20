@@ -30,7 +30,7 @@ export const routes: Routes = [
       { path: 'labstats', ...ph('labstats') },
       { path: 'test-statistics', ...ph('teststats') },
       { path: 'reports', loadComponent: () => import('./features/reports/reports.component').then((m) => m.ReportsComponent) },
-      { path: 'rep-intervals', ...ph('rep_intervals') },
+      { path: 'rep-intervals', loadComponent: () => import('./features/repintervals/repintervals.component').then((m) => m.RepIntervalsComponent) },
 
       // Field & marketing
       { path: 'marketing', loadComponent: () => import('./features/marketing/marketing.component').then((m) => m.MarketingComponent) },

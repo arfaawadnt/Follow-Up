@@ -49,7 +49,11 @@ public sealed record LabHistoryDto(
     string LabDisplayCode, string Name, string Segment, string Status,
     int AvgMonth, int Mtd, int Complaints, IReadOnlyList<ChartPointDto> Months);
 
-public sealed record RepIntervalDto(Guid RepId, string RepName, double AverageCycleHours);
+// Per-visit interval breakdown (minutes) mirroring the reference rep-intervals report.
+public sealed record RepIntervalRowDto(
+    string CollectorName, string LabName, string LabCode, DateOnly VisitDate, string VisitTime, int? Samples,
+    double? PlannedToCollect, double? CollectToTransfer, double? TransferToCheckin, double? TotalCycle,
+    string? CheckinTime, string? TransferTime, string? MarkedAt);
 
 /// <summary>
 /// Read-side query interface for insights (ADR-0005). Attainment/pace are engine-computed (BR-6/BR-8:
@@ -61,7 +65,7 @@ public interface IInsightsQueries
     Task<NetworkOverviewDto> GetOverviewAsync(OrgScope scope, CancellationToken ct);
     Task<IReadOnlyList<RepPerformanceRowDto>> GetPerformanceAsync(OrgScope scope, CancellationToken ct);
     Task<LabHistoryDto?> GetLabHistoryAsync(Guid labId, bool canSeeEncrypted, CancellationToken ct);
-    Task<IReadOnlyList<RepIntervalDto>> GetRepIntervalsAsync(OrgScope scope, CancellationToken ct);
+    Task<IReadOnlyList<RepIntervalRowDto>> GetRepIntervalsAsync(DateOnly start, DateOnly end, OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
 }
 
 // ---- Dashboard ----
@@ -120,13 +124,18 @@ public sealed class GetLabHistoryReportHandler : IQueryHandler<GetLabHistoryRepo
         ?? throw new Common.Exceptions.NotFoundException("Laboratory", r.LabId);
 }
 
-public sealed record GetRepIntervalsReportQuery : IQuery<IReadOnlyList<RepIntervalDto>>, IAuthorizedRequest
+public sealed record GetRepIntervalsReportQuery(DateOnly? Start = null, DateOnly? End = null) : IQuery<IReadOnlyList<RepIntervalRowDto>>, IAuthorizedRequest
 {
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ViewReports };
 }
-public sealed class GetRepIntervalsReportHandler : IQueryHandler<GetRepIntervalsReportQuery, IReadOnlyList<RepIntervalDto>>
+public sealed class GetRepIntervalsReportHandler : IQueryHandler<GetRepIntervalsReportQuery, IReadOnlyList<RepIntervalRowDto>>
 {
-    private readonly IInsightsQueries _q; private readonly ICurrentUser _u;
-    public GetRepIntervalsReportHandler(IInsightsQueries q, ICurrentUser u) { _q = q; _u = u; }
-    public Task<IReadOnlyList<RepIntervalDto>> Handle(GetRepIntervalsReportQuery r, CancellationToken ct) => _q.GetRepIntervalsAsync(_u.Scope, ct);
+    private readonly IInsightsQueries _q; private readonly ICurrentUser _u; private readonly IClock _clock;
+    public GetRepIntervalsReportHandler(IInsightsQueries q, ICurrentUser u, IClock clock) { _q = q; _u = u; _clock = clock; }
+    public Task<IReadOnlyList<RepIntervalRowDto>> Handle(GetRepIntervalsReportQuery r, CancellationToken ct)
+    {
+        var start = r.Start ?? _clock.CairoToday.AddDays(-7);
+        var end = r.End ?? _clock.CairoToday;
+        return _q.GetRepIntervalsAsync(start, end, _u.Scope, _u.Has(Privileges.ShowEncryptedLabs), ct);
+    }
 }

@@ -19,7 +19,7 @@ public static class InsightsEndpoints
         api.MapGet("/reports/labhistory/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetLabHistoryReportQuery(id), ct))).WithTags("Insights");
 
-        api.MapGet("/reports/rep-intervals", async (IMediator m, CancellationToken ct) =>
-            Results.Ok(await m.Send(new GetRepIntervalsReportQuery(), ct))).WithTags("Insights");
+        api.MapGet("/reports/rep-intervals", async (DateOnly? start, DateOnly? end, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetRepIntervalsReportQuery(start, end), ct))).WithTags("Insights");
     }
 }

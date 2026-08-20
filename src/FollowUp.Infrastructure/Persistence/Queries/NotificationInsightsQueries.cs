@@ -242,17 +242,32 @@ internal sealed class InsightsQueries : IInsightsQueries
             allMs.Count > 0 ? (int)Math.Round(allMs.Average()) : 0, ms.Where(x => x.Period.Code == thisYm).Sum(x => x.SampleCount), complaints, monthPts);
     }
 
-    public async Task<IReadOnlyList<RepIntervalDto>> GetRepIntervalsAsync(OrgScope scope, CancellationToken ct)
+    public async Task<IReadOnlyList<RepIntervalRowDto>> GetRepIntervalsAsync(DateOnly start, DateOnly end, OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
     {
-        // Cycle-time interval = avg hours between check-in and receipt per collector rep.
-        var rows = await _db.DailyVisits.AsNoTracking()
-            .Where(v => v.CheckedInAt != null && v.ReceivedAt != null && v.CollectorRepId != null)
-            .Select(v => new { v.CollectorRepId, v.CheckedInAt, v.ReceivedAt }).ToListAsync(ct);
-        var byRep = rows.GroupBy(x => x.CollectorRepId!.Value)
-            .Select(g => new { RepId = g.Key, Avg = g.Average(x => (x.ReceivedAt!.Value - x.CheckedInAt!.Value).TotalHours) })
-            .ToList();
-        var reps = await _db.Representatives.AsNoTracking().ToListAsync(ct);
-        return byRep.Select(x => new RepIntervalDto(x.RepId.Value,
-            reps.FirstOrDefault(r => r.Id == x.RepId)?.FullName ?? "", Math.Round(x.Avg, 2))).ToList();
+        var scopedLabs = _db.Laboratories.ApplyScope(scope).Select(l => l.Id);
+        var rows = await (from v in _db.DailyVisits.AsNoTracking()
+                          where v.VisitDate >= start && v.VisitDate <= end && scopedLabs.Contains(v.LaboratoryId)
+                          join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
+                          orderby v.VisitDate descending, v.ScheduledTime
+                          select new { l.Code, l.Name, v.VisitDate, v.ScheduledTime, v.SampleCount,
+                              v.CollectorRepId, v.CheckedInAt, v.TransferConfirmedAt, v.ReceivedAt }).ToListAsync(ct);
+
+        var repIds = rows.Where(r => r.CollectorRepId != null).Select(r => r.CollectorRepId!.Value).Distinct().ToList();
+        var repName = (await _db.Representatives.AsNoTracking().Where(r => repIds.Contains(r.Id))
+            .Select(r => new { r.Id, r.FullName }).ToListAsync(ct)).ToDictionary(r => r.Id, r => r.FullName);
+
+        static double? Mins(DateTimeOffset? a, DateTimeOffset? b) => a != null && b != null ? Math.Round((a.Value - b.Value).TotalMinutes, 0) : null;
+        static string? Hm(DateTimeOffset? t) => t?.ToString("yyyy-MM-dd HH:mm");
+
+        return rows.Select(r =>
+        {
+            var planned = new DateTimeOffset(r.VisitDate.ToDateTime(r.ScheduledTime), TimeSpan.Zero);
+            return new RepIntervalRowDto(
+                r.CollectorRepId != null && repName.TryGetValue(r.CollectorRepId.Value, out var n) ? n : "—",
+                r.Name, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.VisitDate, r.ScheduledTime.ToString("HH:mm"), r.SampleCount,
+                Mins(r.CheckedInAt, planned), Mins(r.TransferConfirmedAt, r.CheckedInAt),
+                Mins(r.ReceivedAt, r.TransferConfirmedAt), Mins(r.ReceivedAt, r.CheckedInAt),
+                Hm(r.CheckedInAt), Hm(r.TransferConfirmedAt), Hm(r.ReceivedAt));
+        }).ToList();
     }
 }
