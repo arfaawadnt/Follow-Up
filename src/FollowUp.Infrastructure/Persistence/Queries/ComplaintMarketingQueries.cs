@@ -95,12 +95,17 @@ internal sealed class MarketingQueries : IMarketingQueries
         var rows = await (from mv in q
                           join l in _db.Laboratories.AsNoTracking() on mv.LaboratoryId equals l.Id
                           orderby (mv.Status == scheduled ? 0 : 1), mv.ScheduledDate descending // BR-10: scheduled first
-                          select new { mv.Id, mv.LaboratoryId, l.Code, l.Name, mv.RepresentativeId, mv.Purpose, mv.ScheduledDate, mv.Status, mv.Outcome })
+                          select new { mv.Id, mv.LaboratoryId, l.Code, l.Name, l.Area, l.Governorate, mv.RepresentativeId, mv.Purpose, mv.ScheduledDate, mv.Status, mv.Outcome })
                          .Skip(criteria.Skip).Take(criteria.PageSize).ToListAsync(ct);
 
+        var repIds = rows.Select(r => r.RepresentativeId).Distinct().ToList();
+        var repName = (await _db.Representatives.AsNoTracking().Where(r => repIds.Contains(r.Id))
+            .Select(r => new { r.Id, r.FullName }).ToListAsync(ct)).ToDictionary(r => r.Id, r => r.FullName);
+
         var items = rows.Select(r => new MarketingVisitDto(
-            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Name,
-            r.RepresentativeId.Value, r.Purpose.Name, r.ScheduledDate, r.Status.Name, r.Outcome)).ToList();
+            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Name, r.Area, r.Governorate,
+            r.RepresentativeId.Value, repName.TryGetValue(r.RepresentativeId, out var n) ? n : null,
+            r.Purpose.Name, r.ScheduledDate, r.Status.Name, r.Outcome)).ToList();
 
         return PagedResult<MarketingVisitDto>.Create(items, total, criteria.Page, criteria.PageSize);
     }

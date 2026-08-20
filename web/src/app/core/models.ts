@@ -67,8 +67,8 @@ export interface RepListItem {
 }
 
 export interface MarketingVisit {
-  id: string; laboratoryId: string; labDisplayCode: string; labName: string;
-  representativeId: string; purpose: string; scheduledDate: string; status: string; outcome: string | null;
+  id: string; laboratoryId: string; labDisplayCode: string; lab: string; area: string | null; governorate: string | null;
+  representativeId: string; rep: string | null; purpose: string; scheduledDate: string; status: string; outcome: string | null;
 }
 
 export interface TransferItem {

@@ -17,8 +17,8 @@ namespace FollowUp.Application.Features.Marketing;
 // ---- Read side ----
 
 public sealed record MarketingVisitDto(
-    Guid Id, Guid LaboratoryId, string LabDisplayCode, string LabName, Guid RepresentativeId,
-    string Purpose, DateOnly ScheduledDate, string Status, string? Outcome);
+    Guid Id, Guid LaboratoryId, string LabDisplayCode, string Lab, string? Area, string? Governorate,
+    Guid RepresentativeId, string? Rep, string Purpose, DateOnly ScheduledDate, string Status, string? Outcome);
 
 /// <summary>Read-side query interface; listings surface Scheduled visits first (BR-10).</summary>
 public interface IMarketingQueries
