@@ -31,10 +31,24 @@ public sealed record DashTopLabDto(string Name, string? Area, int V);
 public sealed record DashSegMixDto(string Seg, int C);
 public sealed record DashGovRowDto(string G, int V);
 
-public sealed record NetworkOverviewDto(int TotalLabs, int ActiveLabs, int SamplesThisMonth, decimal IncomeThisMonth);
-public sealed record RepPerformanceRowDto(Guid RepId, string RepName, decimal AchievementPercent, decimal Pace, bool OnTrack, decimal Salary);
-public sealed record LabHistoryDto(string LabDisplayCode, string Name, IReadOnlyList<LabHistoryPointDto> Points);
-public sealed record LabHistoryPointDto(DateOnly Date, int Samples, string Status);
+// Reports — mirror the reference /api/reports/* payloads.
+public sealed record ChartPointDto(string M, int V);
+public sealed record CatCountDto(string C, int N);
+
+public sealed record NetworkOverviewDto(
+    int SamplesMtd, int CompletionPct, string CompletionDetail, int AvgPerLab, int ActiveLabs,
+    int ResolutionPct, string ResolutionDetail, int NewLabsYtd,
+    IReadOnlyList<ChartPointDto> Trend, IReadOnlyList<CatCountDto> Cats,
+    IReadOnlyList<DashGovRowDto> GovRows, IReadOnlyList<DashSegMixDto> SegMix);
+
+public sealed record RepPerformanceRowDto(
+    Guid RepId, string Name, string Type, string GoalType, decimal Target, decimal Achieved,
+    decimal Pct, string PaceLabel, bool OnTrack, decimal Salary);
+
+public sealed record LabHistoryDto(
+    string LabDisplayCode, string Name, string Segment, string Status,
+    int AvgMonth, int Mtd, int Complaints, IReadOnlyList<ChartPointDto> Months);
+
 public sealed record RepIntervalDto(Guid RepId, string RepName, double AverageCycleHours);
 
 /// <summary>

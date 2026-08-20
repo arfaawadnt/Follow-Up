@@ -156,42 +156,90 @@ internal sealed class InsightsQueries : IInsightsQueries
 
     public async Task<NetworkOverviewDto> GetOverviewAsync(OrgScope scope, CancellationToken ct)
     {
-        var active = LaboratoryStatus.Active;
-        var total = await _db.Laboratories.ApplyScope(scope).CountAsync(ct);
-        var activeLabs = await _db.Laboratories.ApplyScope(scope).CountAsync(l => l.Status == active, ct);
-        var scopedLabIds = await _db.Laboratories.ApplyScope(scope).Select(l => l.Id).ToListAsync(ct);
-        var monthStart = new DateOnly(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
-        var samples = await _db.MonthlySamples.Where(m => scopedLabIds.Contains(m.LaboratoryId)).SumAsync(m => (int?)m.SampleCount, ct) ?? 0;
-        // Income is a Money value object (converted) — its .Amount can't translate to SQL; sum the
-        // materialized month's incomes in memory (bounded by one month of per-lab rows).
-        var incomes = await _db.DailyLabStatistics.Where(s => s.Date >= monthStart).Select(s => s.Income).ToListAsync(ct);
-        var income = incomes.Sum(m => m.Amount);
-        return new NetworkOverviewDto(total, activeLabs, samples, income);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var monthStart = new DateOnly(today.Year, today.Month, 1);
+        var thisYm = new YearMonth(today.Year, today.Month).Code;
+        var months = Enumerable.Range(0, 6).Select(i => { var m = today.AddMonths(-i); return new YearMonth(m.Year, m.Month); }).ToList();
+
+        var labs = (await _db.Laboratories.ApplyScope(scope).AsNoTracking()
+            .Select(l => new { l.Id, l.Segment, l.Governorate, l.MonthlyTarget, l.Status, l.CreatedAt })
+            .ToListAsync(ct))
+            .Select(l => new { l.Id, Seg = l.Segment.Name, l.Governorate, l.MonthlyTarget, Active = l.Status == LaboratoryStatus.Active, l.CreatedAt })
+            .ToList();
+        var labIds = labs.Select(l => l.Id).ToList();
+
+        var ms = await _db.MonthlySamples.AsNoTracking()
+            .Where(m => labIds.Contains(m.LaboratoryId) && months.Contains(m.Period))
+            .Select(m => new { m.LaboratoryId, Period = m.Period, m.SampleCount }).ToListAsync(ct);
+        var mtdByLab = ms.Where(x => x.Period.Code == thisYm).GroupBy(x => x.LaboratoryId).ToDictionary(g => g.Key, g => g.Sum(x => x.SampleCount));
+        var samplesMtd = mtdByLab.Values.Sum();
+        var activeLabs = labs.Count(l => l.Active);
+
+        var mVisits = await _db.DailyVisits.AsNoTracking()
+            .Where(v => v.VisitDate >= monthStart && v.VisitDate <= today && labIds.Contains(v.LaboratoryId))
+            .Select(v => new { v.Status }).ToListAsync(ct);
+        var doneV = mVisits.Count(v => v.Status == VisitStatus.Visited || v.Status == VisitStatus.Received);
+        var completionPct = mVisits.Count > 0 ? (int)Math.Round(100.0 * doneV / mVisits.Count) : 0;
+
+        var totalComplaints = await _db.Complaints.CountAsync(c => labIds.Contains(c.LaboratoryId), ct);
+        var resolvedComplaints = await _db.Complaints.CountAsync(c => labIds.Contains(c.LaboratoryId) && c.Status == ComplaintStatus.Resolved, ct);
+        var resolutionPct = totalComplaints > 0 ? (int)Math.Round(100.0 * resolvedComplaints / totalComplaints) : 0;
+        var cRaw = await _db.Complaints.AsNoTracking().Where(c => labIds.Contains(c.LaboratoryId))
+            .Select(c => c.Category).ToListAsync(ct);
+        var cats = cRaw.GroupBy(c => c).Select(g => new CatCountDto(g.Key, g.Count())).OrderByDescending(x => x.N).Take(6).ToList();
+
+        var trend = months.AsEnumerable().Reverse()
+            .Select(m => new ChartPointDto(new DateOnly(m.Year, m.Month, 1).ToString("MMM", CultureInfo.InvariantCulture),
+                ms.Where(x => x.Period.Code == m.Code).Sum(x => x.SampleCount))).ToList();
+        int MtdOf(LaboratoryId id) => mtdByLab.TryGetValue(id, out var v) ? v : 0;
+        var govRows = labs.Where(l => !string.IsNullOrWhiteSpace(l.Governorate)).GroupBy(l => l.Governorate!)
+            .Select(g => new DashGovRowDto(g.Key, g.Sum(l => MtdOf(l.Id)))).OrderByDescending(x => x.V).Take(8).ToList();
+        var segMix = labs.GroupBy(l => l.Seg).OrderBy(g => g.Key).Select(g => new DashSegMixDto(g.Key, g.Count())).ToList();
+
+        return new NetworkOverviewDto(
+            samplesMtd, completionPct, $"{doneV} of {mVisits.Count} visits", activeLabs > 0 ? samplesMtd / activeLabs : 0, activeLabs,
+            resolutionPct, $"{resolvedComplaints} of {totalComplaints} resolved", labs.Count(l => l.CreatedAt.Year == today.Year),
+            trend, cats, govRows, segMix);
     }
 
     public async Task<IReadOnlyList<RepPerformanceRowDto>> GetPerformanceAsync(OrgScope scope, CancellationToken ct)
     {
-        // Basic attainment = achieved/target from the latest commission rows; pace/on-track use the >=85% rule (BR-8).
+        // Attainment = achieved/target from the latest commission rows; pace/on-track use the >=85% rule (BR-8).
         var reps = await _db.Representatives.AsNoTracking().Where(r => r.IsActive).ToListAsync(ct);
         var result = new List<RepPerformanceRowDto>();
         foreach (var r in reps)
         {
             var latest = await _db.Commissions.AsNoTracking().Where(c => c.RepresentativeId == r.Id)
                 .OrderByDescending(c => c.Period).FirstOrDefaultAsync(ct);
-            var achievementPct = latest is null || latest.Target == 0 ? 0 : Math.Round(latest.Achieved / latest.Target * 100m, 2);
-            result.Add(new RepPerformanceRowDto(r.Id.Value, r.FullName, achievementPct, achievementPct, achievementPct >= 85m, r.Salary.Amount));
+            var target = latest?.Target ?? r.Target.Amount;
+            var achieved = latest?.Achieved ?? 0m;
+            var pct = target == 0 ? 0 : Math.Round(achieved / target * 100m, 0);
+            var onTrack = pct >= 85m;
+            result.Add(new RepPerformanceRowDto(r.Id.Value, r.FullName, r.Type.Name, r.GoalType ?? r.GoalDuration.Name,
+                target, achieved, pct, onTrack ? "On track" : "Behind", onTrack, r.Salary.Amount));
         }
         return result;
     }
 
     public async Task<LabHistoryDto?> GetLabHistoryAsync(Guid labId, bool canSeeEncrypted, CancellationToken ct)
     {
-        var lab = await _db.Laboratories.AsNoTracking().FirstOrDefaultAsync(l => l.Id == new LaboratoryId(labId), ct);
+        var lab = await _db.Laboratories.AsNoTracking()
+            .Where(l => l.Id == new LaboratoryId(labId))
+            .Select(l => new { l.Code, l.Name, l.Segment, l.Status }).FirstOrDefaultAsync(ct);
         if (lab is null) return null;
-        var points = await _db.VisitHistory.AsNoTracking().Where(h => h.LaboratoryId == lab.Id)
-            .OrderByDescending(h => h.VisitDate).Take(90)
-            .Select(h => new LabHistoryPointDto(h.VisitDate, h.SampleCount ?? 0, h.Status)).ToListAsync(ct);
-        return new LabHistoryDto(DisplayCode.For(lab.Code.Value, canSeeEncrypted), lab.Name, points);
+        var lid = new LaboratoryId(labId);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var thisYm = new YearMonth(today.Year, today.Month).Code;
+        var months = Enumerable.Range(0, 6).Select(i => { var m = today.AddMonths(-i); return new YearMonth(m.Year, m.Month); }).ToList();
+        var ms = await _db.MonthlySamples.AsNoTracking().Where(m => m.LaboratoryId == lid && months.Contains(m.Period))
+            .Select(m => new { Period = m.Period, m.SampleCount }).ToListAsync(ct);
+        var allMs = await _db.MonthlySamples.AsNoTracking().Where(m => m.LaboratoryId == lid).Select(m => m.SampleCount).ToListAsync(ct);
+        var complaints = await _db.Complaints.CountAsync(c => c.LaboratoryId == lid, ct);
+        var monthPts = months.AsEnumerable().Reverse()
+            .Select(m => new ChartPointDto(new DateOnly(m.Year, m.Month, 1).ToString("MMM", CultureInfo.InvariantCulture),
+                ms.Where(x => x.Period.Code == m.Code).Sum(x => x.SampleCount))).ToList();
+        return new LabHistoryDto(DisplayCode.For(lab.Code.Value, canSeeEncrypted), lab.Name, lab.Segment.Name, lab.Status.Name,
+            allMs.Count > 0 ? (int)Math.Round(allMs.Average()) : 0, ms.Where(x => x.Period.Code == thisYm).Sum(x => x.SampleCount), complaints, monthPts);
     }
 
     public async Task<IReadOnlyList<RepIntervalDto>> GetRepIntervalsAsync(OrgScope scope, CancellationToken ct)
