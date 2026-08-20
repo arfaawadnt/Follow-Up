@@ -50,7 +50,7 @@ export const routes: Routes = [
       { path: 'users', loadComponent: () => import('./features/users/users.component').then((m) => m.UsersComponent) },
       { path: 'roles', ...ph('roles') },
       { path: 'setup', loadComponent: () => import('./features/setup/setup.component').then((m) => m.SetupComponent) },
-      { path: 'integration', ...ph('oracle_integration') },
+      { path: 'integration', loadComponent: () => import('./features/integration/integration.component').then((m) => m.IntegrationComponent) },
       { path: 'notifications', loadComponent: () => import('./features/notifications/notifications.component').then((m) => m.NotificationsComponent) },
       { path: 'sessions', ...ph('active_sessions') },
       { path: 'audit', ...ph('audit_trail') },
