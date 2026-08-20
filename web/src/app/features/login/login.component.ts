@@ -1,51 +1,80 @@
 import { Component, inject, signal } from '@angular/core';
-import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
 import { UiService } from '../../core/ui.service';
+import { TranslatePipe } from '../../core/i18n';
 
+/** Split-screen login replicating the reference platform (:5080) — brand panel + sign-in card. */
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [ReactiveFormsModule],
+  imports: [FormsModule, TranslatePipe],
   template: `
-    <div class="wrap">
-      <form class="dcard panel" [formGroup]="form" (ngSubmit)="submit()">
-        <div class="brand"><span class="logo">FU</span><b>Follow-Up</b><small>Laboratory Marketing Platform</small></div>
-
-        @if (error()) { <div class="inline-banner inline-banner-error">{{ error() }}</div> }
-
-        <div class="field">
-          <label>Username <span class="req">*</span></label>
-          <input formControlName="username" autocomplete="username" autofocus>
+    <div class="login-container" [attr.dir]="ui.lang() === 'ar' ? 'rtl' : 'ltr'">
+      <div class="login-left">
+        <div class="login-logo-header-band">
+          <img src="logo.png" alt="Follow-Up Logo" style="height:48px;width:auto;max-width:100%">
         </div>
-        <div class="field">
-          <label>Password <span class="req">*</span></label>
-          <input type="password" formControlName="password" autocomplete="current-password">
+        <div class="login-left-content">
+          <h1 class="login-catchy-title">{{ 'connect_title' | t }}</h1>
+          <div class="login-line"></div>
+          <p class="login-catchy-desc">{{ 'desc_left' | t }}</p>
+          <div class="login-features">
+            <div class="login-feature-item">
+              <div class="login-feature-icon-circle">🤝</div>
+              <div class="login-feature-text-val">{{ 'feat1' | t }}</div>
+            </div>
+            <div class="login-feature-item">
+              <div class="login-feature-icon-circle">📈</div>
+              <div class="login-feature-text-val">{{ 'feat2' | t }}</div>
+            </div>
+            <div class="login-feature-item">
+              <div class="login-feature-icon-circle">✅</div>
+              <div class="login-feature-text-val">{{ 'feat3' | t }}</div>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:11px;opacity:.6;text-align:start">&copy; {{ year }} Mega Laboratory. All rights reserved.</div>
+      </div>
+
+      <div class="login-right">
+        <div style="position:absolute;top:20px;inset-inline-end:20px">
+          <select class="lang-selector" [ngModel]="ui.lang()" (ngModelChange)="ui.lang.set($event)">
+            <option value="en">English</option>
+            <option value="ar">العربية</option>
+          </select>
         </div>
 
-        <button class="btn btn-p" type="submit" [disabled]="form.invalid || loading()">
-          {{ loading() ? 'Signing in…' : 'Sign in' }}
-        </button>
-        <button class="btn btn-s theme" type="button" (click)="ui.toggleTheme()">◐ Theme</button>
-      </form>
+        <form class="login-card" (ngSubmit)="submit()">
+          <h2>{{ 'welcome' | t }}</h2>
+          <p class="login-subtitle">{{ 'signin_desc' | t }}</p>
+
+          <div class="login-input-wrapper">
+            <span class="input-icon">👤</span>
+            <input [(ngModel)]="username" name="username" autocomplete="username"
+                   [attr.aria-label]="'username' | t" [placeholder]="'username' | t">
+          </div>
+          <div class="login-input-wrapper">
+            <span class="input-icon">🔒</span>
+            <input [type]="showPw() ? 'text' : 'password'" [(ngModel)]="password" name="password"
+                   autocomplete="current-password" [attr.aria-label]="'password' | t" [placeholder]="'password' | t">
+            <button type="button" class="password-toggle" [attr.aria-label]="'show_password' | t" (click)="showPw.set(!showPw())">👁️</button>
+          </div>
+
+          @if (error()) { <div class="err" style="margin:0 0 16px">{{ error() }}</div> }
+
+          <button class="login-btn" type="submit" [disabled]="loading()">
+            {{ loading() ? ('signing_in' | t : 'Signing in…') : ('signin' | t) }}
+          </button>
+        </form>
+
+        <div class="login-right-footer"><div>🔒 {{ 'secure_platform' | t }}</div></div>
+      </div>
     </div>
   `,
-  styles: [`
-    .wrap { min-height: 100vh; display: grid; place-items: center; background:
-      radial-gradient(1000px 500px at 15% -10%, rgba(0,120,212,.10), transparent 60%), var(--canvas); }
-    .panel { width: 360px; padding: 28px; }
-    .brand { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-bottom: 20px; }
-    .brand .logo { background: var(--primary-blue); color: #fff; border-radius: var(--r-md); padding: 8px 14px; font: 800 18px var(--disp); }
-    .brand b { font: 800 20px var(--disp); color: var(--slate-900); margin-top: 8px; }
-    .brand small { color: var(--slate-500); }
-    .field { max-width: none; }
-    .btn-p { width: 100%; justify-content: center; margin-top: 6px; }
-    .theme { width: 100%; justify-content: center; margin-top: 8px; }
-  `],
 })
 export class LoginComponent {
-  private readonly fb = inject(NonNullableFormBuilder);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -53,25 +82,23 @@ export class LoginComponent {
 
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
-
-  readonly form = this.fb.group({
-    username: this.fb.control('', Validators.required),
-    password: this.fb.control('', Validators.required),
-  });
+  readonly showPw = signal(false);
+  readonly year = new Date().getFullYear();
+  username = '';
+  password = '';
 
   submit(): void {
-    if (this.form.invalid) return;
+    if (!this.username.trim() || !this.password) return;
     this.loading.set(true);
     this.error.set(null);
-    const { username, password } = this.form.getRawValue();
-    this.auth.login(username, password).subscribe({
+    this.auth.login(this.username.trim(), this.password).subscribe({
       next: () => {
         const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl') ?? '/dashboard';
         void this.router.navigateByUrl(returnUrl);
       },
       error: (err) => {
         this.loading.set(false);
-        this.error.set(err?.error?.detail ?? 'Sign-in failed. Check your credentials.');
+        this.error.set(err?.error?.detail ?? err?.error?.title ?? 'Sign-in failed. Check your credentials.');
       },
     });
   }

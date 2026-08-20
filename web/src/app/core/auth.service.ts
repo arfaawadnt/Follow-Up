@@ -39,6 +39,10 @@ export class AuthService {
     );
   }
 
+  changePassword(oldPassword: string, newPassword: string): Observable<unknown> {
+    return this.http.post(`${environment.apiBase}/user/change-password`, { oldPassword, newPassword });
+  }
+
   logout(): void {
     // Best-effort server revoke; clear local state regardless.
     this.http.post(`${environment.apiBase}/auth/logout`, {}).subscribe({ error: () => {} });

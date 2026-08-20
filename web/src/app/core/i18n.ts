@@ -1,5 +1,6 @@
 import { Injectable, Pipe, PipeTransform, inject } from '@angular/core';
 import { UiService } from './ui.service';
+import { TRANSLATIONS } from './translations';
 
 type Dict = Record<string, string>;
 
@@ -50,21 +51,27 @@ const AR: Dict = {
 };
 
 const DICTS: Record<string, Dict> = { en: EN, ar: AR };
+const CATALOGUE = TRANSLATIONS as Record<string, Dict>;
 
-/** Minimal bilingual (EN/AR) translation lookup driven by the UiService language signal. */
+/**
+ * Bilingual (EN/AR) lookup driven by the UiService language signal. Primary source is the reference
+ * catalogue (`translations.ts`); the small legacy DICTS remain as a fallback for keys not yet migrated.
+ */
 @Injectable({ providedIn: 'root' })
 export class I18nService {
   private readonly ui = inject(UiService);
-  t(key: string): string {
-    return DICTS[this.ui.lang()]?.[key] ?? DICTS['en'][key] ?? key;
+  t(key: string, def?: string): string {
+    const lang = this.ui.lang();
+    return CATALOGUE[lang]?.[key] ?? CATALOGUE['en']?.[key]
+      ?? DICTS[lang]?.[key] ?? DICTS['en'][key] ?? def ?? key;
   }
 }
 
-/** Impure so it re-evaluates when the language toggles (small app, cheap). Usage: {{ 'nav.labs' | t }} */
+/** Impure so it re-evaluates when the language toggles (small app, cheap). Usage: {{ 'signin' | t }} */
 @Pipe({ name: 't', standalone: true, pure: false })
 export class TranslatePipe implements PipeTransform {
   private readonly i18n = inject(I18nService);
-  transform(key: string): string {
-    return this.i18n.t(key);
+  transform(key: string, def?: string): string {
+    return this.i18n.t(key, def);
   }
 }
