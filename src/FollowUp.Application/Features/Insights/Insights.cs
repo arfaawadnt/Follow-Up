@@ -6,17 +6,30 @@ namespace FollowUp.Application.Features.Insights;
 
 // ---- DTOs ----
 
+// Dashboard read model mirrors the reference platform's `/api/dashboard` payload so the SPA maps 1:1.
 public sealed record DashboardDto(
-    int ActiveLabs, int OpenComplaints, int SamplesToday, int MissedToday,
-    IReadOnlyList<ScheduleItemDto> TodaySchedule,
-    IReadOnlyList<UnresolvedComplaintDto> UnresolvedComplaints,
-    IReadOnlyList<RepProgressDto> RepProgress,
-    IReadOnlyList<BirthdayDto> Birthdays);
+    DashboardKpisDto Kpis,
+    DashboardBirthdayDto? Bday,
+    IReadOnlyList<DashScheduleDto> Schedule,
+    IReadOnlyList<DashComplaintDto> Complaints,
+    IReadOnlyList<DashRepProgDto> RepProg,
+    IReadOnlyList<DashTopLabDto> TopLabs,
+    IReadOnlyList<int> Trend,
+    IReadOnlyList<DashSegMixDto> SegMix,
+    IReadOnlyList<DashGovRowDto> GovRows);
 
-public sealed record ScheduleItemDto(Guid VisitId, string LabDisplayCode, string LabName, string Status, string Time);
-public sealed record UnresolvedComplaintDto(Guid Id, string Reference, string LabDisplayCode, string Status);
-public sealed record RepProgressDto(Guid RepId, string RepName, decimal AchievementPercent, bool OnTrack);
-public sealed record BirthdayDto(string ContactName, string LabDisplayCode, string? Phone);
+public sealed record DashboardKpisDto(
+    int ActiveLabs, int TotalLabs, int Done, int TotalVisits, int Pending, int Missed,
+    int SamplesToday, int OpenComplaints, int InProgress, int Resolved,
+    long Mtd, long Target, string MonthName);
+
+public sealed record DashboardBirthdayDto(string Text);
+public sealed record DashScheduleDto(Guid Id, string Time, string Lab, string? Area, string Rep, string Status, int? Samples, bool TransferDone);
+public sealed record DashComplaintDto(string Id, string Lab, string Description, string Category, int Age);
+public sealed record DashRepProgDto(string Name, string Detail, int Pct);
+public sealed record DashTopLabDto(string Name, string? Area, int V);
+public sealed record DashSegMixDto(string Seg, int C);
+public sealed record DashGovRowDto(string G, int V);
 
 public sealed record NetworkOverviewDto(int TotalLabs, int ActiveLabs, int SamplesThisMonth, decimal IncomeThisMonth);
 public sealed record RepPerformanceRowDto(Guid RepId, string RepName, decimal AchievementPercent, decimal Pace, bool OnTrack, decimal Salary);

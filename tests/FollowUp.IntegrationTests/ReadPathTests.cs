@@ -76,8 +76,8 @@ public sealed class ReadPathTests
         var dashboard = await insights.GetDashboardAsync(OrgScope.Global, true, new DateOnly(2026, 8, 15), default);
 
         dashboard.Should().NotBeNull();
-        dashboard.OpenComplaints.Should().Be(0);
-        dashboard.TodaySchedule.Should().BeEmpty(); // no board generated in this test
+        dashboard.Kpis.OpenComplaints.Should().Be(0);
+        dashboard.Schedule.Should().BeEmpty(); // no board generated in this test
     }
 
     private async Task<Guid> Send(CreateLaboratoryCommand cmd)

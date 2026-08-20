@@ -1,11 +1,14 @@
 using FollowUp.Application.Common.Abstractions;
 using FollowUp.Application.Features.Insights;
 using FollowUp.Application.Features.Notifications;
+using FollowUp.Domain.Common;
 using FollowUp.Domain.Complaints;
 using FollowUp.Domain.Identity;
 using FollowUp.Domain.Laboratories;
 using FollowUp.Domain.Operations;
+using FollowUp.Domain.Representatives;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 
 namespace FollowUp.Infrastructure.Persistence.Queries;
 
@@ -49,45 +52,107 @@ internal sealed class InsightsQueries : IInsightsQueries
 
     public async Task<DashboardDto> GetDashboardAsync(OrgScope scope, bool canSeeEncrypted, DateOnly today, CancellationToken ct)
     {
-        var scopedLabs = _db.Laboratories.ApplyScope(scope).Select(l => l.Id);
-        var active = LaboratoryStatus.Active;
-        var open = ComplaintStatus.Open;
-        var inProgress = ComplaintStatus.InProgress;
-        var missed = VisitStatus.Missed;
-
-        var activeLabs = await _db.Laboratories.ApplyScope(scope).CountAsync(l => l.Status == active, ct);
-        var openComplaints = await _db.Complaints.Where(c => scopedLabs.Contains(c.LaboratoryId) && (c.Status == open || c.Status == inProgress)).CountAsync(ct);
-        var samplesToday = await _db.DailyVisits.Where(v => v.VisitDate == today && scopedLabs.Contains(v.LaboratoryId) && v.SampleCount != null).SumAsync(v => (int?)v.SampleCount, ct) ?? 0;
-        var missedToday = await _db.DailyVisits.Where(v => v.VisitDate == today && v.Status == missed && scopedLabs.Contains(v.LaboratoryId)).CountAsync(ct);
-
-        var schedule = await (from v in _db.DailyVisits.AsNoTracking()
-                              where v.VisitDate == today && scopedLabs.Contains(v.LaboratoryId)
-                              join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
-                              orderby v.ScheduledTime
-                              select new { v.Id, l.Code, l.Name, v.Status, v.ScheduledTime }).Take(50).ToListAsync(ct);
-
-        var unresolved = await (from c in _db.Complaints.AsNoTracking()
-                                where scopedLabs.Contains(c.LaboratoryId) && c.Status != ComplaintStatus.Resolved
-                                join l in _db.Laboratories.AsNoTracking() on c.LaboratoryId equals l.Id
-                                orderby c.Number descending
-                                select new { c.Id, c.Number, l.Code, c.Status }).Take(20).ToListAsync(ct);
-
-        // Birthdays today among scoped labs' contacts (bounded post-filter on month/day).
-        var contacts = await _db.Laboratories.ApplyScope(scope)
-            .SelectMany(l => l.Contacts.Select(c => new { c.Name, c.Phone, c.Birthday, LabCode = l.Code }))
-            .Where(x => x.Birthday != null).ToListAsync(ct);
-        var birthdays = contacts
-            .Where(x => x.Birthday!.Value.Month == today.Month && x.Birthday!.Value.Day == today.Day)
-            .Select(x => new BirthdayDto(x.Name, DisplayCode.For(x.LabCode.Value, canSeeEncrypted), x.Phone))
+        var thisYm = new YearMonth(today.Year, today.Month).Code;
+        // Value-object sub-properties (Segment.Name, Code.Value, Period.Code) don't translate to SQL — so we
+        // materialize the scoped rows with converted-type equality/IN filters and then compute in memory.
+        var labs = (await _db.Laboratories.ApplyScope(scope).AsNoTracking()
+            .Select(l => new { l.Id, l.Code, l.Name, l.Segment, l.Governorate, l.Area, l.MonthlyTarget, l.Status, l.CollectorRepId })
+            .ToListAsync(ct))
+            .Select(l => new LabRow(l.Id, l.Name, l.Segment.Name, l.Governorate, l.Area, l.MonthlyTarget,
+                l.Status == LaboratoryStatus.Active, l.CollectorRepId))
             .ToList();
+        var labIds = labs.Select(l => l.Id).ToList();
+        var labById = labs.ToDictionary(l => l.Id);
 
-        return new DashboardDto(
-            activeLabs, openComplaints, samplesToday, missedToday,
-            schedule.Select(s => new ScheduleItemDto(s.Id.Value, DisplayCode.For(s.Code.Value, canSeeEncrypted), s.Name, s.Status.Name, s.ScheduledTime.ToString("HH:mm"))).ToList(),
-            unresolved.Select(u => new UnresolvedComplaintDto(u.Id.Value, $"CMP-{u.Number}", DisplayCode.For(u.Code.Value, canSeeEncrypted), u.Status.Name)).ToList(),
-            Array.Empty<RepProgressDto>(), // attainment engine (BR-8 rolling 90d) — refined in a later pass
-            birthdays);
+        // Monthly aggregates for the trailing 6 months (current first) — for MTD, trend, top labs, gov volume.
+        var months = Enumerable.Range(0, 6).Select(i => { var m = today.AddMonths(-i); return new YearMonth(m.Year, m.Month); }).ToList();
+        var monthCodes = months.Select(m => m.Code).ToList();
+        var ms = await _db.MonthlySamples.AsNoTracking()
+            .Where(m => labIds.Contains(m.LaboratoryId) && months.Contains(m.Period))
+            .Select(m => new { m.LaboratoryId, Period = m.Period, m.SampleCount })
+            .ToListAsync(ct);
+        var mtdByLab = ms.Where(x => x.Period.Code == thisYm)
+            .GroupBy(x => x.LaboratoryId).ToDictionary(g => g.Key, g => g.Sum(x => x.SampleCount));
+        int MtdOf(LaboratoryId id) => mtdByLab.TryGetValue(id, out var v) ? v : 0;
+
+        // Today's visits.
+        var visits = await _db.DailyVisits.AsNoTracking()
+            .Where(v => v.VisitDate == today && labIds.Contains(v.LaboratoryId))
+            .Select(v => new { v.Id, v.LaboratoryId, v.Status, v.SampleCount, v.ScheduledTime, v.CollectorRepId, v.TransferConfirmedAt })
+            .ToListAsync(ct);
+        bool IsDone(VisitStatus s) => s == VisitStatus.Visited || s == VisitStatus.Received;
+
+        // Rep names for schedule + collector progress.
+        var repIds = labs.Where(l => l.CollectorRepId != null).Select(l => l.CollectorRepId!.Value)
+            .Concat(visits.Where(v => v.CollectorRepId != null).Select(v => v.CollectorRepId!.Value)).Distinct().ToList();
+        var repName = (await _db.Representatives.AsNoTracking().Where(r => repIds.Contains(r.Id))
+            .Select(r => new { r.Id, r.FullName }).ToListAsync(ct)).ToDictionary(r => r.Id, r => r.FullName);
+        string RepOf(RepresentativeId? id) => id != null && repName.TryGetValue(id.Value, out var n) ? n : "—";
+
+        // Unresolved complaints (top 8, newest first).
+        var cRaw = await _db.Complaints.AsNoTracking()
+            .Where(c => labIds.Contains(c.LaboratoryId) && c.Status != ComplaintStatus.Resolved)
+            .OrderByDescending(c => c.Number)
+            .Select(c => new { c.Number, c.LaboratoryId, c.Category, c.Details, c.CreatedAt })
+            .Take(8).ToListAsync(ct);
+
+        var openCount = await _db.Complaints.CountAsync(c => labIds.Contains(c.LaboratoryId) && (c.Status == ComplaintStatus.Open || c.Status == ComplaintStatus.InProgress), ct);
+        var inProgCount = await _db.Complaints.CountAsync(c => labIds.Contains(c.LaboratoryId) && c.Status == ComplaintStatus.InProgress, ct);
+        var resolvedCount = await _db.Complaints.CountAsync(c => labIds.Contains(c.LaboratoryId) && c.Status == ComplaintStatus.Resolved, ct);
+
+        // Birthdays today.
+        var contacts = await _db.Laboratories.ApplyScope(scope)
+            .SelectMany(l => l.Contacts.Select(c => new { c.Name, c.Birthday, LabName = l.Name }))
+            .Where(x => x.Birthday != null).ToListAsync(ct);
+        var bdayContact = contacts.FirstOrDefault(x => x.Birthday!.Value.Month == today.Month && x.Birthday!.Value.Day == today.Day);
+
+        // ---- assemble ----
+        var kpis = new DashboardKpisDto(
+            ActiveLabs: labs.Count(l => l.Active),
+            TotalLabs: labs.Count,
+            Done: visits.Count(v => IsDone(v.Status)),
+            TotalVisits: visits.Count,
+            Pending: visits.Count(v => v.Status == VisitStatus.Pending),
+            Missed: visits.Count(v => v.Status == VisitStatus.Missed),
+            SamplesToday: visits.Where(v => IsDone(v.Status) && v.SampleCount != null).Sum(v => v.SampleCount!.Value),
+            OpenComplaints: openCount, InProgress: inProgCount, Resolved: resolvedCount,
+            Mtd: mtdByLab.Values.Sum(), Target: labs.Sum(l => (long)l.MonthlyTarget),
+            MonthName: today.ToString("MMMM", CultureInfo.InvariantCulture));
+
+        var schedule = visits.OrderBy(v => v.ScheduledTime).Take(9)
+            .Select(v => new DashScheduleDto(v.Id.Value, v.ScheduledTime.ToString("HH:mm"),
+                labById.TryGetValue(v.LaboratoryId, out var l) ? l.Name : "—", l?.Area, RepOf(v.CollectorRepId),
+                v.Status.Name, v.SampleCount, v.TransferConfirmedAt != null)).ToList();
+
+        var complaints = cRaw.Select(c => new DashComplaintDto($"CMP-{c.Number}",
+            labById.TryGetValue(c.LaboratoryId, out var l) ? l.Name : "—", c.Details, c.Category,
+            Math.Max(0, today.DayNumber - DateOnly.FromDateTime(c.CreatedAt.UtcDateTime).DayNumber))).ToList();
+
+        var repProg = labs.Where(l => l.CollectorRepId != null).GroupBy(l => l.CollectorRepId!.Value)
+            .Select(g => { var tgt = g.Sum(l => l.MonthlyTarget); var mtd = g.Sum(l => MtdOf(l.Id));
+                return new DashRepProgDto(RepOf(g.Key), $"{mtd:n0} / {tgt:n0}", tgt > 0 ? (int)Math.Round(100.0 * mtd / tgt) : 0); })
+            .Where(r => r.Detail != "0 / 0").OrderByDescending(r => r.Pct).Take(8).ToList();
+
+        var topLabs = labs.Select(l => new DashTopLabDto(l.Name, l.Area, MtdOf(l.Id)))
+            .Where(x => x.V > 0).OrderByDescending(x => x.V).Take(5).ToList();
+
+        var trend = months.AsEnumerable().Reverse()
+            .Select(m => ms.Where(x => x.Period.Code == m.Code).Sum(x => x.SampleCount)).ToList();
+
+        var segMix = labs.GroupBy(l => l.Seg).OrderBy(g => g.Key)
+            .Select(g => new DashSegMixDto(g.Key, g.Count())).ToList();
+
+        var govRows = labs.Where(l => !string.IsNullOrWhiteSpace(l.Gov)).GroupBy(l => l.Gov!)
+            .Select(g => new DashGovRowDto(g.Key, g.Sum(l => MtdOf(l.Id))))
+            .OrderByDescending(x => x.V).Take(8).ToList();
+
+        return new DashboardDto(kpis,
+            bdayContact is null ? null : new DashboardBirthdayDto($"{bdayContact.Name} at {bdayContact.LabName} has a birthday today"),
+            schedule, complaints, repProg, topLabs, trend, segMix, govRows);
     }
+
+    private sealed record LabRow(LaboratoryId Id, string Name, string Seg, string? Gov, string? Area,
+        int MonthlyTarget, bool Active, RepresentativeId? CollectorRepId);
 
     public async Task<NetworkOverviewDto> GetOverviewAsync(OrgScope scope, CancellationToken ct)
     {
