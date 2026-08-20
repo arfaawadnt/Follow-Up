@@ -99,6 +99,22 @@ app.UseStaticFiles(new StaticFileOptions
 
 app.UseMiddleware<TokenAuthMiddleware>();
 
+// Edge authentication gate: every /api/v1 route requires a resolved principal except the anonymous
+// login endpoint. This complements the per-request privilege checks (AuthorizationBehavior) so that
+// queries which don't declare IAuthorizedRequest still can't be reached unauthenticated (defense in depth).
+app.Use(async (ctx, next) =>
+{
+    var path = ctx.Request.Path;
+    if (path.StartsWithSegments("/api/v1")
+        && !path.StartsWithSegments("/api/v1/auth/login")
+        && ctx.Items[FollowUp.Api.Auth.CurrentUser.ItemKey] is null)
+    {
+        ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        return;
+    }
+    await next();
+});
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();

@@ -60,6 +60,7 @@ public sealed class IntegrationFixture : IDisposable
         // under the GUC, set in the SAME batch/connection.
         await db.Database.ExecuteSqlRawAsync(@"
 SET followup.allow_audit_purge='on';
+DELETE FROM idempotency_record;
 DELETE FROM outbox_message;
 DELETE FROM system_notification;
 DELETE FROM notification_delivery_log;
