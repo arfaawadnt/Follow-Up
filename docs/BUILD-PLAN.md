@@ -242,5 +242,13 @@ retention (GET/PUT min-30, POST run). 4 new integration tests (85 backend total)
   applies a signature via password re-auth (server re-authenticates). Embedded as an expandable row in the
   complaints screen. Verified live: catalogue CRUD 200/204; sign 200 → verified valid; wrong password → 403.
 
-Remaining polish (not blocking): Leaflet maps (lab coordinates), Playwright e2e suite,
-API contract tests (WebApplicationFactory).
+- **Batch F** — **Leaflet maps** on the laboratory detail. Reusable `MapComponent` (OSM tiles + vector
+  `circleMarker`, no image-asset dependency; `invalidateSize` after layout; graceful if tiles can't load).
+  Read view shows the lab location + an "open in OpenStreetMap" link; edit view adds lat/lng inputs, a
+  click-to-drop editable map, and a **paste-a-maps-link resolver** that parses coordinates client-side
+  (`@lat,lng`, `q=`, `!3d!4d`, `mlat/mlon`) and falls back to the API `/maps/resolve-redirect`. `leaflet` +
+  `@types/leaflet` added; `leaflet.css` wired into angular.json; bundles only into the lazy lab-detail chunk.
+  Verified live: `/maps/resolve-redirect` 200 and coordinate round-trip PUT 204 → GET returns the coords.
+  (Live OSM tile rendering not verifiable in this sandbox — the browser pane can't reach host localhost.)
+
+Remaining polish (not blocking): Playwright e2e suite, API contract tests (WebApplicationFactory).
