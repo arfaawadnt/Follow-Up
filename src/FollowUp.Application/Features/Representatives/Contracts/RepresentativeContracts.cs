@@ -4,7 +4,8 @@ using FollowUp.Domain.Identity;
 namespace FollowUp.Application.Features.Representatives.Contracts;
 
 public sealed record RepListItemDto(
-    Guid Id, string FullName, string Type, string GoalDuration, bool IsActive, string? Branch, string? Governorate);
+    Guid Id, string FullName, string Type, string GoalDuration, string? GoalType, string? Metric,
+    decimal Target, decimal Salary, string? Phone, int AssignedCount, bool IsActive, string? Branch, string? Governorate);
 
 public sealed record RepDetailDto(
     Guid Id, string FullName, string Type, string GoalDuration, string? GoalType, string? Metric,

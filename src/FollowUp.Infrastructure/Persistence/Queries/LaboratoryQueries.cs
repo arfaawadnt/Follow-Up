@@ -102,11 +102,21 @@ internal sealed class RepresentativeQueries : IRepresentativeQueries
         var rows = await query
             .OrderBy(r => r.FullName)
             .Skip(criteria.Skip).Take(criteria.PageSize)
-            .Select(r => new { r.Id, r.FullName, r.Type, r.GoalDuration, r.IsActive, r.Branch, r.Governorate })
+            .Select(r => new { r.Id, r.FullName, r.Type, r.GoalDuration, r.GoalType, r.Metric, r.Target, r.Salary, r.Phone, r.IsActive, r.Branch, r.Governorate })
             .ToListAsync(ct);
 
+        // Assigned-lab counts (collector or marketing rep) — materialize the two id columns and count in memory.
+        var labReps = await _db.Laboratories.AsNoTracking().Select(l => new { l.CollectorRepId, l.MarketingRepId }).ToListAsync(ct);
+        var counts = new Dictionary<Domain.Representatives.RepresentativeId, int>();
+        foreach (var lr in labReps)
+        {
+            if (lr.CollectorRepId is { } c) counts[c] = counts.GetValueOrDefault(c) + 1;
+            if (lr.MarketingRepId is { } mk) counts[mk] = counts.GetValueOrDefault(mk) + 1;
+        }
+
         var items = rows.Select(r => new Application.Features.Representatives.Contracts.RepListItemDto(
-            r.Id.Value, r.FullName, r.Type.Name, r.GoalDuration.Name, r.IsActive, r.Branch, r.Governorate)).ToList();
+            r.Id.Value, r.FullName, r.Type.Name, r.GoalDuration.Name, r.GoalType, r.Metric,
+            r.Target.Amount, r.Salary.Amount, r.Phone, counts.GetValueOrDefault(r.Id), r.IsActive, r.Branch, r.Governorate)).ToList();
 
         return PagedResult<Application.Features.Representatives.Contracts.RepListItemDto>
             .Create(items, total, criteria.Page, criteria.PageSize);

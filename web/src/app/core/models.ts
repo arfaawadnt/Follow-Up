@@ -64,7 +64,8 @@ export interface BoardItem {
 }
 
 export interface RepListItem {
-  id: string; fullName: string; type: string; goalDuration: string;
+  id: string; fullName: string; type: string; goalDuration: string; goalType: string | null; metric: string | null;
+  target: number; salary: number; phone: string | null; assignedCount: number;
   isActive: boolean; branch: string | null; governorate: string | null;
 }
 
