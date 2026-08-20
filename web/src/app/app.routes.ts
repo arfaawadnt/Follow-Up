@@ -44,7 +44,7 @@ export const routes: Routes = [
       { path: 'test-groups', ...ph('groups') },
       { path: 'test-setups', ...ph('testsetup') },
       { path: 'loyalty', loadComponent: () => import('./features/loyalty/loyalty.component').then((m) => m.LoyaltyComponent) },
-      { path: 'commissions', ...ph('commissions') },
+      { path: 'commissions', loadComponent: () => import('./features/commissions/commissions.component').then((m) => m.CommissionsComponent) },
 
       // System & admin
       { path: 'users', loadComponent: () => import('./features/users/users.component').then((m) => m.UsersComponent) },

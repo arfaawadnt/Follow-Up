@@ -94,11 +94,18 @@ internal sealed class CompensationQueries : ICompensationQueries
     public async Task<IReadOnlyList<CommissionDto>> GetCommissionsAsync(int period, OrgScope scope, CancellationToken ct)
     {
         // Commissions are org-wide aggregates (SCOPE-READ decision: documented as org-wide, not lab-scoped).
+        // One row per active rep (grouped by type in the UI), with saved amounts or zeros/defaults.
         var ym = YearMonth.FromCode(period);
-        var rows = await _db.Commissions.AsNoTracking().Where(x => x.Period == ym).ToListAsync(ct);
-        return rows.Select(x => new CommissionDto(
-            x.RepresentativeId.Value, x.Period.Code, x.Target, x.Achieved,
-            x.BaseSalary.Amount, x.Commission.Amount, x.Bonus.Amount, x.Total.Amount)).ToList();
+        var reps = await _db.Representatives.AsNoTracking().Where(r => r.IsActive).ToListAsync(ct);
+        var comms = (await _db.Commissions.AsNoTracking().Where(x => x.Period == ym).ToListAsync(ct))
+            .ToDictionary(x => x.RepresentativeId);
+        return reps.Select(r =>
+        {
+            comms.TryGetValue(r.Id, out var c);
+            return new CommissionDto(r.Id.Value, r.FullName, r.Type.Name, r.GoalType ?? r.GoalDuration.Name, period,
+                c?.Target ?? r.Target.Amount, c?.Achieved ?? 0m, c?.BaseSalary.Amount ?? r.Salary.Amount,
+                c?.Commission.Amount ?? 0m, c?.Bonus.Amount ?? 0m, c?.Total.Amount ?? r.Salary.Amount, false);
+        }).ToList();
     }
 
     public async Task<CompensationConfigDto?> GetConfigAsync(CancellationToken ct)

@@ -1,0 +1,99 @@
+import { Component, computed, inject, signal } from '@angular/core';
+import { DecimalPipe } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { forkJoin } from 'rxjs';
+import { ApiService } from '../../core/api.service';
+import { AuthService } from '../../core/auth.service';
+import { TranslatePipe } from '../../core/i18n';
+
+interface Commission {
+  repId: string; name: string; type: string; goalType: string; period: number;
+  targetAmount: number; achievedAmount: number; baseSalary: number;
+  commissionEarned: number; bonusEarned: number; totalPayout: number; isLocked: boolean;
+}
+const GROUPS = ['Collector', 'Marketing', 'Scanning'];
+
+@Component({
+  selector: 'app-commissions',
+  standalone: true,
+  imports: [FormsModule, DecimalPipe, TranslatePipe],
+  template: `
+    <div class="pagehead">
+      <div><div class="breadcrumbs">Home / {{ 'commissions' | t }}</div><h1>{{ 'commissions' | t }}</h1></div>
+      <div class="pagehead-actions" style="display:flex;gap:8px;align-items:center">
+        <input type="month" class="input" [(ngModel)]="month" (ngModelChange)="load()">
+        @if (auth.has('ManageCommissions')) { <button class="btn btn-p" [disabled]="busy() || !rows().length" (click)="save()">{{ 'lock_save_payouts' | t : 'Save payouts' }}</button> }
+      </div>
+    </div>
+
+    <div class="kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px">
+      <div class="kpi kpi-blue"><div class="lbl">{{ 'total_commissions_earned' | t : 'Total commissions' }}</div><div class="val">{{ k().commission | number:'1.0-0' }}</div><div class="sub">EGP</div></div>
+      <div class="kpi kpi-amber"><div class="lbl">{{ 'total_extra_bonuses' | t : 'Total bonuses' }}</div><div class="val">{{ k().bonus | number:'1.0-0' }}</div><div class="sub">EGP</div></div>
+      <div class="kpi kpi-green"><div class="lbl">{{ 'total_monthly_payout' | t : 'Total payout' }}</div><div class="val">{{ k().total | number:'1.0-0' }}</div><div class="sub">EGP</div></div>
+    </div>
+
+    @if (loading()) { <div class="card empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
+    @else {
+      @for (g of groups; track g) {
+        @if (byType(g).length) {
+          <div class="card" style="margin-bottom:20px;padding:0;overflow:hidden">
+            <div style="background:var(--slate-100);padding:10px 16px;font-weight:700;border-bottom:1px solid var(--slate-150);font-size:13px">{{ g }} {{ 'reps_2' | t : 'reps' }}</div>
+            <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
+              <thead><tr><th>{{ 'representative_4' | t : 'Representative' }}</th><th>{{ 'target_2' | t : 'Target' }}</th><th>{{ 'achieved_mtd' | t : 'Achieved' }}</th>
+                <th>{{ 'attainment_2' | t : 'Attainment' }}</th><th>{{ 'base_salary_2' | t : 'Base salary' }}</th><th>{{ 'commission' | t : 'Commission' }}</th><th>{{ 'bonus' | t : 'Bonus' }}</th><th>{{ 'total_payout_2' | t : 'Total payout' }}</th></tr></thead>
+              <tbody>
+                @for (r of byType(g); track r.repId) {
+                  <tr>
+                    <td><b style="color:var(--slate-900)">{{ r.name }}</b><div class="small muted">{{ r.goalType }}</div></td>
+                    <td class="mono">{{ r.targetAmount | number:'1.0-0' }}</td>
+                    <td class="mono">{{ r.achievedAmount | number:'1.0-0' }}</td>
+                    <td class="mono">{{ pct(r) }}%</td>
+                    <td class="mono">{{ r.baseSalary | number:'1.0-0' }}</td>
+                    <td class="mono">{{ r.commissionEarned | number:'1.0-0' }}</td>
+                    <td class="mono">{{ r.bonusEarned | number:'1.0-0' }}</td>
+                    <td class="mono" style="font-weight:700">EGP {{ r.totalPayout | number:'1.0-0' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table></div>
+          </div>
+        }
+      }
+    }
+  `,
+})
+export class CommissionsComponent {
+  private readonly api = inject(ApiService);
+  readonly auth = inject(AuthService);
+  readonly loading = signal(true);
+  readonly busy = signal(false);
+  readonly rows = signal<Commission[]>([]);
+  readonly groups = GROUPS;
+  month = new Date().toISOString().slice(0, 7);
+
+  private ym(): number { const [y, m] = this.month.split('-').map(Number); return y * 100 + m; }
+  readonly k = computed(() => {
+    const f = this.rows();
+    return { commission: f.reduce((a, r) => a + r.commissionEarned, 0), bonus: f.reduce((a, r) => a + r.bonusEarned, 0), total: f.reduce((a, r) => a + r.totalPayout, 0) };
+  });
+
+  constructor() { this.load(); }
+
+  byType(t: string): Commission[] { return this.rows().filter((r) => r.type === t); }
+  pct(r: Commission): number { return r.targetAmount > 0 ? Math.round((r.achievedAmount / r.targetAmount) * 100) : 0; }
+
+  load(): void {
+    this.loading.set(true);
+    this.api.get<Commission[]>('/commissions', { period: this.ym() }).subscribe({
+      next: (r) => { this.rows.set(r); this.loading.set(false); }, error: () => this.loading.set(false),
+    });
+  }
+  save(): void {
+    const rows = this.rows();
+    if (!rows.length) return;
+    this.busy.set(true);
+    const period = this.ym();
+    forkJoin(rows.map((r) => this.api.post('/commissions/save', { representativeId: r.repId, period })))
+      .subscribe({ next: () => { this.busy.set(false); this.load(); }, error: () => this.busy.set(false) });
+  }
+}

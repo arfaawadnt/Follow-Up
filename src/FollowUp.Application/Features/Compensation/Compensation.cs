@@ -18,8 +18,9 @@ namespace FollowUp.Application.Features.Compensation;
 public sealed record LoyaltyLedgerDto(Guid LaboratoryId, int Period, int Target, int Achieved, int Points, string? Tier);
 public sealed record LoyaltyRowDto(Guid LaboratoryId, string Code, string Name, string? Branch, string? City,
     int MonthlyTarget, int MtdSamples, int LoyaltyPoints, string? LoyaltyTier);
-public sealed record CommissionDto(Guid RepresentativeId, int Period, decimal Target, decimal Achieved,
-    decimal BaseSalary, decimal Commission, decimal Bonus, decimal Total);
+public sealed record CommissionDto(Guid RepId, string Name, string Type, string GoalType, int Period,
+    decimal TargetAmount, decimal AchievedAmount, decimal BaseSalary, decimal CommissionEarned,
+    decimal BonusEarned, decimal TotalPayout, bool IsLocked);
 public sealed record CompensationConfigDto(decimal CommissionRatePercent, decimal BonusThresholdPercent,
     decimal BonusAmount, IReadOnlyList<LoyaltyTierDto> Tiers);
 public sealed record LoyaltyTierDto(string Name, decimal MinAchievementPercent, int Points);
