@@ -15,14 +15,14 @@ namespace FollowUp.Application.Features.Outsource;
 // ---- Read side ----
 
 public sealed record OutsourceSampleDto(
-    Guid Id, Guid LaboratoryId, string LabDisplayCode, DateOnly VisitDate, string DestinationLab, int Quantity, string Status);
+    Guid Id, Guid LaboratoryId, string LabDisplayCode, string LabName, DateOnly VisitDate, string DestinationLab, int Quantity, string Status);
 
 public interface IOutsourceQueries
 {
-    Task<IReadOnlyList<OutsourceSampleDto>> ListAsync(OrgScope scope, bool canSeeEncrypted, DateOnly? date, CancellationToken ct);
+    Task<IReadOnlyList<OutsourceSampleDto>> ListAsync(DateOnly start, DateOnly end, OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
 }
 
-public sealed record GetOutsourceSamplesQuery(DateOnly? Date = null)
+public sealed record GetOutsourceSamplesQuery(DateOnly? Start = null, DateOnly? End = null)
     : IQuery<IReadOnlyList<OutsourceSampleDto>>, IAuthorizedRequest
 {
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.OutsourceSamples };
@@ -32,11 +32,16 @@ public sealed class GetOutsourceSamplesHandler : IQueryHandler<GetOutsourceSampl
 {
     private readonly IOutsourceQueries _queries;
     private readonly ICurrentUser _user;
+    private readonly IClock _clock;
 
-    public GetOutsourceSamplesHandler(IOutsourceQueries queries, ICurrentUser user) { _queries = queries; _user = user; }
+    public GetOutsourceSamplesHandler(IOutsourceQueries queries, ICurrentUser user, IClock clock) { _queries = queries; _user = user; _clock = clock; }
 
-    public Task<IReadOnlyList<OutsourceSampleDto>> Handle(GetOutsourceSamplesQuery request, CancellationToken ct) =>
-        _queries.ListAsync(_user.Scope, _user.Has(Privileges.ShowEncryptedLabs), request.Date, ct);
+    public Task<IReadOnlyList<OutsourceSampleDto>> Handle(GetOutsourceSamplesQuery request, CancellationToken ct)
+    {
+        var start = request.Start ?? _clock.CairoToday;
+        var end = request.End ?? start;
+        return _queries.ListAsync(start, end, _user.Scope, _user.Has(Privileges.ShowEncryptedLabs), ct);
+    }
 }
 
 // ---- Create (unique per visit-date + lab) ----

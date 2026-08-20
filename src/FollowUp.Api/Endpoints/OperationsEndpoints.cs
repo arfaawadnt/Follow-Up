@@ -46,8 +46,8 @@ public static class OperationsEndpoints
         { await m.Send(new ConfirmReceiptCommand(b.VisitId), ct); return Results.NoContent(); }).WithTags("LabCheckIn");
 
         // Outsource (FR-9)
-        api.MapGet("/outsource-samples", async (DateOnly? date, IMediator m, CancellationToken ct) =>
-            Results.Ok(await m.Send(new GetOutsourceSamplesQuery(date), ct))).WithTags("Outsource");
+        api.MapGet("/outsource-samples", async (DateOnly? start, DateOnly? end, DateOnly? date, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetOutsourceSamplesQuery(start ?? date, end ?? date), ct))).WithTags("Outsource");
         api.MapPost("/outsource-samples", async (CreateOutsourceSampleCommand cmd, IMediator m, CancellationToken ct) =>
         { var id = await m.Send(cmd, ct); return Results.Created($"/api/v1/outsource-samples/{id}", new { id }); }).WithTags("Outsource");
         api.MapPost("/outsource-samples/{id:guid}/status", async (Guid id, OutsourceStatusBody b, IMediator m, CancellationToken ct) =>

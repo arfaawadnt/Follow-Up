@@ -137,16 +137,17 @@ internal sealed class OutsourceQueries : IOutsourceQueries
     private readonly FollowUpDbContext _db;
     public OutsourceQueries(FollowUpDbContext db) => _db = db;
 
-    public async Task<IReadOnlyList<OutsourceSampleDto>> ListAsync(OrgScope scope, bool canSeeEncrypted, DateOnly? date, CancellationToken ct)
+    public async Task<IReadOnlyList<OutsourceSampleDto>> ListAsync(DateOnly start, DateOnly end, OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
     {
         var scopedLabs = _db.Laboratories.ApplyScope(scope).Select(l => l.Id);
         var q = from o in _db.OutsourceSamples.AsNoTracking()
-                where scopedLabs.Contains(o.LaboratoryId) && (date == null || o.VisitDate == date)
+                where scopedLabs.Contains(o.LaboratoryId) && o.VisitDate >= start && o.VisitDate <= end
                 join l in _db.Laboratories.AsNoTracking() on o.LaboratoryId equals l.Id
-                select new { o.Id, o.LaboratoryId, l.Code, o.VisitDate, o.DestinationLab, o.Quantity, o.Status };
+                orderby o.VisitDate descending
+                select new { o.Id, o.LaboratoryId, l.Code, l.Name, o.VisitDate, o.DestinationLab, o.Quantity, o.Status };
         var rows = await q.ToListAsync(ct);
         return rows.Select(r => new OutsourceSampleDto(
-            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.VisitDate,
+            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Name, r.VisitDate,
             r.DestinationLab, r.Quantity, r.Status.Name)).ToList();
     }
 }

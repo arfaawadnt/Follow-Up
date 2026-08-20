@@ -24,7 +24,7 @@ export const routes: Routes = [
       { path: 'transfers', loadComponent: () => import('./features/transfers/transfers.component').then((m) => m.TransfersComponent) },
       { path: 'labcheckin', loadComponent: () => import('./features/labcheckin/labcheckin.component').then((m) => m.LabCheckInComponent) },
       { path: 'sampletracking', loadComponent: () => import('./features/sampletracking/sampletracking.component').then((m) => m.SampleTrackingComponent) },
-      { path: 'outsource-samples', ...ph('outsource_samples') },
+      { path: 'outsource-samples', loadComponent: () => import('./features/outsource/outsource.component').then((m) => m.OutsourceComponent) },
 
       // Statistics
       { path: 'labstats', ...ph('labstats') },
