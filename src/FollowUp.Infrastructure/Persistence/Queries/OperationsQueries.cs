@@ -72,17 +72,31 @@ internal sealed class TransferQueries : ITransferQueries
     private readonly FollowUpDbContext _db;
     public TransferQueries(FollowUpDbContext db) => _db = db;
 
-    public async Task<IReadOnlyList<TransferItemDto>> GetTransferableAsync(OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
+    public async Task<IReadOnlyList<TransferItemDto>> GetTransferableAsync(DateOnly start, DateOnly end, OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
     {
         var scopedLabs = _db.Laboratories.ApplyScope(scope).Select(l => l.Id);
         var visited = VisitStatus.Visited;
         var rows = await (from v in _db.DailyVisits.AsNoTracking()
-                          where v.Status == visited && v.TransferConfirmedAt == null && scopedLabs.Contains(v.LaboratoryId)
+                          where v.Status == visited && v.VisitDate >= start && v.VisitDate <= end && scopedLabs.Contains(v.LaboratoryId)
                           join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
-                          select new { v.Id, v.LaboratoryId, l.Code, l.Name, v.VisitDate, v.SampleCount })
+                          orderby v.VisitDate, v.ScheduledTime
+                          select new { v.Id, v.LaboratoryId, l.Code, l.Name, l.Branch, l.Governorate, l.City, l.Area,
+                              v.VisitDate, v.ScheduledTime, v.CollectorRepId, v.SampleCount, v.TransferConfirmedAt,
+                              v.TransferRepId, v.Transfer })
                          .ToListAsync(ct);
+
+        var repIds = rows.SelectMany(r => new[] { r.CollectorRepId, r.TransferRepId }).Where(x => x != null).Select(x => x!.Value).Distinct().ToList();
+        var repName = (await _db.Representatives.AsNoTracking().Where(r => repIds.Contains(r.Id))
+            .Select(r => new { r.Id, r.FullName }).ToListAsync(ct)).ToDictionary(r => r.Id, r => r.FullName);
+        string? Name(RepresentativeId? id) => id != null && repName.TryGetValue(id.Value, out var n) ? n : null;
+
         return rows.Select(r => new TransferItemDto(
-            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Name, r.VisitDate, r.SampleCount)).ToList();
+            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Code.Value, r.Name,
+            r.Branch, r.Governorate, r.City, r.Area,
+            r.VisitDate, r.ScheduledTime.ToString("HH:mm"), Name(r.CollectorRepId), r.SampleCount,
+            r.TransferConfirmedAt != null, r.Transfer?.DriverName, r.Transfer?.DriverMobile, r.Transfer?.CarPlate,
+            r.TransferRepId != null ? r.TransferRepId.Value.Value : (Guid?)null, Name(r.TransferRepId),
+            r.TransferConfirmedAt?.ToString("yyyy-MM-dd HH:mm"))).ToList();
     }
 }
 

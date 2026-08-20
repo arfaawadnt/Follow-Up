@@ -13,17 +13,23 @@ namespace FollowUp.Application.Features.Transfers;
 
 // ---- Read side ----
 
+// Mirrors the reference platform's transfer row: collected visits in a date range, transferred or pending.
 public sealed record TransferItemDto(
-    Guid VisitId, Guid LaboratoryId, string LabDisplayCode, string LabName, DateOnly VisitDate, int? SampleCount);
+    Guid VisitId, Guid LaboratoryId, string LabDisplayCode, string LabCode, string LabName,
+    string? Branch, string? Governorate, string? City, string? Area,
+    DateOnly VisitDate, string VisitTime, string? CollectorName, int? Samples,
+    bool TransferDone, string? DriverName, string? DriverMobile, string? CarPlate,
+    Guid? TransferRepId, string? TransferRepName, string? TransferTime);
 
-/// <summary>Read-side query interface for transferable items (checked-in, not yet transferred).</summary>
+/// <summary>Read-side query interface for collected visits (transferred or awaiting transfer) in a range.</summary>
 public interface ITransferQueries
 {
-    Task<IReadOnlyList<TransferItemDto>> GetTransferableAsync(OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
+    Task<IReadOnlyList<TransferItemDto>> GetTransferableAsync(DateOnly start, DateOnly end, OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
 }
 
-/// <summary>Lists visits awaiting transfer within scope (SRS FR-6).</summary>
-public sealed record GetTransfersQuery : IQuery<IReadOnlyList<TransferItemDto>>, IAuthorizedRequest
+/// <summary>Lists collected visits (transferred or awaiting transfer) in a date range within scope (SRS FR-6).</summary>
+public sealed record GetTransfersQuery(DateOnly? Start = null, DateOnly? End = null)
+    : IQuery<IReadOnlyList<TransferItemDto>>, IAuthorizedRequest
 {
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ViewTransfers, Privileges.ManageTransfers };
 }
@@ -32,11 +38,16 @@ public sealed class GetTransfersHandler : IQueryHandler<GetTransfersQuery, IRead
 {
     private readonly ITransferQueries _queries;
     private readonly ICurrentUser _user;
+    private readonly IClock _clock;
 
-    public GetTransfersHandler(ITransferQueries queries, ICurrentUser user) { _queries = queries; _user = user; }
+    public GetTransfersHandler(ITransferQueries queries, ICurrentUser user, IClock clock) { _queries = queries; _user = user; _clock = clock; }
 
-    public Task<IReadOnlyList<TransferItemDto>> Handle(GetTransfersQuery request, CancellationToken ct) =>
-        _queries.GetTransferableAsync(_user.Scope, _user.Has(Privileges.ShowEncryptedLabs), ct);
+    public Task<IReadOnlyList<TransferItemDto>> Handle(GetTransfersQuery request, CancellationToken ct)
+    {
+        var start = request.Start ?? _clock.CairoToday;
+        var end = request.End ?? start;
+        return _queries.GetTransferableAsync(start, end, _user.Scope, _user.Has(Privileges.ShowEncryptedLabs), ct);
+    }
 }
 
 // ---- Confirm transfer ----

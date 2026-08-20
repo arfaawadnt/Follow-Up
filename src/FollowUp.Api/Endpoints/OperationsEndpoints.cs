@@ -34,8 +34,8 @@ public static class OperationsEndpoints
         { await m.Send(new VerifyVisitCommand(id, b.Verified), ct); return Results.NoContent(); }).WithTags("DailyBoard");
 
         // Transfers (FR-6)
-        api.MapGet("/transfers", async (IMediator m, CancellationToken ct) =>
-            Results.Ok(await m.Send(new GetTransfersQuery(), ct))).WithTags("Transfers");
+        api.MapGet("/transfers", async (DateOnly? start, DateOnly? end, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetTransfersQuery(start, end), ct))).WithTags("Transfers");
         api.MapPost("/transfers/confirm", async (ConfirmTransferCommand cmd, IMediator m, CancellationToken ct) =>
         { await m.Send(cmd, ct); return Results.NoContent(); }).WithTags("Transfers");
 

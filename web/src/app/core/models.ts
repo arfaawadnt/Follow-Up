@@ -71,8 +71,14 @@ export interface MarketingVisit {
   representativeId: string; purpose: string; scheduledDate: string; status: string; outcome: string | null;
 }
 
-export interface TransferItem { visitId: string; laboratoryId: string; labDisplayCode: string; labName: string; visitDate: string; sampleCount: number | null; }
-export type ReceivingItem = TransferItem;
+export interface TransferItem {
+  visitId: string; laboratoryId: string; labDisplayCode: string; labCode: string; labName: string;
+  branch: string | null; governorate: string | null; city: string | null; area: string | null;
+  visitDate: string; visitTime: string; collectorName: string | null; samples: number | null;
+  transferDone: boolean; driverName: string | null; driverMobile: string | null; carPlate: string | null;
+  transferRepId: string | null; transferRepName: string | null; transferTime: string | null;
+}
+export interface ReceivingItem { visitId: string; laboratoryId: string; labDisplayCode: string; labName: string; visitDate: string; sampleCount: number | null; }
 export interface SampleTracking {
   id: string; area: string; date: string; count: number;
   dataEntryBy: string | null; dataEntryAt: string | null;
