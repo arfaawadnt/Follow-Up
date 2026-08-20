@@ -12,17 +12,22 @@ namespace FollowUp.Application.Features.LabCheckIn;
 
 // ---- Read side ----
 
+// Mirrors the reference platform's lab check-in row: transferred visits (awaiting receipt or received).
 public sealed record ReceivingItemDto(
-    Guid VisitId, Guid LaboratoryId, string LabDisplayCode, string LabName, DateOnly VisitDate, int? SampleCount);
+    Guid VisitId, Guid LaboratoryId, string LabDisplayCode, string LabCode, string LabName,
+    string? Branch, string? Governorate, string? City, string? Area,
+    DateOnly VisitDate, string VisitTime, int? Samples, string Status,
+    string? TransferRepName, string? ReceivedTime);
 
-/// <summary>Read-side query for items awaiting receipt at the laboratory (transferred, not yet received).</summary>
+/// <summary>Read-side query for transferred items (awaiting receipt or received) in a date range.</summary>
 public interface ILabCheckInQueries
 {
-    Task<IReadOnlyList<ReceivingItemDto>> GetAwaitingReceiptAsync(OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
+    Task<IReadOnlyList<ReceivingItemDto>> GetAwaitingReceiptAsync(DateOnly start, DateOnly end, OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
 }
 
-/// <summary>Lists items awaiting receipt within scope (SRS FR-7).</summary>
-public sealed record GetLabCheckInQuery : IQuery<IReadOnlyList<ReceivingItemDto>>, IAuthorizedRequest
+/// <summary>Lists transferred items (awaiting receipt or received) in a date range within scope (SRS FR-7).</summary>
+public sealed record GetLabCheckInQuery(DateOnly? Start = null, DateOnly? End = null)
+    : IQuery<IReadOnlyList<ReceivingItemDto>>, IAuthorizedRequest
 {
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ConfirmTransfers, Privileges.ManageTransfers };
 }
@@ -31,11 +36,16 @@ public sealed class GetLabCheckInHandler : IQueryHandler<GetLabCheckInQuery, IRe
 {
     private readonly ILabCheckInQueries _queries;
     private readonly ICurrentUser _user;
+    private readonly IClock _clock;
 
-    public GetLabCheckInHandler(ILabCheckInQueries queries, ICurrentUser user) { _queries = queries; _user = user; }
+    public GetLabCheckInHandler(ILabCheckInQueries queries, ICurrentUser user, IClock clock) { _queries = queries; _user = user; _clock = clock; }
 
-    public Task<IReadOnlyList<ReceivingItemDto>> Handle(GetLabCheckInQuery request, CancellationToken ct) =>
-        _queries.GetAwaitingReceiptAsync(_user.Scope, _user.Has(Privileges.ShowEncryptedLabs), ct);
+    public Task<IReadOnlyList<ReceivingItemDto>> Handle(GetLabCheckInQuery request, CancellationToken ct)
+    {
+        var start = request.Start ?? _clock.CairoToday;
+        var end = request.End ?? start;
+        return _queries.GetAwaitingReceiptAsync(start, end, _user.Scope, _user.Has(Privileges.ShowEncryptedLabs), ct);
+    }
 }
 
 // ---- Confirm receipt (Visited -> Received) ----

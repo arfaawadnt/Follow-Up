@@ -105,17 +105,30 @@ internal sealed class LabCheckInQueries : ILabCheckInQueries
     private readonly FollowUpDbContext _db;
     public LabCheckInQueries(FollowUpDbContext db) => _db = db;
 
-    public async Task<IReadOnlyList<ReceivingItemDto>> GetAwaitingReceiptAsync(OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
+    public async Task<IReadOnlyList<ReceivingItemDto>> GetAwaitingReceiptAsync(DateOnly start, DateOnly end, OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
     {
         var scopedLabs = _db.Laboratories.ApplyScope(scope).Select(l => l.Id);
         var visited = VisitStatus.Visited;
+        var received = VisitStatus.Received;
         var rows = await (from v in _db.DailyVisits.AsNoTracking()
-                          where v.Status == visited && v.TransferConfirmedAt != null && scopedLabs.Contains(v.LaboratoryId)
+                          where v.TransferConfirmedAt != null && (v.Status == visited || v.Status == received)
+                                && v.VisitDate >= start && v.VisitDate <= end && scopedLabs.Contains(v.LaboratoryId)
                           join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
-                          select new { v.Id, v.LaboratoryId, l.Code, l.Name, v.VisitDate, v.SampleCount })
+                          orderby v.VisitDate, v.ScheduledTime
+                          select new { v.Id, v.LaboratoryId, l.Code, l.Name, l.Branch, l.Governorate, l.City, l.Area,
+                              v.VisitDate, v.ScheduledTime, v.SampleCount, v.Status, v.TransferRepId, v.ReceivedAt })
                          .ToListAsync(ct);
+
+        var repIds = rows.Where(r => r.TransferRepId != null).Select(r => r.TransferRepId!.Value).Distinct().ToList();
+        var repName = (await _db.Representatives.AsNoTracking().Where(r => repIds.Contains(r.Id))
+            .Select(r => new { r.Id, r.FullName }).ToListAsync(ct)).ToDictionary(r => r.Id, r => r.FullName);
+
         return rows.Select(r => new ReceivingItemDto(
-            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Name, r.VisitDate, r.SampleCount)).ToList();
+            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Code.Value, r.Name,
+            r.Branch, r.Governorate, r.City, r.Area, r.VisitDate, r.ScheduledTime.ToString("HH:mm"), r.SampleCount,
+            r.Status == received ? "Received" : "Transferred",
+            r.TransferRepId != null && repName.TryGetValue(r.TransferRepId.Value, out var n) ? n : null,
+            r.ReceivedAt != null ? r.ReceivedAt.Value.ToString("yyyy-MM-dd HH:mm") : null)).ToList();
     }
 }
 

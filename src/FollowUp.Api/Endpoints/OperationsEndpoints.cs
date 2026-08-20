@@ -40,8 +40,8 @@ public static class OperationsEndpoints
         { await m.Send(cmd, ct); return Results.NoContent(); }).WithTags("Transfers");
 
         // Lab check-in (FR-7)
-        api.MapGet("/labcheckin", async (IMediator m, CancellationToken ct) =>
-            Results.Ok(await m.Send(new GetLabCheckInQuery(), ct))).WithTags("LabCheckIn");
+        api.MapGet("/labcheckin", async (DateOnly? start, DateOnly? end, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetLabCheckInQuery(start, end), ct))).WithTags("LabCheckIn");
         api.MapPost("/labcheckin/confirm", async (ConfirmReceiptBody b, IMediator m, CancellationToken ct) =>
         { await m.Send(new ConfirmReceiptCommand(b.VisitId), ct); return Results.NoContent(); }).WithTags("LabCheckIn");
 

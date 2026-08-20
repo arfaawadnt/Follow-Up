@@ -78,7 +78,12 @@ export interface TransferItem {
   transferDone: boolean; driverName: string | null; driverMobile: string | null; carPlate: string | null;
   transferRepId: string | null; transferRepName: string | null; transferTime: string | null;
 }
-export interface ReceivingItem { visitId: string; laboratoryId: string; labDisplayCode: string; labName: string; visitDate: string; sampleCount: number | null; }
+export interface ReceivingItem {
+  visitId: string; laboratoryId: string; labDisplayCode: string; labCode: string; labName: string;
+  branch: string | null; governorate: string | null; city: string | null; area: string | null;
+  visitDate: string; visitTime: string; samples: number | null; status: string;
+  transferRepName: string | null; receivedTime: string | null;
+}
 export interface SampleTracking {
   id: string; area: string; date: string; count: number;
   dataEntryBy: string | null; dataEntryAt: string | null;
