@@ -1,5 +1,7 @@
 # Follow-Up Management System
 
+[![CI](https://github.com/arfaawadnt/Follow-Up/actions/workflows/ci.yml/badge.svg)](https://github.com/arfaawadnt/Follow-Up/actions/workflows/ci.yml)
+
 A single-tenant, bilingual (EN/AR, RTL) B2B client-relations & field-operations platform for a medical-lab
 group. Built to the **Enterprise Application Architect** ruleset: **Clean Architecture + SOLID + DDD + CQRS**.
 Reconstructed from the SRS package (`index.html`, `01-srs.html`, `02-workflows.html`, `03-architecture.html`,
