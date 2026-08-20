@@ -263,3 +263,27 @@ retention (GET/PUT min-30, POST run). 4 new integration tests (85 backend total)
 
 The build is now feature-complete against the SRS with backend + frontend + contract + e2e coverage; no
 blocking gaps remain.
+
+## Reference-parity rebuild complete (2026-08-20)
+
+The Angular UI + backend read models were rebuilt page-by-page to match the reference platform
+(:5080) — its design system, page workflows, and business behavior — per the "front + back with Clean
+Architecture" mandate. All **26 nav pages** now match the reference, each committed individually and
+verified live:
+
+- **Core Operations (6):** Dashboard, Daily Board, Transfers, Lab Check-in, Sample-tracking, Outsource
+- **Statistics (4):** Reports (overview/performance/lab-history), Rep Intervals, Lab Stats, Test Stats
+- **Field & Marketing (2):** Marketing, Complaints (audit + e-signature)
+- **B2B Network (6):** Labs, Reps, Groups, Test Setup, Loyalty, Commissions
+- **System & Admin (7):** Users, Roles (privilege matrix), Setup, Oracle Integration, Notifications
+  (feed/prefs/gateways/logs), Sessions (admin), Audit
+
+Foundation (Phase 0): reference CSS/design system ported verbatim, Encode Sans/Cairo/IBM Plex Mono +
+self-hosted Lucide + logo, full bilingual catalogue (translations.ts), split-screen login, and the
+grouped collapsible 26-item sidebar shell.
+
+Backend read models were enriched to the reference's exact contracts throughout (dashboard KPIs/trend,
+daily range+filters, transfer/checkin grids, reports overview/performance/lab-history, per-visit rep
+intervals, loyalty summary, per-rep commissions, marketing/complaint enrichment, admin sessions).
+
+Verified green after the rebuild: **102 backend tests**, **7 Angular unit**, **4 Playwright e2e**.
