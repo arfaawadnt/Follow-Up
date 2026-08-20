@@ -70,6 +70,20 @@ internal sealed class CompensationQueries : ICompensationQueries
             .ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<LoyaltyRowDto>> GetLoyaltySummaryAsync(OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var thisYm = new YearMonth(today.Year, today.Month);
+        var labs = await _db.Laboratories.ApplyScope(scope).AsNoTracking()
+            .Select(l => new { l.Id, l.Code, l.Name, l.Branch, l.City, l.MonthlyTarget, l.LoyaltyPoints, l.LoyaltyTier }).ToListAsync(ct);
+        var labIds = labs.Select(l => l.Id).ToList();
+        var ms = await _db.MonthlySamples.AsNoTracking().Where(m => labIds.Contains(m.LaboratoryId) && m.Period == thisYm)
+            .Select(m => new { m.LaboratoryId, m.SampleCount }).ToListAsync(ct);
+        var mtd = ms.GroupBy(x => x.LaboratoryId).ToDictionary(g => g.Key, g => g.Sum(x => x.SampleCount));
+        return labs.Select(l => new LoyaltyRowDto(l.Id.Value, DisplayCode.For(l.Code.Value, canSeeEncrypted), l.Name, l.Branch, l.City,
+            l.MonthlyTarget, mtd.TryGetValue(l.Id, out var v) ? v : 0, l.LoyaltyPoints, l.LoyaltyTier)).ToList();
+    }
+
     public async Task<IReadOnlyList<LoyaltyLedgerDto>> GetLabLedgerAsync(Guid labId, CancellationToken ct) =>
         await _db.LoyaltyLedgers.AsNoTracking()
             .Where(x => x.LaboratoryId == new Domain.Laboratories.LaboratoryId(labId))

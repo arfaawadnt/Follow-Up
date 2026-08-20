@@ -16,8 +16,8 @@ public static class AnalyticsEndpoints
 
     public static void MapCompensationEndpoints(this RouteGroupBuilder api)
     {
-        api.MapGet("/loyalty", async (int period, IMediator m, CancellationToken ct) =>
-            Results.Ok(await m.Send(new GetLoyaltyQuery(period), ct))).WithTags("Loyalty");
+        api.MapGet("/loyalty", async (IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetLoyaltyQuery(), ct))).WithTags("Loyalty");
         api.MapGet("/loyalty/ledger/{labId:guid}", async (Guid labId, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetLoyaltyLedgerQuery(labId), ct))).WithTags("Loyalty");
         api.MapPost("/loyalty/target", async (SetTargetBody b, IMediator m, CancellationToken ct) =>

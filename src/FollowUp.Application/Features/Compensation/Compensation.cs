@@ -16,6 +16,8 @@ namespace FollowUp.Application.Features.Compensation;
 // ---- Read side ----
 
 public sealed record LoyaltyLedgerDto(Guid LaboratoryId, int Period, int Target, int Achieved, int Points, string? Tier);
+public sealed record LoyaltyRowDto(Guid LaboratoryId, string Code, string Name, string? Branch, string? City,
+    int MonthlyTarget, int MtdSamples, int LoyaltyPoints, string? LoyaltyTier);
 public sealed record CommissionDto(Guid RepresentativeId, int Period, decimal Target, decimal Achieved,
     decimal BaseSalary, decimal Commission, decimal Bonus, decimal Total);
 public sealed record CompensationConfigDto(decimal CommissionRatePercent, decimal BonusThresholdPercent,
@@ -25,6 +27,7 @@ public sealed record LoyaltyTierDto(string Name, decimal MinAchievementPercent, 
 public interface ICompensationQueries
 {
     Task<IReadOnlyList<LoyaltyLedgerDto>> GetLedgersAsync(int period, OrgScope scope, CancellationToken ct);
+    Task<IReadOnlyList<LoyaltyRowDto>> GetLoyaltySummaryAsync(OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
     Task<IReadOnlyList<LoyaltyLedgerDto>> GetLabLedgerAsync(Guid labId, CancellationToken ct);
     Task<IReadOnlyList<CommissionDto>> GetCommissionsAsync(int period, OrgScope scope, CancellationToken ct);
     Task<CompensationConfigDto?> GetConfigAsync(CancellationToken ct);
@@ -189,18 +192,18 @@ public sealed class SetCompensationConfigHandler : ICommandHandler<SetCompensati
 
 // ---- Queries ----
 
-public sealed record GetLoyaltyQuery(int Period) : IQuery<IReadOnlyList<LoyaltyLedgerDto>>, IAuthorizedRequest
+public sealed record GetLoyaltyQuery : IQuery<IReadOnlyList<LoyaltyRowDto>>, IAuthorizedRequest
 {
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageLoyalty };
 }
 
-public sealed class GetLoyaltyHandler : IQueryHandler<GetLoyaltyQuery, IReadOnlyList<LoyaltyLedgerDto>>
+public sealed class GetLoyaltyHandler : IQueryHandler<GetLoyaltyQuery, IReadOnlyList<LoyaltyRowDto>>
 {
     private readonly ICompensationQueries _queries;
     private readonly ICurrentUser _user;
     public GetLoyaltyHandler(ICompensationQueries queries, ICurrentUser user) { _queries = queries; _user = user; }
-    public Task<IReadOnlyList<LoyaltyLedgerDto>> Handle(GetLoyaltyQuery request, CancellationToken ct) =>
-        _queries.GetLedgersAsync(request.Period, _user.Scope, ct);
+    public Task<IReadOnlyList<LoyaltyRowDto>> Handle(GetLoyaltyQuery request, CancellationToken ct) =>
+        _queries.GetLoyaltySummaryAsync(_user.Scope, _user.Has(Privileges.ShowEncryptedLabs), ct);
 }
 
 public sealed record GetLoyaltyLedgerQuery(Guid LabId) : IQuery<IReadOnlyList<LoyaltyLedgerDto>>, IAuthorizedRequest

@@ -43,7 +43,7 @@ export const routes: Routes = [
       { path: 'reps', loadComponent: () => import('./features/reps/reps.component').then((m) => m.RepsComponent) },
       { path: 'test-groups', ...ph('groups') },
       { path: 'test-setups', ...ph('testsetup') },
-      { path: 'loyalty', ...ph('loyalty') },
+      { path: 'loyalty', loadComponent: () => import('./features/loyalty/loyalty.component').then((m) => m.LoyaltyComponent) },
       { path: 'commissions', ...ph('commissions') },
 
       // System & admin
