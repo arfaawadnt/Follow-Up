@@ -88,9 +88,12 @@ export class IntegrationComponent {
 
   load(): void {
     this.api.get<OracleConfig>('/integration/config').subscribe({
-      next: (c) => { this.c.set(c); this.enabled = c.enabled; this.intervalHours = c.intervalHours; this.icons.render(); },
+      next: (c) => { this.apply(c); },
+      // Not provisioned yet on the server → render a sensible default so the page is still usable.
+      error: () => this.apply({ enabled: false, intervalHours: 24, allowListedQueries: [], lastSyncAt: null, lastStatus: null }),
     });
   }
+  private apply(c: OracleConfig): void { this.c.set(c); this.enabled = c.enabled; this.intervalHours = c.intervalHours; this.icons.render(); }
   statusClass(s: string | null): string { return s === 'Success' ? 'b-ok' : s === 'Failed' ? 'b-bad' : 'b-neu'; }
 
   save(): void {
