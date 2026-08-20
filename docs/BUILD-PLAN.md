@@ -237,5 +237,10 @@ retention (GET/PUT min-30, POST run). 4 new integration tests (85 backend total)
   statistics with period + date-range filters; lab/rep name maps; per-tab privilege gating). Shell nav gained
   `anyOf` privilege support. All five endpoints verified 200 live; secrets confirmed masked (`********`).
 
-Remaining polish (not blocking): test-catalogue UI (test-groups/test-setups), e-signature UI, Leaflet maps,
-e2e suite, API contract tests (WebApplicationFactory).
+- **Batch E** — **Test Catalogue** screen (groups + setups inline CRUD with per-action privilege gating) and a
+  reusable **e-signature panel** (`EsignPanelComponent`, module+recordId): shows signature status + validity,
+  applies a signature via password re-auth (server re-authenticates). Embedded as an expandable row in the
+  complaints screen. Verified live: catalogue CRUD 200/204; sign 200 → verified valid; wrong password → 403.
+
+Remaining polish (not blocking): Leaflet maps (lab coordinates), Playwright e2e suite,
+API contract tests (WebApplicationFactory).

@@ -25,6 +25,7 @@ export const routes: Routes = [
       { path: 'complaints', loadComponent: () => import('./features/complaints/complaints.component').then((m) => m.ComplaintsComponent) },
       { path: 'reports', loadComponent: () => import('./features/reports/reports.component').then((m) => m.ReportsComponent) },
       { path: 'analytics', loadComponent: () => import('./features/analytics/analytics.component').then((m) => m.AnalyticsComponent) },
+      { path: 'test-catalogue', loadComponent: () => import('./features/testcatalogue/testcatalogue.component').then((m) => m.TestCatalogueComponent) },
       { path: 'settings', loadComponent: () => import('./features/settings/settings.component').then((m) => m.SettingsComponent) },
       { path: 'notifications', loadComponent: () => import('./features/notifications/notifications.component').then((m) => m.NotificationsComponent) },
       { path: 'users', loadComponent: () => import('./features/users/users.component').then((m) => m.UsersComponent) },

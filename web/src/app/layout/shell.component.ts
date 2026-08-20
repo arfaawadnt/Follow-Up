@@ -79,6 +79,7 @@ export class ShellComponent implements OnDestroy {
     { key: 'nav.complaints', path: '/complaints', privilege: 'ViewComplaints' },
     { key: 'nav.reports', path: '/reports', privilege: 'ViewReports' },
     { key: 'nav.analytics', path: '/analytics', anyOf: ['ManageLoyalty', 'ManageCommissions', 'ViewLabStats'] },
+    { key: 'nav.testcatalogue', path: '/test-catalogue', privilege: 'ViewTeststats' },
     { key: 'nav.notifications', path: '/notifications' },
     { key: 'nav.setup', path: '/setup', privilege: 'SetupRefs' },
     { key: 'nav.settings', path: '/settings', privilege: 'SetupRefs' },

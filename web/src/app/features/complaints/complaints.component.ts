@@ -5,6 +5,7 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { ComplaintListItem, LabListItem, PagedResult } from '../../core/models';
 import { StatusBadgePipe } from '../../shared/status-badge.pipe';
+import { EsignPanelComponent } from '../../shared/esign-panel.component';
 
 const STAGES = ['Acknowledged', 'ValidityChecked', 'Investigation', 'BusinessOutcome', 'Resolution', 'RejectedInvalid'];
 const CATEGORIES = ['Sample Quality', 'Turnaround Time', 'Result Accuracy', 'Service', 'Billing', 'Other'];
@@ -13,7 +14,7 @@ const CHANNELS = ['Phone', 'Email', 'WhatsApp', 'In Person'];
 @Component({
   selector: 'app-complaints',
   standalone: true,
-  imports: [StatusBadgePipe, DatePipe, ReactiveFormsModule],
+  imports: [StatusBadgePipe, DatePipe, ReactiveFormsModule, EsignPanelComponent],
   template: `
     <div class="head">
       <h1 class="display page-title">Complaints</h1>
@@ -81,8 +82,14 @@ const CHANNELS = ['Phone', 'Email', 'WhatsApp', 'In Person'];
                         @for (s of stages; track s) { <option [value]="s">{{ s }}</option> }
                       </select>
                     }
+                    <button class="btn btn-mini btn-s" (click)="toggleSign(c.id)">{{ expanded() === c.id ? 'Hide sign' : 'Signatures' }}</button>
                   </td>
                 </tr>
+                @if (expanded() === c.id) {
+                  <tr class="signrow"><td colspan="7">
+                    <app-esign-panel module="complaint" [recordId]="c.id" />
+                  </td></tr>
+                }
               } @empty { <tr><td colspan="7" class="empty">No complaints.</td></tr> }
             </tbody>
           </table>
@@ -105,6 +112,7 @@ const CHANNELS = ['Phone', 'Email', 'WhatsApp', 'In Person'];
     .actions { display:flex; gap:6px; align-items:center; }
     .btn-mini { padding:4px 10px; font-size:11.5px; border-radius:var(--r-btn); }
     .stage-sel { padding:4px 6px; font-size:11.5px; border:1px solid var(--slate-300); border-radius:var(--r-btn); background:var(--white); color:var(--slate-900); }
+    .signrow td { background: var(--filter-bg); padding:12px 16px; }
   `],
 })
 export class ComplaintsComponent {
@@ -116,6 +124,7 @@ export class ComplaintsComponent {
   readonly result = signal<PagedResult<ComplaintListItem> | null>(null);
   readonly labs = signal<LabListItem[]>([]);
   readonly showForm = signal(false);
+  readonly expanded = signal<string | null>(null);
   readonly formError = signal<string | null>(null);
   readonly stages = STAGES;
   readonly categories = CATEGORIES;
@@ -130,6 +139,8 @@ export class ComplaintsComponent {
   });
 
   constructor() { this.load(); }
+
+  toggleSign(id: string): void { this.expanded.update((cur) => (cur === id ? null : id)); }
 
   load(): void {
     this.loading.set(true);
