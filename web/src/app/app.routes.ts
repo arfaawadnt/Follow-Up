@@ -27,8 +27,8 @@ export const routes: Routes = [
       { path: 'outsource-samples', loadComponent: () => import('./features/outsource/outsource.component').then((m) => m.OutsourceComponent) },
 
       // Statistics
-      { path: 'labstats', ...ph('labstats') },
-      { path: 'test-statistics', ...ph('teststats') },
+      { path: 'labstats', loadComponent: () => import('./features/labstats/labstats.component').then((m) => m.LabStatsComponent) },
+      { path: 'test-statistics', loadComponent: () => import('./features/teststats/teststats.component').then((m) => m.TestStatsComponent) },
       { path: 'reports', loadComponent: () => import('./features/reports/reports.component').then((m) => m.ReportsComponent) },
       { path: 'rep-intervals', loadComponent: () => import('./features/repintervals/repintervals.component').then((m) => m.RepIntervalsComponent) },
 
@@ -48,7 +48,7 @@ export const routes: Routes = [
 
       // System & admin
       { path: 'users', loadComponent: () => import('./features/users/users.component').then((m) => m.UsersComponent) },
-      { path: 'roles', ...ph('roles') },
+      { path: 'roles', loadComponent: () => import('./features/roles/roles.component').then((m) => m.RolesComponent) },
       { path: 'setup', loadComponent: () => import('./features/setup/setup.component').then((m) => m.SetupComponent) },
       { path: 'integration', loadComponent: () => import('./features/integration/integration.component').then((m) => m.IntegrationComponent) },
       { path: 'notifications', loadComponent: () => import('./features/notifications/notifications.component').then((m) => m.NotificationsComponent) },
