@@ -4,8 +4,9 @@ using FollowUp.Domain.Identity;
 namespace FollowUp.Application.Features.Complaints.Contracts;
 
 public sealed record ComplaintListItemDto(
-    Guid Id, string Reference, Guid LaboratoryId, string LabDisplayCode, string Category,
-    string Status, string Stage, DateTimeOffset CreatedAt);
+    Guid Id, string Reference, Guid LaboratoryId, string LabDisplayCode, string Lab, string Category,
+    string Via, string? AssignedTo, string Description, string Status, string Stage, int AgeDays,
+    string? Resolution, DateTimeOffset CreatedAt);
 
 public sealed record ComplaintDetailDto(
     Guid Id, string Reference, Guid LaboratoryId, string LabDisplayCode, string Category, string ViaChannel,

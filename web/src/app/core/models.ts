@@ -49,9 +49,11 @@ export interface Dashboard {
 }
 
 export interface ComplaintListItem {
-  id: string; reference: string; laboratoryId: string; labDisplayCode: string;
-  category: string; status: string; stage: string; createdAt: string;
+  id: string; reference: string; laboratoryId: string; labDisplayCode: string; lab: string;
+  category: string; via: string; assignedTo: string | null; description: string;
+  status: string; stage: string; ageDays: number; resolution: string | null; createdAt: string;
 }
+export interface ComplaintAuditRow { occurredAt: string; actor: string; action: string; before: string | null; after: string | null; }
 
 export interface BoardItem {
   visitId: string; laboratoryId: string; labDisplayCode: string; labCode: string; lab: string;
