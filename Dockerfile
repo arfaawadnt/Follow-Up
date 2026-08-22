@@ -22,6 +22,8 @@ RUN dotnet publish src/FollowUp.Api/FollowUp.Api.csproj -c Release -o /app/publi
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
 COPY --from=build /app/publish ./
+# The app creates /app/uploads at startup; make it writable by the non-root user (APP_UID) before dropping privileges.
+RUN mkdir -p /app/uploads && chown -R $APP_UID /app/uploads
 ENV ASPNETCORE_URLS=http://+:5088 \
     ASPNETCORE_ENVIRONMENT=Production
 EXPOSE 5088
