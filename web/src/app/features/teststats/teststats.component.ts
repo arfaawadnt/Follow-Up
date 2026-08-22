@@ -2,6 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
+import { AuthService } from '../../core/auth.service';
 import { TranslatePipe } from '../../core/i18n';
 
 interface TestStat { date: string; testCode: string; count: number; }
@@ -14,7 +15,18 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
   standalone: true,
   imports: [FormsModule, DecimalPipe, TranslatePipe],
   template: `
-    <div class="pagehead"><div><div class="breadcrumbs">Home / {{ 'teststats' | t : 'Test statistics' }}</div><h1>{{ 'teststats' | t : 'Test statistics' }}</h1></div></div>
+    <div class="pagehead">
+      <div><div class="breadcrumbs">Home / {{ 'teststats' | t : 'Test statistics' }}</div><h1>{{ 'teststats' | t : 'Test statistics' }}</h1></div>
+      @if (auth.has('AddTeststats')) {
+        <div class="pagehead-actions">
+          <input type="file" #fileIn accept=".xlsx,.xls,.csv" hidden (change)="onImport($event)">
+          <button class="btn btn-s" [disabled]="importing()" (click)="fileIn.click()">
+            <i data-lucide="upload" style="width:14px;height:14px;margin-inline-end:6px"></i>{{ importing() ? ('importing' | t : 'Importing…') : ('import_excel' | t : 'Import Excel') }}
+          </button>
+        </div>
+      }
+    </div>
+    @if (summary()) { <div class="inline-banner" [class.inline-banner-error]="summaryError()">{{ summary() }}</div> }
 
     <div class="kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">
       <div class="kpi kpi-blue"><div class="lbl">{{ 'total_tests' | t : 'Total tests' }}</div><div class="val">{{ total() | number:'1.0-0' }}</div></div>
@@ -58,7 +70,11 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
 })
 export class TestStatsComponent {
   private readonly api = inject(ApiService);
+  readonly auth = inject(AuthService);
   readonly loading = signal(true);
+  readonly importing = signal(false);
+  readonly summary = signal<string | null>(null);
+  readonly summaryError = signal(false);
   readonly rows = signal<TestStat[]>([]);
   private readonly today = new Date().toISOString().slice(0, 10);
   from = new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10); to = this.today; q = ''; view: View = 'monthly';
@@ -83,5 +99,20 @@ export class TestStatsComponent {
   load(): void {
     this.loading.set(true);
     this.api.get<TestStat[]>('/test-statistics', { from: this.from, to: this.to }).subscribe({ next: (r) => { this.rows.set(r); this.loading.set(false); }, error: () => this.loading.set(false) });
+  }
+
+  onImport(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0]; if (!file) return;
+    this.importing.set(true); this.summary.set(null); this.summaryError.set(false);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const content = String(reader.result).split(',')[1] ?? '';
+      this.api.post<{ processed: number; upserted: number; skipped: number; warnings: string[] }>('/test-statistics/import', { content }).subscribe({
+        next: (s) => { this.importing.set(false); this.summary.set(`Imported ${s.processed}: ${s.upserted} upserted, ${s.skipped} skipped${s.warnings.length ? ' · ' + s.warnings.length + ' warning(s)' : ''}.`); input.value = ''; this.load(); },
+        error: (e) => { this.importing.set(false); this.summaryError.set(true); this.summary.set(e?.error?.detail ?? 'Import failed.'); input.value = ''; },
+      });
+    };
+    reader.readAsDataURL(file);
   }
 }
