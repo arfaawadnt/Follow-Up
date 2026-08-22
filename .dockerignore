@@ -11,7 +11,7 @@ src/FollowUp.Api/wwwroot
 logs
 tests
 docs
-*.md
-*.html
-*.png
-*.docx
+/*.md
+/*.html
+/*.png
+/*.docx
