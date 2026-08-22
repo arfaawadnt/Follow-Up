@@ -8,7 +8,8 @@ using FollowUp.Domain.Statistics;
 
 namespace FollowUp.Application.Features.LabStats;
 
-public sealed record LabStatDto(DateOnly Date, string LabCode, int Registrations, int TestCount, decimal Income);
+public sealed record LabStatDto(DateOnly Date, string LabCode, string? Name, string? Segment,
+    string? Governorate, string? City, string? Area, int Registrations, int TestCount, decimal Income);
 public sealed record ImportSummary(int Processed, int Upserted, int Skipped, IReadOnlyList<string> Warnings);
 
 public interface ILabStatsQueries

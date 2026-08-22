@@ -25,7 +25,17 @@ internal sealed class LabStatsQueries : ILabStatsQueries
         }
 
         var rows = await q.OrderBy(s => s.Date).ThenBy(s => s.LabCode).ToListAsync(ct);
-        return rows.Select(s => new LabStatDto(s.Date, s.LabCode, s.Registrations, s.TestCount, s.Income.Amount)).ToList();
+
+        // Enrich with lab profile (name/segment/location) by code — for the pivot rows.
+        var labInfo = (await _db.Laboratories.AsNoTracking()
+            .Select(l => new { l.Code, l.Name, l.Segment, l.Governorate, l.City, l.Area }).ToListAsync(ct))
+            .GroupBy(l => l.Code.Value).ToDictionary(g => g.Key, g => g.First());
+        return rows.Select(s =>
+        {
+            labInfo.TryGetValue(s.LabCode, out var l);
+            return new LabStatDto(s.Date, s.LabCode, l?.Name, l?.Segment.Name, l?.Governorate, l?.City, l?.Area,
+                s.Registrations, s.TestCount, s.Income.Amount);
+        }).ToList();
     }
 
     private static bool IsGlobal(OrgScope s) =>
