@@ -178,7 +178,12 @@ public sealed class ImportTestStatsHandler : ICommandHandler<ImportTestStatsComm
 
     public async Task<ImportSummary> Handle(ImportTestStatsCommand request, CancellationToken ct)
     {
-        var rows = _reader.ReadRows(request.Content);
+        if (request.Content is null || request.Content.Length == 0)
+            throw new Common.Exceptions.ValidationException(new Dictionary<string, string[]> { ["file"] = new[] { "The uploaded file is empty." } });
+        IReadOnlyList<IReadOnlyDictionary<string, string>> rows;
+        try { rows = _reader.ReadRows(request.Content); }
+        catch (Exception ex)
+        { throw new Common.Exceptions.ValidationException(new Dictionary<string, string[]> { ["file"] = new[] { $"Could not read the spreadsheet: {ex.Message}" } }); }
         int processed = 0, upserted = 0, skipped = 0;
         var warnings = new List<string>();
 
