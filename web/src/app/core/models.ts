@@ -101,7 +101,7 @@ export interface NetworkOverview { totalLabs: number; activeLabs: number; sample
 
 export interface SettingDto { key: string; value: string | null; isSecret: boolean; }
 export interface RetentionDto { days: number | null; enabled: boolean; }
-export interface LoyaltyLedger { laboratoryId: string; period: number; target: number; achieved: number; points: number; tier: string | null; }
-export interface Commission { representativeId: string; period: number; target: number; achieved: number; baseSalary: number; commission: number; bonus: number; total: number; }
+export interface LoyaltyLedger { laboratoryId: string; code: string; name: string; branch: string | null; city: string | null; monthlyTarget: number; mtdSamples: number; loyaltyPoints: number; loyaltyTier: string | null; }
+export interface Commission { repId: string; name: string; type: string; goalType: string; period: number; targetAmount: number; achievedAmount: number; baseSalary: number; commissionEarned: number; bonusEarned: number; totalPayout: number; isLocked: boolean; }
 export interface LabStat { date: string; labCode: string; registrations: number; testCount: number; income: number; }
 export interface RepPerformanceRow { repId: string; repName: string; achievementPercent: number; pace: number; onTrack: boolean; salary: number; }

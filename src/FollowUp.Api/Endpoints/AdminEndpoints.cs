@@ -23,6 +23,8 @@ public static class AdminEndpoints
         { await m.Send(new DeleteUserCommand(id), ct); return Results.NoContent(); }).WithTags("Users");
         api.MapPost("/users/{id:guid}/unlock", async (Guid id, IMediator m, CancellationToken ct) =>
         { await m.Send(new UnlockUserCommand(id), ct); return Results.NoContent(); }).WithTags("Users");
+        api.MapPost("/users/{id:guid}/role", async (Guid id, ChangeRoleBody b, IMediator m, CancellationToken ct) =>
+        { await m.Send(new ChangeUserRoleCommand(id, b.RoleId), ct); return Results.NoContent(); }).WithTags("Users");
 
         // Roles
         api.MapGet("/setup/roles", async (IMediator m, CancellationToken ct) =>
@@ -63,6 +65,7 @@ public static class AdminEndpoints
 
     public sealed record SettingBody(string? Value, bool IsSecret);
     public sealed record RetentionBody(int Days);
+    public sealed record ChangeRoleBody(Guid RoleId);
 
     public static void MapSettingsAndRetentionEndpoints(this RouteGroupBuilder api)
     {

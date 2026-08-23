@@ -13,7 +13,29 @@ const TYPES = ['All', 'Collector', 'Marketing', 'Scanning'];
   standalone: true,
   imports: [FormsModule, DecimalPipe, TranslatePipe],
   template: `
-    <div class="pagehead"><div><div class="breadcrumbs">Home / {{ 'reps_2' | t : 'Representatives' }}</div><h1>{{ 'reps_2' | t : 'Representatives' }}</h1></div></div>
+    <div class="pagehead" style="display:flex;justify-content:space-between;align-items:center">
+      <div><div class="breadcrumbs">Home / {{ 'reps_2' | t : 'Representatives' }}</div><h1>{{ 'reps_2' | t : 'Representatives' }}</h1></div>
+      @if (canAdd()) { <button class="btn btn-p" (click)="showForm.set(!showForm())" style="height:38px">{{ showForm() ? ('cancel' | t : 'Cancel') : ('new_representative' | t : 'New representative') }}</button> }
+    </div>
+
+    @if (showForm() && canAdd()) {
+      <div class="card" style="padding:20px;margin-bottom:16px">
+        <div class="frm-grid" style="grid-template-columns:repeat(4,1fr);gap:12px">
+          <div class="field"><label>{{ 'name_lbl' | t : 'Full name' }}</label><input class="input" [(ngModel)]="form.fullName"></div>
+          <div class="field"><label>{{ 'type' | t }}</label><select class="select" [(ngModel)]="form.type">@for (t of createTypes; track t) { <option [value]="t">{{ t }}</option> }</select></div>
+          <div class="field"><label>{{ 'goal' | t : 'Goal duration' }}</label><select class="select" [(ngModel)]="form.goalDuration"><option value="Monthly">Monthly</option><option value="Quarterly">Quarterly</option></select></div>
+          <div class="field"><label>{{ 'phone' | t : 'Phone' }}</label><input class="input" [(ngModel)]="form.phone"></div>
+          <div class="field"><label>{{ 'salary' | t : 'Salary' }}</label><input type="number" min="0" class="input" [(ngModel)]="form.salary"></div>
+          <div class="field"><label>{{ 'goal_target' | t : 'Target' }}</label><input type="number" min="0" class="input" [(ngModel)]="form.target"></div>
+          <div class="field"><label>{{ 'governorate_lbl' | t : 'Governorate' }}</label><input class="input" [(ngModel)]="form.governorate"></div>
+          <div class="field"><label>{{ 'branch_2' | t : 'Branch' }}</label><input class="input" [(ngModel)]="form.branch"></div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn btn-s" (click)="showForm.set(false)" style="height:36px">{{ 'cancel' | t : 'Cancel' }}</button>
+          <button class="btn btn-p" [disabled]="!form.fullName.trim() || busy()" (click)="submit()" style="height:36px">{{ 'save' | t : 'Save' }}</button>
+        </div>
+      </div>
+    }
 
     <div class="kpis" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
       <div class="kpi kpi-teal"><div class="lbl">{{ 'total' | t }}</div><div class="val">{{ items().length }}</div></div>
@@ -61,7 +83,13 @@ export class RepsComponent {
   readonly loading = signal(true);
   readonly items = signal<RepListItem[]>([]);
   readonly types = TYPES;
+  readonly busy = signal(false);
+  readonly showForm = signal(false);
+  readonly createTypes = ['Collector', 'Marketing', 'Transfer', 'Scanning'];
+  form = { fullName: '', type: 'Collector', goalDuration: 'Monthly', salary: 0, target: 0, phone: '', governorate: '', branch: '' };
   search = ''; type = 'All'; gov = 'All';
+
+  canAdd(): boolean { return this.auth.has('AddReps') || this.auth.has('ManageReps'); }
 
   readonly filtered = computed(() => this.items().filter((r) => this.gov === 'All' || r.governorate === this.gov));
   readonly govs = computed(() => [...new Set(this.items().map((r) => r.governorate).filter((x): x is string => !!x))].sort());
@@ -70,6 +98,23 @@ export class RepsComponent {
 
   count(t: string): number { return this.filtered().filter((r) => r.type === t).length; }
   activeCount(): number { return this.filtered().filter((r) => r.isActive).length; }
+
+  submit(): void {
+    if (!this.form.fullName.trim()) return;
+    this.busy.set(true);
+    this.api.post('/reps', {
+      fullName: this.form.fullName.trim(), type: this.form.type, goalDuration: this.form.goalDuration,
+      salary: this.form.salary || 0, target: this.form.target || 0,
+      phone: this.form.phone || null, governorate: this.form.governorate || null, branch: this.form.branch || null,
+    }).subscribe({
+      next: () => { this.busy.set(false); this.showForm.set(false); this.resetForm(); this.load(); },
+      error: () => this.busy.set(false),
+    });
+  }
+
+  private resetForm(): void {
+    this.form = { fullName: '', type: 'Collector', goalDuration: 'Monthly', salary: 0, target: 0, phone: '', governorate: '', branch: '' };
+  }
 
   load(): void {
     this.loading.set(true);

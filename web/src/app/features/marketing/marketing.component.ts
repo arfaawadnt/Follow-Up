@@ -6,7 +6,7 @@ import { AuthService } from '../../core/auth.service';
 import { LabListItem, MarketingVisit, PagedResult, RepListItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
 
-const PURPOSES = ['Routine', 'Onboarding', 'Complaint follow-up', 'Contract', 'Retention'];
+const PURPOSES = ['Routine', 'Pitch', 'Renewal', 'ComplaintResolution', 'Promotion', 'Onboarding', 'Reactivation'];
 const STATUSES = ['All', 'Scheduled', 'Completed', 'Cancelled'];
 
 @Component({

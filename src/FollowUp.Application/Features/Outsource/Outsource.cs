@@ -113,7 +113,7 @@ public sealed class AdvanceOutsourceStatusHandler : ICommandHandler<AdvanceOutso
     {
         var sample = await _repository.GetByIdAsync(new OutsourceSampleId(request.Id), ct)
             ?? throw new NotFoundException("Outsource sample", request.Id);
-        sample.AdvanceTo(Enumeration.FromName<OutsourceStatus>(request.Status), _clock.CairoNow);
+        sample.AdvanceTo(Enumeration.FromName<OutsourceStatus>(request.Status), _clock.UtcNow);
         return Unit.Value;
     }
 }

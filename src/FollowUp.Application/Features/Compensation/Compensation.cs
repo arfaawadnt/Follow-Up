@@ -110,6 +110,61 @@ public sealed class RecalculateLoyaltyHandler : ICommandHandler<RecalculateLoyal
     }
 }
 
+// ---- Recalculate loyalty for every in-scope lab (current period) ----
+
+/// <summary>Backs the global "Recalculate points" action: recomputes loyalty for all in-scope labs for the
+/// current period. Returns the number of labs recalculated.</summary>
+public sealed record RecalculateAllLoyaltyCommand : ICommand<int>, IAuthorizedRequest
+{
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageLoyalty };
+}
+
+public sealed class RecalculateAllLoyaltyHandler : ICommandHandler<RecalculateAllLoyaltyCommand, int>
+{
+    private readonly ILaboratoryRepository _labs;
+    private readonly ILabLoyaltyLedgerRepository _ledgers;
+    private readonly ICompensationConfigRepository _configs;
+    private readonly ICompensationData _data;
+    private readonly ICompensationQueries _queries;
+    private readonly ICurrentUser _user;
+    private readonly IClock _clock;
+
+    public RecalculateAllLoyaltyHandler(ILaboratoryRepository labs, ILabLoyaltyLedgerRepository ledgers,
+        ICompensationConfigRepository configs, ICompensationData data, ICompensationQueries queries,
+        ICurrentUser user, IClock clock)
+    {
+        _labs = labs; _ledgers = ledgers; _configs = configs; _data = data; _queries = queries; _user = user; _clock = clock;
+    }
+
+    public async Task<int> Handle(RecalculateAllLoyaltyCommand request, CancellationToken ct)
+    {
+        var config = await _configs.GetAsync(ct)
+            ?? throw new ConflictException("Compensation configuration has not been set.");
+        var period = YearMonth.From(_clock.CairoToday);
+        var calculator = new CompensationCalculator(config);
+
+        // In-scope labs only (the summary query already applies the caller's OrgScope).
+        var summary = await _queries.GetLoyaltySummaryAsync(_user.Scope, _user.Has(Privileges.ShowEncryptedLabs), ct);
+
+        var count = 0;
+        foreach (var row in summary)
+        {
+            var lab = await _labs.GetByIdAsync(new LaboratoryId(row.LaboratoryId), ct);
+            if (lab is null) continue;
+
+            var achieved = await _data.GetLabAchievedSamplesAsync(lab.Id, period, ct);
+            var (points, tier) = calculator.ComputeLoyalty(achieved, lab.MonthlyTarget);
+
+            var ledger = await _ledgers.GetAsync(lab.Id, period, ct);
+            if (ledger is null) { ledger = LabLoyaltyLedger.For(lab.Id, period); _ledgers.Add(ledger); }
+            ledger.Record(lab.MonthlyTarget, achieved, points, tier, _clock.UtcNow);
+            lab.SetLoyalty(lab.MonthlyTarget, points, tier);
+            count++;
+        }
+        return count;
+    }
+}
+
 // ---- Save commission (server-side recompute, BR-9) ----
 
 public sealed record SaveCommissionCommand(Guid RepresentativeId, int Period) : ICommand, IAuthorizedRequest

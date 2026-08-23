@@ -140,7 +140,7 @@ public sealed class CompleteMarketingVisitHandler : ICommandHandler<CompleteMark
     {
         var visit = await _repository.GetByIdAsync(new MarketingVisitId(request.Id), ct)
             ?? throw new NotFoundException("Marketing visit", request.Id);
-        visit.Complete(request.Outcome, _clock.CairoNow);
+        visit.Complete(request.Outcome, _clock.UtcNow);
         return Unit.Value;
     }
 }

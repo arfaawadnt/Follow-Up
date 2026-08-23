@@ -77,7 +77,7 @@ public sealed class ConfirmReceiptHandler : ICommandHandler<ConfirmReceiptComman
 
         _user.EnsureInScope(lab);
 
-        visit.ReceiveAtLab(_clock.CairoNow);
+        visit.ReceiveAtLab(_clock.UtcNow);
         lab.DeriveActiveFromActivity(); // BR-5: receipt derives lab status
         return Unit.Value;
     }

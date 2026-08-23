@@ -38,8 +38,8 @@ type Tab = 'loyalty' | 'commissions' | 'labstats';
           <thead><tr><th>Laboratory</th><th class="r">Target</th><th class="r">Achieved</th><th class="r">Points</th><th>Tier</th></tr></thead>
           <tbody>
             @for (l of loyalty(); track l.laboratoryId) {
-              <tr><td>{{ labName(l.laboratoryId) }}</td><td class="r mono">{{ l.target }}</td>
-                <td class="r mono">{{ l.achieved }}</td><td class="r mono">{{ l.points }}</td><td>{{ l.tier ?? '—' }}</td></tr>
+              <tr><td>{{ labName(l.laboratoryId) }}</td><td class="r mono">{{ l.monthlyTarget }}</td>
+                <td class="r mono">{{ l.mtdSamples }}</td><td class="r mono">{{ l.loyaltyPoints }}</td><td>{{ l.loyaltyTier ?? '—' }}</td></tr>
             } @empty { <tr><td colspan="5" class="empty">No loyalty data for this period.</td></tr> }
           </tbody>
         </table>
@@ -50,11 +50,11 @@ type Tab = 'loyalty' | 'commissions' | 'labstats';
           <thead><tr><th>Representative</th><th class="r">Target</th><th class="r">Achieved</th><th class="r">Base</th>
             <th class="r">Commission</th><th class="r">Bonus</th><th class="r">Total</th></tr></thead>
           <tbody>
-            @for (c of commissions(); track c.representativeId) {
-              <tr><td>{{ repName(c.representativeId) }}</td>
-                <td class="r mono">{{ c.target | number:'1.0-0' }}</td><td class="r mono">{{ c.achieved | number:'1.0-0' }}</td>
-                <td class="r mono">{{ c.baseSalary | number:'1.0-0' }}</td><td class="r mono">{{ c.commission | number:'1.0-0' }}</td>
-                <td class="r mono">{{ c.bonus | number:'1.0-0' }}</td><td class="r mono strong">{{ c.total | number:'1.0-0' }}</td></tr>
+            @for (c of commissions(); track c.repId) {
+              <tr><td>{{ repName(c.repId) }}</td>
+                <td class="r mono">{{ c.targetAmount | number:'1.0-0' }}</td><td class="r mono">{{ c.achievedAmount | number:'1.0-0' }}</td>
+                <td class="r mono">{{ c.baseSalary | number:'1.0-0' }}</td><td class="r mono">{{ c.commissionEarned | number:'1.0-0' }}</td>
+                <td class="r mono">{{ c.bonusEarned | number:'1.0-0' }}</td><td class="r mono strong">{{ c.totalPayout | number:'1.0-0' }}</td></tr>
             } @empty { <tr><td colspan="7" class="empty">No commission data for this period.</td></tr> }
           </tbody>
         </table>

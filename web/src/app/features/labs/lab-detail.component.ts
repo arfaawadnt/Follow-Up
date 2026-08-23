@@ -254,10 +254,11 @@ export class LabDetailComponent {
     this.api.put(`/labs/${this.id}`, {
       id: this.id, rowVersion: l.rowVersion, name: v.name, segment: v.segment,
       branch: v.branch || null, governorate: v.governorate || null, city: v.city || null, area: v.area || null,
-      category: v.category || null, payer: v.payer || null,
+      category: v.category || null, payer: v.payer || null, contractType: l.contractType,
       collectorRepId: l.collectorRepId, marketingRepId: l.marketingRepId,
       latitude: v.latitude, longitude: v.longitude,
       workDays: split(v.workDays), visitTimes: split(v.visitTimes),
+      contacts: l.contacts,
     }).subscribe({
       next: () => { this.busy.set(false); this.editing.set(false); this.setBanner('Saved.', false); this.load(); },
       error: (err) => {

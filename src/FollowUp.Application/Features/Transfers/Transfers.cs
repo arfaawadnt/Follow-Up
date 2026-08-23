@@ -104,7 +104,7 @@ public sealed class ConfirmTransferHandler : ICommandHandler<ConfirmTransferComm
             throw new NotFoundException("Representative", request.TransferRepId);
 
         visit.ConfirmTransfer(transferRepId,
-            new TransferDetails(request.DriverName, request.DriverMobile, request.CarPlate), _clock.CairoNow);
+            new TransferDetails(request.DriverName, request.DriverMobile, request.CarPlate), _clock.UtcNow);
         return Unit.Value;
     }
 }

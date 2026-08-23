@@ -98,8 +98,23 @@ public sealed class CreateLaboratoryHandler : ICommandHandler<CreateLaboratoryCo
 
     internal static VisitSchedule BuildSchedule(IReadOnlyList<string> workDays, IReadOnlyList<string> visitTimes)
     {
-        var days = workDays.Select(d => Enum.Parse<DayOfWeek>(d, ignoreCase: true));
-        var times = visitTimes.Select(t => TimeOnly.Parse(t));
+        // Parse defensively: invalid user text must surface as a 400 (DomainException), not an opaque 500.
+        var days = new List<DayOfWeek>(workDays.Count);
+        foreach (var d in workDays)
+        {
+            if (!Enum.TryParse<DayOfWeek>(d?.Trim(), ignoreCase: true, out var day))
+                throw new DomainException($"'{d}' is not a valid work day. Use full weekday names, e.g. Sunday.");
+            days.Add(day);
+        }
+
+        var times = new List<TimeOnly>(visitTimes.Count);
+        foreach (var t in visitTimes)
+        {
+            if (!TimeOnly.TryParse(t?.Trim(), out var time))
+                throw new DomainException($"'{t}' is not a valid visit time. Use 24-hour HH:mm, e.g. 09:00.");
+            times.Add(time);
+        }
+
         return VisitSchedule.Create(days, times);
     }
 }

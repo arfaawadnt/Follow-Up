@@ -126,6 +126,39 @@ public sealed class UpdateUserHandler : ICommandHandler<UpdateUserCommand>
     }
 }
 
+// ---- Change role only (preserves profile: phone, representative link, language) ----
+
+public sealed record ChangeUserRoleCommand(Guid Id, Guid RoleId) : ICommand, IAuthorizedRequest
+{
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageUsers };
+}
+
+public sealed class ChangeUserRoleHandler : ICommandHandler<ChangeUserRoleCommand>
+{
+    private readonly IAppUserRepository _users;
+    private readonly IRoleRepository _roles;
+    private readonly ICurrentUser _caller;
+
+    public ChangeUserRoleHandler(IAppUserRepository users, IRoleRepository roles, ICurrentUser caller)
+    {
+        _users = users; _roles = roles; _caller = caller;
+    }
+
+    public async Task<Unit> Handle(ChangeUserRoleCommand request, CancellationToken ct)
+    {
+        var user = await _users.GetByIdAsync(new AppUserId(request.Id), ct)
+            ?? throw new NotFoundException("User", request.Id);
+
+        // Self-role-change is blocked (SRS §2.3).
+        if (_caller.UserId == user.Id && new RoleId(request.RoleId) != user.RoleId)
+            throw new ForbiddenException("You cannot change your own role.");
+
+        var role = await RoleGrantSupport.LoadGrantableRoleAsync(request.RoleId, _roles, _caller, ct);
+        user.ChangeRole(role.Id);
+        return Unit.Value;
+    }
+}
+
 // ---- Delete user ----
 
 public sealed record DeleteUserCommand(Guid Id) : ICommand, IAuthorizedRequest

@@ -70,7 +70,8 @@ public sealed record UpdateRoleCommand : ICommand, IAuthorizedRequest
     public IReadOnlyList<string> Privileges { get; init; } = Array.Empty<string>();
     public string DefaultLanguage { get; init; } = "en";
     public string DefaultTheme { get; init; } = "light";
-    public ScopeInput Scope { get; init; } = ScopeInput.Empty;
+    /// <summary>Null = leave the role's org-scope unchanged (privilege-only edits must not reset it to deny-all).</summary>
+    public ScopeInput? Scope { get; init; }
 
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Domain.Identity.Privileges.ManageUsers };
 }
@@ -92,13 +93,19 @@ public sealed class UpdateRoleHandler : ICommandHandler<UpdateRoleCommand>
             throw new ForbiddenException("You cannot modify your own role.");
 
         _caller.EnsurePrivilegesWithinGrant(request.Privileges);
-        var scope = request.Scope.ToOrgScope();
-        _caller.EnsureScopeWithinGrant(scope);
 
         role.Rename(request.Name);
         role.SetPrivileges(request.Privileges);
         role.SetDefaults(request.DefaultLanguage, request.DefaultTheme);
-        role.SetScope(scope);
+
+        // Only reconcile org-scope when the caller actually sent one — a privilege-only edit (the SPA's
+        // "Save privileges") omits scope and must not wipe it to deny-all (BR: fail-closed lockout).
+        if (request.Scope is { } scopeInput)
+        {
+            var scope = scopeInput.ToOrgScope();
+            _caller.EnsureScopeWithinGrant(scope);
+            role.SetScope(scope);
+        }
         return Unit.Value;
     }
 }

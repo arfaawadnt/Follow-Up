@@ -109,7 +109,7 @@ public sealed class RecordSampleDataEntryHandler : ICommandHandler<RecordSampleD
             tracking = DomainSampleTracking.Open(request.Area, request.Date);
             _repository.Add(tracking);
         }
-        tracking.RecordDataEntry(request.Count, _user.Username, _clock.CairoNow);
+        tracking.RecordDataEntry(request.Count, _user.Username, _clock.UtcNow);
         return tracking.Id.Value;
     }
 }
@@ -145,7 +145,7 @@ public sealed class BatchRecordSampleDataEntryHandler : ICommandHandler<BatchRec
                 tracking = DomainSampleTracking.Open(line.Area, line.Date);
                 _repository.Add(tracking);
             }
-            tracking.RecordDataEntry(line.Count, _user.Username, _clock.CairoNow);
+            tracking.RecordDataEntry(line.Count, _user.Username, _clock.UtcNow);
         }
         return request.Lines.Count;
     }
@@ -177,8 +177,8 @@ public sealed class AdvanceSampleTrackingHandler : ICommandHandler<AdvanceSample
 
         switch (request.Step)
         {
-            case "Review": tracking.RecordReview(_user.Username, _clock.CairoNow); break;
-            case "Sort": tracking.RecordSort(_user.Username, _clock.CairoNow); break;
+            case "Review": tracking.RecordReview(_user.Username, _clock.UtcNow); break;
+            case "Sort": tracking.RecordSort(_user.Username, _clock.UtcNow); break;
             default: throw new Common.Exceptions.ValidationException(
                 new Dictionary<string, string[]> { ["Step"] = new[] { "Step must be Review or Sort." } });
         }

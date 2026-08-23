@@ -26,7 +26,7 @@ type Tab = 'refs' | 'cities' | 'areas';
     @if (tab() === 'refs') {
       <div class="card" style="padding:16px;margin-bottom:16px">
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end">
-          <div class="field"><label>Type</label><input class="input" [(ngModel)]="refType" placeholder="e.g. governorate" list="reftypes"><datalist id="reftypes">@for (t of refTypes(); track t) { <option [value]="t"></option> }</datalist></div>
+          <div class="field"><label>Type</label><select class="select" [(ngModel)]="refType"><option value="">—</option>@for (t of refTypeOptions; track t) { <option [value]="t">{{ t }}</option> }</select></div>
           <div class="field"><label>Code</label><input class="input" [(ngModel)]="refCode"></div>
           <div class="field"><label>Name</label><input class="input" [(ngModel)]="refName"></div>
           @if (auth.has('SetupRefs')) { <button class="btn btn-p" [disabled]="!refType||!refCode||!refName||busy()" (click)="addRef()">Add</button> }
@@ -74,6 +74,8 @@ export class SetupComponent {
   readonly cities = signal<City[]>([]);
   readonly areas = signal<Area[]>([]);
   readonly banner = signal<string | null>(null);
+  // The fixed RefType names the backend accepts (Enumeration.FromName<RefType>); free text produced 400s.
+  readonly refTypeOptions = ['Governorate', 'Branch', 'MarketingPurpose', 'ComplaintCategory', 'Team', 'Channel', 'Payer', 'ContractType', 'LabCategory'];
   refType = ''; refCode = ''; refName = '';
   cityName = ''; cityGov = '';
   areaName = ''; areaCity = ''; areaTransport = false;

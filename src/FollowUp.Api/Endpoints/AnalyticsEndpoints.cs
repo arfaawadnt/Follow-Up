@@ -9,7 +9,6 @@ namespace FollowUp.Api.Endpoints;
 public static class AnalyticsEndpoints
 {
     public sealed record SetTargetBody(Guid LaboratoryId, int MonthlyTarget);
-    public sealed record RecalcBody(Guid LaboratoryId, int Period);
     public sealed record SaveCommissionBody(Guid RepresentativeId, int Period);
     public sealed record ImportBody(byte[] Content);
     public sealed record IntegrationConfigBody(bool Enabled, int IntervalHours);
@@ -22,8 +21,8 @@ public static class AnalyticsEndpoints
             Results.Ok(await m.Send(new GetLoyaltyLedgerQuery(labId), ct))).WithTags("Loyalty");
         api.MapPost("/loyalty/target", async (SetTargetBody b, IMediator m, CancellationToken ct) =>
         { await m.Send(new SetLabTargetCommand(b.LaboratoryId, b.MonthlyTarget), ct); return Results.NoContent(); }).WithTags("Loyalty");
-        api.MapPost("/loyalty/recalculate", async (RecalcBody b, IMediator m, CancellationToken ct) =>
-        { await m.Send(new RecalculateLoyaltyCommand(b.LaboratoryId, b.Period), ct); return Results.NoContent(); }).WithTags("Loyalty");
+        api.MapPost("/loyalty/recalculate", async (IMediator m, CancellationToken ct) =>
+        { var n = await m.Send(new RecalculateAllLoyaltyCommand(), ct); return Results.Ok(new { recalculated = n }); }).WithTags("Loyalty");
 
         api.MapGet("/commissions", async (int period, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetCommissionsQuery(period), ct))).WithTags("Commissions");

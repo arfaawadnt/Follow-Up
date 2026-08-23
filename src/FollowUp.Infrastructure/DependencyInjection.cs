@@ -90,6 +90,7 @@ public static class DependencyInjection
 
         // Background-job orchestration services (the Hangfire jobs invoke these).
         services.AddScoped<Jobs.BoardService>();
+        services.AddScoped<Application.Features.DailyBoard.Contracts.IBoardScheduler>(sp => sp.GetRequiredService<Jobs.BoardService>());
         services.AddScoped<Jobs.RetentionService>();
         services.AddScoped<IRetentionRunner>(sp => sp.GetRequiredService<Jobs.RetentionService>());
         services.AddScoped<Jobs.OutboxDispatcher>();

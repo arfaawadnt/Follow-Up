@@ -60,7 +60,7 @@ public sealed class CheckInVisitHandler : ICommandHandler<CheckInVisitCommand>
     public async Task<Unit> Handle(CheckInVisitCommand request, CancellationToken ct)
     {
         var (visit, lab) = await VisitActionSupport.LoadAuthorizedAsync(request.VisitId, _visits, _labs, _user, ct);
-        visit.CheckIn(request.SampleCount, _user.Username, _clock.CairoNow);
+        visit.CheckIn(request.SampleCount, _user.Username, _clock.UtcNow);
         lab.DeriveActiveFromActivity(); // BR-5
         return Unit.Value;
     }

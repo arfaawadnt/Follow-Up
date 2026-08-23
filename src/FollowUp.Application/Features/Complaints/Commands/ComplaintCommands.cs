@@ -133,7 +133,7 @@ public sealed class ResolveComplaintHandler : ICommandHandler<ResolveComplaintCo
         var satisfied = !enforced ||
             await _signatureGate.HasValidSignatureAsync(ComplaintActionSupport.Module, complaint.Id.ToString(), ct);
 
-        complaint.Resolve(_user.Username, _clock.CairoNow, satisfied);
+        complaint.Resolve(_user.Username, _clock.UtcNow, satisfied);
         return Unit.Value;
     }
 }

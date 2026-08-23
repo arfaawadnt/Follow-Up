@@ -108,7 +108,7 @@ export class UsersComponent {
   }
   changeRole(u: UserListItem, roleId: string): void {
     this.busy.set(true);
-    this.api.put(`/users/${u.id}`, { id: u.id, roleId, email: u.email, language: 'en' }).subscribe({
+    this.api.post(`/users/${u.id}/role`, { roleId }).subscribe({
       next: () => { this.busy.set(false); this.set('Role updated.', false); this.load(); }, error: (e) => { this.busy.set(false); this.set(e?.error?.detail ?? 'Update failed.', true); },
     });
   }
