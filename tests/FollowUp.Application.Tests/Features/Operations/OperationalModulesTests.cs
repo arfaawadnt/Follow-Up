@@ -19,7 +19,7 @@ public class OperationalModulesTests
 
     private static (FakeLaboratoryRepository labs, Laboratory lab) SeedLab()
     {
-        var lab = Laboratory.Register(LabCode.Create("MGL-9"), "Lab", Segment.A);
+        var lab = Laboratory.Register(LabCode.Create("MGL-9"), "Lab", "A");
         var labs = new FakeLaboratoryRepository();
         labs.Store.Add(lab);
         return (labs, lab);

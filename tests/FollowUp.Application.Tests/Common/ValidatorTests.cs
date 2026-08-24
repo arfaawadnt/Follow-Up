@@ -10,7 +10,7 @@ public class ValidatorTests
     [Fact]
     public void CreateLaboratory_rejects_empty_fields_and_bad_segment()
     {
-        var result = new CreateLaboratoryValidator().Validate(new CreateLaboratoryCommand { Code = "", Name = "", Segment = "Z" });
+        var result = new CreateLaboratoryValidator().Validate(new CreateLaboratoryCommand { Code = "", Name = "", Segment = "" });
         result.IsValid.Should().BeFalse();
         result.Errors.Select(e => e.PropertyName).Should().Contain(new[] { "Code", "Name", "Segment" });
     }

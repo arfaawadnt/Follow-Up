@@ -5,6 +5,7 @@ using FollowUp.Domain.Identity;
 using FollowUp.Domain.Laboratories;
 using FollowUp.Domain.Marketing;
 using FollowUp.Domain.Operations;
+using FollowUp.Domain.Reference;
 using FollowUp.Domain.Representatives;
 
 namespace FollowUp.Application.Tests.Common;
@@ -255,4 +256,24 @@ public sealed class FakeRefItemRepository : IRefItemRepository
         Task.FromResult(Store.Any(r => r.Type == type && string.Equals(r.Code, code, StringComparison.OrdinalIgnoreCase)));
     public void Add(Domain.Reference.RefItem item) => Store.Add(item);
     public void Remove(Domain.Reference.RefItem item) => Store.Remove(item);
+}
+
+/// <summary>In-memory setup queries; exposes A/B/C as configured segments for lab handler tests.</summary>
+public sealed class FakeSetupQueries : Application.Features.Setup.ISetupQueries
+{
+    public Task<IReadOnlyList<Application.Features.Setup.RefItemDto>> GetRefItemsAsync(string? type, CancellationToken ct)
+    {
+        IReadOnlyList<Application.Features.Setup.RefItemDto> items = type == nameof(RefType.Segment)
+            ? new[] { "A", "B", "C" }
+                .Select((s, i) => new Application.Features.Setup.RefItemDto(Guid.NewGuid(), nameof(RefType.Segment), s, s, null, i))
+                .ToList()
+            : new List<Application.Features.Setup.RefItemDto>();
+        return Task.FromResult(items);
+    }
+
+    public Task<IReadOnlyList<Application.Features.Setup.CityDto>> GetCitiesAsync(CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Application.Features.Setup.CityDto>>(new List<Application.Features.Setup.CityDto>());
+
+    public Task<IReadOnlyList<Application.Features.Setup.AreaDto>> GetAreasAsync(CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Application.Features.Setup.AreaDto>>(new List<Application.Features.Setup.AreaDto>());
 }

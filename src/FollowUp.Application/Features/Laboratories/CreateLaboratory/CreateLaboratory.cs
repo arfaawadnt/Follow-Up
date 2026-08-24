@@ -3,9 +3,11 @@ using FollowUp.Application.Common.Abstractions.Persistence;
 using FollowUp.Application.Common.Exceptions;
 using FollowUp.Application.Common.Messaging;
 using FollowUp.Application.Common.Security;
+using FollowUp.Application.Features.Setup;
 using FollowUp.Domain.Common;
 using FollowUp.Domain.Identity;
 using FollowUp.Domain.Laboratories;
+using FollowUp.Domain.Reference;
 using FluentValidation;
 
 namespace FollowUp.Application.Features.Laboratories.CreateLaboratory;
@@ -42,7 +44,7 @@ public sealed class CreateLaboratoryValidator : AbstractValidator<CreateLaborato
     {
         RuleFor(x => x.Code).NotEmpty().MaximumLength(32);
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
-        RuleFor(x => x.Segment).Must(s => s is "A" or "B" or "C").WithMessage("Segment must be A, B or C.");
+        RuleFor(x => x.Segment).NotEmpty().WithMessage("Segment is required.");
         RuleForEach(x => x.Contacts).ChildRules(c =>
         {
             c.RuleFor(x => x.Name).NotEmpty();
@@ -60,25 +62,28 @@ public sealed class CreateLaboratoryHandler : ICommandHandler<CreateLaboratoryCo
 {
     private readonly ILaboratoryRepository _repository;
     private readonly ICurrentUser _currentUser;
+    private readonly ISetupQueries _setup;
 
-    public CreateLaboratoryHandler(ILaboratoryRepository repository, ICurrentUser currentUser)
+    public CreateLaboratoryHandler(ILaboratoryRepository repository, ICurrentUser currentUser, ISetupQueries setup)
     {
         _repository = repository;
         _currentUser = currentUser;
+        _setup = setup;
     }
 
     public async Task<Guid> Handle(CreateLaboratoryCommand request, CancellationToken ct)
     {
         _currentUser.EnsureHierarchyInScope(request.Branch, request.Governorate, request.City,
             request.Area, request.Category, request.Segment);
+        await EnsureSegmentConfiguredAsync(_setup, request.Segment, ct);
 
         var code = LabCode.Create(request.Code);
         if (await _repository.CodeExistsAsync(code, ct))
             throw new ConflictException($"A laboratory with code '{code}' already exists.");
 
-        var lab = Laboratory.Register(code, request.Name, Segment.FromName<Segment>(request.Segment));
+        var lab = Laboratory.Register(code, request.Name, request.Segment);
         lab.PlaceInHierarchy(request.Branch, request.Governorate, request.City, request.Area);
-        lab.UpdateProfile(request.Name, Segment.FromName<Segment>(request.Segment),
+        lab.UpdateProfile(request.Name, request.Segment,
             request.Payer, request.ContractType, request.Category);
 
         if (request.Latitude is { } lat && request.Longitude is { } lng)
@@ -94,6 +99,14 @@ public sealed class CreateLaboratoryHandler : ICommandHandler<CreateLaboratoryCo
 
         _repository.Add(lab);
         return lab.Id.Value;
+    }
+
+    /// <summary>Segments are configurable reference data (RefType.Segment): reject any value not configured (400).</summary>
+    internal static async Task EnsureSegmentConfiguredAsync(ISetupQueries setup, string segment, CancellationToken ct)
+    {
+        var configured = await setup.GetRefItemsAsync(nameof(RefType.Segment), ct);
+        if (!configured.Any(s => string.Equals(s.Code, segment?.Trim(), StringComparison.OrdinalIgnoreCase)))
+            throw new DomainException($"'{segment}' is not a configured segment. Add it under Setup → Segments.");
     }
 
     internal static VisitSchedule BuildSchedule(IReadOnlyList<string> workDays, IReadOnlyList<string> visitTimes)

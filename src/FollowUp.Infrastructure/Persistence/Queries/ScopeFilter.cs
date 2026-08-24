@@ -23,7 +23,7 @@ internal static class ScopeFilter
         {
             if (scope.Segments.Count == 0)
                 return query.Where(_ => false);
-            var segs = scope.Segments.Select(n => Enumeration.FromName<Segment>(n)).ToList();
+            var segs = scope.Segments.ToList();
             query = query.Where(l => segs.Contains(l.Segment));
         }
         return query;
@@ -50,5 +50,5 @@ internal static class ScopeFilter
 
     /// <summary>True when a scope permits a given (already-materialized) set of lab dimensions.</summary>
     public static bool Allows(this OrgScope scope, Laboratory lab) =>
-        scope.Allows(lab.Branch, lab.Governorate, lab.City, lab.Area, lab.Category, lab.Segment.Name);
+        scope.Allows(lab.Branch, lab.Governorate, lab.City, lab.Area, lab.Category, lab.Segment);
 }

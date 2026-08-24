@@ -45,7 +45,7 @@ public sealed class UpdateLaboratoryValidator : AbstractValidator<UpdateLaborato
     {
         RuleFor(x => x.Id).NotEmpty();
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
-        RuleFor(x => x.Segment).Must(s => s is "A" or "B" or "C").WithMessage("Segment must be A, B or C.");
+        RuleFor(x => x.Segment).NotEmpty().WithMessage("Segment is required.");
         RuleFor(x => x).Must(c => c.Latitude.HasValue == c.Longitude.HasValue)
             .WithMessage("Latitude and longitude must be provided together.");
     }
@@ -55,11 +55,13 @@ public sealed class UpdateLaboratoryHandler : ICommandHandler<UpdateLaboratoryCo
 {
     private readonly ILaboratoryRepository _repository;
     private readonly ICurrentUser _currentUser;
+    private readonly Setup.ISetupQueries _setup;
 
-    public UpdateLaboratoryHandler(ILaboratoryRepository repository, ICurrentUser currentUser)
+    public UpdateLaboratoryHandler(ILaboratoryRepository repository, ICurrentUser currentUser, Setup.ISetupQueries setup)
     {
         _repository = repository;
         _currentUser = currentUser;
+        _setup = setup;
     }
 
     public async Task<Unit> Handle(UpdateLaboratoryCommand request, CancellationToken ct)
@@ -71,13 +73,13 @@ public sealed class UpdateLaboratoryHandler : ICommandHandler<UpdateLaboratoryCo
         // Then verify the caller is allowed to move it to the new hierarchy/segment.
         _currentUser.EnsureHierarchyInScope(request.Branch, request.Governorate, request.City,
             request.Area, request.Category, request.Segment);
+        await CreateLaboratory.CreateLaboratoryHandler.EnsureSegmentConfiguredAsync(_setup, request.Segment, ct);
 
         // Optimistic concurrency (FR-3): reject an edit made against a stale version.
         if (lab.RowVersion != request.RowVersion)
             throw new ConflictException("The laboratory was modified by someone else. Reload and try again.");
 
-        var segment = Enumeration.FromName<Segment>(request.Segment);
-        lab.UpdateProfile(request.Name, segment, request.Payer, request.ContractType, request.Category);
+        lab.UpdateProfile(request.Name, request.Segment, request.Payer, request.ContractType, request.Category);
         lab.PlaceInHierarchy(request.Branch, request.Governorate, request.City, request.Area);
         lab.SetLocation(request.Latitude is { } lat && request.Longitude is { } lng ? GeoLocation.Create(lat, lng) : null);
         lab.SetSchedule(CreateLaboratoryHandler.BuildSchedule(request.WorkDays, request.VisitTimes));

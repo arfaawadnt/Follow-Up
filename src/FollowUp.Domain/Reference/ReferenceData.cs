@@ -15,6 +15,7 @@ public sealed class RefType : Enumeration
     public static readonly RefType Payer = new(7, nameof(Payer));
     public static readonly RefType ContractType = new(8, nameof(ContractType));
     public static readonly RefType LabCategory = new(9, nameof(LabCategory));
+    public static readonly RefType Segment = new(10, nameof(Segment));
 
     private RefType(int id, string name) : base(id, name) { }
 }
@@ -104,6 +105,9 @@ public sealed class City : AggregateRoot<CityId>, IAuditable
 
     public void Rename(string name) => Name = string.IsNullOrWhiteSpace(name)
         ? throw new DomainException("City name is required.") : name.Trim();
+
+    public void SetGovernorate(string governorate) => Governorate = string.IsNullOrWhiteSpace(governorate)
+        ? throw new DomainException("Governorate is required.") : governorate.Trim();
 }
 
 public readonly record struct AreaId(Guid Value)
@@ -144,6 +148,11 @@ public sealed class Area : AggregateRoot<AreaId>, IAuditable
         if (string.IsNullOrWhiteSpace(name)) throw new DomainException("Area name is required.");
         return new Area(AreaId.New(), name.Trim(), cityId, transportationRequired);
     }
+
+    public void Rename(string name) => Name = string.IsNullOrWhiteSpace(name)
+        ? throw new DomainException("Area name is required.") : name.Trim();
+
+    public void SetCity(CityId cityId) => CityId = cityId;
 
     public void SetTransportation(bool required) => TransportationRequired = required;
 

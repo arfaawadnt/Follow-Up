@@ -73,6 +73,14 @@ public sealed class DatabaseSeeder
         if (!await _db.RefItems.AnyAsync(ct))
             _db.RefItems.AddRange(ReferenceItems());
 
+        // Segments are configurable reference data (RefType.Segment). Back-fill the A/B/C defaults on any
+        // database that predates the feature so existing labs' segments stay valid and are editable.
+        if (!await _db.RefItems.AnyAsync(r => r.Type == RefType.Segment, ct))
+        {
+            var s = 0;
+            _db.RefItems.AddRange(new[] { "A", "B", "C" }.Select(x => RefItem.Create(RefType.Segment, x, x, null, s++)));
+        }
+
         await _db.SaveChangesAsync(ct);
         return createdAdmin;
     }

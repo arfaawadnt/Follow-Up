@@ -39,13 +39,3 @@ public sealed class LaboratoryStatus : Enumeration
     /// <summary>Statuses in which a lab is scheduled onto the daily board.</summary>
     public bool IsSchedulable => this == Active || this == Pending || this == New;
 }
-
-/// <summary>Commercial tier of a client laboratory (A/B/C).</summary>
-public sealed class Segment : Enumeration
-{
-    public static readonly Segment A = new(1, nameof(A));
-    public static readonly Segment B = new(2, nameof(B));
-    public static readonly Segment C = new(3, nameof(C));
-
-    private Segment(int id, string name) : base(id, name) { }
-}

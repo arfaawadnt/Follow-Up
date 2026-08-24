@@ -58,7 +58,7 @@ internal sealed class InsightsQueries : IInsightsQueries
         var labs = (await _db.Laboratories.ApplyScope(scope).AsNoTracking()
             .Select(l => new { l.Id, l.Code, l.Name, l.Segment, l.Governorate, l.Area, l.MonthlyTarget, l.Status, l.CollectorRepId })
             .ToListAsync(ct))
-            .Select(l => new LabRow(l.Id, l.Name, l.Segment.Name, l.Governorate, l.Area, l.MonthlyTarget,
+            .Select(l => new LabRow(l.Id, l.Name, l.Segment, l.Governorate, l.Area, l.MonthlyTarget,
                 l.Status == LaboratoryStatus.Active, l.CollectorRepId))
             .ToList();
         var labIds = labs.Select(l => l.Id).ToList();
@@ -164,7 +164,7 @@ internal sealed class InsightsQueries : IInsightsQueries
         var labs = (await _db.Laboratories.ApplyScope(scope).AsNoTracking()
             .Select(l => new { l.Id, l.Segment, l.Governorate, l.MonthlyTarget, l.Status, l.CreatedAt })
             .ToListAsync(ct))
-            .Select(l => new { l.Id, Seg = l.Segment.Name, l.Governorate, l.MonthlyTarget, Active = l.Status == LaboratoryStatus.Active, l.CreatedAt })
+            .Select(l => new { l.Id, Seg = l.Segment, l.Governorate, l.MonthlyTarget, Active = l.Status == LaboratoryStatus.Active, l.CreatedAt })
             .ToList();
         var labIds = labs.Select(l => l.Id).ToList();
 
@@ -238,7 +238,7 @@ internal sealed class InsightsQueries : IInsightsQueries
         var monthPts = months.AsEnumerable().Reverse()
             .Select(m => new ChartPointDto(new DateOnly(m.Year, m.Month, 1).ToString("MMM", CultureInfo.InvariantCulture),
                 ms.Where(x => x.Period.Code == m.Code).Sum(x => x.SampleCount))).ToList();
-        return new LabHistoryDto(DisplayCode.For(lab.Code.Value, canSeeEncrypted), lab.Name, lab.Segment.Name, lab.Status.Name,
+        return new LabHistoryDto(DisplayCode.For(lab.Code.Value, canSeeEncrypted), lab.Name, lab.Segment, lab.Status.Name,
             allMs.Count > 0 ? (int)Math.Round(allMs.Average()) : 0, ms.Where(x => x.Period.Code == thisYm).Sum(x => x.SampleCount), complaints, monthPts);
     }
 

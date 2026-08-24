@@ -110,7 +110,7 @@ const STATUSES = ['New', 'Scanned', 'Active', 'Inactive', 'Pending', 'Suspended'
           <div class="cbody">
             <div class="row">
               <div class="field"><label>Name <span class="req">*</span></label><input formControlName="name"></div>
-              <div class="field"><label>Segment</label><select formControlName="segment"><option>A</option><option>B</option><option>C</option></select></div>
+              <div class="field"><label>Segment</label><select formControlName="segment">@for (s of segments(); track s) { <option [value]="s">{{ s }}</option> }</select></div>
             </div>
             <div class="row">
               <div class="field"><label>Branch</label><input formControlName="branch"></div>
@@ -196,6 +196,7 @@ export class LabDetailComponent {
   readonly bannerError = signal(false);
   readonly uploadedPath = signal<string | null>(null);
   readonly statuses = STATUSES;
+  readonly segments = signal<string[]>([]);
 
   readonly form = this.fb.group({
     name: this.fb.control('', Validators.required),
@@ -215,6 +216,8 @@ export class LabDetailComponent {
 
   constructor() {
     this.id = this.route.snapshot.paramMap.get('id') ?? '';
+    this.api.get<{ nameEn: string }[]>('/setup/refs', { type: 'Segment' })
+      .subscribe({ next: (r) => this.segments.set(r.map((x) => x.nameEn)) });
     this.load();
   }
 

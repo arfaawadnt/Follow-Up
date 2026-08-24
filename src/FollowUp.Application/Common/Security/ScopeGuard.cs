@@ -16,7 +16,7 @@ public static class ScopeGuard
     public static void EnsureInScope(this ICurrentUser user, Laboratory lab)
     {
         var allowed = user.Scope.Allows(
-            lab.Branch, lab.Governorate, lab.City, lab.Area, lab.Category, lab.Segment.Name);
+            lab.Branch, lab.Governorate, lab.City, lab.Area, lab.Category, lab.Segment);
         if (!allowed)
             throw new ForbiddenException("This laboratory is outside your organizational scope.");
     }

@@ -24,7 +24,7 @@ public class CreateLaboratoryHandlerTests
     {
         var repo = new FakeLaboratoryRepository();
         var user = new FakeCurrentUser { Privileges = new HashSet<string> { Privileges.AddLabs } };
-        var handler = new CreateLaboratoryHandler(repo, user);
+        var handler = new CreateLaboratoryHandler(repo, user, new FakeSetupQueries());
 
         var id = await handler.Handle(ValidCommand(), CancellationToken.None);
 
@@ -41,7 +41,7 @@ public class CreateLaboratoryHandlerTests
     {
         var repo = new FakeLaboratoryRepository();
         var user = new FakeCurrentUser { Privileges = new HashSet<string> { Privileges.AddLabs } };
-        var handler = new CreateLaboratoryHandler(repo, user);
+        var handler = new CreateLaboratoryHandler(repo, user, new FakeSetupQueries());
         await handler.Handle(ValidCommand(), CancellationToken.None);
 
         var act = () => handler.Handle(ValidCommand(), CancellationToken.None);
@@ -57,7 +57,7 @@ public class CreateLaboratoryHandlerTests
         var scope = OrgScope.Create(new[] { "*" }, new[] { "Giza" }, new[] { "*" },
             new[] { "*" }, new[] { "*" }, new[] { "*" });
         var user = new FakeCurrentUser { Privileges = new HashSet<string> { Privileges.AddLabs }, Scope = scope };
-        var handler = new CreateLaboratoryHandler(repo, user);
+        var handler = new CreateLaboratoryHandler(repo, user, new FakeSetupQueries());
 
         var act = () => handler.Handle(ValidCommand(), CancellationToken.None);
 

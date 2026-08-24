@@ -33,7 +33,7 @@ internal sealed class LabStatsQueries : ILabStatsQueries
         return rows.Select(s =>
         {
             labInfo.TryGetValue(s.LabCode, out var l);
-            return new LabStatDto(s.Date, s.LabCode, l?.Name, l?.Segment.Name, l?.Governorate, l?.City, l?.Area,
+            return new LabStatDto(s.Date, s.LabCode, l?.Name, l?.Segment, l?.Governorate, l?.City, l?.Area,
                 s.Registrations, s.TestCount, s.Income.Amount);
         }).ToList();
     }

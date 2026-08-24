@@ -14,7 +14,7 @@ public class ResolveComplaintHandlerTests
 
     private static (FakeComplaintRepository, FakeLaboratoryRepository, Complaint) Seed()
     {
-        var lab = Laboratory.Register(LabCode.Create("MGL-1"), "Lab", Segment.B);
+        var lab = Laboratory.Register(LabCode.Create("MGL-1"), "Lab", "B");
         var labs = new FakeLaboratoryRepository();
         labs.Store.Add(lab);
 

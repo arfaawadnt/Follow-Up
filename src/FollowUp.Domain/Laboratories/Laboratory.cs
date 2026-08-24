@@ -20,7 +20,7 @@ public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAudit
 
     private Laboratory() { } // EF
 
-    private Laboratory(LaboratoryId id, LabCode code, string name, Segment segment)
+    private Laboratory(LaboratoryId id, LabCode code, string name, string segment)
         : base(id)
     {
         Code = code;
@@ -33,7 +33,8 @@ public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAudit
 
     public LabCode Code { get; private set; } = null!;
     public string Name { get; private set; } = null!;
-    public Segment Segment { get; private set; } = null!;
+    /// <summary>Commercial segment code (configurable reference data, RefType.Segment). Validated at the application layer.</summary>
+    public string Segment { get; private set; } = null!;
     public LaboratoryStatus Status { get; private set; } = null!;
 
     // Geographic hierarchy (also the org-scope dimensions).
@@ -67,19 +68,23 @@ public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAudit
     public DateTimeOffset? UpdatedAt { get; private set; }
     public string? UpdatedBy { get; private set; }
 
-    public static Laboratory Register(LabCode code, string name, Segment segment)
+    public static Laboratory Register(LabCode code, string name, string segment)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new DomainException("Laboratory name is required.");
-        return new Laboratory(LaboratoryId.New(), code, name.Trim(), segment);
+        if (string.IsNullOrWhiteSpace(segment))
+            throw new DomainException("Segment is required.");
+        return new Laboratory(LaboratoryId.New(), code, name.Trim(), segment.Trim());
     }
 
-    public void UpdateProfile(string name, Segment segment, string? payer, string? contractType, string? category)
+    public void UpdateProfile(string name, string segment, string? payer, string? contractType, string? category)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new DomainException("Laboratory name is required.");
+        if (string.IsNullOrWhiteSpace(segment))
+            throw new DomainException("Segment is required.");
         Name = name.Trim();
-        Segment = segment;
+        Segment = segment.Trim();
         Payer = payer;
         ContractType = contractType;
         Category = category;

@@ -22,7 +22,7 @@ internal sealed class LaboratoryQueries : ILaboratoryQueries
 
     // Converted value objects (LabCode/Segment/LaboratoryStatus) are projected as objects and their
     // string forms are read in memory — EF cannot translate a VO's sub-property (e.g. l.Code.Value) to SQL.
-    private sealed record Row(LaboratoryId Id, LabCode Code, string Name, Segment Segment, LaboratoryStatus Status,
+    private sealed record Row(LaboratoryId Id, LabCode Code, string Name, string Segment, LaboratoryStatus Status,
         string? Branch, string? Governorate, string? City, string? Area);
 
     public async Task<PagedResult<LabListItemDto>> SearchAsync(
@@ -36,10 +36,7 @@ internal sealed class LaboratoryQueries : ILaboratoryQueries
             query = query.Where(l => l.Status == status);
         }
         if (!string.IsNullOrWhiteSpace(criteria.Segment))
-        {
-            var segment = Enumeration.FromName<Segment>(criteria.Segment);
-            query = query.Where(l => l.Segment == segment);
-        }
+            query = query.Where(l => l.Segment == criteria.Segment);
         if (!string.IsNullOrWhiteSpace(criteria.Governorate))
             query = query.Where(l => l.Governorate == criteria.Governorate);
         if (!string.IsNullOrWhiteSpace(criteria.Search))
@@ -58,7 +55,7 @@ internal sealed class LaboratoryQueries : ILaboratoryQueries
             .ToListAsync(ct);
 
         var items = rows.Select(r => new LabListItemDto(
-            r.Id.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Name, r.Segment.Name, r.Status.Name,
+            r.Id.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Name, r.Segment, r.Status.Name,
             r.Governorate, r.City, r.Area, !canSeeEncrypted)).ToList();
 
         return PagedResult<LabListItemDto>.Create(items, total, criteria.Page, criteria.PageSize);
@@ -70,7 +67,7 @@ internal sealed class LaboratoryQueries : ILaboratoryQueries
         if (lab is null) return null;
 
         return new LabDetailDto(
-            lab.Id.Value, DisplayCode.For(lab.Code.Value, canSeeEncrypted), lab.Name, lab.Segment.Name, lab.Status.Name,
+            lab.Id.Value, DisplayCode.For(lab.Code.Value, canSeeEncrypted), lab.Name, lab.Segment, lab.Status.Name,
             lab.Branch, lab.Governorate, lab.City, lab.Area, lab.Category, lab.Payer, lab.ContractType,
             lab.Location?.Latitude, lab.Location?.Longitude, lab.MonthlyTarget, lab.LoyaltyPoints, lab.LoyaltyTier,
             lab.CollectorRepId?.Value, lab.MarketingRepId?.Value,

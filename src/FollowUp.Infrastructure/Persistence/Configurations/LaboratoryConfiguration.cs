@@ -19,6 +19,7 @@ internal sealed class LaboratoryConfiguration : IEntityTypeConfiguration<Laborat
         b.HasIndex(x => x.Code).IsUnique();
 
         b.Property(x => x.Name).HasMaxLength(200).IsRequired();
+        b.Property(x => x.Segment).HasMaxLength(32).IsRequired();
         b.Property(x => x.Branch).HasMaxLength(100);
         b.Property(x => x.Governorate).HasMaxLength(100);
         b.Property(x => x.City).HasMaxLength(100);

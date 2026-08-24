@@ -87,7 +87,6 @@ public sealed class FollowUpDbContext : DbContext
         c.Properties<MarketingVisitStatus>().HaveConversion<EnumerationConverter<MarketingVisitStatus>>().HaveMaxLength(32);
         c.Properties<MarketingPurpose>().HaveConversion<EnumerationConverter<MarketingPurpose>>().HaveMaxLength(32);
         c.Properties<LaboratoryStatus>().HaveConversion<EnumerationConverter<LaboratoryStatus>>().HaveMaxLength(32);
-        c.Properties<Segment>().HaveConversion<EnumerationConverter<Segment>>().HaveMaxLength(8);
         c.Properties<RepresentativeType>().HaveConversion<EnumerationConverter<RepresentativeType>>().HaveMaxLength(32);
         c.Properties<GoalDuration>().HaveConversion<EnumerationConverter<GoalDuration>>().HaveMaxLength(32);
         c.Properties<SignatureMeaning>().HaveConversion<EnumerationConverter<SignatureMeaning>>().HaveMaxLength(32);

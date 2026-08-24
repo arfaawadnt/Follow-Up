@@ -115,6 +115,34 @@ public sealed class DeleteRefItemHandler : ICommandHandler<DeleteRefItemCommand>
     }
 }
 
+public sealed record UpdateRefItemCommand(Guid Id, string Name) : ICommand, IAuthorizedRequest
+{
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.SetupRefs };
+}
+
+public sealed class UpdateRefItemValidator : AbstractValidator<UpdateRefItemCommand>
+{
+    public UpdateRefItemValidator()
+    {
+        RuleFor(x => x.Id).NotEmpty();
+        RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
+    }
+}
+
+public sealed class UpdateRefItemHandler : ICommandHandler<UpdateRefItemCommand>
+{
+    private readonly IRefItemRepository _repository;
+    public UpdateRefItemHandler(IRefItemRepository repository) => _repository = repository;
+
+    public async Task<Unit> Handle(UpdateRefItemCommand request, CancellationToken ct)
+    {
+        var item = await _repository.GetByIdAsync(new RefItemId(request.Id), ct)
+            ?? throw new NotFoundException("Reference item", request.Id);
+        item.Rename(request.Name, null); // single-name model: NameEn only
+        return Unit.Value;
+    }
+}
+
 // ---- City write ----
 
 public sealed record CreateCityCommand(string Name, string Governorate) : ICommand<Guid>, IAuthorizedRequest
@@ -150,6 +178,36 @@ public sealed class DeleteCityHandler : ICommandHandler<DeleteCityCommand>
         var city = await _repository.GetByIdAsync(new CityId(request.Id), ct)
             ?? throw new NotFoundException("City", request.Id);
         _repository.Remove(city);
+        return Unit.Value;
+    }
+}
+
+public sealed record UpdateCityCommand(Guid Id, string Name, string Governorate) : ICommand, IAuthorizedRequest
+{
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.SetupCities };
+}
+
+public sealed class UpdateCityValidator : AbstractValidator<UpdateCityCommand>
+{
+    public UpdateCityValidator()
+    {
+        RuleFor(x => x.Id).NotEmpty();
+        RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.Governorate).NotEmpty();
+    }
+}
+
+public sealed class UpdateCityHandler : ICommandHandler<UpdateCityCommand>
+{
+    private readonly ICityRepository _repository;
+    public UpdateCityHandler(ICityRepository repository) => _repository = repository;
+
+    public async Task<Unit> Handle(UpdateCityCommand request, CancellationToken ct)
+    {
+        var city = await _repository.GetByIdAsync(new CityId(request.Id), ct)
+            ?? throw new NotFoundException("City", request.Id);
+        city.Rename(request.Name);
+        city.SetGovernorate(request.Governorate);
         return Unit.Value;
     }
 }
@@ -191,6 +249,38 @@ public sealed class DeleteAreaHandler : ICommandHandler<DeleteAreaCommand>
         var area = await _repository.GetByIdAsync(new AreaId(request.Id), ct)
             ?? throw new NotFoundException("Area", request.Id);
         _repository.Remove(area);
+        return Unit.Value;
+    }
+}
+
+public sealed record UpdateAreaCommand(Guid Id, string Name, Guid CityId, bool TransportationRequired)
+    : ICommand, IAuthorizedRequest
+{
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.SetupAreas };
+}
+
+public sealed class UpdateAreaValidator : AbstractValidator<UpdateAreaCommand>
+{
+    public UpdateAreaValidator()
+    {
+        RuleFor(x => x.Id).NotEmpty();
+        RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.CityId).NotEmpty();
+    }
+}
+
+public sealed class UpdateAreaHandler : ICommandHandler<UpdateAreaCommand>
+{
+    private readonly IAreaRepository _repository;
+    public UpdateAreaHandler(IAreaRepository repository) => _repository = repository;
+
+    public async Task<Unit> Handle(UpdateAreaCommand request, CancellationToken ct)
+    {
+        var area = await _repository.GetByIdAsync(new AreaId(request.Id), ct)
+            ?? throw new NotFoundException("Area", request.Id);
+        area.Rename(request.Name);
+        area.SetCity(new CityId(request.CityId));
+        area.SetTransportation(request.TransportationRequired);
         return Unit.Value;
     }
 }

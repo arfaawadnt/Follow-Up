@@ -19,7 +19,7 @@ import { TranslatePipe } from '../../core/i18n';
         </div>
         <div class="row">
           <div class="field"><label>{{ 'labs.segment' | t }}</label>
-            <select formControlName="segment"><option>A</option><option>B</option><option>C</option></select></div>
+            <select formControlName="segment">@for (s of segments(); track s) { <option [value]="s">{{ s }}</option> }</select></div>
           <div class="field"><label>{{ 'labs.governorate' | t }}</label><input formControlName="governorate"></div>
         </div>
         <div class="row">
@@ -45,6 +45,12 @@ export class LabCreateComponent {
   private readonly router = inject(Router);
   readonly busy = signal(false);
   readonly error = signal<string | null>(null);
+  readonly segments = signal<string[]>([]);
+
+  constructor() {
+    this.api.get<{ nameEn: string }[]>('/setup/refs', { type: 'Segment' })
+      .subscribe({ next: (r) => this.segments.set(r.map((x) => x.nameEn)) });
+  }
 
   readonly form = this.fb.group({
     code: this.fb.control('', Validators.required),
