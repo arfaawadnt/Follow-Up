@@ -52,6 +52,9 @@ public sealed class SampleTracking : AggregateRoot<SampleTrackingId>, IAuditable
     public TrackingStep? Review { get; private set; }
     public TrackingStep? Sort { get; private set; }
 
+    /// <summary>Free-text notes on the area/day assignment (reference parity).</summary>
+    public string? Notes { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
     public string CreatedBy { get; private set; } = null!;
     public DateTimeOffset? UpdatedAt { get; private set; }
@@ -61,6 +64,15 @@ public sealed class SampleTracking : AggregateRoot<SampleTrackingId>, IAuditable
     {
         if (string.IsNullOrWhiteSpace(area)) throw new DomainException("Sample-tracking area is required.");
         return new SampleTracking(SampleTrackingId.New(), area.Trim(), date);
+    }
+
+    public void SetNotes(string? notes) => Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+
+    /// <summary>Count-only edit (assignment saves that don't touch the data-entry step).</summary>
+    public void SetCount(int count)
+    {
+        if (count < 0) throw new DomainException("Count cannot be negative.");
+        Count = count;
     }
 
     public void RecordDataEntry(int count, string user, DateTimeOffset at)

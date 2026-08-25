@@ -38,12 +38,16 @@ public static class OperationsEndpoints
             Results.Ok(await m.Send(new GetTransfersQuery(start, end), ct))).WithTags("Transfers");
         api.MapPost("/transfers/confirm", async (ConfirmTransferCommand cmd, IMediator m, CancellationToken ct) =>
         { await m.Send(cmd, ct); return Results.NoContent(); }).WithTags("Transfers");
+        api.MapPost("/transfers/confirm-batch", async (ConfirmTransfersBatchCommand cmd, IMediator m, CancellationToken ct) =>
+            Results.Ok(new { confirmed = await m.Send(cmd, ct) })).WithTags("Transfers");
 
         // Lab check-in (FR-7)
         api.MapGet("/labcheckin", async (DateOnly? start, DateOnly? end, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetLabCheckInQuery(start, end), ct))).WithTags("LabCheckIn");
         api.MapPost("/labcheckin/confirm", async (ConfirmReceiptBody b, IMediator m, CancellationToken ct) =>
         { await m.Send(new ConfirmReceiptCommand(b.VisitId), ct); return Results.NoContent(); }).WithTags("LabCheckIn");
+        api.MapPost("/labcheckin/confirm-batch", async (ConfirmReceiptsBatchCommand cmd, IMediator m, CancellationToken ct) =>
+            Results.Ok(new { received = await m.Send(cmd, ct) })).WithTags("LabCheckIn");
 
         // Outsource (FR-9)
         api.MapGet("/outsource-samples", async (DateOnly? start, DateOnly? end, DateOnly? date, IMediator m, CancellationToken ct) =>
@@ -66,6 +70,10 @@ public static class OperationsEndpoints
         { await m.Send(new AdvanceSampleTrackingCommand(id, b.Step), ct); return Results.NoContent(); }).WithTags("SampleTracking");
         api.MapGet("/sample-tracking/report", async (DateOnly from, DateOnly to, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetSampleLifecycleReportQuery(from, to), ct))).WithTags("SampleTracking");
+        api.MapGet("/sample-tracking/lifecycle", async (DateOnly from, DateOnly to, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetSampleLifecycleQuery(from, to), ct))).WithTags("SampleTracking");
+        api.MapPost("/sample-tracking/assignments", async (SaveSampleAssignmentsCommand cmd, IMediator m, CancellationToken ct) =>
+            Results.Ok(new { saved = await m.Send(cmd, ct) })).WithTags("SampleTracking");
 
         // Marketing (FR-10)
         api.MapGet("/marketing", async (int? page, int? pageSize, string? status, Guid? laboratoryId, IMediator m, CancellationToken ct) =>

@@ -6,6 +6,7 @@ import { AuthService } from '../../core/auth.service';
 import { IconsService } from '../../core/icons.service';
 import { BoardItem, PagedResult, RepListItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
+import { exportCsv, printTable } from '../../shared/export.util';
 
 const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
 
@@ -14,8 +15,12 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
   standalone: true,
   imports: [FormsModule, DecimalPipe, TranslatePipe],
   template: `
-    <div class="pagehead">
+    <div class="pagehead" style="display:flex;justify-content:space-between;align-items:center">
       <div><div class="breadcrumbs">Home / {{ 'daily' | t }}</div><h1>{{ 'daily' | t }}</h1></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-s" (click)="exportExcel()" [disabled]="!filtered().length">Export Excel</button>
+        <button class="btn btn-s" (click)="exportPdf()" [disabled]="!filtered().length">Export PDF</button>
+      </div>
     </div>
 
     <div class="kpis" style="grid-template-columns:repeat(5,1fr);margin-bottom:14px">
@@ -67,16 +72,17 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
       @if (loading()) { <div class="empty">{{ 'loading' | t : 'Loading…' }}</div> }
       @else {
         <table id="daily-table">
-          <tr><th>{{ 'date' | t }}</th><th>{{ 'time' | t }}</th><th>{{ 'laboratory' | t }}</th><th>{{ 'collector' | t }}</th>
-            <th>{{ 'status' | t }}</th><th>{{ 'samples' | t }}</th><th></th></tr>
+          <tr><th>{{ 'date' | t }} &amp; {{ 'time' | t }}</th><th>{{ 'laboratory' | t }}</th><th>{{ 'collector' | t }}</th>
+            <th>{{ 'status' | t }}</th><th>{{ 'samples' | t }}</th><th>Marked at</th><th>Verified</th><th></th></tr>
           @for (v of filtered(); track v.visitId) {
             <tr>
-              <td class="mono">{{ v.visitDate }}</td>
-              <td class="mono">{{ v.scheduledTime }}</td>
-              <td><b style="color:var(--slate-900)">{{ v.lab }}</b><div class="small muted">{{ v.labCode }}@if (v.area) { · {{ v.area }} }</div></td>
+              <td class="mono">{{ v.visitDate }}<div class="small muted">{{ v.scheduledTime }}</div></td>
+              <td><b style="color:var(--slate-900)">{{ v.lab }}</b><div class="small muted">{{ sub(v) }}</div></td>
               <td>{{ v.rep ?? '—' }}</td>
               <td><span class="badge" [class]="badgeClass(v.status)">{{ v.status | t }}</span>@if (v.transferDone) { <span class="badge b-info">{{ 'transferred' | t : 'Transferred' }}</span> }</td>
-              <td class="mono">{{ v.samples ?? '—' }}{{ v.adminChecked ? ' ✓' : '' }}</td>
+              <td class="mono">{{ v.samples ?? '—' }}</td>
+              <td class="mono small">{{ v.markedAt ?? '—' }}</td>
+              <td>{{ v.adminChecked ? '✓' : '—' }}</td>
               <td class="actions">
                 @if (v.status === 'Pending') {
                   <input class="input num" type="number" min="0" [(ngModel)]="counts[v.visitId]" placeholder="#">
@@ -88,7 +94,7 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
                 }
               </td>
             </tr>
-          } @empty { <tr><td colspan="7" class="empty">{{ 'no_visits_today' | t }}</td></tr> }
+          } @empty { <tr><td colspan="8" class="empty">{{ 'no_visits_today' | t }}</td></tr> }
         </table>
       }
     </div>
@@ -156,6 +162,23 @@ export class DailyComponent {
   private run(obs: { subscribe: Function }): void {
     this.busy.set(true);
     (obs as { subscribe: Function }).subscribe({ next: () => { this.busy.set(false); this.load(); }, error: () => this.busy.set(false) });
+  }
+
+  sub(v: BoardItem): string { return [v.labCode, v.branch, v.area, v.governorate].filter(Boolean).join(' · '); }
+
+  private exportRows(): (string | number | null)[][] {
+    return this.filtered().map((v) => [v.visitDate, v.scheduledTime, v.lab, v.labCode, v.branch, v.area, v.governorate,
+      v.rep, v.status, v.samples, v.markedAt, v.adminChecked ? 'Yes' : 'No']);
+  }
+  exportExcel(): void {
+    exportCsv('daily-followup.csv',
+      ['Date', 'Time', 'Laboratory', 'Code', 'Branch', 'Area', 'Governorate', 'Collector', 'Status', 'Samples', 'Marked at', 'Verified'],
+      this.exportRows());
+  }
+  exportPdf(): void {
+    printTable('Daily Follow-up Board',
+      ['Date', 'Time', 'Laboratory', 'Code', 'Branch', 'Area', 'Governorate', 'Collector', 'Status', 'Samples', 'Marked at', 'Verified'],
+      this.exportRows());
   }
 
   badgeClass(status: string): string {

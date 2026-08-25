@@ -20,6 +20,7 @@ public sealed record BoardItemDto(
     string ScheduledTime,
     string Status,
     int? Samples,
+    string? MarkedAt,
     bool AdminChecked,
     bool TransferDone);
 

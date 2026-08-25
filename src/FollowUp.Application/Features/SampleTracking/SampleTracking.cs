@@ -18,14 +18,24 @@ public sealed record SampleTrackingDto(
     string? DataEntryBy, DateTimeOffset? DataEntryAt,
     string? ReviewBy, DateTimeOffset? ReviewAt,
     string? SortBy, DateTimeOffset? SortAt,
-    bool IsComplete);
+    string? Notes, bool IsComplete);
 
 public sealed record SampleLifecycleReportRowDto(string Area, DateOnly Date, int Count, string Stage);
+
+/// <summary>One visit's full 6-stage lifecycle (reference: Sample Life Cycle History).</summary>
+public sealed record SampleLifecycleRowDto(
+    string Lab, string LabDisplayCode, string? Area, DateOnly VisitDate, string VisitTime, int? Samples,
+    DateTimeOffset? CollectedAt, DateTimeOffset? TransferredAt, DateTimeOffset? ReceivedAt,
+    string? DataEntryBy, DateTimeOffset? DataEntryAt,
+    string? ReviewBy, DateTimeOffset? ReviewAt,
+    string? SortBy, DateTimeOffset? SortAt,
+    string? Notes);
 
 public interface ISampleTrackingQueries
 {
     Task<IReadOnlyList<SampleTrackingDto>> ListAsync(DateOnly start, DateOnly end, OrgScope scope, CancellationToken ct);
     Task<IReadOnlyList<SampleLifecycleReportRowDto>> ReportAsync(DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct);
+    Task<IReadOnlyList<SampleLifecycleRowDto>> LifecycleAsync(DateOnly from, DateOnly to, OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
 }
 
 /// <summary>Lists sample-tracking rows for a date range within scope (SRS FR-8).</summary>
@@ -70,6 +80,24 @@ public sealed class GetSampleLifecycleReportHandler
 
     public Task<IReadOnlyList<SampleLifecycleReportRowDto>> Handle(GetSampleLifecycleReportQuery request, CancellationToken ct) =>
         _queries.ReportAsync(request.From, request.To, _user.Scope, ct);
+}
+
+/// <summary>Full visit lifecycle rows for the report tab (SRS FR-8; reference parity).</summary>
+public sealed record GetSampleLifecycleQuery(DateOnly From, DateOnly To)
+    : IQuery<IReadOnlyList<SampleLifecycleRowDto>>, IAuthorizedRequest
+{
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.SampleTracking };
+}
+
+public sealed class GetSampleLifecycleHandler : IQueryHandler<GetSampleLifecycleQuery, IReadOnlyList<SampleLifecycleRowDto>>
+{
+    private readonly ISampleTrackingQueries _queries;
+    private readonly ICurrentUser _user;
+
+    public GetSampleLifecycleHandler(ISampleTrackingQueries queries, ICurrentUser user) { _queries = queries; _user = user; }
+
+    public Task<IReadOnlyList<SampleLifecycleRowDto>> Handle(GetSampleLifecycleQuery request, CancellationToken ct) =>
+        _queries.LifecycleAsync(request.From, request.To, _user.Scope, _user.Has(Privileges.ShowEncryptedLabs), ct);
 }
 
 // ---- Record data entry (single/upsert) ----
@@ -183,5 +211,73 @@ public sealed class AdvanceSampleTrackingHandler : ICommandHandler<AdvanceSample
                 new Dictionary<string, string[]> { ["Step"] = new[] { "Step must be Review or Sort." } });
         }
         return Unit.Value;
+    }
+}
+
+// ---- Batch save area assignments (reference: "Batch Save All") ----
+
+/// <summary>One area/day assignment line: count, the users credited with each lifecycle step, and notes.</summary>
+public sealed record AssignmentLine(
+    string Area, DateOnly Date, int Count,
+    string? DataEntryUser, string? ReviewUser, string? SortUser, string? Notes);
+
+/// <summary>Saves several area/day assignments in one transaction (SRS FR-8). Returns the saved count.</summary>
+public sealed record SaveSampleAssignmentsCommand(IReadOnlyList<AssignmentLine> Lines) : ICommand<int>, IAuthorizedRequest
+{
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.SampleTracking };
+}
+
+public sealed class SaveSampleAssignmentsValidator : AbstractValidator<SaveSampleAssignmentsCommand>
+{
+    public SaveSampleAssignmentsValidator()
+    {
+        RuleFor(x => x.Lines).NotEmpty();
+        RuleForEach(x => x.Lines).ChildRules(line =>
+        {
+            line.RuleFor(x => x.Area).NotEmpty();
+            line.RuleFor(x => x.Count).GreaterThanOrEqualTo(0);
+        });
+    }
+}
+
+public sealed class SaveSampleAssignmentsHandler : ICommandHandler<SaveSampleAssignmentsCommand, int>
+{
+    private readonly ISampleTrackingRepository _repository;
+    private readonly ICurrentUser _user;
+    private readonly IClock _clock;
+
+    public SaveSampleAssignmentsHandler(ISampleTrackingRepository repository, ICurrentUser user, IClock clock)
+    {
+        _repository = repository; _user = user; _clock = clock;
+    }
+
+    public async Task<int> Handle(SaveSampleAssignmentsCommand request, CancellationToken ct)
+    {
+        var saved = 0;
+        foreach (var line in request.Lines)
+        {
+            _user.EnsureAreaInScope(line.Area);
+
+            var tracking = await _repository.GetByAreaDateAsync(line.Area, line.Date, ct);
+            if (tracking is null)
+            {
+                tracking = DomainSampleTracking.Open(line.Area, line.Date);
+                _repository.Add(tracking);
+            }
+
+            // Steps are forward-only (sequence guards live in the aggregate); a step is recorded
+            // for the chosen user, and the row is Completed once all three are recorded.
+            if (!string.IsNullOrWhiteSpace(line.DataEntryUser))
+                tracking.RecordDataEntry(line.Count, line.DataEntryUser, _clock.UtcNow);
+            else
+                tracking.SetCount(line.Count);
+            if (!string.IsNullOrWhiteSpace(line.ReviewUser))
+                tracking.RecordReview(line.ReviewUser, _clock.UtcNow);
+            if (!string.IsNullOrWhiteSpace(line.SortUser))
+                tracking.RecordSort(line.SortUser, _clock.UtcNow);
+            tracking.SetNotes(line.Notes);
+            saved++;
+        }
+        return saved;
     }
 }

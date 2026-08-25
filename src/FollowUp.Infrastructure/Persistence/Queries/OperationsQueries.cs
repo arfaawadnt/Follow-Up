@@ -38,7 +38,7 @@ internal sealed class DailyBoardQueries : IDailyBoardQueries
                           join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
                           orderby v.VisitDate, v.ScheduledTime
                           select new { v.Id, v.LaboratoryId, l.Code, l.Name, l.Branch, l.Governorate, l.City, l.Area,
-                              v.CollectorRepId, v.VisitDate, v.ScheduledTime, v.Status, v.SampleCount, v.AdminChecked, v.TransferConfirmedAt })
+                              v.CollectorRepId, v.VisitDate, v.ScheduledTime, v.Status, v.SampleCount, v.CheckedInAt, v.AdminChecked, v.TransferConfirmedAt })
                          .ToListAsync(ct);
 
         var repIds = rows.Where(r => r.CollectorRepId != null).Select(r => r.CollectorRepId!.Value).Distinct().ToList();
@@ -50,7 +50,8 @@ internal sealed class DailyBoardQueries : IDailyBoardQueries
             r.CollectorRepId != null ? r.CollectorRepId.Value.Value : (Guid?)null,
             r.CollectorRepId != null && repName.TryGetValue(r.CollectorRepId.Value, out var n) ? n : null,
             r.Branch, r.Governorate, r.City, r.Area,
-            r.VisitDate, r.ScheduledTime.ToString("HH:mm"), r.Status.Name, r.SampleCount, r.AdminChecked,
+            r.VisitDate, r.ScheduledTime.ToString("HH:mm"), r.Status.Name, r.SampleCount,
+            r.CheckedInAt?.ToString("yyyy-MM-dd HH:mm"), r.AdminChecked,
             r.TransferConfirmedAt != null)).ToList();
     }
 
@@ -144,11 +145,11 @@ internal sealed class OutsourceQueries : IOutsourceQueries
                 where scopedLabs.Contains(o.LaboratoryId) && o.VisitDate >= start && o.VisitDate <= end
                 join l in _db.Laboratories.AsNoTracking() on o.LaboratoryId equals l.Id
                 orderby o.VisitDate descending
-                select new { o.Id, o.LaboratoryId, l.Code, l.Name, o.VisitDate, o.DestinationLab, o.Quantity, o.Status };
+                select new { o.Id, o.LaboratoryId, l.Code, l.Name, o.VisitDate, o.DestinationLab, o.Quantity, o.Status, o.Notes };
         var rows = await q.ToListAsync(ct);
         return rows.Select(r => new OutsourceSampleDto(
             r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Name, r.VisitDate,
-            r.DestinationLab, r.Quantity, r.Status.Name)).ToList();
+            r.DestinationLab, r.Quantity, r.Status.Name, r.Notes)).ToList();
     }
 }
 
@@ -172,7 +173,7 @@ internal sealed class SampleTrackingQueries : ISampleTrackingQueries
             s.DataEntry != null ? s.DataEntry.User : null, s.DataEntry != null ? s.DataEntry.At : null,
             s.Review != null ? s.Review.User : null, s.Review != null ? s.Review.At : null,
             s.Sort != null ? s.Sort.User : null, s.Sort != null ? s.Sort.At : null,
-            s.IsComplete)).ToList();
+            s.Notes, s.IsComplete)).ToList();
     }
 
     public async Task<IReadOnlyList<SampleLifecycleReportRowDto>> ReportAsync(DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct)
@@ -187,5 +188,47 @@ internal sealed class SampleTrackingQueries : ISampleTrackingQueries
         return rows.Select(s => new SampleLifecycleReportRowDto(
             s.Area, s.Date, s.Count,
             s.Sort != null ? "Sorted" : s.Review != null ? "Reviewed" : s.DataEntry != null ? "Entered" : "Empty")).ToList();
+    }
+
+    public async Task<IReadOnlyList<SampleLifecycleRowDto>> LifecycleAsync(
+        DateOnly from, DateOnly to, OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
+    {
+        var start = from;
+        var end = to;
+
+        // Live visits (today's board) + archived history, both scoped via the lab dimensions.
+        var live = await (from v in _db.DailyVisits.AsNoTracking()
+                          where v.VisitDate >= start && v.VisitDate <= end && v.SampleCount != null
+                          join l in _db.Laboratories.ApplyScope(scope).AsNoTracking() on v.LaboratoryId equals l.Id
+                          select new { l.Code, l.Name, l.Area, v.VisitDate, Time = (TimeOnly?)v.ScheduledTime,
+                              v.SampleCount, v.CheckedInAt, v.TransferConfirmedAt, v.ReceivedAt })
+                         .ToListAsync(ct);
+
+        var archived = await (from h in _db.VisitHistory.AsNoTracking()
+                              where h.VisitDate >= start && h.VisitDate <= end && h.SampleCount != null
+                              join l in _db.Laboratories.ApplyScope(scope).AsNoTracking() on h.LaboratoryId equals l.Id
+                              select new { l.Code, l.Name, l.Area, h.VisitDate, Time = h.ScheduledTime,
+                                  h.SampleCount, h.CheckedInAt, h.TransferConfirmedAt, h.ReceivedAt })
+                             .ToListAsync(ct);
+
+        // Area/day tracking rows (data entry / review / sort + notes), keyed by (area, date).
+        var trackingRows = await _db.SampleTracking.AsNoTracking()
+            .Where(s => s.Date >= start && s.Date <= end).ToListAsync(ct);
+        var tracking = trackingRows.ToDictionary(s => (s.Area, s.Date));
+
+        return live.Concat(archived)
+            .OrderByDescending(r => r.VisitDate).ThenBy(r => r.Time)
+            .Select(r =>
+            {
+                var t = r.Area != null && tracking.TryGetValue((r.Area, r.VisitDate), out var found) ? found : null;
+                return new SampleLifecycleRowDto(
+                    r.Name, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Area,
+                    r.VisitDate, r.Time?.ToString("HH:mm") ?? "—", r.SampleCount,
+                    r.CheckedInAt, r.TransferConfirmedAt, r.ReceivedAt,
+                    t?.DataEntry?.User, t?.DataEntry?.At,
+                    t?.Review?.User, t?.Review?.At,
+                    t?.Sort?.User, t?.Sort?.At,
+                    t?.Notes);
+            }).ToList();
     }
 }

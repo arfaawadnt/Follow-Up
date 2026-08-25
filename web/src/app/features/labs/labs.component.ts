@@ -5,6 +5,7 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { LabListItem, PagedResult } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
+import { exportCsv, printTable } from '../../shared/export.util';
 
 const SEGMENTS = ['All', 'A', 'B', 'C', 'D'];
 const STATUSES = ['All', 'Scanned', 'Interactive', 'Active', 'Inactive', 'Stopped', 'Pending', 'Suspended', 'Churned'];
@@ -87,40 +88,18 @@ export class LabsComponent {
   badge(s: string): string { return s === 'Active' ? 'b-ok' : s === 'Inactive' || s === 'Churned' || s === 'Stopped' ? 'b-bad' : 'b-warn'; }
   open(id: string): void { void this.router.navigate(['/labs', id]); }
 
-  private static escHtml(v: unknown): string {
-    return String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] ?? c));
-  }
-
   exportCsv(): void {
-    const header = ['Laboratory', 'Code', 'Segment', 'Status', 'Branch', 'Governorate', 'City', 'Area', 'Category', 'Collectors', 'Marketing', 'Avg/Mo'];
-    const esc = (v: unknown) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-    const lines = [header.join(',')];
-    for (const l of this.filtered()) {
-      lines.push([l.name, l.displayCode, l.segment, l.status, l.branch, l.governorate, l.city, l.area, l.category,
-        l.collectors.join('; '), l.marketing, l.avgMonthlySamples].map(esc).join(','));
-    }
-    const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'laboratories.csv'; a.click();
-    URL.revokeObjectURL(url);
+    exportCsv('laboratories.csv',
+      ['Laboratory', 'Code', 'Segment', 'Status', 'Branch', 'Governorate', 'City', 'Area', 'Category', 'Collectors', 'Marketing', 'Avg/Mo'],
+      this.filtered().map((l) => [l.name, l.displayCode, l.segment, l.status, l.branch, l.governorate, l.city, l.area, l.category,
+        l.collectors.join('; '), l.marketing, l.avgMonthlySamples]));
   }
 
   exportPdf(): void {
-    const e = LabsComponent.escHtml;
-    const body = this.filtered().map((l) =>
-      `<tr><td>${e(l.name)}</td><td>${e(l.displayCode)}</td><td>${e(l.segment)}</td><td>${e(l.status)}</td>` +
-      `<td>${e([l.area, l.governorate].filter(Boolean).join(', '))}</td><td>${e(l.collectors.join(', '))}</td>` +
-      `<td>${e(l.marketing ?? '')}</td><td style="text-align:right">${e(l.avgMonthlySamples ?? '')}</td></tr>`).join('');
-    const html = `<!doctype html><html><head><title>Laboratories</title><style>
-      body{font:12px system-ui,sans-serif;padding:16px}h1{font-size:16px}
-      table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}
-      th{background:#f1f5f9}</style></head><body>
-      <h1>Laboratory Management (${this.filtered().length})</h1>
-      <table><thead><tr><th>Laboratory</th><th>Code</th><th>Segment</th><th>Status</th><th>Address</th><th>Collector</th><th>Marketing</th><th>Avg/Mo</th></tr></thead>
-      <tbody>${body}</tbody></table></body></html>`;
-    const w = window.open('', '_blank');
-    if (!w) return;
-    w.document.write(html); w.document.close(); w.focus(); w.print();
+    printTable('Laboratory Management',
+      ['Laboratory', 'Code', 'Segment', 'Status', 'Address', 'Collector', 'Marketing', 'Avg/Mo'],
+      this.filtered().map((l) => [l.name, l.displayCode, l.segment, l.status,
+        [l.area, l.governorate].filter(Boolean).join(', '), l.collectors.join(', '), l.marketing, l.avgMonthlySamples]));
   }
 
   load(): void {

@@ -15,7 +15,7 @@ namespace FollowUp.Application.Features.Outsource;
 // ---- Read side ----
 
 public sealed record OutsourceSampleDto(
-    Guid Id, Guid LaboratoryId, string LabDisplayCode, string LabName, DateOnly VisitDate, string DestinationLab, int Quantity, string Status);
+    Guid Id, Guid LaboratoryId, string LabDisplayCode, string LabName, DateOnly VisitDate, string DestinationLab, int Quantity, string Status, string? Notes);
 
 public interface IOutsourceQueries
 {
@@ -52,6 +52,7 @@ public sealed record CreateOutsourceSampleCommand : ICommand<Guid>, IAuthorizedR
     public DateOnly VisitDate { get; init; }
     public string DestinationLab { get; init; } = string.Empty;
     public int Quantity { get; init; }
+    public string? Notes { get; init; }
 
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.OutsourceSamples };
 }
@@ -86,7 +87,7 @@ public sealed class CreateOutsourceSampleHandler : ICommandHandler<CreateOutsour
         if (await _repository.ExistsForAsync(labId, request.VisitDate, ct))
             throw new ConflictException("An outsource record already exists for this lab and visit date.");
 
-        var sample = OutsourceSample.Create(labId, request.VisitDate, request.DestinationLab, request.Quantity);
+        var sample = OutsourceSample.Create(labId, request.VisitDate, request.DestinationLab, request.Quantity, request.Notes);
         _repository.Add(sample);
         return sample.Id.Value;
     }

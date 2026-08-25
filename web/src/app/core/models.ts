@@ -64,7 +64,7 @@ export interface BoardItem {
   collectorRepId: string | null; rep: string | null;
   branch: string | null; governorate: string | null; city: string | null; area: string | null;
   visitDate: string; scheduledTime: string;
-  status: string; samples: number | null; adminChecked: boolean; transferDone: boolean;
+  status: string; samples: number | null; markedAt: string | null; adminChecked: boolean; transferDone: boolean;
 }
 
 export interface RepListItem {
@@ -101,8 +101,23 @@ export interface SampleTracking {
   id: string; area: string; date: string; count: number;
   dataEntryBy: string | null; dataEntryAt: string | null;
   reviewBy: string | null; reviewAt: string | null;
-  sortBy: string | null; sortAt: string | null; isComplete: boolean;
+  sortBy: string | null; sortAt: string | null; notes: string | null; isComplete: boolean;
 }
+
+export interface SampleLifecycleRow {
+  lab: string; labDisplayCode: string; area: string | null; visitDate: string; visitTime: string; samples: number | null;
+  collectedAt: string | null; transferredAt: string | null; receivedAt: string | null;
+  dataEntryBy: string | null; dataEntryAt: string | null;
+  reviewBy: string | null; reviewAt: string | null;
+  sortBy: string | null; sortAt: string | null; notes: string | null;
+}
+
+export interface OutsourceSample {
+  id: string; laboratoryId: string; labDisplayCode: string; labName: string;
+  visitDate: string; destinationLab: string; quantity: number; status: string; notes: string | null;
+}
+
+export interface UserLookup { id: string; username: string; }
 
 export interface NotificationItem { id: string; eventKey: string; title: string; body: string; createdAt: string; isRead: boolean; }
 export interface RefItem { id: string; type: string; code: string; nameEn: string; nameAr: string | null; sortOrder: number; }

@@ -53,6 +53,12 @@ internal sealed class VisitHistoryConfiguration : IEntityTypeConfiguration<Visit
         b.Property(x => x.AdminChecked);
         b.Property(x => x.ArchivedAt);
 
+        // Lifecycle-stage snapshot (FR-8 report; nullable on rows archived before these existed).
+        b.Property(x => x.ScheduledTime);
+        b.Property(x => x.CheckedInAt);
+        b.Property(x => x.TransferConfirmedAt);
+        b.Property(x => x.ReceivedAt);
+
         // RESTRICT: permanent archive cannot be silently removed (SRS data rules).
         b.HasOne<Laboratory>().WithMany().HasForeignKey(x => x.LaboratoryId).OnDelete(DeleteBehavior.Restrict);
         b.HasIndex(x => x.VisitDate);
@@ -72,6 +78,7 @@ internal sealed class OutsourceSampleConfiguration : IEntityTypeConfiguration<Ou
         b.Property(x => x.VisitDate);
         b.Property(x => x.DestinationLab).HasMaxLength(200).IsRequired();
         b.Property(x => x.Quantity);
+        b.Property(x => x.Notes).HasMaxLength(1000);
 
         b.HasOne<Laboratory>().WithMany().HasForeignKey(x => x.LaboratoryId).OnDelete(DeleteBehavior.Cascade);
         // Unique per (visit_date, lab) — SRS FR-9.
@@ -92,6 +99,7 @@ internal sealed class SampleTrackingConfiguration : IEntityTypeConfiguration<Sam
         b.Property(x => x.Area).HasMaxLength(100).IsRequired();
         b.Property(x => x.Date);
         b.Property(x => x.Count);
+        b.Property(x => x.Notes).HasMaxLength(1000);
 
         b.OwnsOne(x => x.DataEntry, s => { s.Property(t => t.User).HasColumnName("data_entry_by").HasMaxLength(100); s.Property(t => t.At).HasColumnName("data_entry_at"); });
         b.OwnsOne(x => x.Review, s => { s.Property(t => t.User).HasColumnName("review_by").HasMaxLength(100); s.Property(t => t.At).HasColumnName("review_at"); });

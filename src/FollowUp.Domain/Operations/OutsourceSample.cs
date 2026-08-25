@@ -37,19 +37,26 @@ public sealed class OutsourceSample : AggregateRoot<OutsourceSampleId>, IAuditab
     public DateTimeOffset? SentAt { get; private set; }
     public DateTimeOffset? ReceivedAt { get; private set; }
 
+    /// <summary>Free-text notes (reference parity).</summary>
+    public string? Notes { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
     public string CreatedBy { get; private set; } = null!;
     public DateTimeOffset? UpdatedAt { get; private set; }
     public string? UpdatedBy { get; private set; }
 
-    public static OutsourceSample Create(LaboratoryId labId, DateOnly visitDate, string destinationLab, int quantity)
+    public static OutsourceSample Create(LaboratoryId labId, DateOnly visitDate, string destinationLab, int quantity, string? notes = null)
     {
         if (string.IsNullOrWhiteSpace(destinationLab))
             throw new DomainException("Destination lab is required for an outsourced sample.");
         if (quantity <= 0)
             throw new DomainException("Outsource quantity must be positive.");
-        return new OutsourceSample(OutsourceSampleId.New(), labId, visitDate, destinationLab.Trim(), quantity);
+        var sample = new OutsourceSample(OutsourceSampleId.New(), labId, visitDate, destinationLab.Trim(), quantity);
+        sample.SetNotes(notes);
+        return sample;
     }
+
+    public void SetNotes(string? notes) => Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
 
     public void AdvanceTo(OutsourceStatus target, DateTimeOffset when)
     {

@@ -5,14 +5,22 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { ReceivingItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
+import { exportCsv, printTable } from '../../shared/export.util';
 
 @Component({
   selector: 'app-labcheckin',
   standalone: true,
   imports: [FormsModule, DecimalPipe, TranslatePipe],
   template: `
-    <div class="pagehead">
+    <div class="pagehead" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <div><div class="breadcrumbs">Home / {{ 'labcheckin' | t }}</div><h1>{{ 'labcheckin' | t }}</h1></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-s" (click)="exportExcel()" [disabled]="!filtered().length">Export Excel</button>
+        <button class="btn btn-s" (click)="exportPdf()" [disabled]="!filtered().length">Export PDF</button>
+        @if (auth.has('ConfirmTransfers')) {
+          <button class="btn btn-p" (click)="confirmSelected()" [disabled]="busy() || selected.size === 0">Confirm Selected Receipts ({{ selected.size }})</button>
+        }
+      </div>
     </div>
 
     <div class="kpis" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">
@@ -26,10 +34,18 @@ import { TranslatePipe } from '../../core/i18n';
       <div class="frm-grid" style="grid-template-columns:repeat(4,1fr);gap:12px">
         <div class="field"><label>{{ 'start_date' | t }}</label><input type="date" class="input" [(ngModel)]="start"></div>
         <div class="field"><label>{{ 'end_date' | t }}</label><input type="date" class="input" [(ngModel)]="end"></div>
+        <div class="field"><label>{{ 'branch_2' | t }}</label>
+          <select class="select" [(ngModel)]="branch"><option value="All">{{ 'all_2' | t }}</option>@for (b of opts('branch'); track b) { <option [value]="b">{{ b }}</option> }</select></div>
         <div class="field"><label>{{ 'governorate_2' | t }}</label>
           <select class="select" [(ngModel)]="gov"><option value="All">{{ 'all_2' | t }}</option>@for (g of opts('governorate'); track g) { <option [value]="g">{{ g }}</option> }</select></div>
+      </div>
+      <div class="frm-grid" style="grid-template-columns:repeat(4,1fr);gap:12px;margin-top:10px">
+        <div class="field"><label>{{ 'city_2' | t }}</label>
+          <select class="select" [(ngModel)]="city"><option value="All">{{ 'all_2' | t }}</option>@for (c of opts('city'); track c) { <option [value]="c">{{ c }}</option> }</select></div>
         <div class="field"><label>{{ 'area_2' | t }}</label>
           <select class="select" [(ngModel)]="area"><option value="All">{{ 'all_2' | t }}</option>@for (a of opts('area'); track a) { <option [value]="a">{{ a }}</option> }</select></div>
+        <div class="field"><label>{{ 'transfer_rep' | t : 'Transfer rep' }}</label>
+          <select class="select" [(ngModel)]="repFilter"><option value="All">{{ 'all_2' | t }}</option>@for (n of repNames(); track n) { <option [value]="n">{{ n }}</option> }</select></div>
       </div>
       <div style="display:flex;gap:8px;margin-top:12px">
         <button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply_dates' | t }}</button>
@@ -42,12 +58,14 @@ import { TranslatePipe } from '../../core/i18n';
       @else {
         <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
           <thead><tr>
+            <th style="width:28px"><input type="checkbox" [checked]="allSelected()" (change)="toggleAll()"></th>
             <th>{{ 'laboratory_2' | t }}</th><th>{{ 'collection_date_and_time' | t }}</th><th>{{ 'transfer_rep' | t }}</th>
             <th>{{ 'samples' | t }}</th><th>{{ 'status_3' | t }}</th><th style="text-align:center">{{ 'confirm_receipt' | t : 'Confirm receipt' }}</th>
           </tr></thead>
           <tbody>
             @for (r of filtered(); track r.visitId) {
               <tr>
+                <td>@if (r.status !== 'Received') { <input type="checkbox" [checked]="selected.has(r.visitId)" (change)="toggleRow(r.visitId)"> }</td>
                 <td><b style="color:var(--slate-900)">{{ r.labName }}</b><div class="small muted">{{ r.labCode }}@if (r.area) { · {{ r.area }} }</div></td>
                 <td class="mono small">{{ r.visitDate }} · {{ r.visitTime }}</td>
                 <td>{{ r.transferRepName ?? '—' }}</td>
@@ -59,7 +77,7 @@ import { TranslatePipe } from '../../core/i18n';
                   } @else if (r.status === 'Received') { <span style="color:var(--ok-ink)" [title]="r.receivedTime">✓</span> }
                 </td>
               </tr>
-            } @empty { <tr><td colspan="6" class="empty" style="text-align:center;padding:24px">{{ 'nothing_awaiting_receipt' | t : 'Nothing awaiting receipt.' }}</td></tr> }
+            } @empty { <tr><td colspan="7" class="empty" style="text-align:center;padding:24px">{{ 'nothing_awaiting_receipt' | t : 'Nothing awaiting receipt.' }}</td></tr> }
           </tbody>
         </table></div>
       }
@@ -74,10 +92,17 @@ export class LabCheckInComponent {
   readonly items = signal<ReceivingItem[]>([]);
 
   private readonly today = new Date().toISOString().slice(0, 10);
-  start = this.today; end = this.today; gov = 'All'; area = 'All';
+  start = this.today; end = this.today; branch = 'All'; gov = 'All'; city = 'All'; area = 'All'; repFilter = 'All';
+  readonly selected = new Set<string>();
 
   readonly filtered = computed(() => this.items().filter((i) =>
-    (this.gov === 'All' || i.governorate === this.gov) && (this.area === 'All' || i.area === this.area)));
+    (this.branch === 'All' || i.branch === this.branch) &&
+    (this.gov === 'All' || i.governorate === this.gov) &&
+    (this.city === 'All' || i.city === this.city) &&
+    (this.area === 'All' || i.area === this.area) &&
+    (this.repFilter === 'All' || i.transferRepName === this.repFilter)));
+
+  repNames(): string[] { return [...new Set(this.items().map((i) => i.transferRepName).filter((x): x is string => !!x))].sort(); }
 
   readonly k = computed(() => {
     const f = this.filtered();
@@ -88,7 +113,7 @@ export class LabCheckInComponent {
 
   constructor() { this.load(); }
 
-  opts(field: 'governorate' | 'area'): string[] {
+  opts(field: 'branch' | 'governorate' | 'city' | 'area'): string[] {
     return [...new Set(this.items().map((i) => i[field]).filter((x): x is string => !!x))].sort();
   }
 
@@ -98,7 +123,7 @@ export class LabCheckInComponent {
       next: (r) => { this.items.set(r); this.loading.set(false); }, error: () => this.loading.set(false),
     });
   }
-  reset(): void { this.start = this.today; this.end = this.today; this.gov = this.area = 'All'; this.load(); }
+  reset(): void { this.start = this.today; this.end = this.today; this.branch = this.gov = this.city = this.area = this.repFilter = 'All'; this.load(); }
 
   confirm(r: ReceivingItem): void {
     this.busy.set(true);
@@ -106,4 +131,34 @@ export class LabCheckInComponent {
       next: () => { this.busy.set(false); this.load(); }, error: () => this.busy.set(false),
     });
   }
+
+  // ---- Selection + batch (reference: "Confirm Selected Receipts") ----
+
+  private pendingRows(): ReceivingItem[] { return this.filtered().filter((r) => r.status !== 'Received'); }
+  toggleRow(id: string): void { if (this.selected.has(id)) this.selected.delete(id); else this.selected.add(id); }
+  allSelected(): boolean { const p = this.pendingRows(); return p.length > 0 && p.every((r) => this.selected.has(r.visitId)); }
+  toggleAll(): void {
+    const all = this.allSelected();
+    for (const r of this.pendingRows()) { if (all) this.selected.delete(r.visitId); else this.selected.add(r.visitId); }
+  }
+
+  confirmSelected(): void {
+    const visitIds = [...this.selected];
+    if (!visitIds.length) return;
+    this.busy.set(true);
+    this.api.post('/labcheckin/confirm-batch', { visitIds }).subscribe({
+      next: () => { this.busy.set(false); this.selected.clear(); this.load(); },
+      error: () => this.busy.set(false),
+    });
+  }
+
+  // ---- Exports ----
+
+  private exportRows(): (string | number | null)[][] {
+    return this.filtered().map((r) => [r.labName, r.labCode, r.area, r.governorate, `${r.visitDate} ${r.visitTime}`,
+      r.transferRepName, r.samples ?? 0, r.status, r.receivedTime]);
+  }
+  private static readonly EXPORT_HEADER = ['Laboratory', 'Code', 'Area', 'Governorate', 'Collected', 'Transfer rep', 'Samples', 'Status', 'Received at'];
+  exportExcel(): void { exportCsv('lab-checkin.csv', LabCheckInComponent.EXPORT_HEADER, this.exportRows()); }
+  exportPdf(): void { printTable('Lab Checkin', LabCheckInComponent.EXPORT_HEADER, this.exportRows()); }
 }

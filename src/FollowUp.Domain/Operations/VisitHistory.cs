@@ -44,8 +44,20 @@ public sealed class VisitHistory : AggregateRoot<VisitHistoryId>
     public bool AdminChecked { get; private set; }
     public DateTimeOffset ArchivedAt { get; private set; }
 
+    // Lifecycle-stage snapshot (nullable; null on rows archived before these were captured).
+    public TimeOnly? ScheduledTime { get; private set; }
+    public DateTimeOffset? CheckedInAt { get; private set; }
+    public DateTimeOffset? TransferConfirmedAt { get; private set; }
+    public DateTimeOffset? ReceivedAt { get; private set; }
+
     /// <summary>Archives a visit verbatim. Callers must ensure the evening sweep already ran (JOBS-001).</summary>
     public static VisitHistory ArchiveFrom(DailyVisit visit, DateTimeOffset archivedAt) =>
         new(VisitHistoryId.New(), visit.Id, visit.LaboratoryId, visit.CollectorRepId, visit.VisitDate,
-            visit.Status.Name, visit.SampleCount, visit.AdminChecked, archivedAt);
+            visit.Status.Name, visit.SampleCount, visit.AdminChecked, archivedAt)
+        {
+            ScheduledTime = visit.ScheduledTime,
+            CheckedInAt = visit.CheckedInAt,
+            TransferConfirmedAt = visit.TransferConfirmedAt,
+            ReceivedAt = visit.ReceivedAt,
+        };
 }

@@ -82,3 +82,52 @@ public sealed class ConfirmReceiptHandler : ICommandHandler<ConfirmReceiptComman
         return Unit.Value;
     }
 }
+
+// ---- Confirm receipts in batch (reference: "Confirm Selected Receipts") ----
+
+/// <summary>Marks several transferred visits received in one transaction (SRS FR-7). Returns the confirmed count.</summary>
+public sealed record ConfirmReceiptsBatchCommand(IReadOnlyList<Guid> VisitIds) : ICommand<int>, IAuthorizedRequest
+{
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ConfirmTransfers, Privileges.ManageTransfers };
+}
+
+public sealed class ConfirmReceiptsBatchValidator : AbstractValidator<ConfirmReceiptsBatchCommand>
+{
+    public ConfirmReceiptsBatchValidator()
+    {
+        RuleFor(x => x.VisitIds).NotEmpty();
+        RuleForEach(x => x.VisitIds).NotEmpty();
+    }
+}
+
+public sealed class ConfirmReceiptsBatchHandler : ICommandHandler<ConfirmReceiptsBatchCommand, int>
+{
+    private readonly IDailyVisitRepository _visits;
+    private readonly ILaboratoryRepository _labs;
+    private readonly ICurrentUser _user;
+    private readonly IClock _clock;
+
+    public ConfirmReceiptsBatchHandler(IDailyVisitRepository visits, ILaboratoryRepository labs, ICurrentUser user, IClock clock)
+    {
+        _visits = visits; _labs = labs; _user = user; _clock = clock;
+    }
+
+    public async Task<int> Handle(ConfirmReceiptsBatchCommand request, CancellationToken ct)
+    {
+        var received = 0;
+        foreach (var visitId in request.VisitIds)
+        {
+            var visit = await _visits.GetByIdAsync(new DailyVisitId(visitId), ct)
+                ?? throw new NotFoundException("Visit", visitId);
+            var lab = await _labs.GetByIdAsync(visit.LaboratoryId, ct)
+                ?? throw new NotFoundException("Laboratory", visit.LaboratoryId.Value);
+
+            _user.EnsureInScope(lab);
+
+            visit.ReceiveAtLab(_clock.UtcNow);
+            lab.DeriveActiveFromActivity(); // BR-5
+            received++;
+        }
+        return received;
+    }
+}

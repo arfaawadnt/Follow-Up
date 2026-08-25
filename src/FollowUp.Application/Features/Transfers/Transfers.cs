@@ -108,3 +108,69 @@ public sealed class ConfirmTransferHandler : ICommandHandler<ConfirmTransferComm
         return Unit.Value;
     }
 }
+
+// ---- Confirm transfers in batch (reference: "Save Transfer Confirmations") ----
+
+public sealed record TransferConfirmationLine(Guid VisitId, Guid TransferRepId,
+    string DriverName, string DriverMobile, string? CarPlate);
+
+/// <summary>Confirms several transfer hand-offs in one transaction (SRS FR-6). Returns the confirmed count.</summary>
+public sealed record ConfirmTransfersBatchCommand(IReadOnlyList<TransferConfirmationLine> Lines)
+    : ICommand<int>, IAuthorizedRequest
+{
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ConfirmTransfers, Privileges.ManageTransfers };
+}
+
+public sealed class ConfirmTransfersBatchValidator : AbstractValidator<ConfirmTransfersBatchCommand>
+{
+    public ConfirmTransfersBatchValidator()
+    {
+        RuleFor(x => x.Lines).NotEmpty();
+        RuleForEach(x => x.Lines).ChildRules(line =>
+        {
+            line.RuleFor(x => x.VisitId).NotEmpty();
+            line.RuleFor(x => x.TransferRepId).NotEmpty();
+            line.RuleFor(x => x.DriverName).NotEmpty();
+            line.RuleFor(x => x.DriverMobile).NotEmpty();
+        });
+    }
+}
+
+public sealed class ConfirmTransfersBatchHandler : ICommandHandler<ConfirmTransfersBatchCommand, int>
+{
+    private readonly IDailyVisitRepository _visits;
+    private readonly ILaboratoryRepository _labs;
+    private readonly IRepresentativeRepository _reps;
+    private readonly ICurrentUser _user;
+    private readonly IClock _clock;
+
+    public ConfirmTransfersBatchHandler(IDailyVisitRepository visits, ILaboratoryRepository labs,
+        IRepresentativeRepository reps, ICurrentUser user, IClock clock)
+    {
+        _visits = visits; _labs = labs; _reps = reps; _user = user; _clock = clock;
+    }
+
+    public async Task<int> Handle(ConfirmTransfersBatchCommand request, CancellationToken ct)
+    {
+        var confirmed = 0;
+        foreach (var line in request.Lines)
+        {
+            var visit = await _visits.GetByIdAsync(new DailyVisitId(line.VisitId), ct)
+                ?? throw new NotFoundException("Visit", line.VisitId);
+            var lab = await _labs.GetByIdAsync(visit.LaboratoryId, ct)
+                ?? throw new NotFoundException("Laboratory", visit.LaboratoryId.Value);
+
+            _user.EnsureInScope(lab);
+            _user.EnsureOwnedIfRepLinked(visit.CollectorRepId);
+
+            var transferRepId = new RepresentativeId(line.TransferRepId);
+            if (!await _reps.ExistsAsync(transferRepId, ct))
+                throw new NotFoundException("Representative", line.TransferRepId);
+
+            visit.ConfirmTransfer(transferRepId,
+                new TransferDetails(line.DriverName, line.DriverMobile, line.CarPlate), _clock.UtcNow);
+            confirmed++;
+        }
+        return confirmed;
+    }
+}
