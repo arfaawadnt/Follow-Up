@@ -5,7 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
-import { LabDetail } from '../../core/models';
+import { LabDetail, RepListItem } from '../../core/models';
 import { StatusBadgePipe } from '../../shared/status-badge.pipe';
 import { MapComponent } from '../../shared/map.component';
 
@@ -29,7 +29,8 @@ function parseCoords(text: string): { lat: number; lng: number } | null {
   return null;
 }
 
-const STATUSES = ['New', 'Scanned', 'Active', 'Inactive', 'Pending', 'Suspended', 'Stopped', 'Churned'];
+const STATUSES = ['Scanned', 'Interactive', 'Active', 'Inactive', 'Stopped', 'Pending', 'Suspended', 'Churned'];
+const CHANNELS = ['WhatsApp', 'Phone Call', 'Email', 'In-person'];
 
 @Component({
   selector: 'app-lab-detail',
@@ -128,6 +129,23 @@ const STATUSES = ['New', 'Scanned', 'Active', 'Inactive', 'Pending', 'Suspended'
               <div class="field"><label>Payer</label><input formControlName="payer"></div>
             </div>
             <div class="row">
+              <div class="field"><label>Contract</label><input formControlName="contractType"></div>
+              <div class="field"><label>Preferred channel</label><select formControlName="preferredChannel"><option value="">—</option>@for (c of channels; track c) { <option [value]="c">{{ c }}</option> }</select></div>
+            </div>
+            <div class="row">
+              <div class="field"><label>License no.</label><input formControlName="licenseNo"></div>
+              <div class="field"><label>License date</label><input type="date" formControlName="licenseDate"></div>
+            </div>
+            <div class="row">
+              <div class="field"><label>Avg monthly samples</label><input type="number" min="0" formControlName="avgMonthlySamples"></div>
+              <div class="field"><label>Marketing rep</label><select formControlName="marketingRepId"><option value="">—</option>@for (r of marketingReps(); track r.id) { <option [value]="r.id">{{ r.fullName }}</option> }</select></div>
+            </div>
+            <div class="row">
+              <div class="field" style="min-width:100%"><label>Collection reps</label>
+                <div class="collectors">@for (r of collectorReps(); track r.id) { <label class="ccheck"><input type="checkbox" [checked]="collectorIds.includes(r.id)" (change)="toggleCollector(r.id)"> {{ r.fullName }}</label> } @empty { <span class="muted">No collector reps.</span> }</div>
+              </div>
+            </div>
+            <div class="row">
               <div class="field"><label>Work days (comma)</label><input formControlName="workDays" placeholder="Sunday,Tuesday"></div>
               <div class="field"><label>Visit times (comma)</label><input formControlName="visitTimes" placeholder="09:00,14:30"></div>
             </div>
@@ -173,6 +191,8 @@ const STATUSES = ['New', 'Scanned', 'Active', 'Inactive', 'Pending', 'Suspended'
     .contacts { list-style:none; padding:0; margin:0; } .contacts li { padding:6px 0; border-bottom:1px solid var(--slate-150); font-size:13px; }
     .role { color:var(--slate-500); font-size:12px; margin-inline-start:8px; } .ph { margin-inline-start:8px; }
     .muted { color:var(--slate-500); font-size:12.5px; }
+    .collectors { display:flex; flex-wrap:wrap; gap:8px; }
+    .ccheck { display:flex; align-items:center; gap:6px; border:1px solid var(--slate-300); border-radius:8px; padding:5px 9px; font-size:12px; cursor:pointer; }
     .row { display:flex; gap:16px; flex-wrap:wrap; }
     .field { flex:1; min-width:220px; margin-bottom:12px; }
     .field label { display:block; font:600 12px var(--ui); color:var(--slate-600); margin-bottom:5px; }
@@ -199,18 +219,28 @@ export class LabDetailComponent {
   readonly bannerError = signal(false);
   readonly uploadedPath = signal<string | null>(null);
   readonly statuses = STATUSES;
+  readonly channels = CHANNELS;
   readonly segments = signal<string[]>([]);
+  readonly reps = signal<RepListItem[]>([]);
+  readonly collectorReps = () => this.reps().filter((r) => r.type === 'Collector' || r.type === 'Scanning');
+  readonly marketingReps = () => this.reps().filter((r) => r.type === 'Marketing');
+  collectorIds: string[] = [];
 
   readonly form = this.fb.group({
     name: this.fb.control('', Validators.required),
     segment: this.fb.control('C'),
     branch: this.fb.control(''), governorate: this.fb.control(''),
     city: this.fb.control(''), area: this.fb.control(''),
-    category: this.fb.control(''), payer: this.fb.control(''),
+    category: this.fb.control(''), payer: this.fb.control(''), contractType: this.fb.control(''),
+    licenseNo: this.fb.control(''), licenseDate: this.fb.control<string | null>(null),
+    avgMonthlySamples: this.fb.control<number | null>(null), preferredChannel: this.fb.control(''),
+    marketingRepId: this.fb.control(''),
     workDays: this.fb.control(''), visitTimes: this.fb.control(''),
     latitude: this.fb.control<number | null>(null),
     longitude: this.fb.control<number | null>(null),
   });
+
+  toggleCollector(id: string): void { this.collectorIds = this.collectorIds.includes(id) ? this.collectorIds.filter((x) => x !== id) : [...this.collectorIds, id]; }
 
   mapsLink = '';
   readonly resolveError = signal<string | null>(null);
@@ -221,6 +251,8 @@ export class LabDetailComponent {
     this.id = this.route.snapshot.paramMap.get('id') ?? '';
     this.api.get<{ nameEn: string }[]>('/setup/refs', { type: 'Segment' })
       .subscribe({ next: (r) => this.segments.set(r.map((x) => x.nameEn)) });
+    this.api.get<{ items: RepListItem[] }>('/reps', { pageSize: 500 })
+      .subscribe({ next: (r) => this.reps.set(r.items) });
     this.load();
   }
 
@@ -232,9 +264,13 @@ export class LabDetailComponent {
         this.form.patchValue({
           name: l.name, segment: l.segment, branch: l.branch ?? '', governorate: l.governorate ?? '',
           city: l.city ?? '', area: l.area ?? '', category: l.category ?? '', payer: l.payer ?? '',
+          contractType: l.contractType ?? '', licenseNo: l.licenseNo ?? '', licenseDate: l.licenseDate,
+          avgMonthlySamples: l.avgMonthlySamples, preferredChannel: l.preferredChannel ?? '',
+          marketingRepId: l.marketingRepId ?? '',
           workDays: l.workDays.join(','), visitTimes: l.visitTimes.join(','),
           latitude: l.latitude, longitude: l.longitude,
         });
+        this.collectorIds = [...l.collectorRepIds];
         this.loading.set(false);
       },
       error: () => { this.loading.set(false); this.setBanner('Could not load laboratory.', true); },
@@ -260,9 +296,10 @@ export class LabDetailComponent {
     this.api.put(`/labs/${this.id}`, {
       id: this.id, rowVersion: l.rowVersion, name: v.name, segment: v.segment,
       branch: v.branch || null, governorate: v.governorate || null, city: v.city || null, area: v.area || null,
-      category: v.category || null, payer: v.payer || null, contractType: l.contractType,
-      licenseNo: l.licenseNo, licenseDate: l.licenseDate, avgMonthlySamples: l.avgMonthlySamples, preferredChannel: l.preferredChannel,
-      collectorRepIds: l.collectorRepIds, marketingRepId: l.marketingRepId,
+      category: v.category || null, payer: v.payer || null, contractType: v.contractType || null,
+      licenseNo: v.licenseNo || null, licenseDate: v.licenseDate || null,
+      avgMonthlySamples: v.avgMonthlySamples, preferredChannel: v.preferredChannel || null,
+      collectorRepIds: this.collectorIds, marketingRepId: v.marketingRepId || null,
       latitude: v.latitude, longitude: v.longitude,
       workDays: split(v.workDays), visitTimes: split(v.visitTimes),
       contacts: l.contacts,
