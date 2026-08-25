@@ -1,3 +1,4 @@
+import { localToday } from '../../shared/export.util';
 import { Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -80,7 +81,7 @@ export class LabStatsComponent {
   readonly summary = signal<string | null>(null);
   readonly summaryError = signal(false);
   readonly rows = signal<LabStat[]>([]);
-  private readonly today = new Date().toISOString().slice(0, 10);
+  private readonly today = localToday();
   from = new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10); to = this.today; q = ''; view: View = 'monthly';
 
   private periodKey(date: string): string {

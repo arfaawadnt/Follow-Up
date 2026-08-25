@@ -1,3 +1,4 @@
+import { localToday } from '../../shared/export.util';
 import { Component, computed, inject, signal } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -104,7 +105,7 @@ export class AnalyticsComponent {
 
   month = new Date().toISOString().slice(0, 7);   // YYYY-MM
   from = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
-  to = new Date().toISOString().slice(0, 10);
+  to = localToday();
 
   readonly period = computed(() => {
     const [y, m] = this.month.split('-').map(Number);

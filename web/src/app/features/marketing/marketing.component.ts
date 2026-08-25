@@ -1,3 +1,4 @@
+import { localToday } from '../../shared/export.util';
 import { Component, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -85,7 +86,7 @@ export class MarketingComponent {
     laboratoryId: this.fb.control('', Validators.required),
     representativeId: this.fb.control('', Validators.required),
     purpose: this.fb.control(PURPOSES[0], Validators.required),
-    scheduledDate: this.fb.control(new Date().toISOString().slice(0, 10), Validators.required),
+    scheduledDate: this.fb.control(localToday(), Validators.required),
   });
 
   constructor() { this.load(); }

@@ -36,3 +36,11 @@ export function printTable(title: string, header: string[], rows: Cell[][]): voi
   if (!w) return;
   w.document.write(html); w.document.close(); w.focus(); w.print();
 }
+
+/** Today's date (yyyy-MM-dd) in the machine's local timezone — never the UTC date, which is
+ *  yesterday between midnight and 03:00 in Cairo and made "today" pages render empty. */
+export function localToday(): string {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 10);
+}

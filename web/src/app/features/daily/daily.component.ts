@@ -6,7 +6,7 @@ import { AuthService } from '../../core/auth.service';
 import { IconsService } from '../../core/icons.service';
 import { BoardItem, PagedResult, RepListItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
-import { exportCsv, printTable } from '../../shared/export.util';
+import { exportCsv, printTable, localToday } from '../../shared/export.util';
 
 const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
 
@@ -113,7 +113,7 @@ export class DailyComponent {
   readonly statuses = STATUSES;
   counts: Record<string, number> = {};
 
-  private readonly today = new Date().toISOString().slice(0, 10);
+  private readonly today = localToday();
   start = this.today; end = this.today;
   branch = 'All'; gov = 'All'; city = 'All'; area = 'All'; rep = 'All'; query = '';
 

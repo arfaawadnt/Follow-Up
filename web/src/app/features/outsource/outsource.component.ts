@@ -5,7 +5,7 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { LabListItem, OutsourceSample, PagedResult } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
-import { exportCsv } from '../../shared/export.util';
+import { exportCsv, localToday } from '../../shared/export.util';
 
 const STATUSES = ['All', 'Collected', 'Sent', 'Received'];
 const NEXT: Record<string, string> = { Collected: 'Sent', Sent: 'Received' };
@@ -94,11 +94,11 @@ export class OutsourceComponent {
   readonly status = signal('All');
   readonly statuses = STATUSES;
 
-  private readonly today = new Date().toISOString().slice(0, 10);
+  private readonly today = localToday();
   start = this.today; end = this.today;
 
   readonly form = this.fb.group({
-    visitDate: this.fb.control(new Date().toISOString().slice(0, 10), Validators.required),
+    visitDate: this.fb.control(localToday(), Validators.required),
     laboratoryId: this.fb.control('', Validators.required),
     destinationLab: this.fb.control('', Validators.required),
     quantity: this.fb.control(1, [Validators.required, Validators.min(1)]),

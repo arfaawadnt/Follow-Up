@@ -5,7 +5,7 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { ReceivingItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
-import { exportCsv, printTable } from '../../shared/export.util';
+import { exportCsv, printTable, localToday } from '../../shared/export.util';
 
 @Component({
   selector: 'app-labcheckin',
@@ -91,7 +91,7 @@ export class LabCheckInComponent {
   readonly busy = signal(false);
   readonly items = signal<ReceivingItem[]>([]);
 
-  private readonly today = new Date().toISOString().slice(0, 10);
+  private readonly today = localToday();
   start = this.today; end = this.today; branch = 'All'; gov = 'All'; city = 'All'; area = 'All'; repFilter = 'All';
   readonly selected = new Set<string>();
 

@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { SampleLifecycleRow, SampleTracking, UserLookup } from '../../core/models';
-import { exportCsv, printTable } from '../../shared/export.util';
+import { exportCsv, printTable, localToday } from '../../shared/export.util';
 
 interface City { id: string; name: string; governorate: string; }
 interface AreaRef { id: string; name: string; cityId: string; }
@@ -192,7 +192,7 @@ export class SampleTrackingComponent {
   private readonly drafts = new Map<string, Draft>();
   private reportLoaded = false;
 
-  private readonly today = new Date().toISOString().slice(0, 10);
+  private readonly today = localToday();
   start = this.today; end = this.today;
   gov = 'All'; city = 'All'; areaFilter = 'All'; search = '';
   fDataEntry = 'All'; fReview = 'All'; fSort = 'All'; fStatus = 'All';

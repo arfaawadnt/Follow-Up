@@ -1,3 +1,4 @@
+import { localToday } from '../../shared/export.util';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
@@ -58,7 +59,7 @@ export class RepIntervalsComponent {
   private readonly api = inject(ApiService);
   readonly loading = signal(true);
   readonly rows = signal<Row[]>([]);
-  private readonly today = new Date().toISOString().slice(0, 10);
+  private readonly today = localToday();
   start = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
   end = this.today;
 

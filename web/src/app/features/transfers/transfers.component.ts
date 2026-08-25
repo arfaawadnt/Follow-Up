@@ -5,7 +5,7 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { PagedResult, RepListItem, TransferItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
-import { exportCsv, printTable } from '../../shared/export.util';
+import { exportCsv, printTable, localToday } from '../../shared/export.util';
 
 interface Draft { rep: string; name: string; mobile: string; car: string; }
 
@@ -134,7 +134,7 @@ export class TransfersComponent {
   readonly reps = signal<RepListItem[]>([]);
   private readonly drafts = new Map<string, Draft>();
 
-  private readonly today = new Date().toISOString().slice(0, 10);
+  private readonly today = localToday();
   start = this.today; end = this.today;
   branch = 'All'; gov = 'All'; city = 'All'; area = 'All'; repFilter = 'All';
   batchName = ''; batchMobile = ''; batchCar = ''; batchRep = '';
