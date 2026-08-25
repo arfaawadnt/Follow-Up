@@ -27,6 +27,10 @@ internal sealed class LaboratoryConfiguration : IEntityTypeConfiguration<Laborat
         b.Property(x => x.Category).HasMaxLength(100);
         b.Property(x => x.Payer).HasMaxLength(100);
         b.Property(x => x.ContractType).HasMaxLength(100);
+        b.Property(x => x.LicenseNo).HasMaxLength(100);
+        b.Property(x => x.LicenseDate);
+        b.Property(x => x.AvgMonthlySamples);
+        b.Property(x => x.PreferredChannel).HasMaxLength(40);
         b.Property(x => x.LoyaltyTier).HasMaxLength(32);
         b.Property(x => x.MonthlyTarget);
         b.Property(x => x.LoyaltyPoints);
@@ -46,8 +50,14 @@ internal sealed class LaboratoryConfiguration : IEntityTypeConfiguration<Laborat
         // Optimistic concurrency (FR-3) via Postgres xmin.
         b.Property(x => x.RowVersion).IsRowVersion();
 
-        // Rep assignments — exclusive per role (BR-4), RESTRICT so an assigned rep can't be silently removed.
-        b.HasOne<Representative>().WithMany().HasForeignKey(x => x.CollectorRepId).OnDelete(DeleteBehavior.Restrict);
+        // Collectors — multiple per lab (matches the reference), stored as a jsonb id array (like Area.TransferReps).
+        b.Property(x => x.CollectorRepIds)
+            .HasColumnName("collector_reps")
+            .HasColumnType("jsonb")
+            .UsePropertyAccessMode(PropertyAccessMode.Field)
+            .HasConversion<RepIdListConverter>(new RepIdListComparer());
+
+        // Marketing rep — single, RESTRICT so an assigned rep can't be silently removed (BR-4).
         b.HasOne<Representative>().WithMany().HasForeignKey(x => x.MarketingRepId).OnDelete(DeleteBehavior.Restrict);
 
         // Contacts — child entities inside the aggregate (CASCADE).
@@ -84,6 +94,8 @@ internal sealed class RepresentativeConfiguration : IEntityTypeConfiguration<Rep
         b.Property(x => x.Phone).HasMaxLength(40);
         b.Property(x => x.Branch).HasMaxLength(100);
         b.Property(x => x.Governorate).HasMaxLength(100);
+        b.Property(x => x.Area).HasMaxLength(100);
+        b.Property(x => x.EmploymentType).HasMaxLength(40);
         b.Property(x => x.IsActive).HasDefaultValue(true);
 
         b.Property(x => x.RowVersion).IsRowVersion();

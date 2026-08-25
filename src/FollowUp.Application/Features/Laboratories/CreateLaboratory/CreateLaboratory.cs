@@ -25,11 +25,16 @@ public sealed record CreateLaboratoryCommand : ICommand<Guid>, IAuthorizedReques
     public string? Category { get; init; }
     public string? Payer { get; init; }
     public string? ContractType { get; init; }
+    public string? Status { get; init; }
+    public string? LicenseNo { get; init; }
+    public DateOnly? LicenseDate { get; init; }
+    public int? AvgMonthlySamples { get; init; }
+    public string? PreferredChannel { get; init; }
     public double? Latitude { get; init; }
     public double? Longitude { get; init; }
     public IReadOnlyList<string> WorkDays { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> VisitTimes { get; init; } = Array.Empty<string>();
-    public Guid? CollectorRepId { get; init; }
+    public IReadOnlyList<Guid> CollectorRepIds { get; init; } = Array.Empty<Guid>();
     public Guid? MarketingRepId { get; init; }
     public IReadOnlyList<NewContact> Contacts { get; init; } = Array.Empty<NewContact>();
 
@@ -45,6 +50,8 @@ public sealed class CreateLaboratoryValidator : AbstractValidator<CreateLaborato
         RuleFor(x => x.Code).NotEmpty().MaximumLength(32);
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
         RuleFor(x => x.Segment).NotEmpty().WithMessage("Segment is required.");
+        RuleFor(x => x.Status).Must(BeAValidStatus).WithMessage("Invalid laboratory status.");
+        RuleFor(x => x.AvgMonthlySamples).GreaterThanOrEqualTo(0).When(x => x.AvgMonthlySamples.HasValue);
         RuleForEach(x => x.Contacts).ChildRules(c =>
         {
             c.RuleFor(x => x.Name).NotEmpty();
@@ -56,6 +63,10 @@ public sealed class CreateLaboratoryValidator : AbstractValidator<CreateLaborato
 
     private static bool HaveValidGeo(CreateLaboratoryCommand c) =>
         c.Latitude.HasValue == c.Longitude.HasValue;
+
+    internal static readonly string[] AllowedStatuses =
+        { "Interactive", "Scanned", "Active", "Inactive", "Pending", "Suspended", "Stopped", "Churned" };
+    private static bool BeAValidStatus(string? s) => string.IsNullOrEmpty(s) || AllowedStatuses.Contains(s);
 }
 
 public sealed class CreateLaboratoryHandler : ICommandHandler<CreateLaboratoryCommand, Guid>
@@ -81,17 +92,18 @@ public sealed class CreateLaboratoryHandler : ICommandHandler<CreateLaboratoryCo
         if (await _repository.CodeExistsAsync(code, ct))
             throw new ConflictException($"A laboratory with code '{code}' already exists.");
 
-        var lab = Laboratory.Register(code, request.Name, request.Segment);
+        var status = string.IsNullOrWhiteSpace(request.Status) ? null : Enumeration.FromName<LaboratoryStatus>(request.Status);
+        var lab = Laboratory.Register(code, request.Name, request.Segment, status);
         lab.PlaceInHierarchy(request.Branch, request.Governorate, request.City, request.Area);
-        lab.UpdateProfile(request.Name, request.Segment,
-            request.Payer, request.ContractType, request.Category);
+        lab.UpdateProfile(request.Name, request.Segment, request.Payer, request.ContractType, request.Category,
+            request.LicenseNo, request.LicenseDate, request.AvgMonthlySamples, request.PreferredChannel);
 
         if (request.Latitude is { } lat && request.Longitude is { } lng)
             lab.SetLocation(GeoLocation.Create(lat, lng));
 
         lab.SetSchedule(BuildSchedule(request.WorkDays, request.VisitTimes));
 
-        if (request.CollectorRepId is { } c) lab.AssignCollector(new Domain.Representatives.RepresentativeId(c));
+        lab.AssignCollectors(request.CollectorRepIds.Select(c => new Domain.Representatives.RepresentativeId(c)));
         if (request.MarketingRepId is { } m) lab.AssignMarketing(new Domain.Representatives.RepresentativeId(m));
 
         foreach (var contact in request.Contacts)

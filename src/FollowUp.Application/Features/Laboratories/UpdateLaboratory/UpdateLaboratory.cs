@@ -28,11 +28,15 @@ public sealed record UpdateLaboratoryCommand : ICommand, IAuthorizedRequest
     public string? Category { get; init; }
     public string? Payer { get; init; }
     public string? ContractType { get; init; }
+    public string? LicenseNo { get; init; }
+    public DateOnly? LicenseDate { get; init; }
+    public int? AvgMonthlySamples { get; init; }
+    public string? PreferredChannel { get; init; }
     public double? Latitude { get; init; }
     public double? Longitude { get; init; }
     public IReadOnlyList<string> WorkDays { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> VisitTimes { get; init; } = Array.Empty<string>();
-    public Guid? CollectorRepId { get; init; }
+    public IReadOnlyList<Guid> CollectorRepIds { get; init; } = Array.Empty<Guid>();
     public Guid? MarketingRepId { get; init; }
     public IReadOnlyList<NewContact> Contacts { get; init; } = Array.Empty<NewContact>();
 
@@ -79,11 +83,12 @@ public sealed class UpdateLaboratoryHandler : ICommandHandler<UpdateLaboratoryCo
         if (lab.RowVersion != request.RowVersion)
             throw new ConflictException("The laboratory was modified by someone else. Reload and try again.");
 
-        lab.UpdateProfile(request.Name, request.Segment, request.Payer, request.ContractType, request.Category);
+        lab.UpdateProfile(request.Name, request.Segment, request.Payer, request.ContractType, request.Category,
+            request.LicenseNo, request.LicenseDate, request.AvgMonthlySamples, request.PreferredChannel);
         lab.PlaceInHierarchy(request.Branch, request.Governorate, request.City, request.Area);
         lab.SetLocation(request.Latitude is { } lat && request.Longitude is { } lng ? GeoLocation.Create(lat, lng) : null);
         lab.SetSchedule(CreateLaboratoryHandler.BuildSchedule(request.WorkDays, request.VisitTimes));
-        lab.AssignCollector(request.CollectorRepId is { } c ? new RepresentativeId(c) : null);
+        lab.AssignCollectors(request.CollectorRepIds.Select(c => new RepresentativeId(c)));
         lab.AssignMarketing(request.MarketingRepId is { } m ? new RepresentativeId(m) : null);
 
         // Replace contacts (FR-3: contacts saved with the lab in one transaction).

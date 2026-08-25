@@ -11,7 +11,7 @@ namespace FollowUp.Domain.Laboratories;
 public sealed class LaboratoryStatus : Enumeration
 {
     /// <summary>Just registered; not yet producing collections.</summary>
-    public static readonly LaboratoryStatus New = new(1, nameof(New));
+    public static readonly LaboratoryStatus Interactive = new(1, nameof(Interactive));
 
     /// <summary>Discovered by a Scanning rep, pending onboarding.</summary>
     public static readonly LaboratoryStatus Scanned = new(2, nameof(Scanned));
@@ -37,5 +37,5 @@ public sealed class LaboratoryStatus : Enumeration
     private LaboratoryStatus(int id, string name) : base(id, name) { }
 
     /// <summary>Statuses in which a lab is scheduled onto the daily board.</summary>
-    public bool IsSchedulable => this == Active || this == Pending || this == New;
+    public bool IsSchedulable => this == Active || this == Pending || this == Interactive;
 }

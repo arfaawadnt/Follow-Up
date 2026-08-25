@@ -42,3 +42,17 @@ public sealed class GetRepresentativesHandler : IQueryHandler<GetRepresentatives
         return _queries.SearchAsync(criteria, _currentUser.Scope, ct);
     }
 }
+
+/// <summary>Returns a single representative by id (SRS FR-4; requires ViewReps/ManageReps).</summary>
+public sealed record GetRepresentativeByIdQuery(Guid Id) : IQuery<RepDetailDto?>, IAuthorizedRequest
+{
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ViewReps, Privileges.ManageReps };
+}
+
+public sealed class GetRepresentativeByIdHandler : IQueryHandler<GetRepresentativeByIdQuery, RepDetailDto?>
+{
+    private readonly IRepresentativeQueries _queries;
+    public GetRepresentativeByIdHandler(IRepresentativeQueries queries) => _queries = queries;
+    public Task<RepDetailDto?> Handle(GetRepresentativeByIdQuery request, CancellationToken ct) =>
+        _queries.GetByIdAsync(request.Id, ct);
+}

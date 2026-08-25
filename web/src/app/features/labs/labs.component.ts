@@ -6,8 +6,8 @@ import { AuthService } from '../../core/auth.service';
 import { LabListItem, PagedResult } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
 
-const SEGMENTS = ['All', 'A', 'B', 'C'];
-const STATUSES = ['All', 'New', 'Scanned', 'Active', 'Inactive', 'Pending', 'Suspended', 'Stopped', 'Churned'];
+const SEGMENTS = ['All', 'A', 'B', 'C', 'D'];
+const STATUSES = ['All', 'Scanned', 'Interactive', 'Active', 'Inactive', 'Stopped', 'Pending', 'Suspended', 'Churned'];
 
 @Component({
   selector: 'app-labs',
@@ -39,16 +39,20 @@ const STATUSES = ['All', 'New', 'Scanned', 'Active', 'Inactive', 'Pending', 'Sus
       @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
       @else {
         <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
-          <thead><tr><th>{{ 'code_2' | t : 'Code' }}</th><th>{{ 'laboratory_3' | t : 'Name' }}</th><th>{{ 'segment' | t }}</th><th>{{ 'governorate_2' | t }}</th><th>{{ 'area_2' | t }}</th><th>{{ 'status' | t }}</th></tr></thead>
+          <thead><tr><th>{{ 'laboratory_3' | t : 'Laboratory' }}</th><th>{{ 'code_2' | t : 'Code' }}</th><th>{{ 'segment' | t }}</th><th>{{ 'status' | t }}</th><th>Address</th><th>Collector</th><th>Marketing</th><th class="r">Avg/Mo</th></tr></thead>
           <tbody>
             @for (l of filtered(); track l.id) {
               <tr class="clickable" (click)="open(l.id)">
-                <td class="mono">{{ l.displayCode }}</td>
-                <td><b style="color:var(--slate-900)">{{ l.name }}</b>@if (l.encrypted) { <span class="badge b-neu" style="margin-inline-start:6px">enc</span> }</td>
-                <td>{{ l.segment }}</td><td>{{ l.governorate ?? '—' }}</td><td>{{ l.area ?? '—' }}</td>
+                <td><b style="color:var(--slate-900)">{{ l.name }}</b>@if (l.branch) { <div class="small muted">{{ l.branch }}</div> }</td>
+                <td class="mono">{{ l.displayCode }}@if (l.encrypted) { <span class="badge b-neu" style="margin-inline-start:6px">enc</span> }</td>
+                <td>{{ l.segment }}<div class="small muted">{{ l.category ?? '' }}</div></td>
                 <td><span class="badge" [class]="badge(l.status)">{{ l.status }}</span></td>
+                <td>{{ l.area ?? '—' }}<div class="small muted">{{ l.governorate ?? '' }}</div></td>
+                <td>{{ l.collectors.length ? l.collectors.join(', ') : '—' }}</td>
+                <td>{{ l.marketing ?? '—' }}</td>
+                <td class="r mono">{{ l.avgMonthlySamples ?? '—' }}</td>
               </tr>
-            } @empty { <tr><td colspan="6" class="empty" style="text-align:center;padding:24px">{{ 'no_labs_match' | t : 'No labs match.' }}</td></tr> }
+            } @empty { <tr><td colspan="8" class="empty" style="text-align:center;padding:24px">{{ 'no_labs_match' | t : 'No labs match.' }}</td></tr> }
           </tbody>
         </table></div>
         <div class="foot" style="padding:10px 14px;font-size:12px;color:var(--slate-500);border-top:1px solid var(--slate-150)">
@@ -75,7 +79,7 @@ export class LabsComponent {
   constructor() { this.load(); }
 
   countStatus(s: string): number { return this.filtered().filter((l) => l.status === s).length; }
-  onboarding(): number { return this.filtered().filter((l) => l.status === 'Scanned' || l.status === 'New').length; }
+  onboarding(): number { return this.filtered().filter((l) => l.status === 'Scanned' || l.status === 'Interactive').length; }
   badge(s: string): string { return s === 'Active' ? 'b-ok' : s === 'Inactive' || s === 'Churned' || s === 'Stopped' ? 'b-bad' : 'b-warn'; }
   open(id: string): void { void this.router.navigate(['/labs', id]); }
 

@@ -47,6 +47,10 @@ public sealed class Representative : AggregateRoot<RepresentativeId>, IVersioned
     // Org-scope attribution (used by the 6-dimension scope evaluator).
     public string? Branch { get; private set; }
     public string? Governorate { get; private set; }
+    public string? Area { get; private set; }
+
+    /// <summary>Employment type (Full-time / Part-time / Contract), matching the reference platform.</summary>
+    public string? EmploymentType { get; private set; }
 
     public uint RowVersion { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
@@ -82,11 +86,14 @@ public sealed class Representative : AggregateRoot<RepresentativeId>, IVersioned
 
     public void SetContact(string? phone) => Phone = phone;
 
-    public void AssignScope(string? branch, string? governorate)
+    public void AssignScope(string? branch, string? governorate, string? area = null)
     {
         Branch = branch;
         Governorate = governorate;
+        Area = area;
     }
+
+    public void SetEmployment(string? employmentType) => EmploymentType = employmentType;
 
     public void Deactivate() => IsActive = false;
     public void Reactivate() => IsActive = true;

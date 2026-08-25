@@ -103,7 +103,7 @@ public sealed class BoardService : IBoardScheduler
         foreach (var time in desiredTimes)
         {
             if (present.Contains(time)) continue;
-            _db.DailyVisits.Add(DailyVisit.Schedule(laboratoryId, lab.CollectorRepId, today, time));
+            _db.DailyVisits.Add(DailyVisit.Schedule(laboratoryId, lab.CollectorRepIds.Cast<Domain.Representatives.RepresentativeId?>().FirstOrDefault(), today, time));
             added++;
         }
 
@@ -116,9 +116,9 @@ public sealed class BoardService : IBoardScheduler
     {
         var active = LaboratoryStatus.Active;
         var pending = LaboratoryStatus.Pending;
-        var isNew = LaboratoryStatus.New;
+        var interactive = LaboratoryStatus.Interactive;
         var labs = await _db.Laboratories
-            .Where(l => l.Status == active || l.Status == pending || l.Status == isNew)
+            .Where(l => l.Status == active || l.Status == pending || l.Status == interactive)
             .ToListAsync(ct);
 
         var existing = (await _db.DailyVisits.Where(v => v.VisitDate == date).Select(v => v.LaboratoryId).ToListAsync(ct)).ToHashSet();
@@ -130,7 +130,7 @@ public sealed class BoardService : IBoardScheduler
             if (!lab.Schedule.WorkDays.Contains(date.DayOfWeek)) continue;
             foreach (var time in lab.Schedule.VisitTimes)
             {
-                _db.DailyVisits.Add(DailyVisit.Schedule(lab.Id, lab.CollectorRepId, date, time));
+                _db.DailyVisits.Add(DailyVisit.Schedule(lab.Id, lab.CollectorRepIds.Cast<Domain.Representatives.RepresentativeId?>().FirstOrDefault(), date, time));
                 created++;
             }
         }

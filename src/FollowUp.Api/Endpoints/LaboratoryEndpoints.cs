@@ -67,6 +67,12 @@ public static class LaboratoryEndpoints
                 Page = page ?? 1, PageSize = pageSize ?? 50, Search = search, Type = type, ActiveOnly = activeOnly,
             }, ct))).WithTags("Representatives");
 
+        api.MapGet("/reps/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>
+        {
+            var rep = await m.Send(new GetRepresentativeByIdQuery(id), ct);
+            return rep is null ? Results.NotFound() : Results.Ok(rep);
+        }).WithTags("Representatives");
+
         api.MapPost("/reps", async (CreateRepresentativeCommand cmd, IMediator m, CancellationToken ct) =>
         {
             var id = await m.Send(cmd, ct);

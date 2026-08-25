@@ -22,6 +22,8 @@ public sealed record UpdateRepresentativeCommand : ICommand, IAuthorizedRequest
     public string? Phone { get; init; }
     public string? Branch { get; init; }
     public string? Governorate { get; init; }
+    public string? Area { get; init; }
+    public string? EmploymentType { get; init; }
 
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.UpdateReps, Privileges.ManageReps };
 }
@@ -53,7 +55,8 @@ public sealed class UpdateRepresentativeHandler : ICommandHandler<UpdateRepresen
 
         rep.UpdateProfile(request.FullName, new Money(request.Salary), new Money(request.Target), request.GoalType, request.Metric);
         rep.SetContact(request.Phone);
-        rep.AssignScope(request.Branch, request.Governorate);
+        rep.AssignScope(request.Branch, request.Governorate, request.Area);
+        rep.SetEmployment(request.EmploymentType);
         return Unit.Value;
     }
 }

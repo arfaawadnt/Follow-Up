@@ -5,11 +5,13 @@ namespace FollowUp.Application.Features.Representatives.Contracts;
 
 public sealed record RepListItemDto(
     Guid Id, string FullName, string Type, string GoalDuration, string? GoalType, string? Metric,
-    decimal Target, decimal Salary, string? Phone, int AssignedCount, bool IsActive, string? Branch, string? Governorate);
+    decimal Target, decimal Salary, string? Phone, int AssignedCount, bool IsActive,
+    string? Branch, string? Governorate, string? Area, string? EmploymentType);
 
 public sealed record RepDetailDto(
     Guid Id, string FullName, string Type, string GoalDuration, string? GoalType, string? Metric,
-    decimal Salary, decimal Target, string? Phone, string? Branch, string? Governorate, bool IsActive, uint RowVersion);
+    decimal Salary, decimal Target, string? Phone, string? Branch, string? Governorate, string? Area,
+    string? EmploymentType, bool IsActive, uint RowVersion);
 
 /// <summary>Read-side query interface for representatives (ADR-0005).</summary>
 public interface IRepresentativeQueries

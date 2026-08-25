@@ -103,7 +103,9 @@ public sealed class RepIdListConverter : ValueConverter<IReadOnlyCollection<Repr
 {
     public RepIdListConverter() : base(
         v => Json.Serialize(v.Select(r => r.Value).ToArray()),
-        s => Json.Deserialize<Guid[]>(s).Select(g => new RepresentativeId(g)).ToList())
+        // Tolerate non-array / empty jsonb (e.g. a legacy "" default) by treating it as an empty list.
+        s => (Json.Deserialize<Guid[]>(string.IsNullOrWhiteSpace(s) || !s.TrimStart().StartsWith("[") ? "[]" : s) ?? Array.Empty<Guid>())
+            .Select(g => new RepresentativeId(g)).ToList())
     { }
 }
 

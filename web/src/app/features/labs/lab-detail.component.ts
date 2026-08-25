@@ -69,6 +69,9 @@ const STATUSES = ['New', 'Scanned', 'Active', 'Inactive', 'Pending', 'Suspended'
               <dt>City / Area</dt><dd>{{ l.city ?? '—' }} / {{ l.area ?? '—' }}</dd>
               <dt>Payer</dt><dd>{{ l.payer ?? '—' }}</dd>
               <dt>Contract</dt><dd>{{ l.contractType ?? '—' }}</dd>
+              <dt>License</dt><dd>{{ l.licenseNo ?? '—' }}@if (l.licenseDate) { · {{ l.licenseDate }} }</dd>
+              <dt>Avg monthly samples</dt><dd class="mono">{{ l.avgMonthlySamples ?? '—' }}</dd>
+              <dt>Preferred channel</dt><dd>{{ l.preferredChannel ?? '—' }}</dd>
               <dt>Monthly target</dt><dd class="mono">{{ l.monthlyTarget }}</dd>
               <dt>Loyalty</dt><dd>{{ l.loyaltyPoints }} pts @if (l.loyaltyTier) { · {{ l.loyaltyTier }} }</dd>
               <dt>Work days</dt><dd>{{ l.workDays.length ? l.workDays.join(', ') : '—' }}</dd>
@@ -258,7 +261,8 @@ export class LabDetailComponent {
       id: this.id, rowVersion: l.rowVersion, name: v.name, segment: v.segment,
       branch: v.branch || null, governorate: v.governorate || null, city: v.city || null, area: v.area || null,
       category: v.category || null, payer: v.payer || null, contractType: l.contractType,
-      collectorRepId: l.collectorRepId, marketingRepId: l.marketingRepId,
+      licenseNo: l.licenseNo, licenseDate: l.licenseDate, avgMonthlySamples: l.avgMonthlySamples, preferredChannel: l.preferredChannel,
+      collectorRepIds: l.collectorRepIds, marketingRepId: l.marketingRepId,
       latitude: v.latitude, longitude: v.longitude,
       workDays: split(v.workDays), visitTimes: split(v.visitTimes),
       contacts: l.contacts,

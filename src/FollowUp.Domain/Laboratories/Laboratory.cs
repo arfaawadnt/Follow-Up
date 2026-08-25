@@ -17,6 +17,7 @@ public readonly record struct LaboratoryId(Guid Value)
 public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAuditable
 {
     private readonly List<ContactPerson> _contacts = new();
+    private readonly List<RepresentativeId> _collectorRepIds = new();
 
     private Laboratory() { } // EF
 
@@ -26,7 +27,7 @@ public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAudit
         Code = code;
         Name = name;
         Segment = segment;
-        Status = LaboratoryStatus.New;
+        Status = LaboratoryStatus.Interactive;
         Schedule = VisitSchedule.Empty;
         Raise(new LaboratoryRegistered(id, code.Value));
     }
@@ -47,12 +48,16 @@ public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAudit
     // Commercial.
     public string? Payer { get; private set; }
     public string? ContractType { get; private set; }
+    public string? LicenseNo { get; private set; }
+    public DateOnly? LicenseDate { get; private set; }
+    public int? AvgMonthlySamples { get; private set; }
+    public string? PreferredChannel { get; private set; }
 
     public VisitSchedule Schedule { get; private set; } = null!;
     public GeoLocation? Location { get; private set; }
 
-    // Rep assignments — exclusive per role (BR-4).
-    public RepresentativeId? CollectorRepId { get; private set; }
+    // Rep assignments — multiple collectors, single marketing (matches the reference platform).
+    public IReadOnlyCollection<RepresentativeId> CollectorRepIds => _collectorRepIds.AsReadOnly();
     public RepresentativeId? MarketingRepId { get; private set; }
 
     // Loyalty snapshot (per-YM history lives in lab_loyalty_ledger).
@@ -68,26 +73,35 @@ public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAudit
     public DateTimeOffset? UpdatedAt { get; private set; }
     public string? UpdatedBy { get; private set; }
 
-    public static Laboratory Register(LabCode code, string name, string segment)
+    public static Laboratory Register(LabCode code, string name, string segment, LaboratoryStatus? status = null)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new DomainException("Laboratory name is required.");
         if (string.IsNullOrWhiteSpace(segment))
             throw new DomainException("Segment is required.");
-        return new Laboratory(LaboratoryId.New(), code, name.Trim(), segment.Trim());
+        var lab = new Laboratory(LaboratoryId.New(), code, name.Trim(), segment.Trim());
+        if (status is not null) lab.Status = status;
+        return lab;
     }
 
-    public void UpdateProfile(string name, string segment, string? payer, string? contractType, string? category)
+    public void UpdateProfile(string name, string segment, string? payer, string? contractType, string? category,
+        string? licenseNo, DateOnly? licenseDate, int? avgMonthlySamples, string? preferredChannel)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new DomainException("Laboratory name is required.");
         if (string.IsNullOrWhiteSpace(segment))
             throw new DomainException("Segment is required.");
+        if (avgMonthlySamples is < 0)
+            throw new DomainException("Average monthly samples cannot be negative.");
         Name = name.Trim();
         Segment = segment.Trim();
         Payer = payer;
         ContractType = contractType;
         Category = category;
+        LicenseNo = licenseNo;
+        LicenseDate = licenseDate;
+        AvgMonthlySamples = avgMonthlySamples;
+        PreferredChannel = preferredChannel;
     }
 
     public void PlaceInHierarchy(string? branch, string? governorate, string? city, string? area)
@@ -106,8 +120,12 @@ public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAudit
         Raise(new LaboratoryScheduleChanged(Id));
     }
 
-    /// <summary>Assigns the collector rep (BR-4 — exactly one at a time; pass null to clear).</summary>
-    public void AssignCollector(RepresentativeId? repId) => CollectorRepId = repId;
+    /// <summary>Assigns the lab's collector reps (multiple allowed, matching the reference); replaces the set.</summary>
+    public void AssignCollectors(IEnumerable<RepresentativeId> repIds)
+    {
+        _collectorRepIds.Clear();
+        _collectorRepIds.AddRange(repIds.Distinct());
+    }
 
     /// <summary>Assigns the marketing rep (BR-4 — exactly one at a time; pass null to clear).</summary>
     public void AssignMarketing(RepresentativeId? repId) => MarketingRepId = repId;
@@ -143,7 +161,7 @@ public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAudit
     /// </summary>
     public void DeriveActiveFromActivity()
     {
-        if (Status == LaboratoryStatus.New || Status == LaboratoryStatus.Pending ||
+        if (Status == LaboratoryStatus.Interactive || Status == LaboratoryStatus.Pending ||
             Status == LaboratoryStatus.Inactive || Status == LaboratoryStatus.Scanned)
         {
             ChangeStatus(LaboratoryStatus.Active);

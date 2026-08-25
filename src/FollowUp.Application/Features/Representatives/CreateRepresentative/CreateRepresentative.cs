@@ -20,6 +20,8 @@ public sealed record CreateRepresentativeCommand : ICommand<Guid>, IAuthorizedRe
     public string? Phone { get; init; }
     public string? Branch { get; init; }
     public string? Governorate { get; init; }
+    public string? Area { get; init; }
+    public string? EmploymentType { get; init; }
 
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.AddReps, Privileges.ManageReps };
 }
@@ -54,7 +56,8 @@ public sealed class CreateRepresentativeHandler : ICommandHandler<CreateRepresen
             new Money(request.Target));
 
         rep.SetContact(request.Phone);
-        rep.AssignScope(request.Branch, request.Governorate);
+        rep.AssignScope(request.Branch, request.Governorate, request.Area);
+        rep.SetEmployment(request.EmploymentType);
         if (request.GoalType is not null || request.Metric is not null)
             rep.UpdateProfile(request.FullName, new Money(request.Salary), new Money(request.Target), request.GoalType, request.Metric);
 

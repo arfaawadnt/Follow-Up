@@ -22,7 +22,10 @@ export interface PagedResult<T> {
 
 export interface LabListItem {
   id: string; displayCode: string; name: string; segment: string; status: string;
-  governorate: string | null; city: string | null; area: string | null; encrypted: boolean;
+  branch: string | null; governorate: string | null; city: string | null; area: string | null;
+  category: string | null; avgMonthlySamples: number | null;
+  latitude: number | null; longitude: number | null;
+  collectors: string[]; marketing: string | null; encrypted: boolean;
 }
 
 export interface ContactDto { id: string; name: string; role: string; phone: string | null; birthday: string | null; }
@@ -31,9 +34,10 @@ export interface LabDetail {
   id: string; displayCode: string; name: string; segment: string; status: string;
   branch: string | null; governorate: string | null; city: string | null; area: string | null;
   category: string | null; payer: string | null; contractType: string | null;
+  licenseNo: string | null; licenseDate: string | null; avgMonthlySamples: number | null; preferredChannel: string | null;
   latitude: number | null; longitude: number | null; monthlyTarget: number;
   loyaltyPoints: number; loyaltyTier: string | null;
-  collectorRepId: string | null; marketingRepId: string | null;
+  collectorRepIds: string[]; marketingRepId: string | null;
   workDays: string[]; visitTimes: string[]; contacts: ContactDto[]; rowVersion: number;
 }
 
@@ -66,7 +70,13 @@ export interface BoardItem {
 export interface RepListItem {
   id: string; fullName: string; type: string; goalDuration: string; goalType: string | null; metric: string | null;
   target: number; salary: number; phone: string | null; assignedCount: number;
-  isActive: boolean; branch: string | null; governorate: string | null;
+  isActive: boolean; branch: string | null; governorate: string | null; area: string | null; employmentType: string | null;
+}
+
+export interface RepDetail {
+  id: string; fullName: string; type: string; goalDuration: string; goalType: string | null; metric: string | null;
+  salary: number; target: number; phone: string | null; branch: string | null; governorate: string | null;
+  area: string | null; employmentType: string | null; isActive: boolean; rowVersion: number;
 }
 
 export interface MarketingVisit {

@@ -56,10 +56,10 @@ internal sealed class InsightsQueries : IInsightsQueries
         // Value-object sub-properties (Segment.Name, Code.Value, Period.Code) don't translate to SQL — so we
         // materialize the scoped rows with converted-type equality/IN filters and then compute in memory.
         var labs = (await _db.Laboratories.ApplyScope(scope).AsNoTracking()
-            .Select(l => new { l.Id, l.Code, l.Name, l.Segment, l.Governorate, l.Area, l.MonthlyTarget, l.Status, l.CollectorRepId })
+            .Select(l => new { l.Id, l.Code, l.Name, l.Segment, l.Governorate, l.Area, l.MonthlyTarget, l.Status, l.CollectorRepIds })
             .ToListAsync(ct))
             .Select(l => new LabRow(l.Id, l.Name, l.Segment, l.Governorate, l.Area, l.MonthlyTarget,
-                l.Status == LaboratoryStatus.Active, l.CollectorRepId))
+                l.Status == LaboratoryStatus.Active, l.CollectorRepIds))
             .ToList();
         var labIds = labs.Select(l => l.Id).ToList();
         var labById = labs.ToDictionary(l => l.Id);
@@ -83,7 +83,7 @@ internal sealed class InsightsQueries : IInsightsQueries
         bool IsDone(VisitStatus s) => s == VisitStatus.Visited || s == VisitStatus.Received;
 
         // Rep names for schedule + collector progress.
-        var repIds = labs.Where(l => l.CollectorRepId != null).Select(l => l.CollectorRepId!.Value)
+        var repIds = labs.SelectMany(l => l.CollectorRepIds)
             .Concat(visits.Where(v => v.CollectorRepId != null).Select(v => v.CollectorRepId!.Value)).Distinct().ToList();
         var repName = (await _db.Representatives.AsNoTracking().Where(r => repIds.Contains(r.Id))
             .Select(r => new { r.Id, r.FullName }).ToListAsync(ct)).ToDictionary(r => r.Id, r => r.FullName);
@@ -128,8 +128,9 @@ internal sealed class InsightsQueries : IInsightsQueries
             labById.TryGetValue(c.LaboratoryId, out var l) ? l.Name : "—", c.Details, c.Category,
             Math.Max(0, today.DayNumber - DateOnly.FromDateTime(c.CreatedAt.UtcDateTime).DayNumber))).ToList();
 
-        var repProg = labs.Where(l => l.CollectorRepId != null).GroupBy(l => l.CollectorRepId!.Value)
-            .Select(g => { var tgt = g.Sum(l => l.MonthlyTarget); var mtd = g.Sum(l => MtdOf(l.Id));
+        var repProg = labs.SelectMany(l => l.CollectorRepIds.Select(c => new { Rep = c, Lab = l }))
+            .GroupBy(x => x.Rep)
+            .Select(g => { var tgt = g.Sum(x => x.Lab.MonthlyTarget); var mtd = g.Sum(x => MtdOf(x.Lab.Id));
                 return new DashRepProgDto(RepOf(g.Key), $"{mtd:n0} / {tgt:n0}", tgt > 0 ? (int)Math.Round(100.0 * mtd / tgt) : 0); })
             .Where(r => r.Detail != "0 / 0").OrderByDescending(r => r.Pct).Take(8).ToList();
 
@@ -152,7 +153,7 @@ internal sealed class InsightsQueries : IInsightsQueries
     }
 
     private sealed record LabRow(LaboratoryId Id, string Name, string Seg, string? Gov, string? Area,
-        int MonthlyTarget, bool Active, RepresentativeId? CollectorRepId);
+        int MonthlyTarget, bool Active, IReadOnlyCollection<RepresentativeId> CollectorRepIds);
 
     public async Task<NetworkOverviewDto> GetOverviewAsync(OrgScope scope, CancellationToken ct)
     {
