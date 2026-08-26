@@ -71,9 +71,9 @@ const STATUSES = ['All', 'Scheduled', 'Completed', 'Cancelled'];
     </div>
 
     @if (showForm()) {
-      <div class="modal-backdrop" (click)="showForm.set(false)">
-        <div class="modal" (click)="$event.stopPropagation()" style="max-width:560px">
-          <div class="modal-head"><h2>{{ 'schedule_mkt_visit' | t : 'Schedule marketing visit' }}</h2><button class="btn btn-mini btn-s" (click)="showForm.set(false)">✕</button></div>
+      <div class="overlay" (click)="showForm.set(false)">
+        <div class="dlg" (click)="$event.stopPropagation()" style="width:min(94vw,560px)">
+          <div class="dlg-head"><h2>{{ 'schedule_mkt_visit' | t : 'Schedule marketing visit' }}</h2><button class="btn btn-mini btn-s" (click)="showForm.set(false)">✕</button></div>
           <form [formGroup]="form" (ngSubmit)="submit()" style="padding:16px">
             @if (formError()) { <div class="inline-banner inline-banner-error">{{ formError() }}</div> }
             <div class="frm-grid" style="grid-template-columns:1fr 1fr;gap:12px">
@@ -97,9 +97,9 @@ const STATUSES = ['All', 'Scheduled', 'Completed', 'Cancelled'];
     }
 
     @if (completing(); as v) {
-      <div class="modal-backdrop" (click)="completing.set(null)">
-        <div class="modal" (click)="$event.stopPropagation()" style="max-width:480px">
-          <div class="modal-head"><h2>{{ 'complete_visit' | t : 'Complete visit' }} — {{ v.reference }}</h2><button class="btn btn-mini btn-s" (click)="completing.set(null)">✕</button></div>
+      <div class="overlay" (click)="completing.set(null)">
+        <div class="dlg" (click)="$event.stopPropagation()" style="width:min(94vw,480px)">
+          <div class="dlg-head"><h2>{{ 'complete_visit' | t : 'Complete visit' }} — {{ v.reference }}</h2><button class="btn btn-mini btn-s" (click)="completing.set(null)">✕</button></div>
           <div style="padding:16px">
             <div class="small muted" style="margin-bottom:8px">{{ v.lab }} · {{ purposeLabel(v.purpose) }} · {{ v.scheduledDate | date:'mediumDate' }}</div>
             <div class="field"><label>{{ 'outcome' | t : 'Outcome' }} *</label><textarea class="input" rows="4" [(ngModel)]="outcomeText"></textarea></div>
@@ -114,10 +114,10 @@ const STATUSES = ['All', 'Scheduled', 'Completed', 'Cancelled'];
   `,
   styles: [`
     .actions{display:flex;gap:6px}
-    .modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:60}
-    .modal{background:var(--white);border-radius:12px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,.25)}
-    .modal-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--slate-200)}
-    .modal-head h2{font-size:15px;margin:0}
+    .overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:1000}
+    .dlg{background:var(--white);border-radius:12px;box-shadow:0 16px 48px rgba(0,0,0,.25);max-height:88vh;overflow-y:auto}
+    .dlg-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--slate-200)}
+    .dlg-head h2{font-size:15px;margin:0}
   `],
 })
 export class MarketingComponent {

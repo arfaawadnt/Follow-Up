@@ -84,9 +84,9 @@ type StageForm = 'ack' | 'validity' | 'investigation' | 'outcome' | 'resolve';
 
     <!-- Log complaint popup -->
     @if (showLog()) {
-      <div class="modal-backdrop" (click)="showLog.set(false)">
-        <div class="modal" (click)="$event.stopPropagation()" style="max-width:620px">
-          <div class="modal-head"><h2>{{ 'log_complaint_btn' | t : 'Log complaint' }}</h2><button class="btn btn-mini btn-s" (click)="showLog.set(false)">✕</button></div>
+      <div class="overlay" (click)="showLog.set(false)">
+        <div class="dlg" (click)="$event.stopPropagation()" style="width:min(94vw,620px)">
+          <div class="dlg-head"><h2>{{ 'log_complaint_btn' | t : 'Log complaint' }}</h2><button class="btn btn-mini btn-s" (click)="showLog.set(false)">✕</button></div>
           <form [formGroup]="form" (ngSubmit)="submit()" style="padding:16px">
             @if (formError()) { <div class="inline-banner inline-banner-error">{{ formError() }}</div> }
             <div class="frm-grid" style="grid-template-columns:1fr 1fr;gap:12px">
@@ -112,9 +112,9 @@ type StageForm = 'ack' | 'validity' | 'investigation' | 'outcome' | 'resolve';
 
     <!-- Details popup (reference: "View Details" with stepper, metadata cards and staged forms) -->
     @if (detail(); as d) {
-      <div class="modal-backdrop" (click)="closeDetail()">
-        <div class="modal" (click)="$event.stopPropagation()" style="max-width:820px;max-height:92vh;overflow-y:auto">
-          <div class="modal-head">
+      <div class="overlay" (click)="closeDetail()">
+        <div class="dlg" (click)="$event.stopPropagation()" style="width:min(94vw,800px);max-height:88vh;overflow-y:auto">
+          <div class="dlg-head">
             <h2>{{ 'view_details' | t : 'View Details' }} <span class="badge" [class]="badge(d.status)">{{ d.status }}</span>
               @if (d.stage === 'RejectedInvalid') { <span class="badge b-bad">{{ 'invalid' | t : 'Invalid' }}</span> }</h2>
             <button class="btn btn-mini btn-s" (click)="closeDetail()">✕</button>
@@ -223,10 +223,10 @@ type StageForm = 'ack' | 'validity' | 'investigation' | 'outcome' | 'resolve';
   `,
   styles: [`
     .actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-    .modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:60}
-    .modal{background:var(--white);border-radius:12px;width:94%;box-shadow:0 20px 60px rgba(0,0,0,.25)}
-    .modal-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--slate-200)}
-    .modal-head h2{font-size:15px;margin:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:1000}
+    .dlg{background:var(--white);border-radius:12px;box-shadow:0 16px 48px rgba(0,0,0,.25)}
+    .dlg-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--slate-200)}
+    .dlg-head h2{font-size:15px;margin:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     .stepper{display:flex;align-items:center;padding:16px;gap:4px;background:var(--filter-bg);border-radius:10px;margin:14px 16px 0}
     .step{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:64px}
     .step .dot{width:26px;height:26px;border-radius:50%;background:var(--white);border:2px solid var(--slate-200);color:var(--slate-500);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
