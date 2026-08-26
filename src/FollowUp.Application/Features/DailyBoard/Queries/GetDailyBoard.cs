@@ -14,6 +14,20 @@ public sealed record GetDailyBoardQuery(
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ViewDailyFollowup };
 }
 
+/// <summary>Suggested sample count for a visit's check-in popup (SRS FR-5 suggested-value helper).</summary>
+public sealed record GetSuggestedSampleCountQuery(Guid VisitId) : IQuery<int?>, IAuthorizedRequest
+{
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ViewDailyFollowup };
+}
+
+public sealed class GetSuggestedSampleCountHandler : IQueryHandler<GetSuggestedSampleCountQuery, int?>
+{
+    private readonly IDailyBoardQueries _queries;
+    public GetSuggestedSampleCountHandler(IDailyBoardQueries queries) => _queries = queries;
+    public Task<int?> Handle(GetSuggestedSampleCountQuery request, CancellationToken ct) =>
+        _queries.GetSuggestedSampleCountAsync(request.VisitId, ct);
+}
+
 public sealed class GetDailyBoardHandler : IQueryHandler<GetDailyBoardQuery, IReadOnlyList<BoardItemDto>>
 {
     private readonly IDailyBoardQueries _queries;

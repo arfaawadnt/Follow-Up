@@ -87,7 +87,7 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
         @if (loading()) { <div class="empty" style="padding:24px">Loading…</div> }
         @else {
           <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
-            <thead><tr><th>Date</th><th>Area</th><th>Samples</th><th>Data entry</th><th>Reviewed by</th><th>Sorted by</th><th>Notes</th><th>Status</th></tr></thead>
+            <thead><tr><th>Date</th><th>Area</th><th>Samples</th><th>Data entry</th><th>Reviewed by</th><th>Sorted by</th><th>Notes</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               @for (r of filtered(); track r.id) {
                 <tr>
@@ -105,8 +105,9 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
                     @if (r.sortAt) { <div class="small muted mono">{{ fmt(r.sortAt) }}</div> }</td>
                   <td><input class="input" style="min-width:140px" [ngModel]="draft(r).notes" (ngModelChange)="setD(r, 'notes', $event)" [disabled]="!auth.has('SampleTracking')"></td>
                   <td><span class="badge" [class]="r.isComplete ? 'b-ok' : 'b-warn'">{{ r.isComplete ? 'Completed' : 'Pending' }}</span></td>
+                  <td>@if (auth.has('SampleTracking')) { <button class="btn btn-mini btn-p" [disabled]="busy() || !draft(r).dirty" (click)="saveRow(r)">Save</button> }</td>
                 </tr>
-              } @empty { <tr><td colspan="8" class="empty" style="text-align:center;padding:24px">No records matching filters</td></tr> }
+              } @empty { <tr><td colspan="9" class="empty" style="text-align:center;padding:24px">No records matching filters</td></tr> }
             </tbody>
           </table></div>
         }
@@ -274,14 +275,16 @@ export class SampleTrackingComponent {
     });
   }
 
-  batchSave(): void {
-    const lines = this.items()
-      .filter((r) => this.drafts.get(r.id)?.dirty)
-      .map((r) => { const d = this.draft(r); return {
-        area: r.area, date: r.date, count: d.count || 0,
-        dataEntryUser: d.dataEntryUser || null, reviewUser: d.reviewUser || null, sortUser: d.sortUser || null,
-        notes: d.notes || null,
-      }; });
+  private line(r: SampleTracking): Record<string, unknown> {
+    const d = this.draft(r);
+    return {
+      area: r.area, date: r.date, count: d.count || 0,
+      dataEntryUser: d.dataEntryUser || null, reviewUser: d.reviewUser || null, sortUser: d.sortUser || null,
+      notes: d.notes || null,
+    };
+  }
+
+  private post(lines: Record<string, unknown>[]): void {
     if (!lines.length) return;
     this.busy.set(true);
     this.api.post('/sample-tracking/assignments', { lines }).subscribe({
@@ -289,6 +292,9 @@ export class SampleTrackingComponent {
       error: () => this.busy.set(false),
     });
   }
+
+  saveRow(r: SampleTracking): void { this.post([this.line(r)]); }
+  batchSave(): void { this.post(this.items().filter((r) => this.drafts.get(r.id)?.dirty).map((r) => this.line(r))); }
 
   // ---- Report tab ----
 

@@ -85,9 +85,8 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
               <td>{{ v.adminChecked ? '✓' : '—' }}</td>
               <td class="actions">
                 @if (v.status === 'Pending') {
-                  <input class="input num" type="number" min="0" [(ngModel)]="counts[v.visitId]" placeholder="#">
-                  <button class="btn btn-mini btn-p" (click)="checkin(v)" [disabled]="busy()">{{ 'record_visit' | t : 'Record' }}</button>
-                  <button class="btn btn-mini btn-s" (click)="act(v, 'miss')" [disabled]="busy()">{{ 'miss' | t }}</button>
+                  <button class="btn btn-mini btn-p" (click)="openRecord(v)" [disabled]="busy()">{{ 'record_visit' | t : 'Record visit' }}</button>
+                  <button class="btn btn-mini btn-s" (click)="miss(v)" [disabled]="busy()">{{ 'miss' | t : 'missed' }}</button>
                 }
                 @if ((v.status === 'Visited' || v.status === 'Received') && !v.adminChecked && auth.has('VerifyDailyFollowup')) {
                   <button class="btn btn-mini" (click)="verify(v)" [disabled]="busy()">{{ 'verify' | t : 'Verify' }}</button>
@@ -98,8 +97,39 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
         </table>
       }
     </div>
+
+    <!-- Record-visit popup (SRS FR-5): visit context + sample count prefilled with the suggested value. -->
+    @if (recording(); as v) {
+      <div class="overlay" (click)="closeRecord()">
+        <div class="dlg" (click)="$event.stopPropagation()">
+          <h3 style="margin:0 0 4px">{{ 'record_visit' | t : 'Record visit' }}</h3>
+          <div class="small muted" style="margin-bottom:14px">{{ v.lab }} · {{ v.labCode }}</div>
+          <dl class="meta">
+            <dt>{{ 'date' | t }} &amp; {{ 'time' | t }}</dt><dd class="mono">{{ v.visitDate }} · {{ v.scheduledTime }}</dd>
+            <dt>{{ 'collector' | t }}</dt><dd>{{ v.rep ?? '—' }}</dd>
+            <dt>{{ 'area_2' | t : 'Area' }}</dt><dd>{{ v.area ?? '—' }}@if (v.governorate) { · {{ v.governorate }} }</dd>
+          </dl>
+          <div class="field" style="margin-top:14px">
+            <label>{{ 'samples' | t : 'Samples collected' }} *</label>
+            <input type="number" min="0" class="input" [(ngModel)]="recordCount" style="width:100%">
+            @if (suggested() !== null) { <div class="small muted" style="margin-top:4px">Suggested: {{ suggested() }} (last recorded count for this lab)</div> }
+          </div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+            <button class="btn btn-s" (click)="closeRecord()">{{ 'cancel' | t : 'Cancel' }}</button>
+            <button class="btn btn-p" [disabled]="recordCount === null || recordCount < 0 || busy()" (click)="confirmRecord()">{{ 'confirm' | t : 'Confirm visit' }}</button>
+          </div>
+        </div>
+      </div>
+    }
   `,
-  styles: [`.actions{display:flex;gap:6px;align-items:center}.num{width:66px}`],
+  styles: [`
+    .actions{display:flex;gap:6px;align-items:center}.num{width:66px}
+    .overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:1000}
+    .dlg{background:var(--white);border-radius:12px;padding:22px;width:min(92vw,420px);box-shadow:0 16px 48px rgba(0,0,0,.25)}
+    .meta{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:0;font-size:12.5px}
+    .meta dt{color:var(--slate-500)}.meta dd{margin:0;color:var(--slate-900)}
+    .field label{display:block;font:600 11px var(--ui);color:var(--slate-600);margin-bottom:4px}
+  `],
 })
 export class DailyComponent {
   private readonly api = inject(ApiService);
@@ -111,7 +141,9 @@ export class DailyComponent {
   readonly reps = signal<RepListItem[]>([]);
   readonly status = signal('All');
   readonly statuses = STATUSES;
-  counts: Record<string, number> = {};
+  readonly recording = signal<BoardItem | null>(null);
+  readonly suggested = signal<number | null>(null);
+  recordCount: number | null = null;
 
   private readonly today = localToday();
   start = this.today; end = this.today;
@@ -155,8 +187,31 @@ export class DailyComponent {
   setStatus(s: string): void { this.status.set(s); this.load(); }
   reset(): void { this.start = this.today; this.end = this.today; this.branch = this.gov = this.city = this.area = this.rep = 'All'; this.query = ''; this.status.set('All'); this.load(); }
 
-  checkin(v: BoardItem): void { this.run(this.api.post(`/daily/${v.visitId}/checkin?source=daily`, { sampleCount: this.counts[v.visitId] ?? 0 })); }
-  act(v: BoardItem, action: 'miss' | 'undo'): void { this.run(this.api.post(`/daily/${v.visitId}/${action}?source=daily`)); }
+  // ---- Record-visit popup (SRS FR-5) ----
+
+  openRecord(v: BoardItem): void {
+    this.recording.set(v);
+    this.recordCount = null;
+    this.suggested.set(null);
+    this.api.get<{ suggested: number | null }>(`/daily/${v.visitId}/suggested-count`).subscribe({
+      next: (r) => { this.suggested.set(r.suggested); if (this.recordCount === null && r.suggested !== null) this.recordCount = r.suggested; },
+    });
+  }
+  closeRecord(): void { this.recording.set(null); }
+  confirmRecord(): void {
+    const v = this.recording();
+    if (!v || this.recordCount === null || this.recordCount < 0) return;
+    this.busy.set(true);
+    this.api.post(`/daily/${v.visitId}/checkin?source=daily`, { sampleCount: this.recordCount }).subscribe({
+      next: () => { this.busy.set(false); this.recording.set(null); this.load(); },
+      error: () => this.busy.set(false),
+    });
+  }
+
+  miss(v: BoardItem): void {
+    if (!window.confirm(`Mark the ${v.scheduledTime} visit to ${v.lab} as missed?`)) return;
+    this.run(this.api.post(`/daily/${v.visitId}/miss?source=daily`));
+  }
   verify(v: BoardItem): void { this.run(this.api.post(`/daily/${v.visitId}/verify?source=daily`, { verified: true })); }
 
   private run(obs: { subscribe: Function }): void {

@@ -32,6 +32,8 @@ public static class OperationsEndpoints
         { await m.Send(new UndoVisitCommand(id), ct); return Results.NoContent(); }).WithTags("DailyBoard");
         api.MapPost("/daily/{id:guid}/verify", async (Guid id, VerifyBody b, IMediator m, CancellationToken ct) =>
         { await m.Send(new VerifyVisitCommand(id, b.Verified), ct); return Results.NoContent(); }).WithTags("DailyBoard");
+        api.MapGet("/daily/{id:guid}/suggested-count", async (Guid id, IMediator m, CancellationToken ct) =>
+            Results.Ok(new { suggested = await m.Send(new GetSuggestedSampleCountQuery(id), ct) })).WithTags("DailyBoard");
 
         // Transfers (FR-6)
         api.MapGet("/transfers", async (DateOnly? start, DateOnly? end, IMediator m, CancellationToken ct) =>
