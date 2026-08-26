@@ -14,13 +14,13 @@ const STATUSES = ['All', 'Open', 'InProgress', 'Resolved'];
 const OUTCOME_TYPES = ['Repeat Test / Service', 'Refund / Credit Note', 'Staff Training / Warning',
   'Customer Notified & Satisfied', 'No Action Required', 'Other Action'];
 // Stepper: display label ↔ backend stage name, in workflow order.
-const STEPS: { label: string; stage: string }[] = [
-  { label: 'Logged', stage: 'Logged' },
-  { label: 'Acknowledge', stage: 'Acknowledged' },
-  { label: 'Validity', stage: 'ValidityChecked' },
-  { label: 'Investigate', stage: 'Investigation' },
-  { label: 'Outcome', stage: 'BusinessOutcome' },
-  { label: 'Resolve', stage: 'Resolution' },
+const STEPS: { key: string; label: string; stage: string }[] = [
+  { key: 'step_logged', label: 'Logged', stage: 'Logged' },
+  { key: 'step_acknowledge', label: 'Acknowledge', stage: 'Acknowledged' },
+  { key: 'step_validity', label: 'Validity', stage: 'ValidityChecked' },
+  { key: 'step_investigate', label: 'Investigate', stage: 'Investigation' },
+  { key: 'step_outcome', label: 'Outcome', stage: 'BusinessOutcome' },
+  { key: 'step_resolve', label: 'Resolve', stage: 'Resolution' },
 ];
 type StageForm = 'ack' | 'validity' | 'investigation' | 'outcome' | 'resolve';
 
@@ -118,7 +118,7 @@ type StageForm = 'ack' | 'validity' | 'investigation' | 'outcome' | 'resolve';
           <div class="stepper">
             @for (s of steps; track s.stage; let i = $index) {
               <div class="step" [class.done]="i < stepIndex(d)" [class.cur]="i === stepIndex(d)">
-                <div class="dot">{{ i < stepIndex(d) ? '✓' : i + 1 }}</div><div class="slbl">{{ s.label }}</div>
+                <div class="dot">{{ i < stepIndex(d) ? '✓' : i + 1 }}</div><div class="slbl">{{ s.key | t : s.label }}</div>
               </div>
               @if (i < steps.length - 1) { <div class="sarrow" [class.done]="i < stepIndex(d)">→</div> }
             }
