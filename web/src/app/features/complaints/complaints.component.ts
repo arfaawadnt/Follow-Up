@@ -8,7 +8,7 @@ import { EsignPanelComponent } from '../../shared/esign-panel.component';
 import { TranslatePipe } from '../../core/i18n';
 
 const CATEGORIES = ['Representative Issue', 'Call Center Issue', 'Result Quality', 'Data Entry Mistake'];
-const CHANNELS = ['Phone', 'Email', 'WhatsApp', 'In Person'];
+const CHANNELS = ['WhatsApp', 'Phone Call', 'Email', 'In-person'];
 const STATUSES = ['All', 'Open', 'InProgress', 'Resolved'];
 const OUTCOME_TYPES = ['Corrective Action', 'Preventive Action', 'Training', 'Process Change', 'Compensation', 'No Action Needed'];
 // Stepper: display label ↔ backend stage name, in workflow order.
@@ -91,7 +91,7 @@ const STEPS: { label: string; stage: string }[] = [
               <div class="field"><label>{{ 'complaint_datetime' | t : 'Complaint date/time' }}</label><input type="datetime-local" class="input" formControlName="receivedAt"></div>
               <div class="field"><label>{{ 'received_via' | t : 'Received via' }}</label><select class="select" formControlName="viaChannel">@for (c of channels; track c) { <option>{{ c }}</option> }</select></div>
               <div class="field"><label>{{ 'assign_to' | t : 'Assign to' }}</label>
-                <select class="select" formControlName="assignedTeam"><option value="">—</option>@for (t of teams(); track t.id) { <option [value]="t.nameEn">{{ t.nameEn }}</option> }</select></div>
+                <select class="select" formControlName="assignedTeam">@for (t of teams(); track t.id) { <option [value]="t.nameEn">{{ t.nameEn }}</option> } @empty { <option value="">—</option> }</select></div>
               <div class="field" style="grid-column:1/-1"><label>{{ 'description_lbl' | t : 'Description *' }}</label><textarea class="input" rows="3" formControlName="details"></textarea></div>
             </div>
             <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
@@ -290,7 +290,11 @@ export class ComplaintsComponent {
     if (this.labs().length === 0) {
       this.api.get<PagedResult<LabListItem>>('/labs', { pageSize: 500 }).subscribe({ next: (r) => this.labs.set(r.items) });
       this.api.get<PagedResult<RepListItem>>('/reps', { pageSize: 500 }).subscribe({ next: (r) => this.reps.set(r.items) });
-      this.api.get<RefItem[]>('/setup/refs', { type: 'Team' }).subscribe({ next: (t) => this.teams.set(t) });
+      this.api.get<RefItem[]>('/setup/refs', { type: 'Team' }).subscribe({ next: (t) => {
+        this.teams.set(t);
+        // The reference defaults the assignment to the first team (no empty option).
+        if (t.length && !this.form.controls.assignedTeam.value) this.form.controls.assignedTeam.setValue(t[0].nameEn);
+      } });
     }
   }
   submit(): void {
@@ -303,7 +307,7 @@ export class ComplaintsComponent {
       representativeId: v.representativeId || null,
       receivedAt: v.receivedAt ? new Date(v.receivedAt).toISOString() : null,
     }).subscribe({
-      next: () => { this.busy.set(false); this.showLog.set(false); this.form.reset({ category: CATEGORIES[0], viaChannel: CHANNELS[0] }); this.load(); },
+      next: () => { this.busy.set(false); this.showLog.set(false); this.form.reset({ category: CATEGORIES[0], viaChannel: CHANNELS[0], assignedTeam: this.teams()[0]?.nameEn ?? '' }); this.load(); },
       error: (e) => { this.busy.set(false); this.formError.set(e?.error?.detail ?? 'Submit failed.'); },
     });
   }
