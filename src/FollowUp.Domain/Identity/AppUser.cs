@@ -29,6 +29,7 @@ public sealed class AppUser : AggregateRoot<AppUserId>, IAuditable
     }
 
     public string Username { get; private set; } = null!;
+    public string? DisplayName { get; private set; }
     public PasswordHash Password { get; private set; } = null!;
     public RoleId RoleId { get; private set; }
     public string? Email { get; private set; }
@@ -54,6 +55,8 @@ public sealed class AppUser : AggregateRoot<AppUserId>, IAuditable
     }
 
     public void SetProfile(string? email, string? phone) { Email = email; Phone = phone; }
+    public void SetDisplayName(string? displayName) =>
+        DisplayName = string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim();
     public void SetLanguage(string language) => Language = string.IsNullOrWhiteSpace(language) ? "en" : language.Trim();
     public void ChangeRole(RoleId roleId) => RoleId = roleId;
     public void LinkRepresentative(RepresentativeId? repId) => RepresentativeId = repId;

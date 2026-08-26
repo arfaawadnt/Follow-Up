@@ -34,7 +34,7 @@ type View = 'daily' | 'monthly' | 'yearly';
     <div class="kpis" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
       <div class="kpi kpi-teal"><div class="lbl">{{ 'total_tests' | t : 'Total tests' }}</div><div class="val">{{ k().tests | number:'1.0-0' }}</div></div>
       <div class="kpi kpi-green"><div class="lbl">{{ 'total_income' | t : 'Total income' }}</div><div class="val">{{ k().income | number:'1.0-0' }}</div><div class="sub">EGP</div></div>
-      <div class="kpi kpi-blue"><div class="lbl">{{ 'active_labs_stats' | t : 'Labs in stats' }}</div><div class="val">{{ k().labs }}</div></div>
+      <div class="kpi kpi-blue"><div class="lbl">{{ 'active_labs_in_stats' | t : 'Active Labs in Stats' }}</div><div class="val">{{ k().labs }}</div></div>
       <div class="kpi kpi-amber"><div class="lbl">{{ 'avg_tests_lab' | t : 'Avg tests / lab' }}</div><div class="val">{{ k().avg | number:'1.0-0' }}</div></div>
     </div>
 
@@ -42,9 +42,9 @@ type View = 'daily' | 'monthly' | 'yearly';
       <div class="frm-grid" style="grid-template-columns:repeat(4,1fr);gap:12px;align-items:end">
         <div class="field"><label>{{ 'start_date' | t }}</label><input type="date" class="input" [(ngModel)]="from"></div>
         <div class="field"><label>{{ 'end_date' | t }}</label><input type="date" class="input" [(ngModel)]="to"></div>
-        <div class="field"><label>{{ 'view' | t : 'View' }}</label><select class="select" [(ngModel)]="view"><option value="daily">{{ 'daily_2' | t : 'Daily' }}</option><option value="monthly">{{ 'monthly' | t : 'Monthly' }}</option><option value="yearly">{{ 'yearly' | t : 'Yearly' }}</option></select></div>
-        <div class="field"><button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply' | t : 'Apply' }}</button></div>
-        <div class="field"><label>{{ 'search' | t : 'Search lab' }}</label><input class="input" [ngModel]="q()" (ngModelChange)="q.set($event)" placeholder="name or code"></div>
+        <div class="field"><label>{{ 'view_type' | t : 'View Type' }}</label><select class="select" [(ngModel)]="view"><option value="daily">{{ 'daily_2' | t : 'Daily' }}</option><option value="monthly">{{ 'monthly' | t : 'Monthly' }}</option><option value="yearly">{{ 'yearly' | t : 'Yearly' }}</option></select></div>
+        <div class="field"><button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply_filters' | t : 'Apply Filters' }}</button></div>
+        <div class="field"><label>{{ 'search_lab' | t : 'Search Lab' }}</label><input class="input" [ngModel]="q()" (ngModelChange)="q.set($event)" placeholder="name or code"></div>
         <div class="field"><label>{{ 'governorate_2' | t : 'Governorate' }}</label><select class="select" [ngModel]="gov()" (ngModelChange)="gov.set($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (g of govs(); track g) { <option [value]="g">{{ g }}</option> }</select></div>
         <div class="field"><label>{{ 'city' | t : 'City' }}</label><select class="select" [ngModel]="city()" (ngModelChange)="city.set($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (c of cities(); track c) { <option [value]="c">{{ c }}</option> }</select></div>
         <div class="field"><label>{{ 'area_2' | t : 'Area' }}</label><select class="select" [ngModel]="area()" (ngModelChange)="area.set($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (a of areas(); track a) { <option [value]="a">{{ a }}</option> }</select></div>

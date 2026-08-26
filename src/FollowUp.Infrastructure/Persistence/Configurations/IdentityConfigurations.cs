@@ -14,6 +14,7 @@ internal sealed class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
         b.MapAuditable();
 
         b.Property(x => x.Username).HasMaxLength(100).IsRequired();
+        b.Property(x => x.DisplayName).HasMaxLength(150);
         b.HasIndex(x => x.Username).IsUnique();
 
         b.Property(x => x.Email).HasMaxLength(200);

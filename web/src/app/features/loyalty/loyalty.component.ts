@@ -19,12 +19,6 @@ const TIERS = ['All', 'Gold', 'Silver', 'Bronze'];
   template: `
     <div class="pagehead"><div><div class="breadcrumbs">Home / {{ 'loyalty' | t }}</div><h1>{{ 'loyalty' | t }}</h1></div></div>
 
-    <div class="kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px">
-      <div class="kpi kpi-blue"><div class="lbl">{{ 'total_loyalty_points_awarded' | t : 'Total loyalty points' }}</div><div class="val">{{ totalPoints() | number:'1.0-0' }}</div></div>
-      <div class="kpi kpi-green"><div class="lbl">{{ 'gold_tier_labs' | t : 'Gold-tier labs' }}</div><div class="val">{{ goldCount() }}</div></div>
-      <div class="kpi kpi-amber"><div class="lbl">{{ 'average_target_achievement_mtd' | t : 'Avg achievement (MTD)' }}</div><div class="val">{{ avgAch() }}%</div></div>
-    </div>
-
     <div class="card" style="padding:16px;margin-bottom:20px">
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
         <input class="input" style="flex:1;min-width:220px" [placeholder]="'search_by_name_or_code' | t : 'Search by name or code'" [(ngModel)]="q">
@@ -75,13 +69,6 @@ export class LoyaltyComponent {
       (this.tier === 'All' || l.loyaltyTier === this.tier) &&
       (!q || l.name.toLowerCase().includes(q) || l.code.toLowerCase().includes(q)));
   });
-  readonly totalPoints = computed(() => this.filtered().reduce((a, l) => a + l.loyaltyPoints, 0));
-  readonly goldCount = computed(() => this.filtered().filter((l) => l.loyaltyTier === 'Gold').length);
-  readonly avgAch = computed(() => {
-    const f = this.filtered(); if (!f.length) return 0;
-    return Math.round(f.reduce((a, l) => a + this.ach(l), 0) / f.length);
-  });
-
   constructor() { this.load(); }
 
   load(): void {

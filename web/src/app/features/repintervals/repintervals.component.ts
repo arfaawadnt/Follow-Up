@@ -43,20 +43,20 @@ type AvgField = 'plannedToCollect' | 'collectToTransfer' | 'transferToCheckin' |
       <div class="frm-grid" style="grid-template-columns:repeat(5,1fr);gap:12px;align-items:end">
         <div class="field"><label>{{ 'start_date' | t }}</label><input type="date" class="input" [(ngModel)]="start"></div>
         <div class="field"><label>{{ 'end_date' | t }}</label><input type="date" class="input" [(ngModel)]="end"></div>
-        <div class="field"><button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply' | t : 'Apply' }}</button></div>
-        <div class="field"><label>{{ 'group_by' | t : 'Group by' }}</label>
-          <select class="select" [ngModel]="groupBy()" (ngModelChange)="groupBy.set($event)">
-            <option value="rep">{{ 'representative' | t : 'Representative' }}</option>
-            <option value="lab">{{ 'laboratory' | t : 'Laboratory' }}</option>
-            <option value="area">{{ 'area_2' | t : 'Area' }}</option>
-            <option value="none">{{ 'none_detailed' | t : 'None (detailed)' }}</option>
-          </select></div>
+        <div class="field" style="display:flex;gap:8px"><button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply' | t : 'Apply' }}</button><button class="btn btn-s" (click)="reset()" style="height:36px">{{ 'reset' | t : 'Reset' }}</button></div>
         <div class="field"><label>{{ 'collector' | t : 'Collector' }}</label><select class="select" [ngModel]="fCollector()" (ngModelChange)="fCollector.set($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (v of collectors(); track v) { <option [value]="v">{{ v }}</option> }</select></div>
         <div class="field"><label>{{ 'laboratory' | t : 'Laboratory' }}</label><select class="select" [ngModel]="fLab()" (ngModelChange)="fLab.set($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (v of labNames(); track v) { <option [value]="v">{{ v }}</option> }</select></div>
         <div class="field"><label>{{ 'branch' | t : 'Branch' }}</label><select class="select" [ngModel]="fBranch()" (ngModelChange)="fBranch.set($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (v of branches(); track v) { <option [value]="v">{{ v }}</option> }</select></div>
         <div class="field"><label>{{ 'governorate_2' | t : 'Governorate' }}</label><select class="select" [ngModel]="fGov()" (ngModelChange)="fGov.set($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (v of govs(); track v) { <option [value]="v">{{ v }}</option> }</select></div>
         <div class="field"><label>{{ 'city' | t : 'City' }}</label><select class="select" [ngModel]="fCity()" (ngModelChange)="fCity.set($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (v of cities(); track v) { <option [value]="v">{{ v }}</option> }</select></div>
         <div class="field"><label>{{ 'area_2' | t : 'Area' }}</label><select class="select" [ngModel]="fArea()" (ngModelChange)="fArea.set($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (v of areas(); track v) { <option [value]="v">{{ v }}</option> }</select></div>
+        <div class="field"><label>{{ 'group_by' | t : 'Group by' }}</label>
+          <select class="select" [ngModel]="groupBy()" (ngModelChange)="groupBy.set($event)">
+            <option value="rep">{{ 'representative' | t : 'Representative' }}</option>
+            <option value="lab">{{ 'laboratory' | t : 'Laboratory' }}</option>
+            <option value="area">{{ 'area_2' | t : 'Area' }}</option>
+            <option value="none">{{ 'none_detailed_list' | t : 'None (Detailed List)' }}</option>
+          </select></div>
       </div>
     </div>
 
@@ -157,6 +157,14 @@ export class RepIntervalsComponent {
     this.api.get<Row[]>('/reports/rep-intervals', { start: this.start, end: this.end }).subscribe({
       next: (r) => { this.rows.set(r); this.loading.set(false); }, error: () => this.loading.set(false),
     });
+  }
+
+  reset(): void {
+    this.start = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
+    this.end = this.today;
+    this.groupBy.set('rep');
+    this.fCollector.set(''); this.fLab.set(''); this.fBranch.set(''); this.fGov.set(''); this.fCity.set(''); this.fArea.set('');
+    this.load();
   }
 
   avg(rows: Row[], field: AvgField): number | null {

@@ -16,7 +16,7 @@ const NEXT: Record<string, string> = { Collected: 'Sent', Sent: 'Received' };
   imports: [FormsModule, ReactiveFormsModule, DecimalPipe, TranslatePipe],
   template: `
     <div class="pagehead" style="display:flex;justify-content:space-between;align-items:center">
-      <div><div class="breadcrumbs">Home / {{ 'outsource_samples' | t }}</div><h1>{{ 'outsource_samples' | t }}</h1></div>
+      <div><div class="breadcrumbs">Home / {{ 'outsource_samples' | t }}</div><h1>{{ 'outsource_tracking_title' | t : 'Outsource Samples Tracking' }}</h1></div>
       <button class="btn btn-s" (click)="exportExcel()" [disabled]="!filtered().length">Export Excel</button>
     </div>
 
@@ -47,8 +47,10 @@ const NEXT: Record<string, string> = { Collected: 'Sent', Sent: 'Received' };
             <select class="select" formControlName="laboratoryId"><option value="">—</option>@for (l of labs(); track l.id) { <option [value]="l.id">{{ l.displayCode }} · {{ l.name }}</option> }</select></div>
           <div class="field"><label>{{ 'quantity' | t : 'Samples Count' }}</label><input class="input" type="number" min="1" formControlName="quantity"></div>
           <div class="field"><label>{{ 'destination' | t : 'Destination Lab' }}</label><input class="input" formControlName="destinationLab"></div>
+          <div class="field"><label>{{ 'status_3' | t : 'Status' }}</label>
+            <select class="select" formControlName="status">@for (s of statuses.slice(1); track s) { <option [value]="s">{{ s | t : s }}</option> }</select></div>
           <div class="field"><label>{{ 'notes' | t : 'Notes' }}</label><input class="input" formControlName="notes"></div>
-          <div class="field"><button class="btn btn-p" type="submit" [disabled]="form.invalid || busy()" style="height:38px">{{ 'add' | t : 'Add Sample' }}</button></div>
+          <div class="field"><button class="btn btn-p" type="submit" [disabled]="form.invalid || busy()" style="height:38px">{{ 'add_sample_btn' | t : 'Add Sample' }}</button></div>
         </form>
       </div>
     }
@@ -57,8 +59,8 @@ const NEXT: Record<string, string> = { Collected: 'Sent', Sent: 'Received' };
       @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
       @else {
         <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
-          <thead><tr><th>{{ 'date' | t }}</th><th>{{ 'laboratory_2' | t : 'Source lab' }}</th>
-            <th>{{ 'quantity' | t : 'Samples' }}</th><th>{{ 'status_3' | t }}</th><th>{{ 'destination' | t : 'Destination lab' }}</th><th>{{ 'notes' | t : 'Notes' }}</th><th></th></tr></thead>
+          <thead><tr><th>{{ 'date' | t }}</th><th>{{ 'source_lab_col' | t : 'Source Lab' }}</th>
+            <th>{{ 'quantity' | t : 'Samples' }}</th><th>{{ 'status_3' | t }}</th><th>{{ 'destination_lab' | t : 'Destination Lab' }}</th><th>{{ 'notes' | t : 'Notes' }}</th><th>{{ 'actions_4' | t : 'Actions' }}</th></tr></thead>
           <tbody>
             @for (o of filtered(); track o.id) {
               <tr>
@@ -112,6 +114,7 @@ export class OutsourceComponent {
     laboratoryId: this.fb.control('', Validators.required),
     destinationLab: this.fb.control('', Validators.required),
     quantity: this.fb.control(1, [Validators.required, Validators.min(1)]),
+    status: this.fb.control('Collected'),
     notes: this.fb.control(''),
   });
 
@@ -164,9 +167,10 @@ export class OutsourceComponent {
   add(): void {
     if (this.form.invalid) return;
     this.busy.set(true);
-    const v = this.form.getRawValue();
+    // CreateOutsourceSampleCommand does not accept a status yet — new samples always start as Collected on the server, so the select stays bound but its value is not sent.
+    const { status: _status, ...v } = this.form.getRawValue();
     this.api.post('/outsource-samples', { ...v, notes: v.notes || null }).subscribe({
-      next: () => { this.busy.set(false); this.form.patchValue({ laboratoryId: '', destinationLab: '', quantity: 1, notes: '' }); this.load(); }, error: () => this.busy.set(false),
+      next: () => { this.busy.set(false); this.form.patchValue({ laboratoryId: '', destinationLab: '', quantity: 1, status: 'Collected', notes: '' }); this.load(); }, error: () => this.busy.set(false),
     });
   }
 

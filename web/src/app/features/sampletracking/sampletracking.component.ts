@@ -1,5 +1,4 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
@@ -13,7 +12,7 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
 @Component({
   selector: 'app-sampletracking',
   standalone: true,
-  imports: [FormsModule, DecimalPipe],
+  imports: [FormsModule],
   template: `
     <div class="pagehead">
       <div>
@@ -30,12 +29,6 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
 
     <!-- ===================== Area Assignments ===================== -->
     @if (tab() === 'assignments') {
-      <div class="kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">
-        <div class="kpi kpi-teal"><div class="lbl">Total received samples</div><div class="val">{{ totalSamples() | number:'1.0-0' }}</div></div>
-        <div class="kpi kpi-green"><div class="lbl">Completed areas</div><div class="val">{{ completed() }}</div></div>
-        <div class="kpi kpi-orange"><div class="lbl">Pending areas</div><div class="val">{{ filtered().length - completed() }}</div></div>
-      </div>
-
       <div class="card" style="padding:20px;margin-bottom:16px">
         <h3 style="margin:0 0 12px;font-size:14px">Area Assignment Filtration</h3>
         <div class="frm-grid" style="grid-template-columns:repeat(4,1fr);gap:12px">
@@ -59,7 +52,7 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
           <div class="field"><label>Sorted by</label>
             <select class="select" [(ngModel)]="fSort"><option value="All">All</option><option value="">Unassigned</option>@for (u of users(); track u.id) { <option [value]="u.username">{{ u.username }}</option> }</select></div>
           <div class="field"><label>Status</label>
-            <select class="select" [(ngModel)]="fStatus"><option value="All">All</option><option value="Pending">Pending</option><option value="Completed">Completed</option></select></div>
+            <select class="select" [(ngModel)]="fStatus"><option value="Pending">Pending</option><option value="Completed">Completed</option><option value="All">All</option></select></div>
           <div class="field" style="align-self:end"><button class="btn btn-p" (click)="load()" style="height:36px">Apply</button></div>
           <div class="field" style="align-self:end"><button class="btn btn-s" (click)="reset()" style="height:36px">Reset</button></div>
         </div>
@@ -70,14 +63,12 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
           <b style="font-size:13px">Sample Area Assignment</b>
           <div style="display:flex;gap:8px">
             @if (auth.has('SampleTracking')) { <button class="btn btn-p btn-mini" [disabled]="busy() || dirtyCount() === 0" (click)="batchSave()">Batch Save All ({{ dirtyCount() }})</button> }
-            <button class="btn btn-s btn-mini" (click)="exportAssignExcel()" [disabled]="!filtered().length">Export Excel</button>
-            <button class="btn btn-s btn-mini" (click)="exportAssignPdf()" [disabled]="!filtered().length">Export PDF</button>
           </div>
         </div>
         @if (loading()) { <div class="empty" style="padding:24px">Loading…</div> }
         @else {
           <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
-            <thead><tr><th>Date</th><th>Area</th><th>Samples</th><th>Data entry</th><th>Reviewed by</th><th>Sorted by</th><th>Notes</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Date</th><th>Area</th><th>Samples</th><th>Data Entry</th><th>Reviewed By</th><th>Sorted By</th><th>Notes</th><th>Actions</th></tr></thead>
             <tbody>
               @for (r of filtered(); track r.id) {
                 <tr>
@@ -94,10 +85,9 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
                     <option value="">Unassigned</option>@for (u of users(); track u.id) { <option [value]="u.username">{{ u.username }}</option> }</select>
                     @if (r.sortAt) { <div class="small muted mono">{{ fmt(r.sortAt) }}</div> }</td>
                   <td><input class="input" style="min-width:140px" [ngModel]="draft(r).notes" (ngModelChange)="setD(r, 'notes', $event)" [disabled]="!auth.has('SampleTracking')"></td>
-                  <td><span class="badge" [class]="r.isComplete ? 'b-ok' : 'b-warn'">{{ r.isComplete ? 'Completed' : 'Pending' }}</span></td>
                   <td>@if (auth.has('SampleTracking')) { <button class="btn btn-mini btn-p" [disabled]="busy() || !draft(r).dirty" (click)="saveRow(r)">Save</button> }</td>
                 </tr>
-              } @empty { <tr><td colspan="9" class="empty" style="text-align:center;padding:24px">No records matching filters</td></tr> }
+              } @empty { <tr><td colspan="8" class="empty" style="text-align:center;padding:24px">No records matching filters</td></tr> }
             </tbody>
           </table></div>
         }
@@ -220,8 +210,6 @@ export class SampleTrackingComponent {
         (this.fStatus === 'All' || (this.fStatus === 'Completed') === r.isComplete);
     });
   });
-  readonly totalSamples = computed(() => this.filtered().reduce((a, r) => a + r.count, 0));
-  readonly completed = computed(() => this.filtered().filter((r) => r.isComplete).length);
 
   draft(r: SampleTracking): Draft {
     let d = this.drafts.get(r.id);
@@ -301,16 +289,6 @@ export class SampleTrackingComponent {
 
   // ---- Exports ----
 
-  exportAssignExcel(): void {
-    exportCsv('sample-assignments.csv',
-      ['Date', 'Area', 'Samples', 'Data entry', 'Reviewed by', 'Sorted by', 'Notes', 'Status'],
-      this.filtered().map((r) => [r.date, r.area, r.count, r.dataEntryBy, r.reviewBy, r.sortBy, r.notes, r.isComplete ? 'Completed' : 'Pending']));
-  }
-  exportAssignPdf(): void {
-    printTable('Sample Area Assignment',
-      ['Date', 'Area', 'Samples', 'Data entry', 'Reviewed by', 'Sorted by', 'Notes', 'Status'],
-      this.filtered().map((r) => [r.date, r.area, r.count, r.dataEntryBy, r.reviewBy, r.sortBy, r.notes, r.isComplete ? 'Completed' : 'Pending']));
-  }
   private reportRows(): (string | number | null)[][] {
     return this.reportFiltered().map((r) => [r.lab, r.labDisplayCode, r.area, `${r.visitDate} ${r.visitTime}`, r.samples,
       this.fmt(r.collectedAt), this.fmt(r.transferredAt), this.fmt(r.receivedAt),

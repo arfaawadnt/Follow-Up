@@ -34,14 +34,7 @@ type StageForm = 'ack' | 'validity' | 'investigation' | 'outcome' | 'resolve';
       <div class="pagehead-actions">@if (auth.has('AddComplaints')) { <button class="btn btn-p" (click)="openLog()">{{ 'log_complaint_btn' | t : 'Log complaint' }}</button> }</div>
     </div>
 
-    <div class="kpis" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px">
-      <div class="kpi kpi-teal"><div class="lbl">{{ 'total' | t }}</div><div class="val">{{ result()?.total ?? 0 }}</div></div>
-      <div class="kpi kpi-red"><div class="lbl">Open</div><div class="val">{{ count('Open') }}</div></div>
-      <div class="kpi kpi-amber"><div class="lbl">In progress</div><div class="val">{{ count('InProgress') }}</div></div>
-      <div class="kpi kpi-green"><div class="lbl">Resolved</div><div class="val">{{ count('Resolved') }}</div></div>
-    </div>
-
-    <!-- One filter row like the reference: status pills + category dropdown -->
+    <!-- Reference has no KPI cards here — one filter row: status pills + category dropdown -->
     <div class="card" style="padding:12px;margin-bottom:16px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       @for (s of statuses; track s) { <span class="pill" [class.on]="status() === s" (click)="setStatus(s)">{{ statusLabel(s) }} · {{ s === 'All' ? (result()?.total ?? 0) : count(s) }}</span> }
       <select class="select" style="width:auto;min-width:180px;margin-inline-start:10px" [ngModel]="category()" (ngModelChange)="setCategory($event)">
@@ -55,7 +48,7 @@ type StageForm = 'ack' | 'validity' | 'investigation' | 'outcome' | 'resolve';
       @if (!loading() && result(); as r) {
         <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
           <thead><tr><th>{{ 'ref' | t : 'Ref' }}</th><th>{{ 'laboratory' | t }}</th><th>{{ 'category' | t }}</th><th>{{ 'complaint' | t : 'Complaint' }}</th>
-            <th>{{ 'via' | t : 'Via' }}</th><th>{{ 'assigned_to' | t : 'Assigned to' }}</th><th>{{ 'status' | t }}</th><th>{{ 'actions_3' | t : 'Actions' }}</th></tr></thead>
+            <th>{{ 'via' | t : 'Via' }}</th><th>{{ 'assigned_to' | t : 'Assigned to' }}</th><th>{{ 'status' | t }}</th><th style="width:190px"></th></tr></thead>
           <tbody>
             @for (c of r.items; track c.id) {
               <tr>

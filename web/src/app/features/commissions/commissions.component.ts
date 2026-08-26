@@ -1,5 +1,5 @@
-import { Component, computed, inject, signal } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
+import { Component, inject, signal } from '@angular/core';
+import { DecimalPipe, formatDate } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
 import { ApiService } from '../../core/api.service';
@@ -21,15 +21,12 @@ const GROUPS = ['Collector', 'Marketing', 'Scanning'];
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'commissions' | t }}</div><h1>{{ 'commissions' | t }}</h1></div>
       <div class="pagehead-actions" style="display:flex;gap:8px;align-items:center">
-        <input type="month" class="input" [(ngModel)]="month" (ngModelChange)="load()">
+        <label style="font-size:13px;font-weight:600;color:var(--slate-700)">{{ 'select_month' | t : 'Select Month:' }}</label>
+        <select class="select" [(ngModel)]="period" (ngModelChange)="load()">
+          @for (m of months; track m.value) { <option [ngValue]="m.value">{{ m.label }}</option> }
+        </select>
         @if (auth.has('ManageCommissions')) { <button class="btn btn-p" [disabled]="busy() || !rows().length" (click)="save()">{{ 'lock_save_payouts' | t : 'Save payouts' }}</button> }
       </div>
-    </div>
-
-    <div class="kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px">
-      <div class="kpi kpi-blue"><div class="lbl">{{ 'total_commissions_earned' | t : 'Total commissions' }}</div><div class="val">{{ k().commission | number:'1.0-0' }}</div><div class="sub">EGP</div></div>
-      <div class="kpi kpi-amber"><div class="lbl">{{ 'total_extra_bonuses' | t : 'Total bonuses' }}</div><div class="val">{{ k().bonus | number:'1.0-0' }}</div><div class="sub">EGP</div></div>
-      <div class="kpi kpi-green"><div class="lbl">{{ 'total_monthly_payout' | t : 'Total payout' }}</div><div class="val">{{ k().total | number:'1.0-0' }}</div><div class="sub">EGP</div></div>
     </div>
 
     @if (loading()) { <div class="card empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
@@ -69,13 +66,16 @@ export class CommissionsComponent {
   readonly busy = signal(false);
   readonly rows = signal<Commission[]>([]);
   readonly groups = GROUPS;
-  month = new Date().toISOString().slice(0, 7);
+  readonly months = CommissionsComponent.buildMonths();
+  period = this.months[0].value;
 
-  private ym(): number { const [y, m] = this.month.split('-').map(Number); return y * 100 + m; }
-  readonly k = computed(() => {
-    const f = this.rows();
-    return { commission: f.reduce((a, r) => a + r.commissionEarned, 0), bonus: f.reduce((a, r) => a + r.bonusEarned, 0), total: f.reduce((a, r) => a + r.totalPayout, 0) };
-  });
+  private static buildMonths(): { value: number; label: string }[] {
+    const now = new Date();
+    return Array.from({ length: 12 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      return { value: d.getFullYear() * 100 + d.getMonth() + 1, label: formatDate(d, 'MMMM yyyy', 'en-US') };
+    });
+  }
 
   constructor() { this.load(); }
 
@@ -84,7 +84,7 @@ export class CommissionsComponent {
 
   load(): void {
     this.loading.set(true);
-    this.api.get<Commission[]>('/commissions', { period: this.ym() }).subscribe({
+    this.api.get<Commission[]>('/commissions', { period: this.period }).subscribe({
       next: (r) => { this.rows.set(r); this.loading.set(false); }, error: () => this.loading.set(false),
     });
   }
@@ -92,7 +92,7 @@ export class CommissionsComponent {
     const rows = this.rows();
     if (!rows.length) return;
     this.busy.set(true);
-    const period = this.ym();
+    const period = this.period;
     forkJoin(rows.map((r) => this.api.post('/commissions/save', { representativeId: r.repId, period })))
       .subscribe({ next: () => { this.busy.set(false); this.load(); }, error: () => this.busy.set(false) });
   }

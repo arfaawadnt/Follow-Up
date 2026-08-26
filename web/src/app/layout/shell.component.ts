@@ -117,7 +117,7 @@ export class ShellComponent implements AfterViewChecked, OnDestroy {
       { id: 'roles', key: 'roles', icon: 'shield', path: '/roles', privilege: 'ManageUsers' },
       { id: 'setup', key: 'setup', icon: 'sliders', path: '/setup', privilege: 'SetupRefs' },
       { id: 'integration', key: 'oracle_integration', icon: 'database', path: '/integration', privilege: 'OracleIntegration' },
-      { id: 'notifications', key: 'notifications_mgmt', icon: 'bell', path: '/notifications' },
+      { id: 'notifications', key: 'notifications_control_panel', icon: 'bell', path: '/notifications' },
       { id: 'sessions', key: 'active_sessions', icon: 'activity', path: '/sessions' },
       { id: 'audit', key: 'audit_trail', icon: 'clipboard-list', path: '/audit', privilege: 'ManageUsers' },
     ]},

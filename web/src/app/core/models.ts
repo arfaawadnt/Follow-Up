@@ -131,7 +131,17 @@ export interface UserLookup { id: string; username: string; }
 
 export interface NotificationItem { id: string; eventKey: string; title: string; body: string; createdAt: string; isRead: boolean; }
 export interface RefItem { id: string; type: string; code: string; nameEn: string; nameAr: string | null; sortOrder: number; }
-export interface UserListItem { id: string; username: string; roleName: string; email: string | null; isActive: boolean; isLocked: boolean; }
+export interface UserListItem {
+  id: string; username: string; displayName: string | null; roleName: string; language: string;
+  privilegeCount: number; email: string | null; isActive: boolean; isLocked: boolean;
+}
+export interface RoleScope {
+  branches: string[]; governorates: string[]; cities: string[]; areas: string[]; categories: string[]; segments: string[];
+}
+export interface RoleItem {
+  id: string; name: string; privileges: string[]; defaultLanguage: string; defaultTheme: string;
+  isBuiltIn: boolean; scope: RoleScope;
+}
 export interface NetworkOverview { totalLabs: number; activeLabs: number; samplesThisMonth: number; incomeThisMonth: number; }
 
 export interface SettingDto { key: string; value: string | null; isSecret: boolean; }

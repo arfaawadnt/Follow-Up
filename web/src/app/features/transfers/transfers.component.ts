@@ -20,7 +20,7 @@ interface Draft { rep: string; name: string; mobile: string; car: string; when: 
         <button class="btn btn-s" (click)="exportExcel()" [disabled]="!filtered().length">Export Excel</button>
         <button class="btn btn-s" (click)="exportPdf()" [disabled]="!filtered().length">Export PDF</button>
         @if (auth.has('ConfirmTransfers')) {
-          <button class="btn btn-p" (click)="saveAll()" [disabled]="busy() || readyCount() === 0">Save Transfer Confirmations ({{ readyCount() }})</button>
+          <button class="btn btn-p" (click)="saveAll()" [disabled]="busy() || readyCount() === 0">{{ 'save_transfer_confirmations' | t : 'Save Transfer Confirmations' }}</button>
         }
       </div>
     </div>
@@ -48,20 +48,19 @@ interface Draft { rep: string; name: string; mobile: string; car: string; when: 
           <select class="select" [(ngModel)]="area"><option value="All">{{ 'all_2' | t }}</option>@for (a of opts('area'); track a) { <option [value]="a">{{ a }}</option> }</select></div>
         <div class="field"><label>{{ 'transfer_rep' | t : 'Transfer rep' }}</label>
           <select class="select" [(ngModel)]="repFilter"><option value="All">{{ 'all_2' | t }}</option>@for (rep of transferReps(); track rep.id) { <option [value]="rep.id">{{ rep.fullName }}</option> }</select></div>
-        <div class="field" style="align-self:end"><button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply_dates' | t }}</button></div>
-        <div class="field" style="align-self:end"><button class="btn btn-s" (click)="reset()" style="height:36px">{{ 'reset_filters' | t }}</button></div>
+        <div class="field" style="align-self:end"><button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply_filters' | t : 'Apply Filters' }}</button></div>
       </div>
     </div>
 
     @if (auth.has('ConfirmTransfers')) {
       <div class="card" style="padding:14px 20px;margin-bottom:20px;display:flex;gap:10px;align-items:end;flex-wrap:wrap">
         <b style="font-size:12.5px;align-self:center">Batch Add Driver Info:</b>
-        <div class="field"><label>Driver Name</label><input class="input" style="width:160px" [(ngModel)]="batchName"></div>
-        <div class="field"><label>Mobile</label><input class="input" style="width:140px" [(ngModel)]="batchMobile"></div>
-        <div class="field"><label>Car No.</label><input class="input" style="width:110px" [(ngModel)]="batchCar"></div>
+        <div class="field"><label>{{ 'driver_name' | t : 'Driver Name:' }}</label><input class="input" style="width:160px" [(ngModel)]="batchName"></div>
+        <div class="field"><label>{{ 'mobile' | t : 'Mobile:' }}</label><input class="input" style="width:140px" [(ngModel)]="batchMobile"></div>
+        <div class="field"><label>{{ 'car_no' | t : 'Car No.:' }}</label><input class="input" style="width:110px" [(ngModel)]="batchCar"></div>
         <div class="field"><label>Transfer rep</label>
           <select class="select" style="width:170px" [(ngModel)]="batchRep"><option value="">—</option>@for (rep of reps(); track rep.id) { <option [value]="rep.id">{{ rep.fullName }}</option> }</select></div>
-        <button class="btn btn-s" style="height:36px" [disabled]="selectedCount() === 0" (click)="applyToSelected()">Apply to Selected ({{ selectedCount() }})</button>
+        <button class="btn btn-s" style="height:36px" [disabled]="selectedCount() === 0" (click)="applyToSelected()">{{ 'apply_to_selected' | t : 'Apply to Selected' }}</button>
       </div>
     }
 

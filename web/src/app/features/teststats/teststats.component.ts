@@ -33,20 +33,19 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
     @if (summary()) { <div class="inline-banner" [class.inline-banner-error]="summaryError()">{{ summary() }}</div> }
     <div class="small muted" style="margin-bottom:10px">{{ 'import_hint_tests' | t : 'Import columns: Date, TestCode, Count, Income.' }}</div>
 
-    <div class="kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">
+    <div class="kpis" style="grid-template-columns:repeat(2,1fr);margin-bottom:16px">
       <div class="kpi kpi-blue"><div class="lbl">{{ 'total_tests' | t : 'Total tests' }}</div><div class="val">{{ totals().count | number:'1.0-0' }}</div></div>
       <div class="kpi kpi-green"><div class="lbl">{{ 'total_income' | t : 'Total income' }}</div><div class="val">{{ totals().income | number:'1.0-0' }}</div><div class="sub">EGP</div></div>
-      <div class="kpi kpi-teal"><div class="lbl">{{ 'distinct_tests' | t : 'Distinct tests' }}</div><div class="val">{{ totals().distinct }}</div></div>
     </div>
 
     <div class="card" style="padding:16px;margin-bottom:16px">
       <div class="frm-grid" style="grid-template-columns:repeat(6,1fr);gap:12px;align-items:end">
-        <div class="field"><label>{{ 'view' | t : 'View by' }}</label><select class="select" [ngModel]="view()" (ngModelChange)="view.set($event)"><option value="daily">{{ 'daily_2' | t : 'Daily' }}</option><option value="monthly">{{ 'monthly' | t : 'Monthly' }}</option><option value="yearly">{{ 'yearly' | t : 'Yearly' }}</option></select></div>
         <div class="field"><label>{{ 'start_date' | t }}</label><input type="date" class="input" [(ngModel)]="from"></div>
         <div class="field"><label>{{ 'end_date' | t }}</label><input type="date" class="input" [(ngModel)]="to"></div>
-        <div class="field"><label>{{ 'search' | t : 'Search' }}</label><input class="input" [ngModel]="q()" (ngModelChange)="q.set($event)" placeholder="test name or code"></div>
+        <div class="field"><label>{{ 'view_by' | t : 'View By' }}</label><select class="select" [ngModel]="view()" (ngModelChange)="view.set($event)"><option value="daily">{{ 'daily_2' | t : 'Daily' }}</option><option value="monthly">{{ 'monthly' | t : 'Monthly' }}</option><option value="yearly">{{ 'yearly' | t : 'Yearly' }}</option></select></div>
+        <div class="field"><label>{{ 'search_test_code' | t : 'Search (Test/Code)' }}</label><input class="input" [ngModel]="q()" (ngModelChange)="q.set($event)" placeholder="test name or code"></div>
         <div class="field"><label>{{ 'group' | t : 'Group' }}</label><select class="select" [ngModel]="group()" (ngModelChange)="group.set($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (g of groups(); track g.id) { <option [value]="g.nameEn">{{ g.nameEn }}</option> }</select></div>
-        <div class="field"><button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply' | t : 'Apply' }}</button></div>
+        <div class="field"><button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply_filters' | t : 'Apply Filters' }}</button></div>
       </div>
     </div>
 
@@ -55,9 +54,9 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
       @else {
         <table class="grid-table" style="margin:0;border:none">
           <thead><tr>
-            <th>{{ view() === 'daily' ? ('date' | t : 'Date') : ('period' | t : 'Period') }}</th>
-            <th>{{ 'test_code' | t : 'Test code' }}</th><th>{{ 'test_name' | t : 'Test name' }}</th><th>{{ 'parent_group' | t : 'Parent group' }}</th>
-            <th class="r">{{ 'count' | t : 'Count' }}</th><th class="r">{{ 'income' | t : 'Income' }}</th>
+            <th>{{ 'date_period' | t : 'Date / Period' }}</th>
+            <th>{{ 'test_code_2' | t : 'Test Code' }}</th><th>{{ 'test_name_2' | t : 'Test Name' }}</th><th>{{ 'parent_group' | t : 'Parent Group' }}</th>
+            <th class="r">{{ 'test_count' | t : 'Test Count' }}</th><th class="r">{{ 'income' | t : 'Income' }}</th>
           </tr></thead>
           <tbody>
             @for (r of table(); track r.period + r.testCode) {

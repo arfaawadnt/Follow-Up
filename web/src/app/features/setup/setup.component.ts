@@ -57,7 +57,7 @@ const TABS: { key: Tab; label: string }[] = [
         <div class="card panel">
           <h3>Current Items</h3>
           <table class="items">
-            <thead><tr><th>{{ singular().toUpperCase() }}</th><th class="ar">ACTIONS</th></tr></thead>
+            <thead><tr><th>{{ singular() }}</th><th class="ar">Actions</th></tr></thead>
             <tbody>
               @for (r of refs(); track r.id) {
                 <tr>
@@ -101,7 +101,7 @@ const TABS: { key: Tab; label: string }[] = [
         <div class="card panel">
           <h3>Current Items</h3>
           <table class="items">
-            <thead><tr><th>CITY</th><th>GOVERNORATE</th><th class="ar">ACTIONS</th></tr></thead>
+            <thead><tr><th>City</th><th>Governorate</th><th class="ar">Actions</th></tr></thead>
             <tbody>
               @for (c of cities(); track c.id) {
                 <tr>
@@ -147,7 +147,7 @@ const TABS: { key: Tab; label: string }[] = [
         <div class="card panel">
           <h3>Current Items</h3>
           <table class="items">
-            <thead><tr><th>AREA</th><th>CITY</th><th>TRANSPORT</th><th class="ar">ACTIONS</th></tr></thead>
+            <thead><tr><th>Area</th><th>City</th><th>Transport</th><th class="ar">Actions</th></tr></thead>
             <tbody>
               @for (a of areas(); track a.id) {
                 <tr>
@@ -195,7 +195,7 @@ const TABS: { key: Tab; label: string }[] = [
           @if (canEdit()) { <button class="btn btn-s btn-mini" (click)="addTier()">+ Add tier</button> }
         </div>
         <table class="items">
-          <thead><tr><th>TIER</th><th>MIN ACHIEVEMENT (%)</th><th>POINTS</th><th class="ar"></th></tr></thead>
+          <thead><tr><th>Tier</th><th>Min Achievement (%)</th><th>Points</th><th class="ar"></th></tr></thead>
           <tbody>
             @for (t of comp.tiers; track $index) {
               <tr>

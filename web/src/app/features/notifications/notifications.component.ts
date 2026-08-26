@@ -1,47 +1,38 @@
 import { Component, inject, signal } from '@angular/core';
-import { DatePipe } from '@angular/common';
+import { forkJoin } from 'rxjs';
 import { ApiService } from '../../core/api.service';
-import { NotificationStore } from '../../core/notification.store';
-import { NotificationItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
 
 interface Preference { eventKey: string; system: boolean; mail: boolean; whatsApp: boolean; }
 interface Gateway { name: string; enabled: boolean; maskedSecret: string; }
 interface DeliveryLog { id: string; channel: string; recipient: string; eventKey: string; status: string; attempts: number; lastError: string | null; }
-type Tab = 'feed' | 'preferences' | 'gateways' | 'logs';
+type Tab = 'preferences' | 'gateways' | 'logs';
 
 @Component({
   selector: 'app-notifications',
   standalone: true,
-  imports: [DatePipe, TranslatePipe],
+  imports: [TranslatePipe],
   template: `
-    <div class="pagehead"><div><div class="breadcrumbs">Home / {{ 'notifications_mgmt' | t : 'Notifications' }}</div><h1>{{ 'notifications_mgmt' | t : 'Notifications' }}</h1></div></div>
-
-    <div class="tabs" style="display:flex;gap:6px;margin-bottom:14px">
-      <button class="tab" [class.on]="tab() === 'feed'" (click)="tab.set('feed')">{{ 'notifications' | t : 'Feed' }}</button>
-      <button class="tab" [class.on]="tab() === 'preferences'" (click)="setTab('preferences')">{{ 'preferences' | t : 'Preferences' }}</button>
-      <button class="tab" [class.on]="tab() === 'gateways'" (click)="setTab('gateways')">{{ 'gateways' | t : 'Gateways' }}</button>
-      <button class="tab" [class.on]="tab() === 'logs'" (click)="setTab('logs')">{{ 'notification_logs' | t : 'Delivery logs' }}</button>
+    <div class="pagehead">
+      <div><div class="breadcrumbs">Home / {{ 'notifications_control_panel' | t : 'Notifications Control Panel' }}</div><h1>{{ 'notifications_control_panel' | t : 'Notifications Control Panel' }}</h1></div>
+      @if (tab() === 'preferences') { <div class="pagehead-actions"><button class="btn btn-p" [disabled]="!dirty().size || busy()" (click)="saveSettings()">{{ 'save_settings' | t : 'Save Settings' }}</button></div> }
     </div>
 
-    @if (tab() === 'feed') {
-      <div class="card"><div class="cbody" style="padding:0">
-        <div style="display:flex;justify-content:flex-end;padding:10px 14px;border-bottom:1px solid var(--slate-150)"><button class="btn btn-s" (click)="markAll()">Mark all read</button></div>
-        @for (n of feed(); track n.id) {
-          <div class="note" [class.unread]="!n.isRead" (click)="read(n)"><div class="t">{{ n.title }}</div><div class="b">{{ n.body }}</div><div class="m mono">{{ n.createdAt | date:'short' }}</div></div>
-        } @empty { <p class="empty" style="padding:20px">{{ 'common.empty' | t : 'Nothing to show.' }}</p> }
-      </div></div>
-    }
+    <div class="tabs" style="display:flex;gap:6px;margin-bottom:14px">
+      <button class="tab" [class.on]="tab() === 'preferences'" (click)="setTab('preferences')">{{ 'my_preferences' | t : 'My Preferences' }}</button>
+      <button class="tab" [class.on]="tab() === 'gateways'" (click)="setTab('gateways')">{{ 'mail_and_whatsapp_gateways' | t : 'Mail & WhatsApp Gateways' }}</button>
+      <button class="tab" [class.on]="tab() === 'logs'" (click)="setTab('logs')">{{ 'delivery_monitor' | t : 'Delivery Monitor' }}</button>
+    </div>
 
     @if (tab() === 'preferences') {
       <div class="card" style="padding:0;overflow:hidden"><table class="grid-table" style="margin:0;border:none">
-        <thead><tr><th>Event</th><th style="text-align:center">System</th><th style="text-align:center">Mail</th><th style="text-align:center">WhatsApp</th></tr></thead>
+        <thead><tr><th>{{ 'alert_type' | t : 'Alert Type' }}</th><th style="text-align:center">{{ 'in_app_alerts' | t : 'In-App Alerts' }}</th><th style="text-align:center">{{ 'email_alerts' | t : 'Email Alerts' }}</th><th style="text-align:center">{{ 'whatsapp_alerts' | t : 'WhatsApp Alerts' }}</th></tr></thead>
         <tbody>
           @for (p of prefs(); track p.eventKey) {
             <tr><td class="mono small">{{ p.eventKey }}</td>
-              <td style="text-align:center"><input type="checkbox" [checked]="p.system" (change)="savePref(p, 'system', $event)"></td>
-              <td style="text-align:center"><input type="checkbox" [checked]="p.mail" (change)="savePref(p, 'mail', $event)"></td>
-              <td style="text-align:center"><input type="checkbox" [checked]="p.whatsApp" (change)="savePref(p, 'whatsApp', $event)"></td></tr>
+              <td style="text-align:center"><input type="checkbox" [checked]="p.system" (change)="togglePref(p, 'system', $event)"></td>
+              <td style="text-align:center"><input type="checkbox" [checked]="p.mail" (change)="togglePref(p, 'mail', $event)"></td>
+              <td style="text-align:center"><input type="checkbox" [checked]="p.whatsApp" (change)="togglePref(p, 'whatsApp', $event)"></td></tr>
           } @empty { <tr><td colspan="4" class="empty" style="text-align:center;padding:24px">—</td></tr> }
         </tbody>
       </table></div>
@@ -71,34 +62,38 @@ type Tab = 'feed' | 'preferences' | 'gateways' | 'logs';
   styles: [`
     .tab{background:var(--white);border:1px solid var(--slate-300);color:var(--slate-700);border-radius:var(--r-btn);padding:7px 16px;font:600 12.5px var(--ui);cursor:pointer}
     .tab.on{background:var(--primary-blue);color:#fff;border-color:var(--primary-blue)}
-    .note{padding:12px 14px;border-bottom:1px solid var(--slate-150);cursor:pointer}.note.unread{background:var(--primary-blue-light)}
-    .note .t{font-weight:600;font-size:13px}.note .b{color:var(--slate-700);font-size:12.5px}.note .m{color:var(--slate-500);font-size:11px;margin-top:2px}.empty{color:var(--slate-500)}
+    .empty{color:var(--slate-500)}
   `],
 })
 export class NotificationsComponent {
   private readonly api = inject(ApiService);
-  private readonly store = inject(NotificationStore);
-  readonly tab = signal<Tab>('feed');
-  readonly feed = signal<NotificationItem[]>([]);
+  readonly tab = signal<Tab>('preferences');
   readonly prefs = signal<Preference[]>([]);
   readonly gateways = signal<Gateway[]>([]);
   readonly logs = signal<DeliveryLog[]>([]);
+  readonly dirty = signal<Set<string>>(new Set());
+  readonly busy = signal(false);
 
-  constructor() { this.loadFeed(); }
+  constructor() { this.loadPrefs(); }
 
   setTab(t: Tab): void {
     this.tab.set(t);
-    if (t === 'preferences' && !this.prefs().length) this.api.get<Preference[]>('/notifications/preferences').subscribe({ next: (r) => this.prefs.set(r) });
+    if (t === 'preferences' && !this.prefs().length) this.loadPrefs();
     if (t === 'gateways' && !this.gateways().length) this.api.get<Gateway[]>('/notifications/gateways').subscribe({ next: (r) => this.gateways.set(r) });
     if (t === 'logs') this.api.get<DeliveryLog[]>('/notifications/logs').subscribe({ next: (r) => this.logs.set(r) });
   }
-  loadFeed(): void { this.api.get<NotificationItem[]>('/notifications').subscribe({ next: (n) => { this.feed.set(n); this.store.refresh(); } }); }
-  read(n: NotificationItem): void { if (!n.isRead) this.api.post(`/notifications/${n.id}/read`, {}).subscribe({ next: () => this.loadFeed() }); }
-  markAll(): void { this.api.post('/notifications/read-all', {}).subscribe({ next: () => this.loadFeed() }); }
-  savePref(p: Preference, field: 'system' | 'mail' | 'whatsApp', e: Event): void {
+  loadPrefs(): void { this.api.get<Preference[]>('/notifications/preferences').subscribe({ next: (r) => { this.prefs.set(r); this.dirty.set(new Set()); } }); }
+  togglePref(p: Preference, field: 'system' | 'mail' | 'whatsApp', e: Event): void {
     const val = (e.target as HTMLInputElement).checked;
-    const body = { eventKey: p.eventKey, system: p.system, mail: p.mail, whatsApp: p.whatsApp, [field]: val };
-    this.api.put('/notifications/preferences', body).subscribe({ next: () => { (p as unknown as Record<string, boolean>)[field] = val; } });
+    this.prefs.update((list) => list.map((x) => x.eventKey === p.eventKey ? { ...x, [field]: val } : x));
+    this.dirty.update((s) => new Set(s).add(p.eventKey));
+  }
+  saveSettings(): void {
+    const changed = this.prefs().filter((p) => this.dirty().has(p.eventKey));
+    if (!changed.length) return;
+    this.busy.set(true);
+    forkJoin(changed.map((p) => this.api.put('/notifications/preferences', { eventKey: p.eventKey, system: p.system, mail: p.mail, whatsApp: p.whatsApp })))
+      .subscribe({ next: () => { this.dirty.set(new Set()); this.busy.set(false); }, error: () => this.busy.set(false) });
   }
   retry(l: DeliveryLog): void { this.api.post(`/notifications/logs/${l.id}/retry`, {}).subscribe({ next: () => this.setTab('logs') }); }
 }

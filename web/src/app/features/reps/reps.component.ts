@@ -15,7 +15,7 @@ const EMPLOYMENT = ['Full-time', 'Part-time', 'Contract'];
   imports: [FormsModule, DecimalPipe, TranslatePipe],
   template: `
     <div class="pagehead" style="display:flex;justify-content:space-between;align-items:center">
-      <div><div class="breadcrumbs">Home / {{ 'reps_2' | t : 'Representative Profiles' }}</div><h1>{{ 'reps_2' | t : 'Representative Profiles' }}</h1></div>
+      <div><div class="breadcrumbs">Home / {{ 'reps_2' | t : 'Representative Profiles' }}</div><h1>{{ 'representative_profiles' | t : 'Representative Profiles' }}</h1></div>
       @if (canEdit()) { <button class="btn btn-p" (click)="openNew()" style="height:38px">+ {{ 'new_representative' | t : 'New representative' }}</button> }
     </div>
 
@@ -53,7 +53,7 @@ const EMPLOYMENT = ['Full-time', 'Part-time', 'Contract'];
       @if (loading()) { <div class="empty" style="padding:24px">Loading…</div> }
       @else {
         <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
-          <thead><tr><th>Representative</th><th>Type</th><th>Phone</th><th>Goal</th><th>Target</th><th>Duration</th><th>Salary</th><th>Assigned</th><th></th></tr></thead>
+          <thead><tr><th>Representative</th><th>Type</th><th>Phone</th><th>Goal</th><th>Target</th><th>Duration</th><th>Salary</th><th>{{ 'assigned_labs' | t : 'Assigned Labs' }}</th><th></th></tr></thead>
           <tbody>
             @for (r of filtered(); track r.id) {
               <tr>

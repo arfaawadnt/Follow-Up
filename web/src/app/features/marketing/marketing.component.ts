@@ -25,33 +25,28 @@ const STATUSES = ['All', 'Scheduled', 'Completed', 'Cancelled'];
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'marketing_visit_followup' | t : 'Marketing' }}</div><h1>{{ 'marketing_visit_followup' | t : 'Marketing Visits' }}</h1></div>
-      <div class="pagehead-actions">@if (auth.has('AddMarketing')) { <button class="btn btn-p" (click)="openForm()">{{ 'schedule_btn' | t : 'Schedule visit' }}</button> }</div>
+      <div class="pagehead-actions">@if (auth.has('AddMarketing')) { <button class="btn btn-p" (click)="openForm()">{{ 'schedule_visit_btn' | t : '+ Schedule visit' }}</button> }</div>
     </div>
 
-    <div class="kpis" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px">
-      <div class="kpi kpi-teal"><div class="lbl">{{ 'total' | t }}</div><div class="val">{{ items().length }}</div></div>
-      <div class="kpi kpi-blue"><div class="lbl">Scheduled</div><div class="val">{{ count('Scheduled') }}</div></div>
-      <div class="kpi kpi-green"><div class="lbl">Completed</div><div class="val">{{ count('Completed') }}</div></div>
-      <div class="kpi kpi-red"><div class="lbl">Cancelled</div><div class="val">{{ count('Cancelled') }}</div></div>
-    </div>
-
+    <!-- Reference has no KPI cards here: the status pills with counts are the summary. -->
     <div class="card" style="padding:12px;margin-bottom:16px;display:flex;gap:6px">
-      @for (s of statuses; track s) { <span class="pill" [class.on]="status() === s" (click)="status.set(s)">{{ s === 'All' ? ('all' | t) : s }} ({{ s === 'All' ? items().length : count(s) }})</span> }
+      @for (s of statuses; track s) { <span class="pill" [class.on]="status() === s" (click)="status.set(s)">{{ s === 'All' ? ('all' | t) : s }} · {{ s === 'All' ? items().length : count(s) }}</span> }
     </div>
 
     <div class="card" style="padding:0;overflow:hidden">
       @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
       @else {
         <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
-          <thead><tr><th>{{ 'ref' | t : 'Ref' }}</th><th>{{ 'laboratory' | t }}</th><th>{{ 'rep' | t }}</th><th>{{ 'purpose' | t }}</th><th>{{ 'date' | t }}</th><th>{{ 'time' | t : 'Time' }}</th><th>{{ 'status' | t }}</th><th>{{ 'outcome_plan' | t : 'Outcome / Plan' }}</th><th></th></tr></thead>
+          <thead><tr><th>{{ 'ref' | t : 'Ref' }}</th><th>{{ 'laboratory' | t }}</th><th>{{ 'rep' | t }}</th><th>{{ 'date' | t }}</th><th>{{ 'time' | t : 'Time' }}</th><th>{{ 'purpose' | t }}</th><th>{{ 'status' | t }}</th><th>{{ 'outcome_plan' | t : 'Outcome / Plan' }}</th><th></th></tr></thead>
           <tbody>
             @for (v of shown(); track v.id) {
               <tr>
                 <td class="mono">{{ v.reference }}</td>
                 <td><b style="color:var(--slate-900)">{{ v.lab }}</b><div class="small muted">{{ v.labDisplayCode }}@if (v.area) { · {{ v.area }} }</div></td>
-                <td>{{ v.rep ?? '—' }}</td><td>{{ purposeLabel(v.purpose) }}</td>
+                <td>{{ v.rep ?? '—' }}</td>
                 <td class="mono small">{{ v.scheduledDate | date:'mediumDate' }}</td>
                 <td class="mono small">{{ v.scheduledTime ?? '—' }}</td>
+                <td>{{ purposeLabel(v.purpose) }}</td>
                 <td><span class="badge" [class]="badge(v.status)">{{ v.status }}</span></td>
                 <td class="small">
                   @if (v.status === 'Scheduled') { {{ v.plan ? 'Plan: ' + v.plan : '—' }} }

@@ -31,6 +31,7 @@ public sealed record CreateUserCommand : ICommand<Guid>, IAuthorizedRequest
     public string Username { get; init; } = string.Empty;
     public string Password { get; init; } = string.Empty;
     public Guid RoleId { get; init; }
+    public string? DisplayName { get; init; }
     public string? Email { get; init; }
     public string? Phone { get; init; }
     public string Language { get; init; } = "en";
@@ -74,6 +75,7 @@ public sealed class CreateUserHandler : ICommandHandler<CreateUserCommand, Guid>
 
         var user = AppUser.Create(request.Username, _hasher.Hash(request.Password), role.Id);
         user.SetProfile(request.Email, request.Phone);
+        user.SetDisplayName(request.DisplayName);
         user.SetLanguage(request.Language);
         if (repId is { } rid) user.LinkRepresentative(rid);
 
@@ -88,6 +90,7 @@ public sealed record UpdateUserCommand : ICommand, IAuthorizedRequest
 {
     public Guid Id { get; init; }
     public Guid RoleId { get; init; }
+    public string? DisplayName { get; init; }
     public string? Email { get; init; }
     public string? Phone { get; init; }
     public string Language { get; init; } = "en";
@@ -120,6 +123,7 @@ public sealed class UpdateUserHandler : ICommandHandler<UpdateUserCommand>
 
         user.ChangeRole(role.Id);
         user.SetProfile(request.Email, request.Phone);
+        user.SetDisplayName(request.DisplayName);
         user.SetLanguage(request.Language);
         user.LinkRepresentative(request.RepresentativeId is { } r ? new RepresentativeId(r) : null);
         return Unit.Value;

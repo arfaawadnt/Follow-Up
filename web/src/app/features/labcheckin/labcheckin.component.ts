@@ -18,16 +18,16 @@ import { exportCsv, printTable, localToday, localDateTime } from '../../shared/e
         <button class="btn btn-s" (click)="exportExcel()" [disabled]="!filtered().length">Export Excel</button>
         <button class="btn btn-s" (click)="exportPdf()" [disabled]="!filtered().length">Export PDF</button>
         @if (auth.has('ConfirmTransfers')) {
-          <button class="btn btn-p" (click)="confirmSelected()" [disabled]="busy() || selected.size === 0">Confirm Selected Receipts ({{ selected.size }})</button>
+          <button class="btn btn-p" (click)="confirmSelected()" [disabled]="busy() || selected.size === 0">{{ 'confirm_selected_receipts' | t : 'Confirm Selected Receipts' }}</button>
         }
       </div>
     </div>
 
     <div class="kpis" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">
-      <div class="kpi kpi-teal"><div class="lbl">{{ 'transferred_samples' | t }}</div><div class="val">{{ k().total | number:'1.0-0' }}</div><div class="sub">{{ 'in_transit_or_received' | t : 'In transit or received' }}</div></div>
-      <div class="kpi kpi-green"><div class="lbl">{{ 'received_samples' | t : 'Received samples' }}</div><div class="val">{{ k().received | number:'1.0-0' }}</div><div class="sub">{{ 'confirmed_at_lab' | t : 'Confirmed at lab' }}</div></div>
-      <div class="kpi kpi-orange"><div class="lbl">{{ 'pending_receipt' | t : 'Pending receipt' }}</div><div class="val">{{ k().pending | number:'1.0-0' }}</div><div class="sub">{{ 'awaiting_confirmation' | t }}</div></div>
-      <div class="kpi kpi-blue"><div class="lbl">{{ 'receipt_rate' | t : 'Receipt rate' }}</div><div class="val">{{ k().rate }}%</div><div class="sub">{{ 'overall_completion_rate' | t }}</div></div>
+      <div class="kpi kpi-teal"><div class="lbl">{{ 'total_transferred_samples' | t : 'Total Transferred Samples' }}</div><div class="val">{{ k().total | number:'1.0-0' }}</div><div class="sub">{{ 'in_transit_or_received' | t : 'In transit or received' }}</div></div>
+      <div class="kpi kpi-green"><div class="lbl">{{ 'received_samples' | t : 'Received Samples' }}</div><div class="val">{{ k().received | number:'1.0-0' }}</div><div class="sub">{{ 'confirmed_at_lab' | t : 'Confirmed at lab' }}</div></div>
+      <div class="kpi kpi-orange"><div class="lbl">{{ 'awaiting_receipt' | t : 'Awaiting Receipt' }}</div><div class="val">{{ k().pending | number:'1.0-0' }}</div><div class="sub">{{ 'awaiting_confirmation' | t }}</div></div>
+      <div class="kpi kpi-blue"><div class="lbl">{{ 'receipt_completion_rate' | t : 'Receipt Completion Rate' }}</div><div class="val">{{ k().rate }}%</div><div class="sub">{{ 'overall_completion_rate' | t }}</div></div>
     </div>
 
     <div class="card" style="padding:20px;margin-bottom:20px">
@@ -48,8 +48,7 @@ import { exportCsv, printTable, localToday, localDateTime } from '../../shared/e
           <select class="select" [(ngModel)]="repFilter"><option value="All">{{ 'all_2' | t }}</option>@for (n of repNames(); track n) { <option [value]="n">{{ n }}</option> }</select></div>
       </div>
       <div style="display:flex;gap:8px;margin-top:12px">
-        <button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply_dates' | t }}</button>
-        <button class="btn btn-s" (click)="reset()" style="height:36px">{{ 'reset_filters' | t }}</button>
+        <button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply_filters' | t : 'Apply Filters' }}</button>
       </div>
     </div>
 
@@ -60,7 +59,7 @@ import { exportCsv, printTable, localToday, localDateTime } from '../../shared/e
           <thead><tr>
             <th style="width:28px"><input type="checkbox" [checked]="allSelected()" (change)="toggleAll()"></th>
             <th>{{ 'laboratory_2' | t }}</th><th>{{ 'collection_date_and_time' | t }}</th><th>{{ 'collector_rep' | t : 'Collector rep' }}</th>
-            <th>{{ 'samples' | t }}</th><th>Transfer time</th><th>{{ 'status_3' | t }}</th><th style="text-align:center">{{ 'confirm_receipt' | t : 'Confirm receipt' }}</th>
+            <th>{{ 'samples' | t }}</th><th>{{ 'transfer_time' | t : 'Transfer Time' }}</th><th>{{ 'status_3' | t }}</th><th style="text-align:center">{{ 'confirm_receipt' | t : 'Confirm receipt' }}</th>
           </tr></thead>
           <tbody>
             @for (r of filtered(); track r.visitId) {

@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { IconsService } from '../../core/icons.service';
-import { TranslatePipe } from '../../core/i18n';
+import { I18nService, TranslatePipe } from '../../core/i18n';
 
 interface OracleConfig {
   enabled: boolean; intervalHours: number; allowListedQueries: string[];
@@ -45,12 +45,37 @@ interface OracleConfig {
           </div>
 
           <div class="field">
-            <label style="font-weight:600;margin-bottom:6px;display:block;color:var(--slate-700)">{{ 'sync_interval_hours' | t : 'Sync interval (hours)' }}</label>
-            <input class="input" type="number" min="1" [(ngModel)]="intervalHours" style="width:140px">
+            <label style="font-weight:600;margin-bottom:6px;display:block;color:var(--slate-700)">{{ 'sync_interval_required' | t : 'Sync Interval *' }}</label>
+            <select class="input" [(ngModel)]="intervalHours" style="width:100%">
+              <option [ngValue]="24">{{ 'sync_interval_once_per_day' | t : 'Once per day (24 hours - Recommended to reduce load)' }}</option>
+              <option [ngValue]="12">{{ 'sync_interval_every_12_hours' | t : 'Every 12 hours' }}</option>
+              <option [ngValue]="6">{{ 'sync_interval_every_6_hours' | t : 'Every 6 hours' }}</option>
+              <option [ngValue]="1">{{ 'sync_interval_every_hour' | t : 'Every hour' }}</option>
+            </select>
           </div>
 
+          <div class="field">
+            <label style="font-weight:600;margin-bottom:6px;display:block;color:var(--slate-700)">{{ 'laboratory_sync_sql_query_required' | t : 'Laboratory Sync SQL Query *' }}</label>
+            <textarea class="input" disabled rows="3" [value]="queryValue('Labs')"
+                      style="width:100%;font-family:monospace;font-size:12px;background:var(--slate-100);color:var(--slate-500);resize:none"></textarea>
+          </div>
+
+          <div class="field">
+            <label style="font-weight:600;margin-bottom:6px;display:block;color:var(--slate-700)">{{ 'daily_lab_statistics_sql_query' | t : 'Daily Lab Statistics SQL Query' }}</label>
+            <textarea class="input" disabled rows="3" [value]="queryValue('LabStats')"
+                      style="width:100%;font-family:monospace;font-size:12px;background:var(--slate-100);color:var(--slate-500);resize:none"></textarea>
+          </div>
+
+          <div class="field">
+            <label style="font-weight:600;margin-bottom:6px;display:block;color:var(--slate-700)">{{ 'daily_test_statistics_sql_query' | t : 'Daily Test Statistics SQL Query' }}</label>
+            <textarea class="input" disabled rows="3" [value]="queryValue('TestStats')"
+                      style="width:100%;font-family:monospace;font-size:12px;background:var(--slate-100);color:var(--slate-500);resize:none"></textarea>
+          </div>
+
+          <p class="muted small" style="margin:0">{{ 'queries_allow_listed_server_config_hint' | t : 'SQL queries are allow-listed via server configuration for security (SRS FR-17).' }}</p>
+
           @if (auth.has('OracleIntegration')) {
-            <div><button class="btn btn-p" [disabled]="busy()" (click)="save()">{{ 'save' | t : 'Save' }}</button></div>
+            <div><button class="btn btn-p" [disabled]="busy()" (click)="save()">{{ 'save_settings' | t : 'Save Settings' }}</button></div>
           }
         </div>
 
@@ -77,6 +102,7 @@ interface OracleConfig {
 export class IntegrationComponent {
   private readonly api = inject(ApiService);
   private readonly icons = inject(IconsService);
+  private readonly i18n = inject(I18nService);
   readonly auth = inject(AuthService);
   readonly busy = signal(false);
   readonly c = signal<OracleConfig | null>(null);
@@ -95,6 +121,14 @@ export class IntegrationComponent {
   }
   private apply(c: OracleConfig): void { this.c.set(c); this.enabled = c.enabled; this.intervalHours = c.intervalHours; this.icons.render(); }
   statusClass(s: string | null): string { return s === 'Success' ? 'b-ok' : s === 'Failed' ? 'b-bad' : 'b-neu'; }
+
+  /** SQL text is config-managed server-side (SRS FR-17) — only the allow-listed status is shown. */
+  queryValue(name: string): string {
+    const configured = (this.c()?.allowListedQueries ?? []).includes(name);
+    return '-- managed via server configuration --\n' + (configured
+      ? this.i18n.t('query_configured', 'Configured ✓')
+      : this.i18n.t('query_not_configured', 'Not configured'));
+  }
 
   save(): void {
     this.busy.set(true); this.banner.set(null);

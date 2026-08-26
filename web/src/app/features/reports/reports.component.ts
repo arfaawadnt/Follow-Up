@@ -39,7 +39,7 @@ interface LabHistory {
 
     <div class="toolbar" style="margin-bottom:14px;display:flex;gap:6px">
       <span class="pill" [class.on]="tab() === 'overview'" (click)="tab.set('overview')">{{ 'network_overview' | t : 'Network overview' }}</span>
-      <span class="pill" [class.on]="tab() === 'performance'" (click)="setPerf()">{{ 'rep_attainment' | t : 'Rep attainment' }}</span>
+      <span class="pill" [class.on]="tab() === 'performance'" (click)="setPerf()">{{ 'rep_attainment' | t : 'Rep Attainment' }}</span>
       <span class="pill" [class.on]="tab() === 'labhistory'" (click)="setHist()">{{ 'lab_histories' | t : 'Lab histories' }}</span>
     </div>
 

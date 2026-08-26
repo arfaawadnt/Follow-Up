@@ -27,11 +27,12 @@ internal sealed class UserAdminQueries : IUserAdminQueries
         var rows = await (from u in q
                           join r in _db.Roles.AsNoTracking() on u.RoleId equals r.Id
                           orderby u.Username
-                          select new { u.Id, u.Username, RoleName = r.Name, u.Email, u.IsActive, u.LockedUntil })
+                          select new { u.Id, u.Username, u.DisplayName, RoleName = r.Name, u.Language, Role = r, u.Email, u.IsActive, u.LockedUntil })
                          .Skip(query.Skip).Take(query.PageSize).ToListAsync(ct);
 
         var items = rows.Select(u => new UserListItemDto(
-            u.Id.Value, u.Username, u.RoleName, u.Email, u.IsActive, u.LockedUntil.HasValue && u.LockedUntil > now)).ToList();
+            u.Id.Value, u.Username, u.DisplayName, u.RoleName, u.Language, u.Role.EffectivePrivileges.Count,
+            u.Email, u.IsActive, u.LockedUntil.HasValue && u.LockedUntil > now)).ToList();
         return PagedResult<UserListItemDto>.Create(items, total, query.Page, query.PageSize);
     }
 
@@ -48,7 +49,9 @@ internal sealed class UserAdminQueries : IUserAdminQueries
     {
         var roles = await _db.Roles.AsNoTracking().OrderBy(r => r.Name).ToListAsync(ct);
         return roles.Select(r => new RoleDto(
-            r.Id.Value, r.Name, r.Privileges.ToList(), r.DefaultLanguage, r.DefaultTheme, r.IsBuiltIn)).ToList();
+            r.Id.Value, r.Name, r.Privileges.ToList(), r.DefaultLanguage, r.DefaultTheme, r.IsBuiltIn,
+            new RoleScopeDto(r.Scope.Branches.ToList(), r.Scope.Governorates.ToList(), r.Scope.Cities.ToList(),
+                r.Scope.Areas.ToList(), r.Scope.Categories.ToList(), r.Scope.Segments.ToList()))).ToList();
     }
 }
 

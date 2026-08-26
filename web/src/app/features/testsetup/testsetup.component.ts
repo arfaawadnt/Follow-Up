@@ -22,7 +22,7 @@ interface TestSetup { id: string; code: string; nameEn: string; nameAr: string |
           <div class="field"><label>{{ 'test_code' | t : 'Test code' }}</label><input class="input" [(ngModel)]="code" [disabled]="!!editId()" placeholder="e.g. GLU"></div>
           <div class="field" style="margin-top:10px"><label>{{ 'test_name' | t : 'Test name' }}</label><input class="input" [(ngModel)]="name" placeholder="e.g. Glucose"></div>
           <div class="field" style="margin-top:10px"><label>{{ 'parent_group' | t : 'Parent group' }}</label>
-            <select class="select" [(ngModel)]="groupId"><option [ngValue]="null">{{ 'select_group' | t : '— no group —' }}</option>@for (g of groups(); track g.id) { <option [ngValue]="g.id">{{ g.code }} · {{ g.nameEn }}</option> }</select></div>
+            <select class="select" [(ngModel)]="groupId"><option [ngValue]="null">{{ 'select_group_placeholder' | t : '-- Select Group --' }}</option>@for (g of groups(); track g.id) { <option [ngValue]="g.id">{{ g.nameEn }} ({{ g.code }})</option> }</select></div>
           <div style="display:flex;gap:8px;margin-top:15px">
             <button class="btn btn-p" [disabled]="busy() || !code || !name" (click)="save()">{{ 'save_2' | t : 'Save' }}</button>
             @if (editId()) { <button class="btn btn-s" (click)="reset()">{{ 'cancel_2' | t : 'Cancel' }}</button> }
@@ -33,7 +33,7 @@ interface TestSetup { id: string; code: string; nameEn: string; nameAr: string |
         @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
         @else {
           <table class="grid-table" style="margin:0;border:none">
-            <thead><tr><th>{{ 'test_code' | t : 'Code' }}</th><th>{{ 'test_name' | t : 'Name' }}</th><th>{{ 'parent_group' | t : 'Group' }}</th><th style="width:130px"></th></tr></thead>
+            <thead><tr><th>{{ 'test_code_2' | t : 'Test Code' }}</th><th>{{ 'test_name_2' | t : 'Test Name' }}</th><th>{{ 'parent_group' | t : 'Parent Group' }}</th><th style="width:130px"></th></tr></thead>
             <tbody>
               @for (s of setups(); track s.id) {
                 <tr><td class="mono">{{ s.code }}</td><td>{{ s.nameEn }}</td><td>{{ groupName(s.groupId) }}</td>

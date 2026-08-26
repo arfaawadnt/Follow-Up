@@ -16,7 +16,7 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
   imports: [FormsModule, DecimalPipe, TranslatePipe],
   template: `
     <div class="pagehead" style="display:flex;justify-content:space-between;align-items:center">
-      <div><div class="breadcrumbs">Home / {{ 'daily' | t }}</div><h1>{{ 'daily' | t }}</h1></div>
+      <div><div class="breadcrumbs">Home / {{ 'daily' | t }}</div><h1>{{ 'daily_followup_board' | t : 'Daily Follow-up Board' }}</h1></div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-s" (click)="exportExcel()" [disabled]="!filtered().length">Export Excel</button>
         <button class="btn btn-s" (click)="exportPdf()" [disabled]="!filtered().length">Export PDF</button>
@@ -73,7 +73,7 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
       @else {
         <table id="daily-table">
           <tr><th>{{ 'date' | t }} &amp; {{ 'time' | t }}</th><th>{{ 'laboratory' | t }}</th><th>{{ 'collector' | t }}</th>
-            <th>{{ 'status' | t }}</th><th>{{ 'samples' | t }}</th><th>Marked at</th><th>Verified</th><th></th></tr>
+            <th>{{ 'status' | t }}</th><th>{{ 'samples' | t }}</th><th>{{ 'marked_at' | t : 'Marked At' }}</th><th>Verified</th><th></th></tr>
           @for (v of filtered(); track v.visitId) {
             <tr>
               <td class="mono">{{ v.visitDate }}<div class="small muted">{{ v.scheduledTime }}</div></td>

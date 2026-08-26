@@ -4,10 +4,15 @@ using FollowUp.Domain.Identity;
 
 namespace FollowUp.Application.Features.UserAdmin.Queries;
 
-public sealed record UserListItemDto(Guid Id, string Username, string RoleName, string? Email, bool IsActive, bool IsLocked);
+public sealed record UserListItemDto(Guid Id, string Username, string? DisplayName, string RoleName, string Language,
+    int PrivilegeCount, string? Email, bool IsActive, bool IsLocked);
 public sealed record UserLookupDto(Guid Id, string Username);
+public sealed record RoleScopeDto(
+    IReadOnlyList<string> Branches, IReadOnlyList<string> Governorates, IReadOnlyList<string> Cities,
+    IReadOnlyList<string> Areas, IReadOnlyList<string> Categories, IReadOnlyList<string> Segments);
 public sealed record RoleDto(
-    Guid Id, string Name, IReadOnlyList<string> Privileges, string DefaultLanguage, string DefaultTheme, bool IsBuiltIn);
+    Guid Id, string Name, IReadOnlyList<string> Privileges, string DefaultLanguage, string DefaultTheme,
+    bool IsBuiltIn, RoleScopeDto Scope);
 
 public interface IUserAdminQueries
 {
