@@ -83,7 +83,7 @@ const STEPS: { label: string; stage: string }[] = [
           <form [formGroup]="form" (ngSubmit)="submit()" style="padding:16px">
             @if (formError()) { <div class="inline-banner inline-banner-error">{{ formError() }}</div> }
             <div class="frm-grid" style="grid-template-columns:1fr 1fr;gap:12px">
-              <div class="field"><label>{{ 'laboratory_lbl' | t : 'Laboratory' }} *</label>
+              <div class="field"><label>{{ 'laboratory_lbl' | t : 'Laboratory *' }}</label>
                 <select class="select" formControlName="laboratoryId"><option value="">—</option>@for (l of labs(); track l.id) { <option [value]="l.id">{{ l.displayCode }} · {{ l.name }}</option> }</select></div>
               <div class="field"><label>{{ 'category' | t }}</label><select class="select" formControlName="category">@for (c of categories; track c) { <option>{{ c }}</option> }</select></div>
               <div class="field"><label>{{ 'representative' | t : 'Representative' }}</label>
@@ -92,7 +92,7 @@ const STEPS: { label: string; stage: string }[] = [
               <div class="field"><label>{{ 'received_via' | t : 'Received via' }}</label><select class="select" formControlName="viaChannel">@for (c of channels; track c) { <option>{{ c }}</option> }</select></div>
               <div class="field"><label>{{ 'assign_to' | t : 'Assign to' }}</label>
                 <select class="select" formControlName="assignedTeam"><option value="">—</option>@for (t of teams(); track t.id) { <option [value]="t.nameEn">{{ t.nameEn }}</option> }</select></div>
-              <div class="field" style="grid-column:1/-1"><label>{{ 'description_lbl' | t : 'Description' }} *</label><textarea class="input" rows="3" formControlName="details"></textarea></div>
+              <div class="field" style="grid-column:1/-1"><label>{{ 'description_lbl' | t : 'Description *' }}</label><textarea class="input" rows="3" formControlName="details"></textarea></div>
             </div>
             <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
               <button class="btn btn-s" type="button" (click)="showLog.set(false)">{{ 'cancel' | t }}</button>

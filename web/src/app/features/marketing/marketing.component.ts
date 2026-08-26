@@ -77,7 +77,7 @@ const STATUSES = ['All', 'Scheduled', 'Completed', 'Cancelled'];
           <form [formGroup]="form" (ngSubmit)="submit()" style="padding:16px">
             @if (formError()) { <div class="inline-banner inline-banner-error">{{ formError() }}</div> }
             <div class="frm-grid" style="grid-template-columns:1fr 1fr;gap:12px">
-              <div class="field"><label>{{ 'laboratory_lbl' | t : 'Laboratory' }} *</label>
+              <div class="field"><label>{{ 'laboratory_lbl' | t : 'Laboratory *' }}</label>
                 <select class="select" formControlName="laboratoryId"><option value="">—</option>@for (l of labs(); track l.id) { <option [value]="l.id">{{ l.displayCode }} · {{ l.name }}</option> }</select></div>
               <div class="field"><label>{{ 'marketing_rep_lbl' | t : 'Marketing rep' }} *</label>
                 <select class="select" formControlName="representativeId"><option value="">—</option>@for (r of reps(); track r.id) { <option [value]="r.id">{{ r.fullName }}</option> }</select></div>
