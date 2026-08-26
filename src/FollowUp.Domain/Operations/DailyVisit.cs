@@ -66,6 +66,12 @@ public sealed class DailyVisit : AggregateRoot<DailyVisitId>, IAuditable
     public DateTimeOffset? CheckedInAt { get; private set; }
     public string? CheckedInBy { get; private set; }
 
+    // Check-in extras (reference parity): totals recorded with the visit + free-text notes.
+    public int? TotalRequired { get; private set; }
+    public int? RequestCount { get; private set; }
+    public int? OutsourceCount { get; private set; }
+    public string? Notes { get; private set; }
+
     public TransferDetails? Transfer { get; private set; }
     public RepresentativeId? TransferRepId { get; private set; }
     public DateTimeOffset? TransferConfirmedAt { get; private set; }
@@ -86,17 +92,27 @@ public sealed class DailyVisit : AggregateRoot<DailyVisitId>, IAuditable
         new(DailyVisitId.New(), labId, collectorRepId, visitDate, scheduledTime);
 
     /// <summary>Collector records the visit and its sample count (Pending → Visited).</summary>
-    public void CheckIn(int sampleCount, string actor, DateTimeOffset when)
+    public void CheckIn(int sampleCount, string actor, DateTimeOffset when,
+        int? totalRequired = null, int? requestCount = null, int? outsourceCount = null, string? notes = null)
     {
         Status.EnsureCanTransitionTo(VisitStatus.Visited);
         if (sampleCount < 0)
             throw new DomainException("Sample count cannot be negative.");
+        if (totalRequired is < 0 || requestCount is < 0 || outsourceCount is < 0)
+            throw new DomainException("Check-in counts cannot be negative.");
         Status = VisitStatus.Visited;
         SampleCount = sampleCount;
         CheckedInAt = when;
         CheckedInBy = actor;
+        TotalRequired = totalRequired;
+        RequestCount = requestCount;
+        OutsourceCount = outsourceCount;
+        Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
         Raise(new VisitCheckedIn(Id, LaboratoryId, sampleCount));
     }
+
+    /// <summary>Reassigns the collector credited with this visit (check-in popup override).</summary>
+    public void ReassignCollector(RepresentativeId? repId) => CollectorRepId = repId;
 
     /// <summary>Marks the visit missed (Pending → Missed): evening sweep or manual.</summary>
     public void Miss()

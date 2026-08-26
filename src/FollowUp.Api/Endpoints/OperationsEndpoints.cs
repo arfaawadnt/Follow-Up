@@ -11,7 +11,9 @@ namespace FollowUp.Api.Endpoints;
 
 public static class OperationsEndpoints
 {
-    public sealed record CheckInBody(int SampleCount);
+    public sealed record CheckInBody(int SampleCount, Guid? CollectorRepId = null,
+        int? TotalRequired = null, int? RequestCount = null, int? OutsourceCount = null, string? Notes = null);
+    public sealed record OutsourceUpdateBody(int Quantity, string? DestinationLab, string? Notes);
     public sealed record VerifyBody(bool Verified);
     public sealed record OutsourceStatusBody(string Status);
     public sealed record AdvanceStepBody(string Step);
@@ -25,7 +27,14 @@ public static class OperationsEndpoints
             return Results.Ok(await m.Send(new GetDailyBoardQuery(start ?? date, end ?? date, repId, status), ct));
         }).WithTags("DailyBoard");
         api.MapPost("/daily/{id:guid}/checkin", async (Guid id, CheckInBody b, IMediator m, CancellationToken ct) =>
-        { await m.Send(new CheckInVisitCommand(id, b.SampleCount), ct); return Results.NoContent(); }).WithTags("DailyBoard");
+        {
+            await m.Send(new CheckInVisitCommand(id, b.SampleCount)
+            {
+                CollectorRepId = b.CollectorRepId, TotalRequired = b.TotalRequired,
+                RequestCount = b.RequestCount, OutsourceCount = b.OutsourceCount, Notes = b.Notes,
+            }, ct);
+            return Results.NoContent();
+        }).WithTags("DailyBoard");
         api.MapPost("/daily/{id:guid}/miss", async (Guid id, IMediator m, CancellationToken ct) =>
         { await m.Send(new MissVisitCommand(id), ct); return Results.NoContent(); }).WithTags("DailyBoard");
         api.MapPost("/daily/{id:guid}/undo", async (Guid id, IMediator m, CancellationToken ct) =>
@@ -58,6 +67,8 @@ public static class OperationsEndpoints
         { var id = await m.Send(cmd, ct); return Results.Created($"/api/v1/outsource-samples/{id}", new { id }); }).WithTags("Outsource");
         api.MapPost("/outsource-samples/{id:guid}/status", async (Guid id, OutsourceStatusBody b, IMediator m, CancellationToken ct) =>
         { await m.Send(new AdvanceOutsourceStatusCommand(id, b.Status), ct); return Results.NoContent(); }).WithTags("Outsource");
+        api.MapPut("/outsource-samples/{id:guid}", async (Guid id, OutsourceUpdateBody b, IMediator m, CancellationToken ct) =>
+        { await m.Send(new UpdateOutsourceSampleCommand(id, b.Quantity, b.DestinationLab, b.Notes), ct); return Results.NoContent(); }).WithTags("Outsource");
         api.MapDelete("/outsource-samples/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>
         { await m.Send(new DeleteOutsourceSampleCommand(id), ct); return Results.NoContent(); }).WithTags("Outsource");
 

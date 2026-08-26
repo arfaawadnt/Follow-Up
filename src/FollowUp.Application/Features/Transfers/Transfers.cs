@@ -112,7 +112,7 @@ public sealed class ConfirmTransferHandler : ICommandHandler<ConfirmTransferComm
 // ---- Confirm transfers in batch (reference: "Save Transfer Confirmations") ----
 
 public sealed record TransferConfirmationLine(Guid VisitId, Guid TransferRepId,
-    string DriverName, string DriverMobile, string? CarPlate);
+    string DriverName, string DriverMobile, string? CarPlate, DateTimeOffset? TransferredAt = null);
 
 /// <summary>Confirms several transfer hand-offs in one transaction (SRS FR-6). Returns the confirmed count.</summary>
 public sealed record ConfirmTransfersBatchCommand(IReadOnlyList<TransferConfirmationLine> Lines)
@@ -168,7 +168,7 @@ public sealed class ConfirmTransfersBatchHandler : ICommandHandler<ConfirmTransf
                 throw new NotFoundException("Representative", line.TransferRepId);
 
             visit.ConfirmTransfer(transferRepId,
-                new TransferDetails(line.DriverName, line.DriverMobile, line.CarPlate), _clock.UtcNow);
+                new TransferDetails(line.DriverName, line.DriverMobile, line.CarPlate), line.TransferredAt ?? _clock.UtcNow);
             confirmed++;
         }
         return confirmed;

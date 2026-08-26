@@ -6,7 +6,7 @@ import { AuthService } from '../../core/auth.service';
 import { IconsService } from '../../core/icons.service';
 import { BoardItem, PagedResult, RepListItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
-import { exportCsv, printTable, localToday } from '../../shared/export.util';
+import { exportCsv, printTable, localToday, localTime, localDateTime } from '../../shared/export.util';
 
 const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
 
@@ -79,9 +79,9 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
               <td class="mono">{{ v.visitDate }}<div class="small muted">{{ v.scheduledTime }}</div></td>
               <td><b style="color:var(--slate-900)">{{ v.lab }}</b><div class="small muted">{{ sub(v) }}</div></td>
               <td>{{ v.rep ?? '—' }}</td>
-              <td><span class="badge" [class]="badgeClass(v.status)">{{ v.status | t }}</span>@if (v.transferDone) { <span class="badge b-info">{{ 'transferred' | t : 'Transferred' }}</span> }</td>
+              <td><span class="badge" [class]="badgeClass(v.status)">{{ statusLabel(v.status) }}</span>@if (v.transferDone) { <span class="badge b-info">{{ 'transferred' | t : 'Transferred' }}</span> }</td>
               <td class="mono">{{ v.samples ?? '—' }}</td>
-              <td class="mono small">{{ v.markedAt ?? '—' }}</td>
+              <td class="mono small">{{ marked(v) }}</td>
               <td>{{ v.adminChecked ? '✓' : '—' }}</td>
               <td class="actions">
                 @if (v.status === 'Pending') {
@@ -104,15 +104,31 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
         <div class="dlg" (click)="$event.stopPropagation()">
           <h3 style="margin:0 0 4px">{{ 'record_visit' | t : 'Record visit' }}</h3>
           <div class="small muted" style="margin-bottom:14px">{{ v.lab }} · {{ v.labCode }}</div>
-          <dl class="meta">
-            <dt>{{ 'date' | t }} &amp; {{ 'time' | t }}</dt><dd class="mono">{{ v.visitDate }} · {{ v.scheduledTime }}</dd>
-            <dt>{{ 'collector' | t }}</dt><dd>{{ v.rep ?? '—' }}</dd>
-            <dt>{{ 'area_2' | t : 'Area' }}</dt><dd>{{ v.area ?? '—' }}@if (v.governorate) { · {{ v.governorate }} }</dd>
-          </dl>
-          <div class="field" style="margin-top:14px">
+          <div class="small muted" style="margin-bottom:12px">Scheduled {{ v.scheduledTime }} · {{ v.area ?? '—' }} · {{ v.rep ?? '—' }}</div>
+          <div class="field">
+            <label>{{ 'collector_rep' | t : 'Collector Rep' }}</label>
+            <select class="select" [(ngModel)]="recordRep" style="width:100%">
+              <option value="">—</option>
+              @for (r of collectorReps(); track r.id) { <option [value]="r.id">{{ r.fullName }}</option> }
+            </select>
+          </div>
+          <div class="field" style="margin-top:10px">
             <label>{{ 'samples' | t : 'Samples collected' }} *</label>
             <input type="number" min="0" class="input" [(ngModel)]="recordCount" style="width:100%">
             @if (suggested() !== null) { <div class="small muted" style="margin-top:4px">Suggested: {{ suggested() }} (last recorded count for this lab)</div> }
+          </div>
+          <div class="grid2" style="margin-top:10px">
+            <div class="field"><label>Total Required</label><input type="number" min="0" class="input" [(ngModel)]="recordTotalRequired"></div>
+            <div class="field"><label>No of Requests</label><input type="number" min="0" class="input" [(ngModel)]="recordRequests"></div>
+          </div>
+          <div class="field" style="margin-top:10px">
+            <label>No of Outsource Samples</label>
+            <input type="number" min="0" class="input" [(ngModel)]="recordOutsource" style="width:100%">
+            <div class="small muted" style="margin-top:2px">A value &gt; 0 creates an outsource-sample row automatically.</div>
+          </div>
+          <div class="field" style="margin-top:10px">
+            <label>Notes (optional)</label>
+            <textarea class="input" rows="2" [(ngModel)]="recordNotes" style="width:100%"></textarea>
           </div>
           <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
             <button class="btn btn-s" (click)="closeRecord()">{{ 'cancel' | t : 'Cancel' }}</button>
@@ -126,8 +142,7 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
     .actions{display:flex;gap:6px;align-items:center}.num{width:66px}
     .overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:1000}
     .dlg{background:var(--white);border-radius:12px;padding:22px;width:min(92vw,420px);box-shadow:0 16px 48px rgba(0,0,0,.25)}
-    .meta{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:0;font-size:12.5px}
-    .meta dt{color:var(--slate-500)}.meta dd{margin:0;color:var(--slate-900)}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .field label{display:block;font:600 11px var(--ui);color:var(--slate-600);margin-bottom:4px}
   `],
 })
@@ -144,6 +159,13 @@ export class DailyComponent {
   readonly recording = signal<BoardItem | null>(null);
   readonly suggested = signal<number | null>(null);
   recordCount: number | null = null;
+  recordRep = '';
+  recordTotalRequired: number | null = null;
+  recordRequests: number | null = null;
+  recordOutsource: number | null = null;
+  recordNotes = '';
+
+  readonly collectorReps = computed(() => this.reps().filter((r) => r.type === 'Collector' || r.type === 'Scanning'));
 
   private readonly today = localToday();
   start = this.today; end = this.today;
@@ -192,6 +214,11 @@ export class DailyComponent {
   openRecord(v: BoardItem): void {
     this.recording.set(v);
     this.recordCount = null;
+    this.recordRep = v.collectorRepId ?? '';
+    this.recordTotalRequired = null;
+    this.recordRequests = null;
+    this.recordOutsource = null;
+    this.recordNotes = '';
     this.suggested.set(null);
     this.api.get<{ suggested: number | null }>(`/daily/${v.visitId}/suggested-count`).subscribe({
       next: (r) => { this.suggested.set(r.suggested); if (this.recordCount === null && r.suggested !== null) this.recordCount = r.suggested; },
@@ -202,7 +229,14 @@ export class DailyComponent {
     const v = this.recording();
     if (!v || this.recordCount === null || this.recordCount < 0) return;
     this.busy.set(true);
-    this.api.post(`/daily/${v.visitId}/checkin?source=daily`, { sampleCount: this.recordCount }).subscribe({
+    this.api.post(`/daily/${v.visitId}/checkin?source=daily`, {
+      sampleCount: this.recordCount,
+      collectorRepId: this.recordRep || null,
+      totalRequired: this.recordTotalRequired,
+      requestCount: this.recordRequests,
+      outsourceCount: this.recordOutsource,
+      notes: this.recordNotes.trim() || null,
+    }).subscribe({
       next: () => { this.busy.set(false); this.recording.set(null); this.load(); },
       error: () => this.busy.set(false),
     });
@@ -220,10 +254,12 @@ export class DailyComponent {
   }
 
   sub(v: BoardItem): string { return [v.labCode, v.branch, v.area, v.governorate].filter(Boolean).join(' · '); }
+  marked(v: BoardItem): string { return localTime(v.markedAt); }
+  statusLabel(s: string): string { return s === 'Visited' ? 'Collected' : s; }
 
   private exportRows(): (string | number | null)[][] {
     return this.filtered().map((v) => [v.visitDate, v.scheduledTime, v.lab, v.labCode, v.branch, v.area, v.governorate,
-      v.rep, v.status, v.samples, v.markedAt, v.adminChecked ? 'Yes' : 'No']);
+      v.rep, this.statusLabel(v.status), v.samples, localDateTime(v.markedAt), v.adminChecked ? 'Yes' : 'No']);
   }
   exportExcel(): void {
     exportCsv('daily-followup.csv',

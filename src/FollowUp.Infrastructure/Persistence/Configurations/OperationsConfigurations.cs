@@ -21,6 +21,10 @@ internal sealed class DailyVisitConfiguration : IEntityTypeConfiguration<DailyVi
         b.Property(x => x.SampleCount);
         b.Property(x => x.CheckedInBy).HasMaxLength(100);
         b.Property(x => x.AdminChecked);
+        b.Property(x => x.TotalRequired);
+        b.Property(x => x.RequestCount);
+        b.Property(x => x.OutsourceCount);
+        b.Property(x => x.Notes).HasMaxLength(1000);
 
         b.OwnsOne(x => x.Transfer, t =>
         {
@@ -76,7 +80,7 @@ internal sealed class OutsourceSampleConfiguration : IEntityTypeConfiguration<Ou
         b.MapAuditable();
 
         b.Property(x => x.VisitDate);
-        b.Property(x => x.DestinationLab).HasMaxLength(200).IsRequired();
+        b.Property(x => x.DestinationLab).HasMaxLength(200);
         b.Property(x => x.Quantity);
         b.Property(x => x.Notes).HasMaxLength(1000);
 

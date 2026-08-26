@@ -44,3 +44,19 @@ export function localToday(): string {
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
   return d.toISOString().slice(0, 10);
 }
+
+/** Formats an ISO timestamp as local HH:mm (reference shows stage times in local time). */
+export function localTime(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? '—' : d.toTimeString().slice(0, 5);
+}
+
+/** Formats an ISO timestamp as local yyyy-MM-dd HH:mm. */
+export function localDateTime(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16).replace('T', ' ');
+}

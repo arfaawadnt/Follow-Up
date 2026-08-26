@@ -5,7 +5,7 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { ReceivingItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
-import { exportCsv, printTable, localToday } from '../../shared/export.util';
+import { exportCsv, printTable, localToday, localDateTime } from '../../shared/export.util';
 
 @Component({
   selector: 'app-labcheckin',
@@ -59,8 +59,8 @@ import { exportCsv, printTable, localToday } from '../../shared/export.util';
         <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
           <thead><tr>
             <th style="width:28px"><input type="checkbox" [checked]="allSelected()" (change)="toggleAll()"></th>
-            <th>{{ 'laboratory_2' | t }}</th><th>{{ 'collection_date_and_time' | t }}</th><th>{{ 'transfer_rep' | t }}</th>
-            <th>{{ 'samples' | t }}</th><th>{{ 'status_3' | t }}</th><th style="text-align:center">{{ 'confirm_receipt' | t : 'Confirm receipt' }}</th>
+            <th>{{ 'laboratory_2' | t }}</th><th>{{ 'collection_date_and_time' | t }}</th><th>{{ 'collector_rep' | t : 'Collector rep' }}</th>
+            <th>{{ 'samples' | t }}</th><th>Transfer time</th><th>{{ 'status_3' | t }}</th><th style="text-align:center">{{ 'confirm_receipt' | t : 'Confirm receipt' }}</th>
           </tr></thead>
           <tbody>
             @for (r of filtered(); track r.visitId) {
@@ -68,16 +68,15 @@ import { exportCsv, printTable, localToday } from '../../shared/export.util';
                 <td>@if (r.status !== 'Received') { <input type="checkbox" [checked]="selected.has(r.visitId)" (change)="toggleRow(r.visitId)"> }</td>
                 <td><b style="color:var(--slate-900)">{{ r.labName }}</b><div class="small muted">{{ r.labCode }}@if (r.area) { · {{ r.area }} }</div></td>
                 <td class="mono small">{{ r.visitDate }} · {{ r.visitTime }}</td>
-                <td>{{ r.transferRepName ?? '—' }}</td>
+                <td>{{ r.collectorName ?? '—' }}<div class="small muted">{{ r.transferRepName ?? '' }}</div></td>
                 <td class="mono" style="font-weight:700">{{ r.samples ?? 0 }}</td>
+                <td class="mono small">{{ when(r.transferTime) }}</td>
                 <td><span class="badge" [class]="r.status === 'Received' ? 'b-ok' : 'b-warn'">{{ (r.status === 'Received' ? 'received' : 'transferred') | t : r.status }}</span></td>
                 <td style="text-align:center">
-                  @if (r.status !== 'Received' && auth.has('ConfirmTransfers')) {
-                    <button class="btn btn-mini btn-p" [disabled]="busy()" (click)="confirm(r)">{{ 'confirm_receipt' | t : 'Confirm receipt' }}</button>
-                  } @else if (r.status === 'Received') { <span style="color:var(--ok-ink)" [title]="r.receivedTime">✓</span> }
+                  @if (r.status === 'Received') { <span style="color:var(--ok-ink)" [title]="when(r.receivedTime)">✓</span> }
                 </td>
               </tr>
-            } @empty { <tr><td colspan="7" class="empty" style="text-align:center;padding:24px">{{ 'nothing_awaiting_receipt' | t : 'Nothing awaiting receipt.' }}</td></tr> }
+            } @empty { <tr><td colspan="8" class="empty" style="text-align:center;padding:24px">{{ 'nothing_awaiting_receipt' | t : 'Nothing awaiting receipt.' }}</td></tr> }
           </tbody>
         </table></div>
       }
@@ -125,12 +124,7 @@ export class LabCheckInComponent {
   }
   reset(): void { this.start = this.today; this.end = this.today; this.branch = this.gov = this.city = this.area = this.repFilter = 'All'; this.load(); }
 
-  confirm(r: ReceivingItem): void {
-    this.busy.set(true);
-    this.api.post('/labcheckin/confirm', { visitId: r.visitId }).subscribe({
-      next: () => { this.busy.set(false); this.load(); }, error: () => this.busy.set(false),
-    });
-  }
+  when(iso: string | null): string { return localDateTime(iso); }
 
   // ---- Selection + batch (reference: "Confirm Selected Receipts") ----
 
@@ -156,9 +150,9 @@ export class LabCheckInComponent {
 
   private exportRows(): (string | number | null)[][] {
     return this.filtered().map((r) => [r.labName, r.labCode, r.area, r.governorate, `${r.visitDate} ${r.visitTime}`,
-      r.transferRepName, r.samples ?? 0, r.status, r.receivedTime]);
+      r.collectorName, r.transferRepName, r.samples ?? 0, this.when(r.transferTime), r.status, this.when(r.receivedTime)]);
   }
-  private static readonly EXPORT_HEADER = ['Laboratory', 'Code', 'Area', 'Governorate', 'Collected', 'Transfer rep', 'Samples', 'Status', 'Received at'];
+  private static readonly EXPORT_HEADER = ['Laboratory', 'Code', 'Area', 'Governorate', 'Collected', 'Collector rep', 'Transfer rep', 'Samples', 'Transfer time', 'Status', 'Received at'];
   exportExcel(): void { exportCsv('lab-checkin.csv', LabCheckInComponent.EXPORT_HEADER, this.exportRows()); }
   exportPdf(): void { printTable('Lab Checkin', LabCheckInComponent.EXPORT_HEADER, this.exportRows()); }
 }

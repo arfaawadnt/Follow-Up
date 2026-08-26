@@ -18,7 +18,7 @@ public sealed class OutsourceSample : AggregateRoot<OutsourceSampleId>, IAuditab
     private OutsourceSample() { } // EF
 
     private OutsourceSample(OutsourceSampleId id, LaboratoryId labId, DateOnly visitDate,
-        string destinationLab, int quantity)
+        string? destinationLab, int quantity)
         : base(id)
     {
         LaboratoryId = labId;
@@ -30,7 +30,8 @@ public sealed class OutsourceSample : AggregateRoot<OutsourceSampleId>, IAuditab
 
     public LaboratoryId LaboratoryId { get; private set; }
     public DateOnly VisitDate { get; private set; }
-    public string DestinationLab { get; private set; } = null!;
+    /// <summary>Null while unassigned (auto-created from check-in); set before dispatch.</summary>
+    public string? DestinationLab { get; private set; }
     public int Quantity { get; private set; }
     public OutsourceStatus Status { get; private set; } = null!;
 
@@ -45,21 +46,32 @@ public sealed class OutsourceSample : AggregateRoot<OutsourceSampleId>, IAuditab
     public DateTimeOffset? UpdatedAt { get; private set; }
     public string? UpdatedBy { get; private set; }
 
-    public static OutsourceSample Create(LaboratoryId labId, DateOnly visitDate, string destinationLab, int quantity, string? notes = null)
+    public static OutsourceSample Create(LaboratoryId labId, DateOnly visitDate, string? destinationLab, int quantity, string? notes = null)
     {
-        if (string.IsNullOrWhiteSpace(destinationLab))
-            throw new DomainException("Destination lab is required for an outsourced sample.");
         if (quantity <= 0)
             throw new DomainException("Outsource quantity must be positive.");
-        var sample = new OutsourceSample(OutsourceSampleId.New(), labId, visitDate, destinationLab.Trim(), quantity);
+        var sample = new OutsourceSample(OutsourceSampleId.New(), labId, visitDate,
+            string.IsNullOrWhiteSpace(destinationLab) ? null : destinationLab.Trim(), quantity);
         sample.SetNotes(notes);
         return sample;
     }
 
     public void SetNotes(string? notes) => Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
 
+    /// <summary>Inline row edit (reference parity): quantity, destination and notes.</summary>
+    public void Update(int quantity, string? destinationLab, string? notes)
+    {
+        if (quantity <= 0)
+            throw new DomainException("Outsource quantity must be positive.");
+        Quantity = quantity;
+        DestinationLab = string.IsNullOrWhiteSpace(destinationLab) ? null : destinationLab.Trim();
+        SetNotes(notes);
+    }
+
     public void AdvanceTo(OutsourceStatus target, DateTimeOffset when)
     {
+        if (target == OutsourceStatus.Sent && DestinationLab is null)
+            throw new DomainException("Set the destination lab before dispatching an outsource sample.");
         Status.EnsureCanTransitionTo(target);
         Status = target;
         if (target == OutsourceStatus.Sent) SentAt = when;

@@ -5,9 +5,9 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { PagedResult, RepListItem, TransferItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
-import { exportCsv, printTable, localToday } from '../../shared/export.util';
+import { exportCsv, printTable, localToday, localDateTime } from '../../shared/export.util';
 
-interface Draft { rep: string; name: string; mobile: string; car: string; }
+interface Draft { rep: string; name: string; mobile: string; car: string; when: string; done: boolean; }
 
 @Component({
   selector: 'app-transfers',
@@ -80,7 +80,7 @@ interface Draft { rep: string; name: string; mobile: string; car: string; }
                 <th style="width:28px"><input type="checkbox" [checked]="allSelected(grp.rows)" (change)="toggleAll(grp.rows)"></th>
                 <th>{{ 'laboratory_2' | t }}</th><th>{{ 'collection_date_and_time' | t }}</th><th>{{ 'collector_rep' | t }}</th>
                 <th>{{ 'samples' | t }}</th><th>{{ 'status_3' | t }}</th><th>{{ 'driver_info' | t }}</th>
-                <th>{{ 'transfer_rep' | t }}</th><th style="text-align:center">{{ 'transferred_2' | t }}</th>
+                <th>{{ 'transfer_rep' | t }}</th><th>Transfer date &amp; time</th><th style="text-align:center">Transferred?</th>
               </tr></thead>
               <tbody>
                 @for (r of grp.rows; track r.visitId) {
@@ -110,9 +110,15 @@ interface Draft { rep: string; name: string; mobile: string; car: string; }
                         </select>
                       }
                     </td>
+                    <td>
+                      @if (r.transferDone) { <span class="mono small">{{ transferAt(r) }}</span> }
+                      @else if (auth.has('ConfirmTransfers')) {
+                        <input type="datetime-local" class="input" style="padding:4px 8px;font-size:11px" [(ngModel)]="draft(r.visitId).when">
+                      }
+                    </td>
                     <td style="text-align:center">
                       @if (!r.transferDone && auth.has('ConfirmTransfers')) {
-                        <button class="btn btn-mini btn-p" [disabled]="busy() || !draft(r.visitId).rep || !draft(r.visitId).name || !draft(r.visitId).mobile" (click)="confirm(r)">{{ 'confirm' | t : 'Confirm' }}</button>
+                        <input type="checkbox" [(ngModel)]="draft(r.visitId).done" title="Mark transferred (saved with Save Transfer Confirmations)">
                       } @else if (r.transferDone) { <span style="color:var(--ok-ink)">✓</span> }
                     </td>
                   </tr>
@@ -170,7 +176,7 @@ export class TransfersComponent {
 
   draft(id: string): Draft {
     let d = this.drafts.get(id);
-    if (!d) { d = { rep: '', name: '', mobile: '', car: '' }; this.drafts.set(id, d); }
+    if (!d) { d = { rep: '', name: '', mobile: '', car: '', when: '', done: false }; this.drafts.set(id, d); }
     return d;
   }
   opts(field: 'branch' | 'governorate' | 'city' | 'area'): string[] {
@@ -185,16 +191,7 @@ export class TransfersComponent {
   }
   reset(): void { this.start = this.today; this.end = this.today; this.branch = this.gov = this.city = this.area = 'All'; this.load(); }
 
-  confirm(r: TransferItem): void {
-    const d = this.draft(r.visitId);
-    this.busy.set(true);
-    this.api.post('/transfers/confirm', {
-      visitId: r.visitId, transferRepId: d.rep, driverName: d.name, driverMobile: d.mobile, carPlate: d.car || null,
-    }).subscribe({
-      next: () => { this.busy.set(false); this.drafts.delete(r.visitId); this.load(); },
-      error: () => this.busy.set(false),
-    });
-  }
+  transferAt(r: TransferItem): string { return localDateTime(r.transferTime); }
 
   // ---- Selection + batch (reference: Batch Add Driver Info / Save Transfer Confirmations) ----
 
@@ -219,11 +216,14 @@ export class TransfersComponent {
     this.selectionVersion.update((v) => v + 1);
   }
 
-  private readyLines(): { visitId: string; transferRepId: string; driverName: string; driverMobile: string; carPlate: string | null }[] {
+  private readyLines(): { visitId: string; transferRepId: string; driverName: string; driverMobile: string; carPlate: string | null; transferredAt: string | null }[] {
     return this.filtered().filter((r) => !r.transferDone)
       .map((r) => ({ r, d: this.draft(r.visitId) }))
-      .filter(({ d }) => d.rep && d.name && d.mobile)
-      .map(({ r, d }) => ({ visitId: r.visitId, transferRepId: d.rep, driverName: d.name, driverMobile: d.mobile, carPlate: d.car || null }));
+      .filter(({ d }) => d.done && d.rep && d.name && d.mobile)
+      .map(({ r, d }) => ({
+        visitId: r.visitId, transferRepId: d.rep, driverName: d.name, driverMobile: d.mobile, carPlate: d.car || null,
+        transferredAt: d.when ? new Date(d.when).toISOString() : null,
+      }));
   }
   readyCount(): number { return this.readyLines().length; }
 

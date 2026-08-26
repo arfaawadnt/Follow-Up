@@ -36,6 +36,10 @@ public interface ISampleTrackingQueries
     Task<IReadOnlyList<SampleTrackingDto>> ListAsync(DateOnly start, DateOnly end, OrgScope scope, CancellationToken ct);
     Task<IReadOnlyList<SampleLifecycleReportRowDto>> ReportAsync(DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct);
     Task<IReadOnlyList<SampleLifecycleRowDto>> LifecycleAsync(DateOnly from, DateOnly to, OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
+
+    /// <summary>Total received samples for an area on a date (live + archived visits) — the derived
+    /// SAMPLES figure of the reference's area-assignment rows.</summary>
+    Task<int> SumReceivedSamplesAsync(string area, DateOnly date, CancellationToken ct);
 }
 
 /// <summary>Lists sample-tracking rows for a date range within scope (SRS FR-8).</summary>

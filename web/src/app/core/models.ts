@@ -94,8 +94,8 @@ export interface TransferItem {
 export interface ReceivingItem {
   visitId: string; laboratoryId: string; labDisplayCode: string; labCode: string; labName: string;
   branch: string | null; governorate: string | null; city: string | null; area: string | null;
-  visitDate: string; visitTime: string; samples: number | null; status: string;
-  transferRepName: string | null; receivedTime: string | null;
+  visitDate: string; visitTime: string; collectorName: string | null; samples: number | null; status: string;
+  transferRepName: string | null; transferTime: string | null; receivedTime: string | null;
 }
 export interface SampleTracking {
   id: string; area: string; date: string; count: number;
@@ -114,7 +114,7 @@ export interface SampleLifecycleRow {
 
 export interface OutsourceSample {
   id: string; laboratoryId: string; labDisplayCode: string; labName: string;
-  visitDate: string; destinationLab: string; quantity: number; status: string; notes: string | null;
+  visitDate: string; destinationLab: string | null; quantity: number; status: string; notes: string | null;
 }
 
 export interface UserLookup { id: string; username: string; }

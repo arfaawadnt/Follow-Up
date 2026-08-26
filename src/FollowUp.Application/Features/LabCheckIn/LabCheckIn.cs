@@ -16,8 +16,8 @@ namespace FollowUp.Application.Features.LabCheckIn;
 public sealed record ReceivingItemDto(
     Guid VisitId, Guid LaboratoryId, string LabDisplayCode, string LabCode, string LabName,
     string? Branch, string? Governorate, string? City, string? Area,
-    DateOnly VisitDate, string VisitTime, int? Samples, string Status,
-    string? TransferRepName, string? ReceivedTime);
+    DateOnly VisitDate, string VisitTime, string? CollectorName, int? Samples, string Status,
+    string? TransferRepName, string? TransferTime, string? ReceivedTime);
 
 /// <summary>Read-side query for transferred items (awaiting receipt or received) in a date range.</summary>
 public interface ILabCheckInQueries

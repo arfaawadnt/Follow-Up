@@ -15,7 +15,7 @@ namespace FollowUp.Application.Features.Outsource;
 // ---- Read side ----
 
 public sealed record OutsourceSampleDto(
-    Guid Id, Guid LaboratoryId, string LabDisplayCode, string LabName, DateOnly VisitDate, string DestinationLab, int Quantity, string Status, string? Notes);
+    Guid Id, Guid LaboratoryId, string LabDisplayCode, string LabName, DateOnly VisitDate, string? DestinationLab, int Quantity, string Status, string? Notes);
 
 public interface IOutsourceQueries
 {
@@ -137,6 +137,47 @@ public sealed class DeleteOutsourceSampleHandler : ICommandHandler<DeleteOutsour
         var sample = await _repository.GetByIdAsync(new OutsourceSampleId(request.Id), ct)
             ?? throw new NotFoundException("Outsource sample", request.Id);
         _repository.Remove(sample);
+        return Unit.Value;
+    }
+}
+
+// ---- Inline row update (reference parity: samples / destination / notes editable in the grid) ----
+
+public sealed record UpdateOutsourceSampleCommand(Guid Id, int Quantity, string? DestinationLab, string? Notes)
+    : ICommand, IAuthorizedRequest
+{
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.OutsourceSamples };
+}
+
+public sealed class UpdateOutsourceSampleValidator : AbstractValidator<UpdateOutsourceSampleCommand>
+{
+    public UpdateOutsourceSampleValidator()
+    {
+        RuleFor(x => x.Id).NotEmpty();
+        RuleFor(x => x.Quantity).GreaterThan(0);
+    }
+}
+
+public sealed class UpdateOutsourceSampleHandler : ICommandHandler<UpdateOutsourceSampleCommand>
+{
+    private readonly IOutsourceSampleRepository _repository;
+    private readonly ILaboratoryRepository _labs;
+    private readonly ICurrentUser _user;
+
+    public UpdateOutsourceSampleHandler(IOutsourceSampleRepository repository, ILaboratoryRepository labs, ICurrentUser user)
+    {
+        _repository = repository; _labs = labs; _user = user;
+    }
+
+    public async Task<Unit> Handle(UpdateOutsourceSampleCommand request, CancellationToken ct)
+    {
+        var sample = await _repository.GetByIdAsync(new OutsourceSampleId(request.Id), ct)
+            ?? throw new NotFoundException("Outsource sample", request.Id);
+        var lab = await _labs.GetByIdAsync(sample.LaboratoryId, ct)
+            ?? throw new NotFoundException("Laboratory", sample.LaboratoryId.Value);
+        _user.EnsureInScope(lab);
+
+        sample.Update(request.Quantity, request.DestinationLab, request.Notes);
         return Unit.Value;
     }
 }

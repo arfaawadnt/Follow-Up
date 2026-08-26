@@ -64,13 +64,23 @@ const NEXT: Record<string, string> = { Collected: 'Sent', Sent: 'Received' };
               <tr>
                 <td class="mono small">{{ o.visitDate }}</td>
                 <td><b style="color:var(--slate-900)">{{ o.labName }}</b><div class="small muted">{{ o.labDisplayCode }}</div></td>
-                <td class="mono" style="font-weight:700">{{ o.quantity }}</td>
+                <td>
+                  @if (auth.has('OutsourceSamples')) { <input type="number" min="1" class="input" style="width:76px;padding:4px 8px" [ngModel]="draft(o).quantity" (ngModelChange)="setD(o, 'quantity', $event)"> }
+                  @else { <span class="mono" style="font-weight:700">{{ o.quantity }}</span> }
+                </td>
                 <td><span class="badge" [class]="badgeClass(o.status)">{{ o.status | t : o.status }}</span></td>
-                <td>{{ o.destinationLab }}</td>
-                <td class="small">{{ o.notes ?? '—' }}</td>
+                <td>
+                  @if (auth.has('OutsourceSamples')) { <input class="input" style="min-width:130px;padding:4px 8px" [ngModel]="draft(o).destinationLab" (ngModelChange)="setD(o, 'destinationLab', $event)"> }
+                  @else { {{ o.destinationLab ?? '—' }} }
+                </td>
+                <td>
+                  @if (auth.has('OutsourceSamples')) { <input class="input" style="min-width:130px;padding:4px 8px" [ngModel]="draft(o).notes" (ngModelChange)="setD(o, 'notes', $event)"> }
+                  @else { <span class="small">{{ o.notes ?? '—' }}</span> }
+                </td>
                 <td class="actions">
                   @if (auth.has('OutsourceSamples')) {
-                    @if (next(o.status); as nx) { <button class="btn btn-mini btn-p" (click)="advance(o)" [disabled]="busy()">→ {{ nx | t : nx }}</button> }
+                    <button class="btn btn-mini btn-p" (click)="saveRow(o)" [disabled]="busy() || !draft(o).dirty">{{ 'save' | t : 'Save' }}</button>
+                    @if (next(o.status); as nx) { <button class="btn btn-mini" (click)="advance(o)" [disabled]="busy()">→ {{ nx | t : nx }}</button> }
                     <button class="btn btn-mini btn-d" (click)="remove(o)" [disabled]="busy()">{{ 'delete' | t : 'Delete' }}</button>
                   }
                 </td>
@@ -119,6 +129,31 @@ export class OutsourceComponent {
 
   next(status: string): string | undefined { return NEXT[status]; }
   badgeClass(s: string): string { return s === 'Received' ? 'b-ok' : s === 'Sent' ? 'b-warn' : 'b-info'; }
+
+  // ---- Inline row drafts (reference parity: samples/destination/notes editable in the grid) ----
+
+  private readonly drafts = new Map<string, { quantity: number; destinationLab: string; notes: string; dirty: boolean }>();
+  draft(o: OutsourceSample): { quantity: number; destinationLab: string; notes: string; dirty: boolean } {
+    let d = this.drafts.get(o.id);
+    if (!d) { d = { quantity: o.quantity, destinationLab: o.destinationLab ?? '', notes: o.notes ?? '', dirty: false }; this.drafts.set(o.id, d); }
+    return d;
+  }
+  setD(o: OutsourceSample, key: 'quantity' | 'destinationLab' | 'notes', value: string | number): void {
+    const d = this.draft(o);
+    if (key === 'quantity') d.quantity = Number(value) || 0;
+    else d[key] = String(value ?? '');
+    d.dirty = true;
+  }
+  saveRow(o: OutsourceSample): void {
+    const d = this.draft(o);
+    this.busy.set(true);
+    this.api.put(`/outsource-samples/${o.id}`, {
+      quantity: d.quantity, destinationLab: d.destinationLab.trim() || null, notes: d.notes.trim() || null,
+    }).subscribe({
+      next: () => { this.busy.set(false); this.drafts.delete(o.id); this.load(); },
+      error: () => this.busy.set(false),
+    });
+  }
 
   load(): void {
     this.loading.set(true);

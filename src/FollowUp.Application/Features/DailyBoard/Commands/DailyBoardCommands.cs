@@ -30,9 +30,16 @@ internal static class VisitActionSupport
 
 // ---- Check-in (Pending -> Visited) ----
 
-/// <summary>Collector checks in a visit and records its sample count (SRS FR-5).</summary>
+/// <summary>Collector checks in a visit via the record-visit popup (SRS FR-5): sample count plus the
+/// reference-parity extras — collector override, totals, outsource count (FR-9 auto-create) and notes.</summary>
 public sealed record CheckInVisitCommand(Guid VisitId, int SampleCount) : ICommand, IAuthorizedRequest
 {
+    public Guid? CollectorRepId { get; init; }
+    public int? TotalRequired { get; init; }
+    public int? RequestCount { get; init; }
+    public int? OutsourceCount { get; init; }
+    public string? Notes { get; init; }
+
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.AddDailyFollowup };
 }
 
@@ -42,6 +49,9 @@ public sealed class CheckInVisitValidator : AbstractValidator<CheckInVisitComman
     {
         RuleFor(x => x.VisitId).NotEmpty();
         RuleFor(x => x.SampleCount).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.TotalRequired).GreaterThanOrEqualTo(0).When(x => x.TotalRequired.HasValue);
+        RuleFor(x => x.RequestCount).GreaterThanOrEqualTo(0).When(x => x.RequestCount.HasValue);
+        RuleFor(x => x.OutsourceCount).GreaterThanOrEqualTo(0).When(x => x.OutsourceCount.HasValue);
     }
 }
 
@@ -49,19 +59,32 @@ public sealed class CheckInVisitHandler : ICommandHandler<CheckInVisitCommand>
 {
     private readonly IDailyVisitRepository _visits;
     private readonly ILaboratoryRepository _labs;
+    private readonly IOutsourceSampleRepository _outsource;
     private readonly ICurrentUser _user;
     private readonly IClock _clock;
 
-    public CheckInVisitHandler(IDailyVisitRepository visits, ILaboratoryRepository labs, ICurrentUser user, IClock clock)
+    public CheckInVisitHandler(IDailyVisitRepository visits, ILaboratoryRepository labs,
+        IOutsourceSampleRepository outsource, ICurrentUser user, IClock clock)
     {
-        _visits = visits; _labs = labs; _user = user; _clock = clock;
+        _visits = visits; _labs = labs; _outsource = outsource; _user = user; _clock = clock;
     }
 
     public async Task<Unit> Handle(CheckInVisitCommand request, CancellationToken ct)
     {
         var (visit, lab) = await VisitActionSupport.LoadAuthorizedAsync(request.VisitId, _visits, _labs, _user, ct);
-        visit.CheckIn(request.SampleCount, _user.Username, _clock.UtcNow);
+
+        if (request.CollectorRepId is { } repId)
+            visit.ReassignCollector(new Domain.Representatives.RepresentativeId(repId));
+
+        visit.CheckIn(request.SampleCount, _user.Username, _clock.UtcNow,
+            request.TotalRequired, request.RequestCount, request.OutsourceCount, request.Notes);
         lab.DeriveActiveFromActivity(); // BR-5
+
+        // FR-9: a check-in with an outsource count auto-creates the outsource row (unique per lab+date).
+        if (request.OutsourceCount is > 0 && !await _outsource.ExistsForAsync(visit.LaboratoryId, visit.VisitDate, ct))
+            _outsource.Add(Domain.Operations.OutsourceSample.Create(
+                visit.LaboratoryId, visit.VisitDate, null, request.OutsourceCount.Value, visit.Notes));
+
         return Unit.Value;
     }
 }

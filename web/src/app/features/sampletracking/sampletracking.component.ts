@@ -65,16 +65,6 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
         </div>
       </div>
 
-      @if (auth.has('SampleTracking')) {
-        <div class="card" style="padding:14px 20px;margin-bottom:16px;display:flex;gap:10px;align-items:end;flex-wrap:wrap">
-          <b style="font-size:12.5px;align-self:center">New area/day:</b>
-          <div class="field"><label>Area</label><input class="input" style="width:160px" [(ngModel)]="newArea"></div>
-          <div class="field"><label>Date</label><input type="date" class="input" [(ngModel)]="newDate"></div>
-          <div class="field"><label>Samples</label><input type="number" min="0" class="input" style="width:100px" [(ngModel)]="newCount"></div>
-          <button class="btn btn-s" style="height:36px" [disabled]="!newArea.trim() || busy()" (click)="add()">Add</button>
-        </div>
-      }
-
       <div class="card" style="padding:0;overflow:hidden">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--slate-150)">
           <b style="font-size:13px">Sample Area Assignment</b>
@@ -93,7 +83,7 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
                 <tr>
                   <td class="mono small">{{ r.date }}</td>
                   <td><b>{{ r.area }}</b></td>
-                  <td><input type="number" min="0" class="input num" [ngModel]="draft(r).count" (ngModelChange)="setD(r, 'count', $event)" [disabled]="!auth.has('SampleTracking')"></td>
+                  <td class="mono" style="font-weight:700">{{ r.count }}</td>
                   <td><select class="select sel" [ngModel]="draft(r).dataEntryUser" (ngModelChange)="setD(r, 'dataEntryUser', $event)" [disabled]="!auth.has('SampleTracking')">
                     <option value="">Unassigned</option>@for (u of users(); track u.id) { <option [value]="u.username">{{ u.username }}</option> }</select>
                     @if (r.dataEntryAt) { <div class="small muted mono">{{ fmt(r.dataEntryAt) }}</div> }</td>
@@ -197,7 +187,6 @@ export class SampleTrackingComponent {
   start = this.today; end = this.today;
   gov = 'All'; city = 'All'; areaFilter = 'All'; search = '';
   fDataEntry = 'All'; fReview = 'All'; fSort = 'All'; fStatus = 'All';
-  newArea = ''; newDate = this.today; newCount = 0;
   rStart = this.today; rEnd = this.today; rArea = 'All'; groupBy: 'Area' | 'Laboratory' = 'Area';
 
   constructor() {
@@ -265,14 +254,6 @@ export class SampleTrackingComponent {
     this.start = this.today; this.end = this.today;
     this.gov = this.city = this.areaFilter = this.fDataEntry = this.fReview = this.fSort = this.fStatus = 'All';
     this.search = ''; this.load();
-  }
-
-  add(): void {
-    this.busy.set(true);
-    this.api.post('/sample-tracking', { area: this.newArea.trim(), date: this.newDate, count: this.newCount || 0 }).subscribe({
-      next: () => { this.busy.set(false); this.newArea = ''; this.newCount = 0; this.load(); },
-      error: () => this.busy.set(false),
-    });
   }
 
   private line(r: SampleTracking): Record<string, unknown> {

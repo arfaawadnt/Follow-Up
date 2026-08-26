@@ -51,7 +51,7 @@ internal sealed class DailyBoardQueries : IDailyBoardQueries
             r.CollectorRepId != null && repName.TryGetValue(r.CollectorRepId.Value, out var n) ? n : null,
             r.Branch, r.Governorate, r.City, r.Area,
             r.VisitDate, r.ScheduledTime.ToString("HH:mm"), r.Status.Name, r.SampleCount,
-            r.CheckedInAt?.ToString("yyyy-MM-dd HH:mm"), r.AdminChecked,
+            r.CheckedInAt?.ToString("o"), r.AdminChecked,
             r.TransferConfirmedAt != null)).ToList();
     }
 
@@ -97,7 +97,7 @@ internal sealed class TransferQueries : ITransferQueries
             r.VisitDate, r.ScheduledTime.ToString("HH:mm"), Name(r.CollectorRepId), r.SampleCount,
             r.TransferConfirmedAt != null, r.Transfer?.DriverName, r.Transfer?.DriverMobile, r.Transfer?.CarPlate,
             r.TransferRepId != null ? r.TransferRepId.Value.Value : (Guid?)null, Name(r.TransferRepId),
-            r.TransferConfirmedAt?.ToString("yyyy-MM-dd HH:mm"))).ToList();
+            r.TransferConfirmedAt?.ToString("o"))).ToList();
     }
 }
 
@@ -117,19 +117,24 @@ internal sealed class LabCheckInQueries : ILabCheckInQueries
                           join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
                           orderby v.VisitDate, v.ScheduledTime
                           select new { v.Id, v.LaboratoryId, l.Code, l.Name, l.Branch, l.Governorate, l.City, l.Area,
-                              v.VisitDate, v.ScheduledTime, v.SampleCount, v.Status, v.TransferRepId, v.ReceivedAt })
+                              v.VisitDate, v.ScheduledTime, v.CollectorRepId, v.SampleCount, v.Status, v.TransferRepId,
+                              v.TransferConfirmedAt, v.ReceivedAt })
                          .ToListAsync(ct);
 
-        var repIds = rows.Where(r => r.TransferRepId != null).Select(r => r.TransferRepId!.Value).Distinct().ToList();
+        var repIds = rows.SelectMany(r => new[] { r.TransferRepId, r.CollectorRepId })
+            .Where(x => x != null).Select(x => x!.Value).Distinct().ToList();
         var repName = (await _db.Representatives.AsNoTracking().Where(r => repIds.Contains(r.Id))
             .Select(r => new { r.Id, r.FullName }).ToListAsync(ct)).ToDictionary(r => r.Id, r => r.FullName);
+        string? Name(RepresentativeId? id) => id != null && repName.TryGetValue(id.Value, out var n) ? n : null;
 
         return rows.Select(r => new ReceivingItemDto(
             r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Code.Value, r.Name,
-            r.Branch, r.Governorate, r.City, r.Area, r.VisitDate, r.ScheduledTime.ToString("HH:mm"), r.SampleCount,
+            r.Branch, r.Governorate, r.City, r.Area, r.VisitDate, r.ScheduledTime.ToString("HH:mm"),
+            Name(r.CollectorRepId), r.SampleCount,
             r.Status == received ? "Received" : "Transferred",
-            r.TransferRepId != null && repName.TryGetValue(r.TransferRepId.Value, out var n) ? n : null,
-            r.ReceivedAt != null ? r.ReceivedAt.Value.ToString("yyyy-MM-dd HH:mm") : null)).ToList();
+            Name(r.TransferRepId),
+            r.TransferConfirmedAt?.ToString("o"),
+            r.ReceivedAt?.ToString("o"))).ToList();
     }
 }
 
@@ -230,5 +235,21 @@ internal sealed class SampleTrackingQueries : ISampleTrackingQueries
                     t?.Sort?.User, t?.Sort?.At,
                     t?.Notes);
             }).ToList();
+    }
+
+    public async Task<int> SumReceivedSamplesAsync(string area, DateOnly date, CancellationToken ct)
+    {
+        var received = VisitStatus.Received;
+        var live = await (from v in _db.DailyVisits.AsNoTracking()
+                          where v.VisitDate == date && v.Status == received && v.SampleCount != null
+                          join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
+                          where l.Area == area
+                          select v.SampleCount!.Value).SumAsync(ct);
+        var archived = await (from h in _db.VisitHistory.AsNoTracking()
+                              where h.VisitDate == date && h.Status == "Received" && h.SampleCount != null
+                              join l in _db.Laboratories.AsNoTracking() on h.LaboratoryId equals l.Id
+                              where l.Area == area
+                              select h.SampleCount!.Value).SumAsync(ct);
+        return live + archived;
     }
 }
