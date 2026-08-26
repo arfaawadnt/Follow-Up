@@ -79,9 +79,9 @@ const STATUSES = ['All', 'Scheduled', 'Completed', 'Cancelled'];
             <div class="frm-grid" style="grid-template-columns:1fr 1fr;gap:12px">
               <div class="field"><label>{{ 'laboratory_lbl' | t : 'Laboratory *' }}</label>
                 <select class="select" formControlName="laboratoryId"><option value="">—</option>@for (l of labs(); track l.id) { <option [value]="l.id">{{ l.displayCode }} · {{ l.name }}</option> }</select></div>
-              <div class="field"><label>{{ 'marketing_rep_lbl' | t : 'Marketing rep' }} *</label>
-                <select class="select" formControlName="representativeId"><option value="">—</option>@for (r of reps(); track r.id) { <option [value]="r.id">{{ r.fullName }}</option> }</select></div>
-              <div class="field"><label>{{ 'date_lbl' | t : 'Date' }} *</label><input type="date" class="input" formControlName="scheduledDate"></div>
+              <div class="field"><label>{{ 'marketing_rep_lbl' | t : 'Marketing rep *' }}</label>
+                <select class="select" formControlName="representativeId"><option value="">—</option>@for (r of marketingReps(); track r.id) { <option [value]="r.id">{{ r.fullName }}</option> }</select></div>
+              <div class="field"><label>{{ 'date_lbl' | t : 'Date *' }}</label><input type="date" class="input" formControlName="scheduledDate"></div>
               <div class="field"><label>{{ 'time' | t : 'Time' }}</label><input type="time" class="input" formControlName="scheduledTime"></div>
               <div class="field" style="grid-column:1/-1"><label>{{ 'purpose' | t }}</label>
                 <select class="select" formControlName="purpose">@for (p of purposes; track p.value) { <option [value]="p.value">{{ p.label }}</option> }</select></div>
@@ -129,6 +129,8 @@ export class MarketingComponent {
   readonly items = signal<MarketingVisit[]>([]);
   readonly labs = signal<LabListItem[]>([]);
   readonly reps = signal<RepListItem[]>([]);
+  // The reference only offers marketing-type reps in the schedule popup.
+  readonly marketingReps = computed(() => this.reps().filter((r) => r.type === 'Marketing'));
   readonly showForm = signal(false);
   readonly completing = signal<MarketingVisit | null>(null);
   readonly formError = signal<string | null>(null);
@@ -140,9 +142,10 @@ export class MarketingComponent {
   readonly form = this.fb.group({
     laboratoryId: this.fb.control('', Validators.required),
     representativeId: this.fb.control('', Validators.required),
-    purpose: this.fb.control(PURPOSES[0].value, Validators.required),
+    purpose: this.fb.control('Routine', Validators.required), // reference default: Routine Relationship
     scheduledDate: this.fb.control(localToday(), Validators.required),
-    scheduledTime: this.fb.control(''),
+    scheduledTime: this.fb.control('10:00'), // reference default
+
     plan: this.fb.control(''),
   });
 
@@ -174,7 +177,7 @@ export class MarketingComponent {
     // TimeOnly binds "HH:mm:ss" only — pad the time input's "HH:mm".
     const time = v.scheduledTime ? (v.scheduledTime.length === 5 ? v.scheduledTime + ':00' : v.scheduledTime) : null;
     this.api.post('/marketing', { ...v, scheduledTime: time, plan: v.plan.trim() || null }).subscribe({
-      next: () => { this.busy.set(false); this.showForm.set(false); this.form.patchValue({ laboratoryId: '', representativeId: '', scheduledTime: '', plan: '' }); this.load(); },
+      next: () => { this.busy.set(false); this.showForm.set(false); this.form.patchValue({ laboratoryId: '', representativeId: '', purpose: 'Routine', scheduledTime: '10:00', plan: '' }); this.load(); },
       error: (e) => { this.busy.set(false); this.formError.set(e?.error?.detail ?? 'Schedule failed.'); },
     });
   }
