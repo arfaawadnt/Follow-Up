@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { DatePipe, SlicePipe } from '@angular/common';
 import { FormsModule, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
@@ -10,7 +10,9 @@ import { TranslatePipe } from '../../core/i18n';
 const CATEGORIES = ['Representative Issue', 'Call Center Issue', 'Result Quality', 'Data Entry Mistake'];
 const CHANNELS = ['WhatsApp', 'Phone Call', 'Email', 'In-person'];
 const STATUSES = ['All', 'Open', 'InProgress', 'Resolved'];
-const OUTCOME_TYPES = ['Corrective Action', 'Preventive Action', 'Training', 'Process Change', 'Compensation', 'No Action Needed'];
+// Business outcome types as configured on the reference platform.
+const OUTCOME_TYPES = ['Repeat Test / Service', 'Refund / Credit Note', 'Staff Training / Warning',
+  'Customer Notified & Satisfied', 'No Action Required', 'Other Action'];
 // Stepper: display label ↔ backend stage name, in workflow order.
 const STEPS: { label: string; stage: string }[] = [
   { label: 'Logged', stage: 'Logged' },
@@ -20,6 +22,7 @@ const STEPS: { label: string; stage: string }[] = [
   { label: 'Outcome', stage: 'BusinessOutcome' },
   { label: 'Resolve', stage: 'Resolution' },
 ];
+type StageForm = 'ack' | 'validity' | 'investigation' | 'outcome' | 'resolve';
 
 @Component({
   selector: 'app-complaints',
@@ -64,9 +67,13 @@ const STEPS: { label: string; stage: string }[] = [
                 <td>{{ c.assignedTo ?? '—' }}</td>
                 <td><span class="badge" [class]="badge(c.status)">{{ c.status }}</span><div class="small muted">{{ stageLabel(c.stage) }}</div></td>
                 <td class="actions">
-                  <button class="btn btn-mini btn-s" (click)="openDetail(c.id)">{{ 'details' | t : 'Details' }}</button>
-                  @if (c.status === 'Open' && auth.has('UpdateComplaints')) { <button class="btn btn-mini btn-p" (click)="investigate(c)" [disabled]="busy()">{{ 'investigate' | t : 'Investigate' }}</button> }
-                  @if (c.status === 'Resolved' && auth.has('UpdateComplaints')) { <button class="btn btn-mini btn-s" (click)="reopen(c.id)" [disabled]="busy()">{{ 'reopen_btn' | t : 'Reopen' }}</button> }
+                  @if (c.status === 'Resolved') {
+                    <button class="btn btn-mini btn-s" (click)="openDetail(c.id)">{{ 'details' | t : 'Details' }}</button>
+                    @if (auth.has('UpdateComplaints')) { <button class="btn btn-mini btn-s" (click)="reopen(c.id)" [disabled]="busy()">{{ 'reopen_btn' | t : 'Reopen' }}</button> }
+                  } @else {
+                    @if (auth.has('UpdateComplaints')) { <button class="btn btn-mini btn-p" (click)="investigate(c)" [disabled]="busy()">{{ 'investigate' | t : 'Investigate' }}</button> }
+                    @else { <button class="btn btn-mini btn-s" (click)="openDetail(c.id)">{{ 'details' | t : 'Details' }}</button> }
+                  }
                 </td>
               </tr>
             } @empty { <tr><td colspan="8" class="empty" style="text-align:center;padding:24px">{{ 'no_complaints_match' | t : 'No complaints match.' }}</td></tr> }
@@ -103,23 +110,23 @@ const STEPS: { label: string; stage: string }[] = [
       </div>
     }
 
-    <!-- Details popup -->
+    <!-- Details popup (reference: "View Details" with stepper, metadata cards and staged forms) -->
     @if (detail(); as d) {
       <div class="modal-backdrop" (click)="closeDetail()">
-        <div class="modal" (click)="$event.stopPropagation()" style="max-width:760px;max-height:90vh;overflow-y:auto">
+        <div class="modal" (click)="$event.stopPropagation()" style="max-width:820px;max-height:92vh;overflow-y:auto">
           <div class="modal-head">
-            <h2>{{ d.reference }} — {{ d.lab }} <span class="badge" [class]="badge(d.status)">{{ d.status }}</span>
-              @if (d.stage === 'RejectedInvalid') { <span class="badge b-bad">{{ 'rejected_invalid' | t : 'Rejected — invalid' }}</span> }</h2>
+            <h2>{{ 'view_details' | t : 'View Details' }} <span class="badge" [class]="badge(d.status)">{{ d.status }}</span>
+              @if (d.stage === 'RejectedInvalid') { <span class="badge b-bad">{{ 'invalid' | t : 'Invalid' }}</span> }</h2>
             <button class="btn btn-mini btn-s" (click)="closeDetail()">✕</button>
           </div>
 
           <!-- Stage stepper -->
           <div class="stepper">
             @for (s of steps; track s.stage; let i = $index) {
-              <div class="step" [class.done]="i < stepIndex(d)" [class.cur]="i === stepIndex(d) && d.stage !== 'RejectedInvalid'">
-                <div class="dot">{{ i + 1 }}</div><div class="slbl">{{ s.label }}</div>
+              <div class="step" [class.done]="i < stepIndex(d)" [class.cur]="i === stepIndex(d)">
+                <div class="dot">{{ i < stepIndex(d) ? '✓' : i + 1 }}</div><div class="slbl">{{ s.label }}</div>
               </div>
-              @if (i < steps.length - 1) { <div class="sline" [class.done]="i < stepIndex(d)"></div> }
+              @if (i < steps.length - 1) { <div class="sarrow" [class.done]="i < stepIndex(d)">→</div> }
             }
           </div>
 
@@ -130,63 +137,72 @@ const STEPS: { label: string; stage: string }[] = [
 
           @if (detailTab() === 'meta') {
             <div style="padding:14px 16px">
-              <dl class="proffields">
-                <dt>{{ 'category' | t }}</dt><dd>{{ d.category }}</dd>
-                <dt>{{ 'received_via' | t : 'Received via' }}</dt><dd>{{ d.viaChannel }}</dd>
-                <dt>{{ 'representative' | t : 'Representative' }}</dt><dd>{{ d.representativeName ?? '—' }}</dd>
-                <dt>{{ 'complaint_datetime' | t : 'Received at' }}</dt><dd>{{ d.receivedAt ? (d.receivedAt | date:'medium') : '—' }}</dd>
-                <dt>{{ 'assigned_to' | t : 'Assigned to' }}</dt><dd>{{ d.assignedTeam ?? '—' }}</dd>
-                <dt>{{ 'logged_at' | t : 'Logged at' }}</dt><dd>{{ d.createdAt | date:'medium' }}</dd>
-                <dt>{{ 'description_lbl' | t : 'Description' }}</dt><dd>{{ d.details }}</dd>
-                @if (d.isValid !== null) { <dt>{{ 'validity' | t : 'Validity' }}</dt><dd><span class="badge" [class]="d.isValid ? 'b-ok' : 'b-bad'">{{ d.isValid ? ('valid' | t : 'Valid') : ('invalid' | t : 'Invalid') }}</span> {{ d.validityNotes ?? '' }}</dd> }
-                @if (d.investigationNotes) { <dt>{{ 'investigation' | t : 'Investigation' }}</dt><dd>{{ d.investigationNotes }}</dd> }
-                @if (d.outcomeType) { <dt>{{ 'outcome' | t : 'Outcome' }}</dt><dd><b>{{ d.outcomeType }}</b>@if (d.outcomeSummary) { — {{ d.outcomeSummary }} }</dd> }
-                @if (d.resolutionSummary) { <dt>{{ 'resolution' | t : 'Resolution' }}</dt><dd>{{ d.resolutionSummary }}</dd> }
-                @if (d.resolvedAt) { <dt>{{ 'resolved_at_lbl' | t : 'Resolved at' }}</dt><dd>{{ d.resolvedAt | date:'medium' }} · {{ d.resolvedBy }}</dd> }
-              </dl>
+              <div class="metacards">
+                <div class="mcard"><div class="mlbl">{{ 'complaint_reference' | t : 'Complaint reference' }}</div><div class="mval mono" style="color:var(--teal-600, #0d7490)">{{ d.reference }}</div></div>
+                <div class="mcard"><div class="mlbl">{{ 'category_validity' | t : 'Category & validity' }}</div><div class="mval">{{ d.category }} · {{ d.isValid === null ? '—' : (d.isValid ? 'VALID' : 'INVALID') }}</div></div>
+                <div class="mcard"><div class="mlbl">{{ 'requester_channel' | t : 'Requester & channel' }}</div><div class="mval">{{ d.lab }} <span class="muted">({{ d.viaChannel }})</span></div></div>
+                <div class="mcard"><div class="mlbl">{{ 'received_owner' | t : 'Received date & owner' }}</div><div class="mval">{{ (d.receivedAt ?? d.createdAt) | date:'dd/MM/yyyy' }} · {{ d.assignedTeam ?? '—' }}</div></div>
+              </div>
+
+              <div class="msec"><div class="mlbl">{{ 'complaint_description' | t : 'Complaint description' }}</div><div>{{ d.details }}</div></div>
+              @if (d.isValid !== null) {
+                <div class="msec"><div class="mlbl">{{ 'validity_notes_sec' | t : 'Validity check notes' }}</div>
+                  <div><span class="badge" [class]="d.isValid ? 'b-ok' : 'b-bad'">Status: {{ d.isValid ? 'Valid' : 'Invalid' }}</span> {{ d.validityNotes ?? '' }}</div></div>
+              }
+              @if (d.investigationNotes) { <div class="msec"><div class="mlbl">{{ 'investigation_sec' | t : 'Investigation notes & root cause analysis' }}</div><div>{{ d.investigationNotes }}</div></div> }
+              @if (d.outcomeType) {
+                <div class="msec"><div class="mlbl">{{ 'outcome_sec' | t : 'Outcome details' }}</div>
+                  <div><b>{{ d.outcomeType }}</b>@if (d.outcomeSummary) { <span> — {{ d.outcomeSummary }}</span> }</div></div>
+              }
+              @if (d.resolutionSummary) { <div class="msec"><div class="mlbl">{{ 'resolution_sec' | t : 'Resolution summary' }}</div><div>{{ d.resolutionSummary }}</div></div> }
 
               <!-- Stage action forms -->
-              @if (auth.has('UpdateComplaints') && d.status !== 'Resolved' && d.stage !== 'RejectedInvalid') {
+              @if (auth.has('UpdateComplaints') && d.status !== 'Resolved') {
                 <div class="stagebox">
                   @if (actionError()) { <div class="inline-banner inline-banner-error">{{ actionError() }}</div> }
-                  @switch (d.stage) {
-                    @case ('Logged') {
-                      <b>{{ 'acknowledge' | t : 'Acknowledge' }}</b>
-                      <div class="small muted" style="margin:4px 0 8px">{{ 'ack_hint' | t : 'Confirm the complaint was received and is being handled.' }}</div>
+                  @switch (stageForm(d)) {
+                    @case ('ack') {
+                      <b>{{ 'ack_title' | t : 'Acknowledge Complaint' }}</b>
+                      <div class="small muted" style="margin:4px 0 8px">{{ 'ack_hint' | t : 'Click the button below to acknowledge receipt of the complaint and begin the investigation.' }}</div>
                       <button class="btn btn-p" [disabled]="busy()" (click)="acknowledge(d)">{{ 'acknowledge' | t : 'Acknowledge' }}</button>
                     }
-                    @case ('Acknowledged') {
-                      <b>{{ 'validity_check' | t : 'Validity check' }}</b>
-                      <div style="display:flex;gap:14px;margin:8px 0">
-                        <label class="small"><input type="radio" name="valid" [value]="true" [(ngModel)]="stageValid"> {{ 'valid' | t : 'Valid' }}</label>
-                        <label class="small"><input type="radio" name="valid" [value]="false" [(ngModel)]="stageValid"> {{ 'invalid' | t : 'Invalid — reject' }}</label>
-                      </div>
-                      <textarea class="input" rows="2" [(ngModel)]="stageNotes" placeholder="Validity notes (optional)"></textarea>
-                      <button class="btn btn-p" style="margin-top:8px" [disabled]="stageValid === null || busy()" (click)="checkValidity(d)">{{ 'save_stage' | t : 'Save validity' }}</button>
+                    @case ('validity') {
+                      <b>{{ 'validity_title' | t : 'Complaint Validity Check' }}</b>
+                      <div class="field" style="margin-top:8px"><label>{{ 'validity_status' | t : 'Validity Status' }}</label>
+                        <select class="select" [(ngModel)]="stageValid"><option [ngValue]="true">{{ 'valid' | t : 'Valid' }}</option><option [ngValue]="false">{{ 'invalid' | t : 'Invalid' }}</option></select></div>
+                      <div class="field" style="margin-top:8px"><label>{{ 'validity_notes' | t : 'Validity Notes' }}</label>
+                        <textarea class="input" rows="2" [(ngModel)]="stageNotes" placeholder="Enter validity check notes..."></textarea></div>
+                      <button class="btn btn-p" style="margin-top:8px" [disabled]="busy()" (click)="checkValidity(d)">{{ 'save_proceed' | t : 'Save & Proceed' }}</button>
                     }
-                    @case ('ValidityChecked') {
-                      <b>{{ 'investigation' | t : 'Investigation' }}</b>
-                      <textarea class="input" rows="3" style="margin-top:8px" [(ngModel)]="stageNotes" placeholder="Investigation notes / root cause *"></textarea>
-                      <button class="btn btn-p" style="margin-top:8px" [disabled]="!stageNotes.trim() || busy()" (click)="recordInvestigation(d)">{{ 'record_investigation' | t : 'Record investigation' }}</button>
+                    @case ('investigation') {
+                      <b>{{ 'investigation_title' | t : 'Investigation & Root Cause Analysis' }}</b>
+                      <div class="field" style="margin-top:8px"><label>{{ 'investigation_lbl' | t : 'Investigation Notes & Root Cause' }}</label>
+                        <textarea class="input" rows="3" [(ngModel)]="stageNotes" placeholder="Enter investigation details and root cause analysis..."></textarea></div>
+                      <button class="btn btn-p" style="margin-top:8px" [disabled]="!stageNotes.trim() || busy()" (click)="recordInvestigation(d)">{{ 'save_proceed' | t : 'Save & Proceed' }}</button>
                     }
-                    @case ('Investigation') {
-                      <b>{{ 'business_outcome' | t : 'Business outcome' }}</b>
-                      <div class="frm-grid" style="grid-template-columns:220px 1fr;gap:10px;margin-top:8px;align-items:start">
-                        <select class="select" [(ngModel)]="stageOutcomeType">@for (o of outcomeTypes; track o) { <option>{{ o }}</option> }</select>
-                        <textarea class="input" rows="2" [(ngModel)]="stageNotes" placeholder="Outcome summary (optional)"></textarea>
-                      </div>
-                      <button class="btn btn-p" style="margin-top:8px" [disabled]="busy()" (click)="recordOutcome(d)">{{ 'save_outcome' | t : 'Save outcome' }}</button>
+                    @case ('outcome') {
+                      <b>{{ 'outcome_title' | t : 'Business Outcome' }}</b>
+                      <div class="field" style="margin-top:8px"><label>{{ 'outcome_type_lbl' | t : 'Outcome Type' }}</label>
+                        <select class="select" [(ngModel)]="stageOutcomeType">@for (o of outcomeTypes; track o) { <option>{{ o }}</option> }</select></div>
+                      <div class="field" style="margin-top:8px"><label>{{ 'outcome_details_lbl' | t : 'Outcome Details' }}</label>
+                        <textarea class="input" rows="2" [(ngModel)]="stageNotes" placeholder="Enter summary of business action taken..."></textarea></div>
+                      <button class="btn btn-p" style="margin-top:8px" [disabled]="busy()" (click)="recordOutcome(d)">{{ 'save_proceed' | t : 'Save & Proceed' }}</button>
                     }
-                    @case ('BusinessOutcome') {
-                      <b>{{ 'resolve' | t : 'Resolve' }}</b>
-                      <textarea class="input" rows="2" style="margin-top:8px" [(ngModel)]="stageNotes" placeholder="Resolution summary (optional)"></textarea>
-                      <button class="btn btn-t" style="margin-top:8px" [disabled]="busy()" (click)="resolve(d)">{{ 'resolve_complaint_btn' | t : 'Resolve complaint' }}</button>
+                    @case ('resolve') {
+                      <b>{{ 'resolve_title' | t : 'Resolution & Closure' }}</b>
+                      <div class="field" style="margin-top:8px"><label>{{ 'resolution_notes_lbl' | t : 'Resolution Notes' }}</label>
+                        <textarea class="input" rows="2" [(ngModel)]="stageNotes" placeholder="Enter final resolution details and preventive actions..."></textarea></div>
+                      <button class="btn btn-t" style="margin-top:8px" [disabled]="busy()" (click)="resolve(d)">{{ 'resolve_close_btn' | t : 'Resolve & Close' }}</button>
                     }
                   }
                 </div>
               }
-              @if (auth.has('UpdateComplaints') && (d.status === 'Resolved' || d.stage === 'RejectedInvalid')) {
-                <div class="stagebox"><button class="btn btn-s" [disabled]="busy()" (click)="reopen(d.id)">{{ 'reopen_btn' | t : 'Reopen' }}</button></div>
+              @if (d.status === 'Resolved') {
+                <div class="stagebox resolvedbox">
+                  <b>{{ 'resolved_banner' | t : 'Complaint Resolved & Closed' }}</b>
+                  <div class="small muted" style="margin:4px 0 8px">{{ 'resolved_banner_sub' | t : 'All investigation and outcome stages have been completed.' }}</div>
+                  @if (auth.has('UpdateComplaints')) { <button class="btn btn-s" [disabled]="busy()" (click)="reopen(d.id)">{{ 'reopen_btn' | t : 'Reopen' }}</button> }
+                </div>
               }
 
               <div style="margin-top:14px"><b>{{ 'signatures' | t : 'Signatures' }}</b><app-esign-panel module="complaint" [recordId]="d.id" /></div>
@@ -195,8 +211,8 @@ const STEPS: { label: string; stage: string }[] = [
           @if (detailTab() === 'audit') {
             <div style="padding:14px 16px">
               @if (audit(); as rows) {
-                <table class="grid-table"><thead><tr><th>{{ 'when' | t : 'When' }}</th><th>{{ 'actor' | t : 'Actor' }}</th><th>{{ 'action' | t : 'Action' }}</th></tr></thead>
-                  <tbody>@for (a of rows; track $index) { <tr><td class="mono small">{{ a.occurredAt | date:'short' }}</td><td>{{ a.actor }}</td><td>{{ a.action }}</td></tr> } @empty { <tr><td colspan="3" class="muted small">—</td></tr> }</tbody>
+                <table class="grid-table"><thead><tr><th>{{ 'time' | t : 'Time' }}</th><th>{{ 'user' | t : 'User' }}</th><th>{{ 'event' | t : 'Event' }}</th><th>{{ 'details' | t : 'Details' }}</th></tr></thead>
+                  <tbody>@for (a of rows; track $index) { <tr><td class="mono small">{{ a.occurredAt | date:'dd/MM/yyyy HH:mm' }}</td><td>{{ a.actor }}</td><td>{{ a.action }}</td><td class="small muted" style="white-space:pre-line;max-width:320px">{{ auditDetails(a) }}</td></tr> } @empty { <tr><td colspan="4" class="muted small">—</td></tr> }</tbody>
                 </table>
               } @else { <span class="muted small">{{ 'loading' | t : 'Loading…' }}</span> }
             </div>
@@ -211,19 +227,24 @@ const STEPS: { label: string; stage: string }[] = [
     .modal{background:var(--white);border-radius:12px;width:94%;box-shadow:0 20px 60px rgba(0,0,0,.25)}
     .modal-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--slate-200)}
     .modal-head h2{font-size:15px;margin:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    .stepper{display:flex;align-items:center;padding:16px;gap:4px}
+    .stepper{display:flex;align-items:center;padding:16px;gap:4px;background:var(--filter-bg);border-radius:10px;margin:14px 16px 0}
     .step{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:64px}
-    .step .dot{width:26px;height:26px;border-radius:50%;background:var(--slate-200);color:var(--slate-500);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
-    .step.done .dot{background:var(--teal-500);color:#fff}
-    .step.cur .dot{background:var(--slate-900);color:#fff}
+    .step .dot{width:26px;height:26px;border-radius:50%;background:var(--white);border:2px solid var(--slate-200);color:var(--slate-500);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+    .step.done .dot{background:#e8f6ee;border-color:var(--teal-500);color:var(--teal-600, #0d7490)}
+    .step.cur .dot{background:var(--teal-500);border-color:var(--teal-500);color:#fff}
     .step .slbl{font-size:11px;color:var(--slate-500)}
+    .step.done .slbl{color:var(--teal-600, #0d7490)}
     .step.cur .slbl{color:var(--slate-900);font-weight:700}
-    .sline{flex:1;height:2px;background:var(--slate-200);margin-bottom:16px}
-    .sline.done{background:var(--teal-500)}
-    .proffields{display:grid;grid-template-columns:150px 1fr;gap:6px 10px;margin:0}
-    .proffields dt{font-size:12px;color:var(--slate-500);font-weight:600}
-    .proffields dd{margin:0;font-size:13px;color:var(--slate-900)}
+    .sarrow{flex:1;text-align:center;color:var(--slate-300, #cbd5e1);margin-bottom:16px}
+    .sarrow.done{color:var(--teal-500)}
+    .metacards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:12px}
+    .mcard{border:1px solid var(--slate-200);border-radius:10px;padding:10px 12px;background:var(--white)}
+    .mlbl{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--slate-500);font-weight:700;margin-bottom:4px}
+    .mval{font-size:14px;color:var(--slate-900);font-weight:700}
+    .msec{border:1px solid var(--slate-200);border-radius:10px;padding:10px 12px;margin-bottom:10px;background:var(--white)}
+    .msec > div:last-child{font-size:13px;color:var(--slate-900)}
     .stagebox{margin-top:14px;padding:12px;border:1px solid var(--slate-200);border-radius:8px;background:var(--filter-bg)}
+    .resolvedbox{border-color:var(--teal-500);background:#e8f6ee}
   `],
 })
 export class ComplaintsComponent {
@@ -246,7 +267,7 @@ export class ComplaintsComponent {
   readonly category = signal('');
   readonly categories = CATEGORIES; readonly channels = CHANNELS; readonly statuses = STATUSES;
   readonly outcomeTypes = OUTCOME_TYPES; readonly steps = STEPS;
-  stageValid: boolean | null = null;
+  stageValid = true;
   stageNotes = '';
   stageOutcomeType = OUTCOME_TYPES[0];
 
@@ -267,9 +288,29 @@ export class ComplaintsComponent {
   badge(s: string): string { return s === 'Resolved' ? 'b-ok' : s === 'InProgress' ? 'b-warn' : 'b-bad'; }
   stageLabel(stage: string): string { return STEPS.find((s) => s.stage === stage)?.label ?? stage; }
   stepIndex(d: ComplaintDetail): number {
+    if (d.status === 'Resolved') return STEPS.length; // all steps checked, like the reference
     if (d.stage === 'RejectedInvalid') return 2;
     const i = STEPS.findIndex((s) => s.stage === d.stage);
     return i < 0 ? 0 : i;
+  }
+  /** Which stage-payload form is due next (RejectedInvalid still resolves & closes, per the reference). */
+  stageForm(d: ComplaintDetail): StageForm {
+    switch (d.stage) {
+      case 'Logged': return 'ack';
+      case 'Acknowledged': return 'validity';
+      case 'ValidityChecked': return 'investigation';
+      case 'Investigation': return 'outcome';
+      default: return 'resolve'; // BusinessOutcome, RejectedInvalid, Resolution
+    }
+  }
+  auditDetails(a: ComplaintAuditRow): string {
+    if (!a.after) return '';
+    try {
+      const obj = JSON.parse(a.after) as Record<string, unknown>;
+      return Object.entries(obj)
+        .filter(([, v]) => v !== null && v !== undefined && typeof v !== 'object' && String(v) !== '')
+        .map(([k, v]) => `${k}: ${v}`).join('\n');
+    } catch { return a.after; }
   }
 
   load(): void {
@@ -321,10 +362,11 @@ export class ComplaintsComponent {
   closeDetail(): void { this.detail.set(null); }
   refreshDetail(id: string): void {
     this.resetStageInputs();
+    this.audit.set(null); // stale after a stage change; reloads on next tab open
     this.api.get<ComplaintDetail>(`/complaints/${id}`).subscribe({ next: (d) => this.detail.set(d) });
     this.load();
   }
-  private resetStageInputs(): void { this.stageValid = null; this.stageNotes = ''; this.stageOutcomeType = OUTCOME_TYPES[0]; }
+  private resetStageInputs(): void { this.stageValid = true; this.stageNotes = ''; this.stageOutcomeType = OUTCOME_TYPES[0]; }
   loadAudit(id: string): void {
     this.detailTab.set('audit');
     if (!this.audit()) this.api.get<ComplaintAuditRow[]>(`/complaints/${id}/audit`).subscribe({ next: (rows) => this.audit.set(rows) });
@@ -339,7 +381,8 @@ export class ComplaintsComponent {
     });
   }
   investigate(c: ComplaintListItem): void {
-    // Start handling (Open -> InProgress), then open the detail popup on the workflow.
+    // Open rows start handling (Open -> InProgress) first; in-progress rows go straight to the workflow popup.
+    if (c.status !== 'Open') { this.openDetail(c.id); return; }
     this.busy.set(true);
     this.api.post(`/complaints/${c.id}/start`).subscribe({
       next: () => { this.busy.set(false); this.load(); this.openDetail(c.id); },
@@ -352,7 +395,6 @@ export class ComplaintsComponent {
     else moveStage();
   }
   checkValidity(d: ComplaintDetail): void {
-    if (this.stageValid === null) return;
     this.act(d.id, this.api.post(`/complaints/${d.id}/advance`, { stage: 'ValidityChecked', isValid: this.stageValid, notes: this.stageNotes.trim() || null }));
   }
   recordInvestigation(d: ComplaintDetail): void {
@@ -363,7 +405,10 @@ export class ComplaintsComponent {
     this.act(d.id, this.api.post(`/complaints/${d.id}/advance`, { stage: 'BusinessOutcome', outcomeType: this.stageOutcomeType, summary: this.stageNotes.trim() || null }));
   }
   resolve(d: ComplaintDetail): void {
-    this.act(d.id, this.api.post(`/complaints/${d.id}/resolve`, { resolutionSummary: this.stageNotes.trim() || null }));
+    const notes = this.stageNotes.trim();
+    // Invalid complaints close with an "Invalid Complaint" resolution, mirroring the reference.
+    const summary = d.stage === 'RejectedInvalid' ? `Invalid Complaint${notes ? ': ' + notes : ''}` : (notes || null);
+    this.act(d.id, this.api.post(`/complaints/${d.id}/resolve`, { resolutionSummary: summary }));
   }
   reopen(id: string): void {
     this.busy.set(true); this.actionError.set(null);

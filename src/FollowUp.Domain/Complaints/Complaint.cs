@@ -128,7 +128,7 @@ public sealed class Complaint : AggregateRoot<ComplaintId>, IAuditable
     {
         Status.EnsureCanTransitionTo(ComplaintStatus.InProgress);
         Status = ComplaintStatus.InProgress;
-        if (Stage == ComplaintStage.Logged) Stage = ComplaintStage.Acknowledged;
+        // Stage stays Logged: acknowledging is an explicit workflow step (reference parity).
     }
 
     /// <summary>
