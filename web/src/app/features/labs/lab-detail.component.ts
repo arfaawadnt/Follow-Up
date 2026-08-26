@@ -68,6 +68,7 @@ const CHANNELS = ['WhatsApp', 'Phone Call', 'Email', 'In-person'];
               <dt>Branch</dt><dd>{{ l.branch ?? '—' }}</dd>
               <dt>Governorate</dt><dd>{{ l.governorate ?? '—' }}</dd>
               <dt>City / Area</dt><dd>{{ l.city ?? '—' }} / {{ l.area ?? '—' }}</dd>
+              <dt>Address</dt><dd>{{ l.address ?? '—' }}</dd>
               <dt>Payer</dt><dd>{{ l.payer ?? '—' }}</dd>
               <dt>Contract</dt><dd>{{ l.contractType ?? '—' }}</dd>
               <dt>License</dt><dd>{{ l.licenseNo ?? '—' }}@if (l.licenseDate) { · {{ l.licenseDate }} }</dd>
@@ -123,6 +124,9 @@ const CHANNELS = ['WhatsApp', 'Phone Call', 'Email', 'In-person'];
             <div class="row">
               <div class="field"><label>City</label><input formControlName="city"></div>
               <div class="field"><label>Area</label><input formControlName="area"></div>
+            </div>
+            <div class="row">
+              <div class="field" style="min-width:100%"><label>Address</label><input formControlName="address"></div>
             </div>
             <div class="row">
               <div class="field"><label>Category</label><input formControlName="category"></div>
@@ -230,7 +234,7 @@ export class LabDetailComponent {
     name: this.fb.control('', Validators.required),
     segment: this.fb.control('C'),
     branch: this.fb.control(''), governorate: this.fb.control(''),
-    city: this.fb.control(''), area: this.fb.control(''),
+    city: this.fb.control(''), area: this.fb.control(''), address: this.fb.control(''),
     category: this.fb.control(''), payer: this.fb.control(''), contractType: this.fb.control(''),
     licenseNo: this.fb.control(''), licenseDate: this.fb.control<string | null>(null),
     avgMonthlySamples: this.fb.control<number | null>(null), preferredChannel: this.fb.control(''),
@@ -263,7 +267,7 @@ export class LabDetailComponent {
         this.lab.set(l);
         this.form.patchValue({
           name: l.name, segment: l.segment, branch: l.branch ?? '', governorate: l.governorate ?? '',
-          city: l.city ?? '', area: l.area ?? '', category: l.category ?? '', payer: l.payer ?? '',
+          city: l.city ?? '', area: l.area ?? '', address: l.address ?? '', category: l.category ?? '', payer: l.payer ?? '',
           contractType: l.contractType ?? '', licenseNo: l.licenseNo ?? '', licenseDate: l.licenseDate,
           avgMonthlySamples: l.avgMonthlySamples, preferredChannel: l.preferredChannel ?? '',
           marketingRepId: l.marketingRepId ?? '',
@@ -296,6 +300,7 @@ export class LabDetailComponent {
     this.api.put(`/labs/${this.id}`, {
       id: this.id, rowVersion: l.rowVersion, name: v.name, segment: v.segment,
       branch: v.branch || null, governorate: v.governorate || null, city: v.city || null, area: v.area || null,
+      address: v.address || null,
       category: v.category || null, payer: v.payer || null, contractType: v.contractType || null,
       licenseNo: v.licenseNo || null, licenseDate: v.licenseDate || null,
       avgMonthlySamples: v.avgMonthlySamples, preferredChannel: v.preferredChannel || null,

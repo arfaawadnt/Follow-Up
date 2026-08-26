@@ -25,6 +25,7 @@ internal sealed class LaboratoryConfiguration : IEntityTypeConfiguration<Laborat
         b.Property(x => x.City).HasMaxLength(100);
         b.Property(x => x.Area).HasMaxLength(100);
         b.Property(x => x.Category).HasMaxLength(100);
+        b.Property(x => x.Address).HasMaxLength(500);
         b.Property(x => x.Payer).HasMaxLength(100);
         b.Property(x => x.ContractType).HasMaxLength(100);
         b.Property(x => x.LicenseNo).HasMaxLength(100);

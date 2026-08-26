@@ -21,22 +21,36 @@ public sealed class MarketingVisit : AggregateRoot<MarketingVisitId>, IAuditable
 {
     private MarketingVisit() { } // EF
 
-    private MarketingVisit(MarketingVisitId id, LaboratoryId labId, RepresentativeId repId,
-        MarketingPurpose purpose, DateOnly scheduledDate)
+    private MarketingVisit(MarketingVisitId id, int number, LaboratoryId labId, RepresentativeId repId,
+        MarketingPurpose purpose, DateOnly scheduledDate, TimeOnly? scheduledTime, string? plan)
         : base(id)
     {
+        Number = number;
         LaboratoryId = labId;
         RepresentativeId = repId;
         Purpose = purpose;
         ScheduledDate = scheduledDate;
+        ScheduledTime = scheduledTime;
+        Plan = string.IsNullOrWhiteSpace(plan) ? null : plan.Trim();
         Status = MarketingVisitStatus.Scheduled;
         Raise(new MarketingVisitScheduled(id, labId));
     }
+
+    /// <summary>The sequential integer behind the <c>MV{n}</c> reference (mirrors BR-2's pattern).</summary>
+    public int Number { get; private set; }
+
+    /// <summary>Human reference, e.g. <c>MV8</c>.</summary>
+    public string Reference => $"MV{Number}";
 
     public LaboratoryId LaboratoryId { get; private set; }
     public RepresentativeId RepresentativeId { get; private set; }
     public MarketingPurpose Purpose { get; private set; } = null!;
     public DateOnly ScheduledDate { get; private set; }
+    public TimeOnly? ScheduledTime { get; private set; }
+
+    /// <summary>The planned agenda for the visit (shown as OUTCOME / PLAN while scheduled).</summary>
+    public string? Plan { get; private set; }
+
     public MarketingVisitStatus Status { get; private set; } = null!;
 
     public string? Outcome { get; private set; }
@@ -48,9 +62,12 @@ public sealed class MarketingVisit : AggregateRoot<MarketingVisitId>, IAuditable
     public DateTimeOffset? UpdatedAt { get; private set; }
     public string? UpdatedBy { get; private set; }
 
-    public static MarketingVisit Schedule(LaboratoryId labId, RepresentativeId repId,
-        MarketingPurpose purpose, DateOnly scheduledDate) =>
-        new(MarketingVisitId.New(), labId, repId, purpose, scheduledDate);
+    public static MarketingVisit Schedule(int number, LaboratoryId labId, RepresentativeId repId,
+        MarketingPurpose purpose, DateOnly scheduledDate, TimeOnly? scheduledTime = null, string? plan = null)
+    {
+        if (number <= 0) throw new DomainException("Marketing visit number must be positive.");
+        return new(MarketingVisitId.New(), number, labId, repId, purpose, scheduledDate, scheduledTime, plan);
+    }
 
     public void Complete(string outcome, DateTimeOffset when)
     {

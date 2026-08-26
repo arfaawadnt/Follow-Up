@@ -42,16 +42,27 @@ public sealed record NetworkOverviewDto(
     IReadOnlyList<DashGovRowDto> GovRows, IReadOnlyList<DashSegMixDto> SegMix);
 
 public sealed record RepPerformanceRowDto(
-    Guid RepId, string Name, string Type, string GoalType, decimal Target, decimal Achieved,
-    decimal Pct, string PaceLabel, bool OnTrack, decimal Salary);
+    Guid RepId, string Name, string Type, string GoalType, string? Metric, string GoalDuration,
+    decimal Target, decimal Achieved, decimal Pct, string PaceLabel, bool OnTrack, decimal Salary);
+
+public sealed record LabHistoryVisitDto(DateOnly Date, string Time, string? Collector, string Status, int? Samples);
+public sealed record LabHistoryComplaintDto(string Reference, string Description, DateOnly Date, string Status);
 
 public sealed record LabHistoryDto(
-    string LabDisplayCode, string Name, string Segment, string Status,
-    int AvgMonth, int Mtd, int Complaints, IReadOnlyList<ChartPointDto> Months);
+    string LabDisplayCode, string EncAlias, string Name, string Segment, string Status,
+    string? Branch, string? Payer, string? ContractType, string? LicenseNo, DateOnly? LicenseDate,
+    string? PreferredChannel, IReadOnlyList<string> VisitTimes, IReadOnlyList<string> WorkDays,
+    IReadOnlyList<string> Collectors, string? Marketing, DateOnly Joined, string? Address,
+    IReadOnlyList<string> Contacts,
+    int AvgMonth, int Mtd, int Completion14Pct, int Missed14, int Complaints,
+    IReadOnlyList<ChartPointDto> Months,
+    IReadOnlyList<LabHistoryVisitDto> Visits,
+    IReadOnlyList<LabHistoryComplaintDto> ComplaintRows);
 
 // Per-visit interval breakdown (minutes) mirroring the reference rep-intervals report.
 public sealed record RepIntervalRowDto(
-    string CollectorName, string LabName, string LabCode, DateOnly VisitDate, string VisitTime, int? Samples,
+    string CollectorName, string LabName, string LabCode, string? Branch, string? Governorate, string? City, string? Area,
+    DateOnly VisitDate, string VisitTime, int? Samples,
     double? PlannedToCollect, double? CollectToTransfer, double? TransferToCheckin, double? TotalCycle,
     string? CheckinTime, string? TransferTime, string? MarkedAt);
 

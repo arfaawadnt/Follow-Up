@@ -103,6 +103,8 @@ public sealed class FakeMarketingVisitRepository : IMarketingVisitRepository
     public readonly List<MarketingVisit> Store = new();
     public Task<MarketingVisit?> GetByIdAsync(MarketingVisitId id, CancellationToken ct) =>
         Task.FromResult(Store.FirstOrDefault(v => v.Id == id));
+    public Task<int> NextNumberAsync(CancellationToken ct) =>
+        Task.FromResult(Store.Count == 0 ? 1 : Store.Max(v => v.Number) + 1);
     public void Add(MarketingVisit visit) => Store.Add(visit);
 }
 

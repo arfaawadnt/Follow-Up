@@ -16,7 +16,13 @@ internal sealed class MarketingVisitConfiguration : IEntityTypeConfiguration<Mar
         b.IgnoreDomainEvents();
         b.MapAuditable();
 
+        b.Ignore(x => x.Reference); // derived from Number
+
+        b.Property(x => x.Number);
+        b.HasIndex(x => x.Number).IsUnique(); // sequential MV-n reference
         b.Property(x => x.ScheduledDate);
+        b.Property(x => x.ScheduledTime);
+        b.Property(x => x.Plan).HasMaxLength(2000);
         b.Property(x => x.Outcome).HasMaxLength(2000);
         b.Property(x => x.CancellationReason).HasMaxLength(500);
         b.Property(x => x.CompletedAt);
@@ -46,6 +52,14 @@ internal sealed class ComplaintConfiguration : IEntityTypeConfiguration<Complain
         b.Property(x => x.Details).HasColumnType("text");
         b.Property(x => x.ResolvedBy).HasMaxLength(100);
         b.Property(x => x.ResolvedAt);
+        b.Property(x => x.RepresentativeId);
+        b.Property(x => x.ReceivedAt);
+        b.Property(x => x.IsValid);
+        b.Property(x => x.ValidityNotes).HasMaxLength(2000);
+        b.Property(x => x.InvestigationNotes).HasColumnType("text");
+        b.Property(x => x.OutcomeType).HasMaxLength(100);
+        b.Property(x => x.OutcomeSummary).HasMaxLength(2000);
+        b.Property(x => x.ResolutionSummary).HasMaxLength(2000);
         b.Property(x => x.CreatedAt);
         b.Property(x => x.CreatedBy).HasMaxLength(100).HasDefaultValue("system");
         b.Property(x => x.UpdatedAt);

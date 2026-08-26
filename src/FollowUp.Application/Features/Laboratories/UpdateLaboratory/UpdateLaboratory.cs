@@ -26,6 +26,7 @@ public sealed record UpdateLaboratoryCommand : ICommand, IAuthorizedRequest
     public string? City { get; init; }
     public string? Area { get; init; }
     public string? Category { get; init; }
+    public string? Address { get; init; }
     public string? Payer { get; init; }
     public string? ContractType { get; init; }
     public string? LicenseNo { get; init; }
@@ -85,6 +86,7 @@ public sealed class UpdateLaboratoryHandler : ICommandHandler<UpdateLaboratoryCo
 
         lab.UpdateProfile(request.Name, request.Segment, request.Payer, request.ContractType, request.Category,
             request.LicenseNo, request.LicenseDate, request.AvgMonthlySamples, request.PreferredChannel);
+        lab.SetAddress(request.Address);
         lab.PlaceInHierarchy(request.Branch, request.Governorate, request.City, request.Area);
         lab.SetLocation(request.Latitude is { } lat && request.Longitude is { } lng ? GeoLocation.Create(lat, lng) : null);
         lab.SetSchedule(CreateLaboratoryHandler.BuildSchedule(request.WorkDays, request.VisitTimes));

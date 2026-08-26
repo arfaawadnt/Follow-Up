@@ -42,6 +42,7 @@ const DAY_NAMES: Record<string, string> = { Sat: 'Saturday', Sun: 'Sunday', Mon:
         <div class="field"><label>Area</label><select class="select" [(ngModel)]="f.area"><option value="">—</option>@for (a of areas(); track a.id) { <option [value]="a.name">{{ a.name }}</option> }</select></div>
         <div class="field"><label>Latitude</label><input type="number" class="input" [(ngModel)]="f.latitude"></div>
         <div class="field"><label>Longitude</label><input type="number" class="input" [(ngModel)]="f.longitude"></div>
+        <div class="field" style="grid-column:1/-1"><label>Address</label><input class="input" [(ngModel)]="f.address" placeholder="street, building, floor…"></div>
       </div>
     </section>
 
@@ -133,7 +134,7 @@ export class LabCreateComponent {
   f = {
     name: '', code: '', segment: 'A', status: 'Scanned', category: '', branch: '',
     licenseNo: '', licenseDate: null as string | null, avgMonthlySamples: null as number | null,
-    governorate: '', city: '', area: '', latitude: null as number | null, longitude: null as number | null,
+    governorate: '', city: '', area: '', address: '', latitude: null as number | null, longitude: null as number | null,
     payer: '', contractType: '', marketingRepId: '', preferredChannel: '',
     time1: '', time2: '',
   };
@@ -168,6 +169,7 @@ export class LabCreateComponent {
       licenseNo: this.f.licenseNo || null, licenseDate: this.f.licenseDate || null,
       avgMonthlySamples: this.f.avgMonthlySamples, preferredChannel: this.f.preferredChannel || null,
       governorate: this.f.governorate || null, city: this.f.city || null, area: this.f.area || null,
+      address: this.f.address || null,
       latitude: this.f.latitude, longitude: this.f.longitude,
       payer: this.f.payer || null, contractType: this.f.contractType || null,
       collectorRepIds: this.collectorIds, marketingRepId: this.f.marketingRepId || null,

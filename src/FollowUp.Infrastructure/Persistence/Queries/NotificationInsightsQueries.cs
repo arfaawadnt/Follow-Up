@@ -205,53 +205,140 @@ internal sealed class InsightsQueries : IInsightsQueries
 
     public async Task<IReadOnlyList<RepPerformanceRowDto>> GetPerformanceAsync(OrgScope scope, CancellationToken ct)
     {
-        // Attainment = achieved/target from the latest commission rows; pace/on-track use the >=85% rule (BR-8).
+        // Attainment = achieved vs the rep's own goal; pace compares achieved to the elapsed-time expectation
+        // (BR-8: on track when achieved >= 85% of target x elapsed-fraction of the goal period).
         var reps = await _db.Representatives.AsNoTracking().Where(r => r.IsActive).ToListAsync(ct);
+        var repIds = reps.Select(r => r.Id).ToList();
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var quarterStartMonth = (today.Month - 1) / 3 * 3 + 1;
+        var quarterPeriods = Enumerable.Range(0, 3).Select(i => new YearMonth(today.Year, quarterStartMonth + i)).ToList();
+        var thisYmCode = new YearMonth(today.Year, today.Month).Code;
+
+        // Collector volumes for the current goal window — one grouped query (no per-rep round-trips).
+        var samples = await _db.MonthlySamples.AsNoTracking()
+            .Where(m => m.CollectorRepId != null && quarterPeriods.Contains(m.Period))
+            .Select(m => new { m.CollectorRepId, Period = m.Period, m.SampleCount }).ToListAsync(ct);
+
+        var latestComms = (await _db.Commissions.AsNoTracking()
+                .Where(c => repIds.Contains(c.RepresentativeId)).ToListAsync(ct))
+            .GroupBy(c => c.RepresentativeId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(c => c.Period.Code).First());
+
+        var monthElapsed = (decimal)today.Day / DateTime.DaysInMonth(today.Year, today.Month);
+        var quarterStart = new DateOnly(today.Year, quarterStartMonth, 1);
+        var quarterEnd = quarterStart.AddMonths(3);
+        var quarterElapsed = (decimal)(today.DayNumber - quarterStart.DayNumber + 1) / (quarterEnd.DayNumber - quarterStart.DayNumber);
+
         var result = new List<RepPerformanceRowDto>();
         foreach (var r in reps)
         {
-            var latest = await _db.Commissions.AsNoTracking().Where(c => c.RepresentativeId == r.Id)
-                .OrderByDescending(c => c.Period).FirstOrDefaultAsync(ct);
+            latestComms.TryGetValue(r.Id, out var latest);
             var target = latest?.Target ?? r.Target.Amount;
-            var achieved = latest?.Achieved ?? 0m;
+            var monthly = r.GoalDuration == GoalDuration.Monthly;
+
+            // Collectors are measured on collected samples (rep-linked monthly volumes); other rep types
+            // fall back to the saved commission record — their goals aren't computed from tracked data yet.
+            decimal achieved = r.Type == RepresentativeType.Collector
+                ? samples.Where(s => s.CollectorRepId!.Value == r.Id && (!monthly || s.Period.Code == thisYmCode)).Sum(s => s.SampleCount)
+                : latest?.Achieved ?? 0m;
+
             var pct = target == 0 ? 0 : Math.Round(achieved / target * 100m, 0);
-            var onTrack = pct >= 85m;
+            var expected = target * (monthly ? monthElapsed : quarterElapsed);
+            var onTrack = expected <= 0 || achieved >= 0.85m * expected;
             result.Add(new RepPerformanceRowDto(r.Id.Value, r.FullName, r.Type.Name, r.GoalType ?? r.GoalDuration.Name,
-                target, achieved, pct, onTrack ? "On track" : "Behind", onTrack, r.Salary.Amount));
+                r.Metric, r.GoalDuration.Name, target, achieved, pct, onTrack ? "On track" : "Behind pace", onTrack, r.Salary.Amount));
         }
         return result;
     }
 
     public async Task<LabHistoryDto?> GetLabHistoryAsync(Guid labId, bool canSeeEncrypted, CancellationToken ct)
     {
-        var lab = await _db.Laboratories.AsNoTracking()
-            .Where(l => l.Id == new LaboratoryId(labId))
-            .Select(l => new { l.Code, l.Name, l.Segment, l.Status }).FirstOrDefaultAsync(ct);
-        if (lab is null) return null;
         var lid = new LaboratoryId(labId);
+        var lab = await _db.Laboratories.AsNoTracking().FirstOrDefaultAsync(l => l.Id == lid, ct);
+        if (lab is null) return null;
+
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var thisYm = new YearMonth(today.Year, today.Month).Code;
         var months = Enumerable.Range(0, 6).Select(i => { var m = today.AddMonths(-i); return new YearMonth(m.Year, m.Month); }).ToList();
         var ms = await _db.MonthlySamples.AsNoTracking().Where(m => m.LaboratoryId == lid && months.Contains(m.Period))
             .Select(m => new { Period = m.Period, m.SampleCount }).ToListAsync(ct);
         var allMs = await _db.MonthlySamples.AsNoTracking().Where(m => m.LaboratoryId == lid).Select(m => m.SampleCount).ToListAsync(ct);
-        var complaints = await _db.Complaints.CountAsync(c => c.LaboratoryId == lid, ct);
         var monthPts = months.AsEnumerable().Reverse()
             .Select(m => new ChartPointDto(new DateOnly(m.Year, m.Month, 1).ToString("MMM", CultureInfo.InvariantCulture),
                 ms.Where(x => x.Period.Code == m.Code).Sum(x => x.SampleCount))).ToList();
-        return new LabHistoryDto(DisplayCode.For(lab.Code.Value, canSeeEncrypted), lab.Name, lab.Segment, lab.Status.Name,
-            allMs.Count > 0 ? (int)Math.Round(allMs.Average()) : 0, ms.Where(x => x.Period.Code == thisYm).Sum(x => x.SampleCount), complaints, monthPts);
+
+        // Visit rows: live day rows ∪ archived history (stage timestamps kept on archive), newest first.
+        var live = (await _db.DailyVisits.AsNoTracking().Where(v => v.LaboratoryId == lid)
+                .OrderByDescending(v => v.VisitDate).Take(40)
+                .Select(v => new { v.VisitDate, v.ScheduledTime, v.CollectorRepId, v.Status, v.SampleCount }).ToListAsync(ct))
+            .Select(v => new { v.VisitDate, Time = (TimeOnly?)v.ScheduledTime, v.CollectorRepId, Status = v.Status.Name, v.SampleCount });
+        var archived = (await _db.VisitHistory.AsNoTracking().Where(v => v.LaboratoryId == lid)
+                .OrderByDescending(v => v.VisitDate).Take(40)
+                .Select(v => new { v.VisitDate, v.ScheduledTime, v.CollectorRepId, v.Status, v.SampleCount }).ToListAsync(ct))
+            .Select(v => new { v.VisitDate, Time = v.ScheduledTime, v.CollectorRepId, v.Status, v.SampleCount });
+        var allVisits = live.Concat(archived).OrderByDescending(v => v.VisitDate).ThenByDescending(v => v.Time).ToList();
+
+        // Rep names for collectors, marketing and visit rows.
+        var repIds = lab.CollectorRepIds.ToList();
+        if (lab.MarketingRepId is { } mrid) repIds.Add(mrid);
+        repIds.AddRange(allVisits.Where(v => v.CollectorRepId != null).Select(v => v.CollectorRepId!.Value));
+        repIds = repIds.Distinct().ToList();
+        var repNames = (await _db.Representatives.AsNoTracking().Where(r => repIds.Contains(r.Id))
+            .Select(r => new { r.Id, r.FullName }).ToListAsync(ct)).ToDictionary(r => r.Id, r => r.FullName);
+        string? NameOf(RepresentativeId? id) => id != null && repNames.TryGetValue(id.Value, out var n) ? n : null;
+
+        var visitRows = allVisits.Take(30).Select(v => new LabHistoryVisitDto(
+            v.VisitDate, v.Time?.ToString("HH:mm") ?? "—", NameOf(v.CollectorRepId), v.Status, v.SampleCount)).ToList();
+
+        // 14-day completion: done (Visited/Received) over all scheduled rows in the window, plus missed count.
+        var d14Start = today.AddDays(-13);
+        var window = allVisits.Where(v => v.VisitDate >= d14Start && v.VisitDate <= today).ToList();
+        var done14 = window.Count(v => v.Status is "Visited" or "Received");
+        var completion14 = window.Count > 0 ? (int)Math.Round(100.0 * done14 / window.Count) : 0;
+        var missed14 = window.Count(v => v.Status == "Missed");
+
+        var complaintRows = (await _db.Complaints.AsNoTracking().Where(c => c.LaboratoryId == lid)
+                .OrderByDescending(c => c.Number).Take(20)
+                .Select(c => new { c.Number, c.Details, c.CreatedAt, c.Status }).ToListAsync(ct))
+            .Select(c => new LabHistoryComplaintDto($"CMP-{c.Number}", c.Details,
+                DateOnly.FromDateTime(c.CreatedAt.UtcDateTime), c.Status.Name)).ToList();
+        var complaints = await _db.Complaints.CountAsync(c => c.LaboratoryId == lid, ct);
+
+        return new LabHistoryDto(
+            DisplayCode.For(lab.Code.Value, canSeeEncrypted), lab.Code.ToEncryptedAlias(), lab.Name, lab.Segment, lab.Status.Name,
+            lab.Branch, lab.Payer, lab.ContractType, lab.LicenseNo, lab.LicenseDate,
+            lab.PreferredChannel,
+            lab.Schedule.VisitTimes.Select(t => t.ToString("HH:mm")).ToList(),
+            lab.Schedule.WorkDays.Select(d => d.ToString()).ToList(),
+            lab.CollectorRepIds.Select(id => NameOf(id) ?? "—").ToList(),
+            NameOf(lab.MarketingRepId), DateOnly.FromDateTime(lab.CreatedAt.UtcDateTime), lab.Address,
+            lab.Contacts.Select(c => $"{c.Name} ({c.Role}){(string.IsNullOrWhiteSpace(c.Phone) ? "" : $" · {c.Phone}")}").ToList(),
+            allMs.Count > 0 ? (int)Math.Round(allMs.Average()) : 0,
+            ms.Where(x => x.Period.Code == thisYm).Sum(x => x.SampleCount),
+            completion14, missed14, complaints, monthPts, visitRows, complaintRows);
     }
 
     public async Task<IReadOnlyList<RepIntervalRowDto>> GetRepIntervalsAsync(DateOnly start, DateOnly end, OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
     {
         var scopedLabs = _db.Laboratories.ApplyScope(scope).Select(l => l.Id);
-        var rows = await (from v in _db.DailyVisits.AsNoTracking()
-                          where v.VisitDate >= start && v.VisitDate <= end && scopedLabs.Contains(v.LaboratoryId)
-                          join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
-                          orderby v.VisitDate descending, v.ScheduledTime
-                          select new { l.Code, l.Name, v.VisitDate, v.ScheduledTime, v.SampleCount,
-                              v.CollectorRepId, v.CheckedInAt, v.TransferConfirmedAt, v.ReceivedAt }).ToListAsync(ct);
+        var live = (await (from v in _db.DailyVisits.AsNoTracking()
+                           where v.VisitDate >= start && v.VisitDate <= end && scopedLabs.Contains(v.LaboratoryId)
+                           join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
+                           select new { l.Code, l.Name, l.Branch, l.Governorate, l.City, l.Area, v.VisitDate, v.ScheduledTime, v.SampleCount,
+                               v.CollectorRepId, v.CheckedInAt, v.TransferConfirmedAt, v.ReceivedAt }).ToListAsync(ct))
+            .Select(v => new { v.Code, v.Name, v.Branch, v.Governorate, v.City, v.Area, v.VisitDate, ScheduledTime = (TimeOnly?)v.ScheduledTime,
+                v.SampleCount, v.CollectorRepId, v.CheckedInAt, v.TransferConfirmedAt, v.ReceivedAt });
+
+        // Archived rows keep their stage timestamps (OperationsReferenceParity), so past days report too.
+        var archived = await (from v in _db.VisitHistory.AsNoTracking()
+                              where v.VisitDate >= start && v.VisitDate <= end && scopedLabs.Contains(v.LaboratoryId)
+                              join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
+                              select new { l.Code, l.Name, l.Branch, l.Governorate, l.City, l.Area, v.VisitDate, v.ScheduledTime, v.SampleCount,
+                                  v.CollectorRepId, v.CheckedInAt, v.TransferConfirmedAt, v.ReceivedAt }).ToListAsync(ct);
+
+        var rows = live.Concat(archived)
+            .OrderByDescending(r => r.VisitDate).ThenBy(r => r.ScheduledTime).ToList();
 
         var repIds = rows.Where(r => r.CollectorRepId != null).Select(r => r.CollectorRepId!.Value).Distinct().ToList();
         var repName = (await _db.Representatives.AsNoTracking().Where(r => repIds.Contains(r.Id))
@@ -262,10 +349,11 @@ internal sealed class InsightsQueries : IInsightsQueries
 
         return rows.Select(r =>
         {
-            var planned = new DateTimeOffset(r.VisitDate.ToDateTime(r.ScheduledTime), TimeSpan.Zero);
+            var planned = r.ScheduledTime is { } st ? new DateTimeOffset(r.VisitDate.ToDateTime(st), TimeSpan.Zero) : (DateTimeOffset?)null;
             return new RepIntervalRowDto(
                 r.CollectorRepId != null && repName.TryGetValue(r.CollectorRepId.Value, out var n) ? n : "—",
-                r.Name, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.VisitDate, r.ScheduledTime.ToString("HH:mm"), r.SampleCount,
+                r.Name, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Branch, r.Governorate, r.City, r.Area,
+                r.VisitDate, r.ScheduledTime?.ToString("HH:mm") ?? "—", r.SampleCount,
                 Mins(r.CheckedInAt, planned), Mins(r.TransferConfirmedAt, r.CheckedInAt),
                 Mins(r.ReceivedAt, r.TransferConfirmedAt), Mins(r.ReceivedAt, r.CheckedInAt),
                 Hm(r.CheckedInAt), Hm(r.TransferConfirmedAt), Hm(r.ReceivedAt));

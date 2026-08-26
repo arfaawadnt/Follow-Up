@@ -77,4 +77,80 @@ public class ComplaintTests
         complaint.Stage.Should().Be(ComplaintStage.Investigation);
         complaint.Status.Should().Be(ComplaintStatus.Open); // stage is metadata only (CMP-STAGE fix)
     }
+
+    [Fact]
+    public void SetIntake_records_representative_and_received_time()
+    {
+        var complaint = NewComplaint();
+        var repId = Guid.NewGuid();
+
+        complaint.SetIntake(repId, Now);
+
+        complaint.RepresentativeId.Should().Be(repId);
+        complaint.ReceivedAt.Should().Be(Now);
+    }
+
+    [Fact]
+    public void CheckValidity_valid_advances_to_ValidityChecked()
+    {
+        var complaint = NewComplaint();
+
+        complaint.CheckValidity(true, "confirmed with the lab");
+
+        complaint.Stage.Should().Be(ComplaintStage.ValidityChecked);
+        complaint.IsValid.Should().BeTrue();
+        complaint.ValidityNotes.Should().Be("confirmed with the lab");
+        complaint.Status.Should().Be(ComplaintStatus.Open); // stage payloads never touch status
+    }
+
+    [Fact]
+    public void CheckValidity_invalid_routes_to_RejectedInvalid()
+    {
+        var complaint = NewComplaint();
+
+        complaint.CheckValidity(false, "not reproducible");
+
+        complaint.Stage.Should().Be(ComplaintStage.RejectedInvalid);
+        complaint.IsValid.Should().BeFalse();
+    }
+
+    [Fact]
+    public void RecordInvestigation_requires_notes()
+    {
+        var complaint = NewComplaint();
+
+        var act = () => complaint.RecordInvestigation("  ");
+        act.Should().Throw<DomainException>();
+
+        complaint.RecordInvestigation("root cause: courier delay");
+        complaint.Stage.Should().Be(ComplaintStage.Investigation);
+        complaint.InvestigationNotes.Should().Be("root cause: courier delay");
+    }
+
+    [Fact]
+    public void RecordOutcome_requires_type_and_advances_stage()
+    {
+        var complaint = NewComplaint();
+
+        var act = () => complaint.RecordOutcome(" ", null);
+        act.Should().Throw<DomainException>();
+
+        complaint.RecordOutcome("Corrective Action", "retrained the courier");
+        complaint.Stage.Should().Be(ComplaintStage.BusinessOutcome);
+        complaint.OutcomeType.Should().Be("Corrective Action");
+        complaint.OutcomeSummary.Should().Be("retrained the courier");
+    }
+
+    [Fact]
+    public void Resolution_summary_survives_resolve()
+    {
+        var complaint = NewComplaint();
+        complaint.Start();
+
+        complaint.SetResolutionSummary("credited the affected order");
+        complaint.Resolve("manager", Now);
+
+        complaint.ResolutionSummary.Should().Be("credited the affected order");
+        complaint.Status.Should().Be(ComplaintStatus.Resolved);
+    }
 }

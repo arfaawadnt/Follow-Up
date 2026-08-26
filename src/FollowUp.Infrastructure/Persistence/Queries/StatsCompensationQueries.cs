@@ -28,12 +28,12 @@ internal sealed class LabStatsQueries : ILabStatsQueries
 
         // Enrich with lab profile (name/segment/location) by code — for the pivot rows.
         var labInfo = (await _db.Laboratories.AsNoTracking()
-            .Select(l => new { l.Code, l.Name, l.Segment, l.Governorate, l.City, l.Area }).ToListAsync(ct))
+            .Select(l => new { l.Code, l.Name, l.Category, l.Segment, l.Governorate, l.City, l.Area }).ToListAsync(ct))
             .GroupBy(l => l.Code.Value).ToDictionary(g => g.Key, g => g.First());
         return rows.Select(s =>
         {
             labInfo.TryGetValue(s.LabCode, out var l);
-            return new LabStatDto(s.Date, s.LabCode, l?.Name, l?.Segment, l?.Governorate, l?.City, l?.Area,
+            return new LabStatDto(s.Date, s.LabCode, l?.Name, l?.Category, l?.Segment, l?.Governorate, l?.City, l?.Area,
                 s.Registrations, s.TestCount, s.Income.Amount);
         }).ToList();
     }
@@ -59,10 +59,27 @@ internal sealed class TestCatalogueQueries : ITestCatalogueQueries
         return rows.Select(s => new TestSetupDto(s.Id.Value, s.Code, s.NameEn, s.NameAr, s.GroupId != null ? s.GroupId.Value.Value : (Guid?)null)).ToList();
     }
 
-    public async Task<IReadOnlyList<TestStatDto>> GetTestStatsAsync(DateOnly from, DateOnly to, CancellationToken ct) =>
-        await _db.TestStatistics.AsNoTracking().Where(t => t.Date >= from && t.Date <= to)
-            .OrderBy(t => t.Date).ThenBy(t => t.TestCode)
-            .Select(t => new TestStatDto(t.Date, t.TestCode, t.Count)).ToListAsync(ct);
+    public async Task<IReadOnlyList<TestStatDto>> GetTestStatsAsync(DateOnly from, DateOnly to, CancellationToken ct)
+    {
+        var rows = await _db.TestStatistics.AsNoTracking().Where(t => t.Date >= from && t.Date <= to)
+            .OrderBy(t => t.Date).ThenBy(t => t.TestCode).ToListAsync(ct);
+
+        // Enrich with test setup names and parent group names by code (in memory — small catalogue).
+        var setups = (await _db.TestSetups.AsNoTracking()
+            .Select(s => new { s.Code, s.NameEn, s.GroupId }).ToListAsync(ct))
+            .GroupBy(s => s.Code).ToDictionary(g => g.Key, g => g.First());
+        var groups = (await _db.TestGroups.AsNoTracking()
+            .Select(g => new { g.Id, g.NameEn }).ToListAsync(ct))
+            .ToDictionary(g => g.Id, g => g.NameEn);
+
+        return rows.Select(t =>
+        {
+            setups.TryGetValue(t.TestCode, out var s);
+            string? groupName = null;
+            if (s?.GroupId is { } gid) groups.TryGetValue(gid, out groupName);
+            return new TestStatDto(t.Date, t.TestCode, s?.NameEn, groupName, t.Count, t.Income.Amount);
+        }).ToList();
+    }
 }
 
 internal sealed class CompensationQueries : ICompensationQueries

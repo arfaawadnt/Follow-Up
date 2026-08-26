@@ -34,14 +34,14 @@ internal sealed class ComplaintQueries : IComplaintQueries
         var rows = await (from cp in q
                           join l in _db.Laboratories.AsNoTracking() on cp.LaboratoryId equals l.Id
                           orderby cp.Number descending
-                          select new { cp.Id, cp.Number, cp.LaboratoryId, l.Code, l.Name, cp.Category, cp.ViaChannel,
+                          select new { cp.Id, cp.Number, cp.LaboratoryId, l.Code, l.Name, LabCategory = l.Category, cp.Category, cp.ViaChannel,
                               cp.AssignedTeam, cp.Details, cp.Status, cp.Stage, cp.ResolvedBy, cp.CreatedAt })
                          .Skip(criteria.Skip).Take(criteria.PageSize).ToListAsync(ct);
 
         var todayNum = DateOnly.FromDateTime(DateTime.UtcNow).DayNumber;
         var items = rows.Select(r => new ComplaintListItemDto(
             r.Id.Value, $"CMP-{r.Number}", r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Name,
-            r.Category, r.ViaChannel, r.AssignedTeam, r.Details, r.Status.Name, r.Stage.Name,
+            r.LabCategory, r.Category, r.ViaChannel, r.AssignedTeam, r.Details, r.Status.Name, r.Stage.Name,
             Math.Max(0, todayNum - DateOnly.FromDateTime(r.CreatedAt.UtcDateTime).DayNumber), r.ResolvedBy, r.CreatedAt)).ToList();
 
         return PagedResult<ComplaintListItemDto>.Create(items, total, criteria.Page, criteria.PageSize);
@@ -52,13 +52,23 @@ internal sealed class ComplaintQueries : IComplaintQueries
         var row = await (from c in _db.Complaints.AsNoTracking()
                          where c.Id == new Domain.Complaints.ComplaintId(id)
                          join l in _db.Laboratories.AsNoTracking() on c.LaboratoryId equals l.Id
-                         select new { c, l.Code }).FirstOrDefaultAsync(ct);
+                         select new { c, l.Code, l.Name }).FirstOrDefaultAsync(ct);
         if (row is null) return null;
         var complaint = row.c;
+
+        string? repName = null;
+        if (complaint.RepresentativeId is { } repId)
+            repName = await _db.Representatives.AsNoTracking()
+                .Where(r => r.Id == new Domain.Representatives.RepresentativeId(repId))
+                .Select(r => r.FullName).FirstOrDefaultAsync(ct);
+
         return new ComplaintDetailDto(
             complaint.Id.Value, complaint.Reference, complaint.LaboratoryId.Value, DisplayCode.For(row.Code.Value, canSeeEncrypted),
-            complaint.Category, complaint.ViaChannel, complaint.AssignedTeam, complaint.Details,
-            complaint.Status.Name, complaint.Stage.Name, complaint.ResolvedAt, complaint.ResolvedBy);
+            row.Name, complaint.Category, complaint.ViaChannel, complaint.AssignedTeam, complaint.Details,
+            complaint.Status.Name, complaint.Stage.Name, complaint.ResolvedAt, complaint.ResolvedBy,
+            complaint.RepresentativeId, repName, complaint.ReceivedAt,
+            complaint.IsValid, complaint.ValidityNotes, complaint.InvestigationNotes,
+            complaint.OutcomeType, complaint.OutcomeSummary, complaint.ResolutionSummary, complaint.CreatedAt);
     }
 
     public async Task<IReadOnlyList<ComplaintAuditRowDto>> GetAuditAsync(Guid id, CancellationToken ct)
@@ -97,8 +107,8 @@ internal sealed class MarketingQueries : IMarketingQueries
         var scheduled = MarketingVisitStatus.Scheduled;
         var rows = await (from mv in q
                           join l in _db.Laboratories.AsNoTracking() on mv.LaboratoryId equals l.Id
-                          orderby (mv.Status == scheduled ? 0 : 1), mv.ScheduledDate descending // BR-10: scheduled first
-                          select new { mv.Id, mv.LaboratoryId, l.Code, l.Name, l.Area, l.Governorate, mv.RepresentativeId, mv.Purpose, mv.ScheduledDate, mv.Status, mv.Outcome })
+                          orderby (mv.Status == scheduled ? 0 : 1), mv.ScheduledDate descending, mv.Number descending // BR-10: scheduled first
+                          select new { mv.Id, mv.Number, mv.LaboratoryId, l.Code, l.Name, l.Area, l.Governorate, mv.RepresentativeId, mv.Purpose, mv.ScheduledDate, mv.ScheduledTime, mv.Plan, mv.Status, mv.Outcome })
                          .Skip(criteria.Skip).Take(criteria.PageSize).ToListAsync(ct);
 
         var repIds = rows.Select(r => r.RepresentativeId).Distinct().ToList();
@@ -106,9 +116,10 @@ internal sealed class MarketingQueries : IMarketingQueries
             .Select(r => new { r.Id, r.FullName }).ToListAsync(ct)).ToDictionary(r => r.Id, r => r.FullName);
 
         var items = rows.Select(r => new MarketingVisitDto(
-            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Name, r.Area, r.Governorate,
+            r.Id.Value, $"MV{r.Number}", r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Name, r.Area, r.Governorate,
             r.RepresentativeId.Value, repName.TryGetValue(r.RepresentativeId, out var n) ? n : null,
-            r.Purpose.Name, r.ScheduledDate, r.Status.Name, r.Outcome)).ToList();
+            r.Purpose.Name, r.ScheduledDate, r.ScheduledTime.HasValue ? r.ScheduledTime.Value.ToString("HH:mm") : null, r.Plan,
+            r.Status.Name, r.Outcome)).ToList();
 
         return PagedResult<MarketingVisitDto>.Create(items, total, criteria.Page, criteria.PageSize);
     }

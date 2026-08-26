@@ -33,7 +33,7 @@ export interface ContactDto { id: string; name: string; role: string; phone: str
 export interface LabDetail {
   id: string; displayCode: string; name: string; segment: string; status: string;
   branch: string | null; governorate: string | null; city: string | null; area: string | null;
-  category: string | null; payer: string | null; contractType: string | null;
+  category: string | null; address: string | null; payer: string | null; contractType: string | null;
   licenseNo: string | null; licenseDate: string | null; avgMonthlySamples: number | null; preferredChannel: string | null;
   latitude: number | null; longitude: number | null; monthlyTarget: number;
   loyaltyPoints: number; loyaltyTier: string | null;
@@ -53,9 +53,18 @@ export interface Dashboard {
 }
 
 export interface ComplaintListItem {
-  id: string; reference: string; laboratoryId: string; labDisplayCode: string; lab: string;
+  id: string; reference: string; laboratoryId: string; labDisplayCode: string; lab: string; labCategory: string | null;
   category: string; via: string; assignedTo: string | null; description: string;
   status: string; stage: string; ageDays: number; resolution: string | null; createdAt: string;
+}
+
+export interface ComplaintDetail {
+  id: string; reference: string; laboratoryId: string; labDisplayCode: string; lab: string;
+  category: string; viaChannel: string; assignedTeam: string | null; details: string;
+  status: string; stage: string; resolvedAt: string | null; resolvedBy: string | null;
+  representativeId: string | null; representativeName: string | null; receivedAt: string | null;
+  isValid: boolean | null; validityNotes: string | null; investigationNotes: string | null;
+  outcomeType: string | null; outcomeSummary: string | null; resolutionSummary: string | null; createdAt: string;
 }
 export interface ComplaintAuditRow { occurredAt: string; actor: string; action: string; before: string | null; after: string | null; }
 
@@ -80,8 +89,9 @@ export interface RepDetail {
 }
 
 export interface MarketingVisit {
-  id: string; laboratoryId: string; labDisplayCode: string; lab: string; area: string | null; governorate: string | null;
-  representativeId: string; rep: string | null; purpose: string; scheduledDate: string; status: string; outcome: string | null;
+  id: string; reference: string; laboratoryId: string; labDisplayCode: string; lab: string; area: string | null; governorate: string | null;
+  representativeId: string; rep: string | null; purpose: string; scheduledDate: string; scheduledTime: string | null;
+  plan: string | null; status: string; outcome: string | null;
 }
 
 export interface TransferItem {
@@ -128,5 +138,12 @@ export interface SettingDto { key: string; value: string | null; isSecret: boole
 export interface RetentionDto { days: number | null; enabled: boolean; }
 export interface LoyaltyLedger { laboratoryId: string; code: string; name: string; branch: string | null; city: string | null; monthlyTarget: number; mtdSamples: number; loyaltyPoints: number; loyaltyTier: string | null; }
 export interface Commission { repId: string; name: string; type: string; goalType: string; period: number; targetAmount: number; achievedAmount: number; baseSalary: number; commissionEarned: number; bonusEarned: number; totalPayout: number; isLocked: boolean; }
-export interface LabStat { date: string; labCode: string; registrations: number; testCount: number; income: number; }
-export interface RepPerformanceRow { repId: string; repName: string; achievementPercent: number; pace: number; onTrack: boolean; salary: number; }
+export interface LabStat {
+  date: string; labCode: string; name: string | null; category: string | null; segment: string | null;
+  governorate: string | null; city: string | null; area: string | null;
+  registrations: number; testCount: number; income: number;
+}
+export interface RepPerformanceRow {
+  repId: string; name: string; type: string; goalType: string; metric: string | null; goalDuration: string;
+  target: number; achieved: number; pct: number; paceLabel: string; onTrack: boolean; salary: number;
+}

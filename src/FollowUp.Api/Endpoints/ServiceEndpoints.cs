@@ -9,6 +9,8 @@ namespace FollowUp.Api.Endpoints;
 public static class ServiceEndpoints
 {
     public sealed record StageBody(string Stage);
+    public sealed record AdvanceStageBody(string Stage, string? Notes, bool? IsValid, string? OutcomeType, string? Summary);
+    public sealed record ResolveBody(string? ResolutionSummary);
     public sealed record SignBody(string Module, string RecordId, string Meaning, string? Reason, string Password);
     public sealed record PreferenceBody(string EventKey, bool System, bool Mail, bool WhatsApp);
 
@@ -24,12 +26,14 @@ public static class ServiceEndpoints
         { var reference = await m.Send(cmd, ct); return Results.Created($"/api/v1/complaints", new { reference }); }).WithTags("Complaints");
         api.MapPost("/complaints/{id:guid}/start", async (Guid id, IMediator m, CancellationToken ct) =>
         { await m.Send(new StartComplaintCommand(id), ct); return Results.NoContent(); }).WithTags("Complaints");
-        api.MapPost("/complaints/{id:guid}/resolve", async (Guid id, IMediator m, CancellationToken ct) =>
-        { await m.Send(new ResolveComplaintCommand(id), ct); return Results.NoContent(); }).WithTags("Complaints");
+        api.MapPost("/complaints/{id:guid}/resolve", async (Guid id, ResolveBody? b, IMediator m, CancellationToken ct) =>
+        { await m.Send(new ResolveComplaintCommand(id, b?.ResolutionSummary), ct); return Results.NoContent(); }).WithTags("Complaints");
         api.MapPost("/complaints/{id:guid}/reopen", async (Guid id, IMediator m, CancellationToken ct) =>
         { await m.Send(new ReopenComplaintCommand(id), ct); return Results.NoContent(); }).WithTags("Complaints");
         api.MapPost("/complaints/{id:guid}/stage", async (Guid id, StageBody b, IMediator m, CancellationToken ct) =>
         { await m.Send(new MoveComplaintStageCommand(id, b.Stage), ct); return Results.NoContent(); }).WithTags("Complaints");
+        api.MapPost("/complaints/{id:guid}/advance", async (Guid id, AdvanceStageBody b, IMediator m, CancellationToken ct) =>
+        { await m.Send(new AdvanceComplaintStageCommand(id, b.Stage, b.Notes, b.IsValid, b.OutcomeType, b.Summary), ct); return Results.NoContent(); }).WithTags("Complaints");
     }
 
     public static void MapSignatureEndpoints(this RouteGroupBuilder api)

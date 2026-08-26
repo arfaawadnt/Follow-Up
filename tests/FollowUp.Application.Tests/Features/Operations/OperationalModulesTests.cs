@@ -97,12 +97,36 @@ public class OperationalModulesTests
         var id = await scheduleHandler.Handle(new ScheduleMarketingVisitCommand
         {
             LaboratoryId = lab.Id.Value, RepresentativeId = rep.Id.Value, Purpose = "Pitch", ScheduledDate = Today,
+            ScheduledTime = new TimeOnly(11, 0), Plan = "bring the new brochure",
         }, CancellationToken.None);
+
+        repo.Store[0].Reference.Should().Be("MV1"); // sequential number assigned by the handler
+        repo.Store[0].ScheduledTime.Should().Be(new TimeOnly(11, 0));
+        repo.Store[0].Plan.Should().Be("bring the new brochure");
 
         var completeHandler = new CompleteMarketingVisitHandler(repo, new FakeClock(Now));
         await completeHandler.Handle(new CompleteMarketingVisitCommand(id, "Signed renewal"), CancellationToken.None);
 
         repo.Store[0].Status.Should().Be(MarketingVisitStatus.Completed);
         repo.Store[0].Outcome.Should().Be("Signed renewal");
+    }
+
+    [Fact]
+    public async Task Marketing_numbers_are_sequential_across_visits()
+    {
+        var (labs, lab) = SeedLab();
+        var reps = new FakeRepresentativeRepository();
+        var rep = Representative.Register("Mkt", RepresentativeType.Marketing, GoalDuration.Monthly,
+            new Domain.Common.Money(0), new Domain.Common.Money(0));
+        reps.Store.Add(rep);
+        var repo = new FakeMarketingVisitRepository();
+        var handler = new ScheduleMarketingVisitHandler(repo, labs, reps, new FakeCurrentUser());
+
+        await handler.Handle(new ScheduleMarketingVisitCommand
+        { LaboratoryId = lab.Id.Value, RepresentativeId = rep.Id.Value, Purpose = "Routine", ScheduledDate = Today }, CancellationToken.None);
+        await handler.Handle(new ScheduleMarketingVisitCommand
+        { LaboratoryId = lab.Id.Value, RepresentativeId = rep.Id.Value, Purpose = "Renewal", ScheduledDate = Today }, CancellationToken.None);
+
+        repo.Store.Select(v => v.Reference).Should().ContainInOrder("MV1", "MV2");
     }
 }

@@ -44,6 +44,7 @@ public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAudit
     public string? City { get; private set; }
     public string? Area { get; private set; }
     public string? Category { get; private set; }
+    public string? Address { get; private set; }
 
     // Commercial.
     public string? Payer { get; private set; }
@@ -113,6 +114,8 @@ public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAudit
     }
 
     public void SetLocation(GeoLocation? location) => Location = location;
+
+    public void SetAddress(string? address) => Address = string.IsNullOrWhiteSpace(address) ? null : address.Trim();
 
     public void SetSchedule(VisitSchedule schedule)
     {

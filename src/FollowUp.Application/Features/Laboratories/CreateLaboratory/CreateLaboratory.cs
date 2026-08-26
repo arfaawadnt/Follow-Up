@@ -23,6 +23,7 @@ public sealed record CreateLaboratoryCommand : ICommand<Guid>, IAuthorizedReques
     public string? City { get; init; }
     public string? Area { get; init; }
     public string? Category { get; init; }
+    public string? Address { get; init; }
     public string? Payer { get; init; }
     public string? ContractType { get; init; }
     public string? Status { get; init; }
@@ -97,6 +98,7 @@ public sealed class CreateLaboratoryHandler : ICommandHandler<CreateLaboratoryCo
         lab.PlaceInHierarchy(request.Branch, request.Governorate, request.City, request.Area);
         lab.UpdateProfile(request.Name, request.Segment, request.Payer, request.ContractType, request.Category,
             request.LicenseNo, request.LicenseDate, request.AvgMonthlySamples, request.PreferredChannel);
+        lab.SetAddress(request.Address);
 
         if (request.Latitude is { } lat && request.Longitude is { } lng)
             lab.SetLocation(GeoLocation.Create(lat, lng));

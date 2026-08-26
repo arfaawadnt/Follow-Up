@@ -62,3 +62,76 @@ public class ResolveComplaintHandlerTests
         complaint.Status.Should().Be(ComplaintStatus.Resolved);
     }
 }
+
+public class AdvanceComplaintStageHandlerTests
+{
+    private static (FakeComplaintRepository, FakeLaboratoryRepository, Complaint) Seed()
+    {
+        var lab = Laboratory.Register(LabCode.Create("MGL-2"), "Lab", "B");
+        var labs = new FakeLaboratoryRepository();
+        labs.Store.Add(lab);
+
+        var complaint = Complaint.Log(2, lab.Id, "Result Quality", "Phone", "Ops", "wrong result");
+        var complaints = new FakeComplaintRepository();
+        complaints.Store.Add(complaint);
+        return (complaints, labs, complaint);
+    }
+
+    [Fact]
+    public async Task Validity_stage_routes_to_CheckValidity()
+    {
+        var (complaints, labs, complaint) = Seed();
+        var handler = new AdvanceComplaintStageHandler(complaints, labs, new FakeCurrentUser());
+
+        await handler.Handle(new AdvanceComplaintStageCommand(complaint.Id.Value, "ValidityChecked",
+            Notes: "verified", IsValid: true), CancellationToken.None);
+
+        complaint.Stage.Should().Be(ComplaintStage.ValidityChecked);
+        complaint.IsValid.Should().BeTrue();
+        complaint.ValidityNotes.Should().Be("verified");
+    }
+
+    [Fact]
+    public async Task Invalid_validity_routes_to_RejectedInvalid()
+    {
+        var (complaints, labs, complaint) = Seed();
+        var handler = new AdvanceComplaintStageHandler(complaints, labs, new FakeCurrentUser());
+
+        await handler.Handle(new AdvanceComplaintStageCommand(complaint.Id.Value, "ValidityChecked",
+            IsValid: false), CancellationToken.None);
+
+        complaint.Stage.Should().Be(ComplaintStage.RejectedInvalid);
+    }
+
+    [Fact]
+    public async Task Investigation_and_outcome_stages_store_their_payloads()
+    {
+        var (complaints, labs, complaint) = Seed();
+        var handler = new AdvanceComplaintStageHandler(complaints, labs, new FakeCurrentUser());
+
+        await handler.Handle(new AdvanceComplaintStageCommand(complaint.Id.Value, "Investigation",
+            Notes: "courier delay"), CancellationToken.None);
+        complaint.Stage.Should().Be(ComplaintStage.Investigation);
+        complaint.InvestigationNotes.Should().Be("courier delay");
+
+        await handler.Handle(new AdvanceComplaintStageCommand(complaint.Id.Value, "BusinessOutcome",
+            OutcomeType: "Training", Summary: "retrained"), CancellationToken.None);
+        complaint.Stage.Should().Be(ComplaintStage.BusinessOutcome);
+        complaint.OutcomeType.Should().Be("Training");
+    }
+
+    [Fact]
+    public void Validator_enforces_per_stage_payloads()
+    {
+        var validator = new AdvanceComplaintStageValidator();
+
+        validator.Validate(new AdvanceComplaintStageCommand(Guid.NewGuid(), "ValidityChecked"))
+            .IsValid.Should().BeFalse(); // IsValid decision missing
+        validator.Validate(new AdvanceComplaintStageCommand(Guid.NewGuid(), "Investigation"))
+            .IsValid.Should().BeFalse(); // notes missing
+        validator.Validate(new AdvanceComplaintStageCommand(Guid.NewGuid(), "BusinessOutcome"))
+            .IsValid.Should().BeFalse(); // outcome type missing
+        validator.Validate(new AdvanceComplaintStageCommand(Guid.NewGuid(), "Acknowledged"))
+            .IsValid.Should().BeTrue();
+    }
+}

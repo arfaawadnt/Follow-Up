@@ -67,7 +67,7 @@ internal sealed class LaboratoryQueries : ILaboratoryQueries
 
         return new LabDetailDto(
             lab.Id.Value, DisplayCode.For(lab.Code.Value, canSeeEncrypted), lab.Name, lab.Segment, lab.Status.Name,
-            lab.Branch, lab.Governorate, lab.City, lab.Area, lab.Category, lab.Payer, lab.ContractType,
+            lab.Branch, lab.Governorate, lab.City, lab.Area, lab.Category, lab.Address, lab.Payer, lab.ContractType,
             lab.LicenseNo, lab.LicenseDate, lab.AvgMonthlySamples, lab.PreferredChannel,
             lab.Location?.Latitude, lab.Location?.Longitude, lab.MonthlyTarget, lab.LoyaltyPoints, lab.LoyaltyTier,
             lab.CollectorRepIds.Select(c => c.Value).ToList(), lab.MarketingRepId?.Value,

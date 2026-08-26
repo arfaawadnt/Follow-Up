@@ -37,6 +37,8 @@ public sealed record LogComplaintCommand : ICommand<string>, IAuthorizedRequest
     public string ViaChannel { get; init; } = string.Empty;
     public string? AssignedTeam { get; init; }
     public string Details { get; init; } = string.Empty;
+    public Guid? RepresentativeId { get; init; }
+    public DateTimeOffset? ReceivedAt { get; init; }
 
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.AddComplaints, Privileges.ManageComplaints };
 }
@@ -71,6 +73,7 @@ public sealed class LogComplaintHandler : ICommandHandler<LogComplaintCommand, s
         var number = await _complaints.NextNumberAsync(ct);
         var complaint = Complaint.Log(number, lab.Id, request.Category, request.ViaChannel,
             request.AssignedTeam, request.Details);
+        complaint.SetIntake(request.RepresentativeId, request.ReceivedAt);
 
         _complaints.Add(complaint);
         return complaint.Reference; // e.g. CMP-42
@@ -105,7 +108,7 @@ public sealed class StartComplaintHandler : ICommandHandler<StartComplaintComman
 
 // ---- Resolve (-> Resolved; e-sign gate) ----
 
-public sealed record ResolveComplaintCommand(Guid Id) : ICommand, IAuthorizedRequest
+public sealed record ResolveComplaintCommand(Guid Id, string? ResolutionSummary = null) : ICommand, IAuthorizedRequest
 {
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ResolveComplaints, Privileges.ManageComplaints };
 }
@@ -133,6 +136,7 @@ public sealed class ResolveComplaintHandler : ICommandHandler<ResolveComplaintCo
         var satisfied = !enforced ||
             await _signatureGate.HasValidSignatureAsync(ComplaintActionSupport.Module, complaint.Id.ToString(), ct);
 
+        complaint.SetResolutionSummary(request.ResolutionSummary);
         complaint.Resolve(_user.Username, _clock.UtcNow, satisfied);
         return Unit.Value;
     }
@@ -186,6 +190,65 @@ public sealed class MoveComplaintStageHandler : ICommandHandler<MoveComplaintSta
     {
         var complaint = await ComplaintActionSupport.LoadAuthorizedAsync(request.Id, _complaints, _labs, _user, ct);
         complaint.MoveToStage(Enumeration.FromName<ComplaintStage>(request.Stage));
+        return Unit.Value;
+    }
+}
+
+// ---- Advance stage with payload (reference parity: validity / investigation / outcome narratives) ----
+
+/// <summary>Advances the staged-investigation narrative with the stage's payload (SRS FR-11).
+/// Validity: IsValid + Notes; Investigation: Notes; BusinessOutcome: OutcomeType + Summary.</summary>
+public sealed record AdvanceComplaintStageCommand(
+    Guid Id, string Stage, string? Notes = null, bool? IsValid = null,
+    string? OutcomeType = null, string? Summary = null) : ICommand, IAuthorizedRequest
+{
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.UpdateComplaints, Privileges.ManageComplaints };
+}
+
+public sealed class AdvanceComplaintStageValidator : AbstractValidator<AdvanceComplaintStageCommand>
+{
+    public AdvanceComplaintStageValidator()
+    {
+        RuleFor(x => x.Id).NotEmpty();
+        RuleFor(x => x.Stage).NotEmpty();
+        RuleFor(x => x.IsValid).NotNull().When(x => x.Stage == "ValidityChecked")
+            .WithMessage("The validity check requires a valid/invalid decision.");
+        RuleFor(x => x.Notes).NotEmpty().When(x => x.Stage == "Investigation")
+            .WithMessage("Investigation notes are required.");
+        RuleFor(x => x.OutcomeType).NotEmpty().When(x => x.Stage == "BusinessOutcome")
+            .WithMessage("An outcome type is required.");
+    }
+}
+
+public sealed class AdvanceComplaintStageHandler : ICommandHandler<AdvanceComplaintStageCommand>
+{
+    private readonly IComplaintRepository _complaints;
+    private readonly ILaboratoryRepository _labs;
+    private readonly ICurrentUser _user;
+
+    public AdvanceComplaintStageHandler(IComplaintRepository complaints, ILaboratoryRepository labs, ICurrentUser user)
+    {
+        _complaints = complaints; _labs = labs; _user = user;
+    }
+
+    public async Task<Unit> Handle(AdvanceComplaintStageCommand request, CancellationToken ct)
+    {
+        var complaint = await ComplaintActionSupport.LoadAuthorizedAsync(request.Id, _complaints, _labs, _user, ct);
+        switch (request.Stage)
+        {
+            case "ValidityChecked":
+                complaint.CheckValidity(request.IsValid!.Value, request.Notes);
+                break;
+            case "Investigation":
+                complaint.RecordInvestigation(request.Notes!);
+                break;
+            case "BusinessOutcome":
+                complaint.RecordOutcome(request.OutcomeType!, request.Summary);
+                break;
+            default:
+                complaint.MoveToStage(Enumeration.FromName<ComplaintStage>(request.Stage));
+                break;
+        }
         return Unit.Value;
     }
 }

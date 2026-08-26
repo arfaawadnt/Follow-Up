@@ -14,7 +14,7 @@ namespace FollowUp.Application.Features.TestCatalogue;
 
 public sealed record TestGroupDto(Guid Id, string Code, string NameEn, string? NameAr);
 public sealed record TestSetupDto(Guid Id, string Code, string NameEn, string? NameAr, Guid? GroupId);
-public sealed record TestStatDto(DateOnly Date, string TestCode, int Count);
+public sealed record TestStatDto(DateOnly Date, string TestCode, string? TestName, string? GroupName, int Count, decimal Income);
 
 public interface ITestCatalogueQueries
 {
@@ -199,6 +199,7 @@ public sealed class ImportTestStatsHandler : ICommandHandler<ImportTestStatsComm
             }
 
             var count = ImportParsing.Int(row, "Count");
+            var income = ImportParsing.Decimal(row, "Income");
             var stat = await _repository.GetAsync(date, testCode, ct);
             if (stat is null)
             {
@@ -206,6 +207,7 @@ public sealed class ImportTestStatsHandler : ICommandHandler<ImportTestStatsComm
                 _repository.Add(stat);
             }
             stat.SetCount(count);
+            stat.SetIncome(new Domain.Common.Money(income));
             upserted++;
         }
 

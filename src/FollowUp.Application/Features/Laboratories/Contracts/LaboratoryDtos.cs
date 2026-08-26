@@ -34,6 +34,7 @@ public sealed record LabDetailDto(
     string? City,
     string? Area,
     string? Category,
+    string? Address,
     string? Payer,
     string? ContractType,
     string? LicenseNo,

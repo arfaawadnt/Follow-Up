@@ -6,5 +6,6 @@ namespace FollowUp.Application.Common.Abstractions.Persistence;
 public interface IMarketingVisitRepository
 {
     Task<MarketingVisit?> GetByIdAsync(MarketingVisitId id, CancellationToken ct);
+    Task<int> NextNumberAsync(CancellationToken ct);
     void Add(MarketingVisit visit);
 }

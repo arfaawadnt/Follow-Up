@@ -36,6 +36,18 @@ public sealed class Complaint : AggregateRoot<ComplaintId>, IAuditable
         Raise(new ComplaintLogged(id, labId, Reference));
     }
 
+    // Optional intake metadata (reference parity).
+    public Guid? RepresentativeId { get; private set; }
+    public DateTimeOffset? ReceivedAt { get; private set; }
+
+    // Staged-investigation narrative payloads (reference parity: the Details popup fields).
+    public bool? IsValid { get; private set; }
+    public string? ValidityNotes { get; private set; }
+    public string? InvestigationNotes { get; private set; }
+    public string? OutcomeType { get; private set; }
+    public string? OutcomeSummary { get; private set; }
+    public string? ResolutionSummary { get; private set; }
+
     /// <summary>The sequential integer behind the <c>CMP-{n}</c> reference (BR-2).</summary>
     public int Number { get; private set; }
 
@@ -72,6 +84,44 @@ public sealed class Complaint : AggregateRoot<ComplaintId>, IAuditable
         return new Complaint(ComplaintId.New(), number, labId, category.Trim(), viaChannel.Trim(),
             assignedTeam?.Trim(), details ?? string.Empty);
     }
+
+    /// <summary>Optional intake metadata captured on the log form (rep involved, received date/time).</summary>
+    public void SetIntake(Guid? representativeId, DateTimeOffset? receivedAt)
+    {
+        RepresentativeId = representativeId;
+        ReceivedAt = receivedAt;
+    }
+
+    /// <summary>Validity check: valid continues the flow; invalid short-circuits to RejectedInvalid.</summary>
+    public void CheckValidity(bool isValid, string? notes)
+    {
+        IsValid = isValid;
+        ValidityNotes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+        Stage = isValid ? ComplaintStage.ValidityChecked : ComplaintStage.RejectedInvalid;
+    }
+
+    /// <summary>Investigation notes / root-cause analysis (stage → Investigation).</summary>
+    public void RecordInvestigation(string notes)
+    {
+        if (string.IsNullOrWhiteSpace(notes))
+            throw new DomainException("Investigation notes are required.");
+        InvestigationNotes = notes.Trim();
+        Stage = ComplaintStage.Investigation;
+    }
+
+    /// <summary>Business outcome (communication type + summary; stage → BusinessOutcome).</summary>
+    public void RecordOutcome(string outcomeType, string? summary)
+    {
+        if (string.IsNullOrWhiteSpace(outcomeType))
+            throw new DomainException("An outcome type is required.");
+        OutcomeType = outcomeType.Trim();
+        OutcomeSummary = string.IsNullOrWhiteSpace(summary) ? null : summary.Trim();
+        Stage = ComplaintStage.BusinessOutcome;
+    }
+
+    /// <summary>Resolution summary text shown on the closed complaint.</summary>
+    public void SetResolutionSummary(string? summary) =>
+        ResolutionSummary = string.IsNullOrWhiteSpace(summary) ? null : summary.Trim();
 
     /// <summary>Open → InProgress (start investigation).</summary>
     public void Start()

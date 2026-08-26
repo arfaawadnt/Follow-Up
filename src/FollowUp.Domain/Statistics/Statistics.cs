@@ -64,6 +64,7 @@ public sealed class TestStatistic : AggregateRoot<TestStatisticId>
     public DateOnly Date { get; private set; }
     public string TestCode { get; private set; } = null!;
     public int Count { get; private set; }
+    public Money Income { get; private set; }
 
     public static TestStatistic For(DateOnly date, string testCode)
     {
@@ -75,5 +76,11 @@ public sealed class TestStatistic : AggregateRoot<TestStatisticId>
     {
         if (count < 0) throw new DomainException("Count cannot be negative.");
         Count = count;
+    }
+
+    public void SetIncome(Money income)
+    {
+        if (income < Money.Zero) throw new DomainException("Income cannot be negative.");
+        Income = income;
     }
 }

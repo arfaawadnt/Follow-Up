@@ -45,6 +45,8 @@ internal sealed class MarketingVisitRepository : IMarketingVisitRepository
     public MarketingVisitRepository(FollowUpDbContext db) => _db = db;
     public Task<MarketingVisit?> GetByIdAsync(MarketingVisitId id, CancellationToken ct) =>
         _db.MarketingVisits.FirstOrDefaultAsync(x => x.Id == id, ct);
+    public async Task<int> NextNumberAsync(CancellationToken ct) =>
+        (await _db.MarketingVisits.MaxAsync(x => (int?)x.Number, ct) ?? 0) + 1;
     public void Add(MarketingVisit visit) => _db.MarketingVisits.Add(visit);
 }
 

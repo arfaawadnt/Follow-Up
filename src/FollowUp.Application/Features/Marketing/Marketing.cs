@@ -17,8 +17,9 @@ namespace FollowUp.Application.Features.Marketing;
 // ---- Read side ----
 
 public sealed record MarketingVisitDto(
-    Guid Id, Guid LaboratoryId, string LabDisplayCode, string Lab, string? Area, string? Governorate,
-    Guid RepresentativeId, string? Rep, string Purpose, DateOnly ScheduledDate, string Status, string? Outcome);
+    Guid Id, string Reference, Guid LaboratoryId, string LabDisplayCode, string Lab, string? Area, string? Governorate,
+    Guid RepresentativeId, string? Rep, string Purpose, DateOnly ScheduledDate, string? ScheduledTime,
+    string? Plan, string Status, string? Outcome);
 
 /// <summary>Read-side query interface; listings surface Scheduled visits first (BR-10).</summary>
 public interface IMarketingQueries
@@ -70,6 +71,8 @@ public sealed record ScheduleMarketingVisitCommand : ICommand<Guid>, IAuthorized
     public Guid RepresentativeId { get; init; }
     public string Purpose { get; init; } = "Routine";
     public DateOnly ScheduledDate { get; init; }
+    public TimeOnly? ScheduledTime { get; init; }
+    public string? Plan { get; init; }
 
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.AddMarketing };
 }
@@ -107,8 +110,10 @@ public sealed class ScheduleMarketingVisitHandler : ICommandHandler<ScheduleMark
         if (!await _reps.ExistsAsync(repId, ct))
             throw new NotFoundException("Representative", request.RepresentativeId);
 
-        var visit = MarketingVisit.Schedule(lab.Id, repId,
-            Enumeration.FromName<MarketingPurpose>(request.Purpose), request.ScheduledDate);
+        var number = await _repository.NextNumberAsync(ct);
+        var visit = MarketingVisit.Schedule(number, lab.Id, repId,
+            Enumeration.FromName<MarketingPurpose>(request.Purpose), request.ScheduledDate,
+            request.ScheduledTime, request.Plan);
         _repository.Add(visit); // raises MarketingVisitScheduled -> notification (Outbox, Phase 3)
         return visit.Id.Value;
     }
