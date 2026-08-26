@@ -27,7 +27,7 @@ public sealed record DashboardBirthdayDto(string Text);
 public sealed record DashScheduleDto(Guid Id, string Time, string Lab, string? Area, string Rep, string Status, int? Samples, bool TransferDone);
 public sealed record DashComplaintDto(string Id, string Lab, string Description, string Category, int Age);
 public sealed record DashRepProgDto(string Name, string Detail, int Pct);
-public sealed record DashTopLabDto(string Name, string? Area, int V);
+public sealed record DashTopLabDto(string Name, string? Area, string? Gov, int V);
 public sealed record DashSegMixDto(string Seg, int C);
 public sealed record DashGovRowDto(string G, int V);
 

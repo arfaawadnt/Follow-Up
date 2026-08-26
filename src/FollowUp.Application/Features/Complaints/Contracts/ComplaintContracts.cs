@@ -6,7 +6,7 @@ namespace FollowUp.Application.Features.Complaints.Contracts;
 public sealed record ComplaintListItemDto(
     Guid Id, string Reference, Guid LaboratoryId, string LabDisplayCode, string Lab, string? LabCategory,
     string Category, string Via, string? AssignedTo, string Description, string Status, string Stage, int AgeDays,
-    string? Resolution, DateTimeOffset CreatedAt);
+    string? Resolution, DateTimeOffset? ResolvedAt, string? ResolutionSummary, DateTimeOffset CreatedAt);
 
 public sealed record ComplaintDetailDto(
     Guid Id, string Reference, Guid LaboratoryId, string LabDisplayCode, string Lab, string Category, string ViaChannel,

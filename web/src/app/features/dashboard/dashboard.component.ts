@@ -1,9 +1,11 @@
 import { Component, inject, signal } from '@angular/core';
 import { DecimalPipe, SlicePipe } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { IconsService } from '../../core/icons.service';
+import { PagedResult, RepListItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
 
 interface Kpis {
@@ -14,7 +16,7 @@ interface Kpis {
 interface DashSchedule { id: string; time: string; lab: string; area: string | null; rep: string; status: string; samples: number | null; transferDone: boolean; }
 interface DashComplaint { id: string; lab: string; description: string; category: string; age: number; }
 interface DashRepProg { name: string; detail: string; pct: number; }
-interface DashTopLab { name: string; area: string | null; v: number; }
+interface DashTopLab { name: string; area: string | null; gov: string | null; v: number; }
 interface DashSegMix { seg: string; c: number; }
 interface DashGovRow { g: string; v: number; }
 interface DashboardData {
@@ -28,7 +30,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [DecimalPipe, SlicePipe, TranslatePipe],
+  imports: [DecimalPipe, SlicePipe, FormsModule, TranslatePipe],
   template: `
     @if (d(); as d) {
       <div class="pagehead">
@@ -42,7 +44,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
         </div>
       </div>
 
-      @if (d.bday) { <div class="inline-banner inline-banner-info">🎂 {{ d.bday.text }}</div> }
+      @if (d.bday) { <div class="inline-banner inline-banner-info">🎂 {{ 'birthday_reminder' | t : 'Birthday reminder' }} — {{ d.bday.text }}</div> }
 
       <div class="kpis" style="margin-bottom:14px">
         <div class="kpi kpi-teal"><div class="lbl">{{ 'active_labs' | t }}</div><div class="val">{{ d.kpis.activeLabs }}</div><div class="sub">{{ 'of' | t }} {{ d.kpis.totalLabs }} {{ 'registered' | t }}</div></div>
@@ -55,12 +57,15 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
       <div class="grid" style="grid-template-columns:1.5fr 1fr;margin-bottom:14px">
         <div class="card"><div class="chead">{{ 'todays_schedule' | t }} <span class="small muted" style="font-weight:400">{{ 'first_9_by_time' | t }}</span></div>
           @if (d.schedule.length) {
-            <table><tr><th>{{ 'time' | t }}</th><th>{{ 'laboratory' | t }}</th><th>{{ 'collector' | t }}</th><th>{{ 'status' | t }}</th></tr>
+            <table><tr><th>{{ 'time' | t }}</th><th>{{ 'laboratory' | t }}</th><th>{{ 'collector' | t }}</th><th>{{ 'status' | t }}</th><th></th></tr>
               @for (v of d.schedule; track v.id) {
                 <tr><td class="mono">{{ v.time }}</td>
                   <td><b style="color:var(--slate-900)">{{ v.lab }}</b><div class="small muted">{{ v.area ?? '—' }}</div></td>
                   <td>{{ v.rep }}</td>
-                  <td><span class="badge" [class]="badgeClass(v.status)">{{ v.status | t }}</span>@if (v.samples != null) { <span class="mono small"> {{ v.samples }}</span> }</td></tr>
+                  <td><span class="badge" [class]="badgeClass(v.status)">{{ v.status | t }}</span>@if (v.samples != null) { <span class="mono small"> {{ v.samples }}</span> }</td>
+                  <td>@if (v.status === 'Pending' && auth.has('AddDailyFollowup')) {
+                    <button class="btn btn-mini btn-p" (click)="openRecord(v)" [disabled]="busy()">{{ 'record_visit' | t : 'Record visit' }}</button>
+                  }</td></tr>
               }
             </table>
           } @else { <div class="empty">{{ 'no_visits_today' | t }}</div> }
@@ -87,7 +92,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
         <div class="card"><div class="chead">{{ 'top_labs' | t }} — {{ d.kpis.monthName }}</div>
           @for (l of d.topLabs; track $index) {
             <div class="hrow"><span class="mono muted">{{ $index + 1 }}</span>
-              <div style="flex:1"><b style="color:var(--slate-900)">{{ l.name }}</b><div class="small muted">{{ l.area ?? '—' }}</div></div>
+              <div style="flex:1"><b style="color:var(--slate-900)">{{ l.name }}</b><div class="small muted">{{ l.area ?? '—' }} · {{ l.gov ?? '—' }}</div></div>
               <span class="mono">{{ l.v | number:'1.0-0' }}</span></div>
           } @empty { <div class="empty">—</div> }
         </div>
@@ -120,7 +125,50 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
         </div>
       </div>
     } @else if (loading()) { <div class="empty">{{ 'loading' | t : 'Loading…' }}</div> }
+
+    <!-- Record-visit popup, same flow as the daily board (the reference records straight from the dashboard). -->
+    @if (recording(); as v) {
+      <div class="overlay" (click)="closeRecord()">
+        <div class="dlg" (click)="$event.stopPropagation()">
+          <h3 style="margin:0 0 4px">{{ 'record_visit' | t : 'Record visit' }}</h3>
+          <div class="small muted" style="margin-bottom:12px">{{ v.lab }} · {{ 'scheduled_2' | t : 'Scheduled' }} {{ v.time }} · {{ v.area ?? '—' }}</div>
+          <div class="field">
+            <label>{{ 'collector_rep' | t : 'Collector Rep' }}</label>
+            <select class="select" [(ngModel)]="recordRep" style="width:100%">
+              <option value="">—</option>
+              @for (r of collectorReps(); track r.id) { <option [value]="r.id">{{ r.fullName }}</option> }
+            </select>
+          </div>
+          <div class="field" style="margin-top:10px">
+            <label>{{ 'samples' | t : 'Samples collected' }} *</label>
+            <input type="number" min="0" class="input" [(ngModel)]="recordCount" style="width:100%">
+            @if (suggested() !== null) { <div class="small muted" style="margin-top:4px">Suggested: {{ suggested() }} (last recorded count for this lab)</div> }
+          </div>
+          <div class="grid2" style="margin-top:10px">
+            <div class="field"><label>{{ 'total_required' | t : 'Total Required' }}</label><input type="number" min="0" class="input" [(ngModel)]="recordTotalRequired"></div>
+            <div class="field"><label>{{ 'no_of_requests' | t : 'No of Requests' }}</label><input type="number" min="0" class="input" [(ngModel)]="recordRequests"></div>
+          </div>
+          <div class="field" style="margin-top:10px">
+            <label>{{ 'no_of_outsource_samples' | t : 'No of Outsource Samples' }}</label>
+            <input type="number" min="0" class="input" [(ngModel)]="recordOutsource" style="width:100%">
+          </div>
+          <div class="field" style="margin-top:10px">
+            <label>{{ 'notes_optional' | t : 'Notes (optional)' }}</label>
+            <textarea class="input" rows="2" [(ngModel)]="recordNotes" style="width:100%"></textarea>
+          </div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+            <button class="btn btn-s" (click)="closeRecord()">{{ 'cancel' | t : 'Cancel' }}</button>
+            <button class="btn btn-p" [disabled]="recordCount === null || recordCount < 0 || busy()" (click)="confirmRecord()">{{ 'confirm' | t : 'Confirm visit' }}</button>
+          </div>
+        </div>
+      </div>
+    }
   `,
+  styles: [`
+    .overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:1000}
+    .dlg{background:var(--white);border-radius:12px;padding:22px;width:min(92vw,420px);box-shadow:0 16px 48px rgba(0,0,0,.25);max-height:90vh;overflow-y:auto}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  `],
 })
 export class DashboardComponent {
   private readonly api = inject(ApiService);
@@ -128,12 +176,54 @@ export class DashboardComponent {
   private readonly icons = inject(IconsService);
   readonly auth = inject(AuthService);
   readonly loading = signal(true);
+  readonly busy = signal(false);
   readonly d = signal<DashboardData | null>(null);
+  readonly reps = signal<RepListItem[]>([]);
+  readonly recording = signal<DashSchedule | null>(null);
+  readonly suggested = signal<number | null>(null);
+  recordRep = ''; recordCount: number | null = null;
+  recordTotalRequired: number | null = null; recordRequests: number | null = null;
+  recordOutsource: number | null = null; recordNotes = '';
 
   constructor() {
+    this.load();
+  }
+
+  load(): void {
     this.api.get<DashboardData>('/dashboard').subscribe({
       next: (data) => { this.d.set(data); this.loading.set(false); this.icons.render(); },
       error: () => this.loading.set(false),
+    });
+  }
+
+  collectorReps(): RepListItem[] { return this.reps().filter((r) => r.type === 'Collector' || r.type === 'Scanning'); }
+
+  openRecord(v: DashSchedule): void {
+    if (this.reps().length === 0)
+      this.api.get<PagedResult<RepListItem>>('/reps', { pageSize: 500 }).subscribe({ next: (r) => this.reps.set(r.items) });
+    this.recording.set(v);
+    this.recordRep = ''; this.recordCount = null;
+    this.recordTotalRequired = null; this.recordRequests = null; this.recordOutsource = null; this.recordNotes = '';
+    this.suggested.set(null);
+    this.api.get<{ suggested: number | null }>(`/daily/${v.id}/suggested-count`).subscribe({
+      next: (r) => { this.suggested.set(r.suggested); if (this.recordCount === null && r.suggested !== null) this.recordCount = r.suggested; },
+    });
+  }
+  closeRecord(): void { this.recording.set(null); }
+  confirmRecord(): void {
+    const v = this.recording();
+    if (!v || this.recordCount === null || this.recordCount < 0) return;
+    this.busy.set(true);
+    this.api.post(`/daily/${v.id}/checkin?source=dashboard`, {
+      sampleCount: this.recordCount,
+      collectorRepId: this.recordRep || null,
+      totalRequired: this.recordTotalRequired,
+      requestCount: this.recordRequests,
+      outsourceCount: this.recordOutsource,
+      notes: this.recordNotes.trim() || null,
+    }).subscribe({
+      next: () => { this.busy.set(false); this.recording.set(null); this.load(); },
+      error: () => this.busy.set(false),
     });
   }
 

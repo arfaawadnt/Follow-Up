@@ -54,8 +54,8 @@ const STATUSES = ['All', 'Scheduled', 'Completed', 'Cancelled'];
                 </td>
                 <td class="actions">
                   @if (v.status === 'Scheduled' && auth.has('UpdateMarketing')) {
-                    <button class="btn btn-mini btn-t" (click)="openComplete(v)" [disabled]="busy()">{{ 'complete_btn' | t : 'Complete' }}</button>
-                    <button class="btn btn-mini btn-s" (click)="cancel(v)" [disabled]="busy()">{{ 'cancel_btn' | t : 'Cancel' }}</button>
+                    <button class="btn-mini on" (click)="openComplete(v)" [disabled]="busy()">{{ 'complete_btn' | t : 'Complete' }}</button>
+                    <button class="btn-mini red" (click)="cancel(v)" [disabled]="busy()">{{ 'cancel_btn' | t : 'Cancel' }}</button>
                   }
                 </td>
               </tr>

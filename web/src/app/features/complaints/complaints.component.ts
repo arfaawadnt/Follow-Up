@@ -56,17 +56,20 @@ type StageForm = 'ack' | 'validity' | 'investigation' | 'outcome' | 'resolve';
                 <td><b style="color:var(--slate-900)">{{ c.lab }}</b><div class="small muted">{{ c.labCategory ?? c.labDisplayCode }}</div></td>
                 <td><span class="badge b-neu">{{ c.category }}</span></td>
                 <td style="max-width:280px"><div class="small">{{ c.description | slice:0:80 }}{{ c.description.length > 80 ? '…' : '' }}</div>
-                  <div class="small muted">{{ c.ageDays === 0 ? ('today' | t : 'today') : c.ageDays + 'd' }}@if (c.resolution) { · {{ 'resolved_by' | t : 'resolved by' }} {{ c.resolution }} }</div></td>
+                  <div class="small muted">
+                    @if (c.status === 'Resolved') { {{ 'resolved_sub' | t : 'resolved' }} {{ c.resolvedAt | date:'dd/MM/yyyy' }}@if (c.resolutionSummary) { — {{ c.resolutionSummary }} } }
+                    @else { {{ 'logged_sub' | t : 'Logged' }} {{ c.ageDays === 0 ? ('today' | t : 'today') : c.ageDays + ' ' + ('days_ago' | t : 'days ago') }} }
+                  </div></td>
                 <td>{{ c.via }}</td>
                 <td>{{ c.assignedTo ?? '—' }}</td>
-                <td><span class="badge" [class]="badge(c.status)">{{ c.status }}</span><div class="small muted">{{ stageLabel(c.stage) }}</div></td>
+                <td><span class="badge" [class]="badge(c.status)">{{ c.status }}</span></td>
                 <td class="actions">
                   @if (c.status === 'Resolved') {
-                    <button class="btn btn-mini btn-s" (click)="openDetail(c.id)">{{ 'details' | t : 'Details' }}</button>
-                    @if (auth.has('UpdateComplaints')) { <button class="btn btn-mini btn-s" (click)="reopen(c.id)" [disabled]="busy()">{{ 'reopen_btn' | t : 'Reopen' }}</button> }
+                    <button class="btn-mini on" (click)="openDetail(c.id)">{{ 'details' | t : 'Details' }}</button>
+                    @if (auth.has('UpdateComplaints')) { <button class="btn-mini red" (click)="reopen(c.id)" [disabled]="busy()">{{ 'reopen_btn' | t : 'Reopen' }}</button> }
                   } @else {
-                    @if (auth.has('UpdateComplaints')) { <button class="btn btn-mini btn-p" (click)="investigate(c)" [disabled]="busy()">{{ 'investigate' | t : 'Investigate' }}</button> }
-                    @else { <button class="btn btn-mini btn-s" (click)="openDetail(c.id)">{{ 'details' | t : 'Details' }}</button> }
+                    @if (auth.has('UpdateComplaints')) { <button class="btn-mini on" (click)="investigate(c)" [disabled]="busy()">{{ 'investigate' | t : 'Investigate' }}</button> }
+                    @else { <button class="btn-mini on" (click)="openDetail(c.id)">{{ 'details' | t : 'Details' }}</button> }
                   }
                 </td>
               </tr>
@@ -80,24 +83,28 @@ type StageForm = 'ack' | 'validity' | 'investigation' | 'outcome' | 'resolve';
     @if (showLog()) {
       <div class="overlay" (click)="showLog.set(false)">
         <div class="dlg" (click)="$event.stopPropagation()" style="width:min(94vw,620px)">
-          <div class="dlg-head"><h2>{{ 'log_complaint_btn' | t : 'Log complaint' }}</h2><button class="btn btn-mini btn-s" (click)="showLog.set(false)">✕</button></div>
+          <div class="dlg-head">
+            <div><h2>{{ 'log_complaint_title' | t : 'Log Complaint' }}</h2>
+              <div class="small muted">{{ 'cmp_ref_auto_hint' | t : 'A sequential reference (CMP-nnn) is assigned automatically' }}</div></div>
+            <button class="btn btn-mini btn-s" (click)="showLog.set(false)">✕</button>
+          </div>
           <form [formGroup]="form" (ngSubmit)="submit()" style="padding:16px">
             @if (formError()) { <div class="inline-banner inline-banner-error">{{ formError() }}</div> }
             <div class="frm-grid" style="grid-template-columns:1fr 1fr;gap:12px">
               <div class="field"><label>{{ 'laboratory_lbl' | t : 'Laboratory *' }}</label>
                 <select class="select" formControlName="laboratoryId"><option value="">—</option>@for (l of labs(); track l.id) { <option [value]="l.id">{{ l.displayCode }} · {{ l.name }}</option> }</select></div>
-              <div class="field"><label>{{ 'category' | t }}</label><select class="select" formControlName="category">@for (c of categories; track c) { <option>{{ c }}</option> }</select></div>
+              <div class="field"><label>{{ 'category' | t }}</label><select class="select" formControlName="category">@for (c of categories; track c) { <option [value]="c">{{ c }}</option> }</select></div>
               <div class="field"><label>{{ 'representative' | t : 'Representative' }}</label>
                 <select class="select" formControlName="representativeId"><option value="">—</option>@for (r of reps(); track r.id) { <option [value]="r.id">{{ r.fullName }}</option> }</select></div>
-              <div class="field"><label>{{ 'complaint_datetime' | t : 'Complaint date/time' }}</label><input type="datetime-local" class="input" formControlName="receivedAt"></div>
-              <div class="field"><label>{{ 'received_via' | t : 'Received via' }}</label><select class="select" formControlName="viaChannel">@for (c of channels; track c) { <option>{{ c }}</option> }</select></div>
+              <div class="field"><label>{{ 'complaint_datetime_2' | t : 'Complaint Date/Time' }}</label><input type="datetime-local" class="input" formControlName="receivedAt"></div>
+              <div class="field" style="grid-column:1/-1"><label>{{ 'description_lbl' | t : 'Description *' }}</label><textarea class="input" rows="3" formControlName="details"></textarea></div>
+              <div class="field"><label>{{ 'received_via' | t : 'Received via' }}</label><select class="select" formControlName="viaChannel">@for (c of channels; track c) { <option [value]="c">{{ c }}</option> }</select></div>
               <div class="field"><label>{{ 'assign_to' | t : 'Assign to' }}</label>
                 <select class="select" formControlName="assignedTeam">@for (t of teams(); track t.id) { <option [value]="t.nameEn">{{ t.nameEn }}</option> } @empty { <option value="">—</option> }</select></div>
-              <div class="field" style="grid-column:1/-1"><label>{{ 'description_lbl' | t : 'Description *' }}</label><textarea class="input" rows="3" formControlName="details"></textarea></div>
             </div>
             <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
               <button class="btn btn-s" type="button" (click)="showLog.set(false)">{{ 'cancel' | t }}</button>
-              <button class="btn btn-p" type="submit" [disabled]="form.invalid || busy()">{{ 'submit' | t : 'Submit' }}</button>
+              <button class="btn btn-p" type="submit" [disabled]="form.invalid || busy()">{{ 'log_complaint_btn' | t : '+ Log complaint' }}</button>
             </div>
           </form>
         </div>
@@ -270,7 +277,7 @@ export class ComplaintsComponent {
     category: this.fb.control(CATEGORIES[0], Validators.required),
     representativeId: this.fb.control(''),
     receivedAt: this.fb.control(''),
-    viaChannel: this.fb.control(CHANNELS[0], Validators.required),
+    viaChannel: this.fb.control('Phone Call', Validators.required), // reference default
     assignedTeam: this.fb.control(''),
     details: this.fb.control('', Validators.required),
   });
@@ -320,8 +327,16 @@ export class ComplaintsComponent {
   setCategory(c: string): void { this.category.set(c); this.load(); }
 
   // ---- Log popup ----
+  private static nowLocal(): string {
+    const d = new Date();
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+
   openLog(): void {
     this.showLog.set(true); this.formError.set(null);
+    // The reference prefills the complaint date/time with "now".
+    this.form.controls.receivedAt.setValue(ComplaintsComponent.nowLocal());
     if (this.labs().length === 0) {
       this.api.get<PagedResult<LabListItem>>('/labs', { pageSize: 500 }).subscribe({ next: (r) => this.labs.set(r.items) });
       this.api.get<PagedResult<RepListItem>>('/reps', { pageSize: 500 }).subscribe({ next: (r) => this.reps.set(r.items) });
@@ -342,7 +357,7 @@ export class ComplaintsComponent {
       representativeId: v.representativeId || null,
       receivedAt: v.receivedAt ? new Date(v.receivedAt).toISOString() : null,
     }).subscribe({
-      next: () => { this.busy.set(false); this.showLog.set(false); this.form.reset({ category: CATEGORIES[0], viaChannel: CHANNELS[0], assignedTeam: this.teams()[0]?.nameEn ?? '' }); this.load(); },
+      next: () => { this.busy.set(false); this.showLog.set(false); this.form.reset({ category: CATEGORIES[0], viaChannel: 'Phone Call', assignedTeam: this.teams()[0]?.nameEn ?? '' }); this.load(); },
       error: (e) => { this.busy.set(false); this.formError.set(e?.error?.detail ?? 'Submit failed.'); },
     });
   }

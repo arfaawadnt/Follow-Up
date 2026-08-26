@@ -49,9 +49,9 @@ interface Role { id: string; name: string; privileges: string[]; isBuiltIn: bool
                 <td>{{ u.privilegeCount }} {{ 'privileges_2' | t : 'privileges' }}</td>
                 <td class="actions">
                   @if (auth.has('ManageUsers')) {
-                    <button class="btn btn-mini btn-s" (click)="edit(u)" [disabled]="busy()">{{ 'edit' | t : 'Edit' }}</button>
+                    <button class="btn-ghost" (click)="edit(u)" [disabled]="busy()">{{ 'edit' | t : 'Edit' }}</button>
                     @if (u.isLocked) { <button class="btn btn-mini btn-p" (click)="unlock(u)" [disabled]="busy()">Unlock</button> }
-                    <button class="btn btn-mini btn-d" (click)="del(u)" [disabled]="busy()">{{ 'delete' | t : 'Delete' }}</button>
+                    <button class="btn-ghost red" (click)="del(u)" [disabled]="busy()">{{ 'delete' | t : 'Delete' }}</button>
                   }
                 </td>
               </tr>

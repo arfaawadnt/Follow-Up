@@ -35,14 +35,15 @@ internal sealed class ComplaintQueries : IComplaintQueries
                           join l in _db.Laboratories.AsNoTracking() on cp.LaboratoryId equals l.Id
                           orderby cp.Number descending
                           select new { cp.Id, cp.Number, cp.LaboratoryId, l.Code, l.Name, LabCategory = l.Category, cp.Category, cp.ViaChannel,
-                              cp.AssignedTeam, cp.Details, cp.Status, cp.Stage, cp.ResolvedBy, cp.CreatedAt })
+                              cp.AssignedTeam, cp.Details, cp.Status, cp.Stage, cp.ResolvedBy, cp.ResolvedAt, cp.ResolutionSummary, cp.CreatedAt })
                          .Skip(criteria.Skip).Take(criteria.PageSize).ToListAsync(ct);
 
         var todayNum = DateOnly.FromDateTime(DateTime.UtcNow).DayNumber;
         var items = rows.Select(r => new ComplaintListItemDto(
             r.Id.Value, $"CMP-{r.Number}", r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Name,
             r.LabCategory, r.Category, r.ViaChannel, r.AssignedTeam, r.Details, r.Status.Name, r.Stage.Name,
-            Math.Max(0, todayNum - DateOnly.FromDateTime(r.CreatedAt.UtcDateTime).DayNumber), r.ResolvedBy, r.CreatedAt)).ToList();
+            Math.Max(0, todayNum - DateOnly.FromDateTime(r.CreatedAt.UtcDateTime).DayNumber),
+            r.ResolvedBy, r.ResolvedAt, r.ResolutionSummary, r.CreatedAt)).ToList();
 
         return PagedResult<ComplaintListItemDto>.Create(items, total, criteria.Page, criteria.PageSize);
     }

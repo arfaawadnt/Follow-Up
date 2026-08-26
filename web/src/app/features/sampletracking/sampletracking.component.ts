@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { SampleLifecycleRow, SampleTracking, UserLookup } from '../../core/models';
+import { TranslatePipe } from '../../core/i18n';
 import { exportCsv, printTable, localToday } from '../../shared/export.util';
 
 interface City { id: string; name: string; governorate: string; }
@@ -12,63 +13,63 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
 @Component({
   selector: 'app-sampletracking',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, TranslatePipe],
   template: `
     <div class="pagehead">
       <div>
-        <div class="breadcrumbs">Home / Sample Lifecycle Tracking</div>
-        <h1>Sample Lifecycle Tracking</h1>
-        <p class="muted" style="margin:4px 0 0;font-size:12.5px">Manage regional sample assignments and monitor the 6 key lifecycle stages</p>
+        <div class="breadcrumbs">Home / {{ 'sample_lifecycle_tracking' | t : 'Sample Lifecycle Tracking' }}</div>
+        <h1>{{ 'sample_lifecycle_tracking' | t : 'Sample Lifecycle Tracking' }}</h1>
+        <p class="muted" style="margin:4px 0 0;font-size:12.5px">{{ 'manage_regional_sample_assignments_and_mon' | t : 'Manage regional sample assignments and monitor the 6 key lifecycle stages' }}</p>
       </div>
     </div>
 
     <div class="tabbar">
-      <button class="tab" [class.on]="tab() === 'assignments'" (click)="tab.set('assignments')">Area Assignments</button>
-      <button class="tab" [class.on]="tab() === 'report'" (click)="setReport()">Lifecycle Tracking Report</button>
+      <button class="tab" [class.on]="tab() === 'assignments'" (click)="tab.set('assignments')">{{ 'area_assignments' | t : 'Area Assignments' }}</button>
+      <button class="tab" [class.on]="tab() === 'report'" (click)="setReport()">{{ 'lifecycle_tracking_report' | t : 'Lifecycle Tracking Report' }}</button>
     </div>
 
     <!-- ===================== Area Assignments ===================== -->
     @if (tab() === 'assignments') {
       <div class="card" style="padding:20px;margin-bottom:16px">
-        <h3 style="margin:0 0 12px;font-size:14px">Area Assignment Filtration</h3>
+        <h3 style="margin:0 0 12px;font-size:14px">{{ 'area_assignment_filtration' | t : 'Area Assignment Filtration' }}</h3>
         <div class="frm-grid" style="grid-template-columns:repeat(4,1fr);gap:12px">
-          <div class="field"><label>Start Date</label><input type="date" class="input" [(ngModel)]="start"></div>
-          <div class="field"><label>End Date</label><input type="date" class="input" [(ngModel)]="end"></div>
-          <div class="field"><label>Governorate</label>
-            <select class="select" [(ngModel)]="gov"><option value="All">All</option>@for (g of govOptions(); track g) { <option [value]="g">{{ g }}</option> }</select></div>
-          <div class="field"><label>City</label>
-            <select class="select" [(ngModel)]="city"><option value="All">All</option>@for (c of cityOptions(); track c) { <option [value]="c">{{ c }}</option> }</select></div>
+          <div class="field"><label>{{ 'start_date' | t : 'Start Date' }}</label><input type="date" class="input" [(ngModel)]="start"></div>
+          <div class="field"><label>{{ 'end_date' | t : 'End Date' }}</label><input type="date" class="input" [(ngModel)]="end"></div>
+          <div class="field"><label>{{ 'governorate_2' | t : 'Governorate' }}</label>
+            <select class="select" [(ngModel)]="gov"><option value="All">{{ 'all_2' | t : 'All' }}</option>@for (g of govOptions(); track g) { <option [value]="g">{{ g }}</option> }</select></div>
+          <div class="field"><label>{{ 'city_2' | t : 'City' }}</label>
+            <select class="select" [(ngModel)]="city"><option value="All">{{ 'all_2' | t : 'All' }}</option>@for (c of cityOptions(); track c) { <option [value]="c">{{ c }}</option> }</select></div>
         </div>
         <div class="frm-grid" style="grid-template-columns:repeat(4,1fr);gap:12px;margin-top:10px">
-          <div class="field"><label>Area</label>
-            <select class="select" [(ngModel)]="areaFilter"><option value="All">All</option>@for (a of areaOptions(); track a) { <option [value]="a">{{ a }}</option> }</select></div>
-          <div class="field"><label>Search Area</label><input class="input" [(ngModel)]="search" placeholder="Search area..."></div>
-          <div class="field"><label>Data Entry</label>
-            <select class="select" [(ngModel)]="fDataEntry"><option value="All">All</option><option value="">Unassigned</option>@for (u of users(); track u.id) { <option [value]="u.username">{{ u.username }}</option> }</select></div>
-          <div class="field"><label>Reviewer</label>
-            <select class="select" [(ngModel)]="fReview"><option value="All">All</option><option value="">Unassigned</option>@for (u of users(); track u.id) { <option [value]="u.username">{{ u.username }}</option> }</select></div>
+          <div class="field"><label>{{ 'area_2' | t : 'Area' }}</label>
+            <select class="select" [(ngModel)]="areaFilter"><option value="All">{{ 'all_2' | t : 'All' }}</option>@for (a of areaOptions(); track a) { <option [value]="a">{{ a }}</option> }</select></div>
+          <div class="field"><label>{{ 'search_area' | t : 'Search Area' }}</label><input class="input" [(ngModel)]="search" [placeholder]="'search_area_placeholder' | t : 'Search area...'"></div>
+          <div class="field"><label>{{ 'data_entry' | t : 'Data Entry' }}</label>
+            <select class="select" [(ngModel)]="fDataEntry"><option value="All">{{ 'all_2' | t : 'All' }}</option><option value="">{{ 'unassigned' | t : 'Unassigned' }}</option>@for (u of users(); track u.id) { <option [value]="u.username">{{ u.username }}</option> }</select></div>
+          <div class="field"><label>{{ 'reviewer' | t : 'Reviewer' }}</label>
+            <select class="select" [(ngModel)]="fReview"><option value="All">{{ 'all_2' | t : 'All' }}</option><option value="">{{ 'unassigned' | t : 'Unassigned' }}</option>@for (u of users(); track u.id) { <option [value]="u.username">{{ u.username }}</option> }</select></div>
         </div>
         <div class="frm-grid" style="grid-template-columns:repeat(4,1fr);gap:12px;margin-top:10px">
-          <div class="field"><label>Sorted by</label>
-            <select class="select" [(ngModel)]="fSort"><option value="All">All</option><option value="">Unassigned</option>@for (u of users(); track u.id) { <option [value]="u.username">{{ u.username }}</option> }</select></div>
-          <div class="field"><label>Status</label>
-            <select class="select" [(ngModel)]="fStatus"><option value="Pending">Pending</option><option value="Completed">Completed</option><option value="All">All</option></select></div>
-          <div class="field" style="align-self:end"><button class="btn btn-p" (click)="load()" style="height:36px">Apply</button></div>
-          <div class="field" style="align-self:end"><button class="btn btn-s" (click)="reset()" style="height:36px">Reset</button></div>
+          <div class="field"><label>{{ 'sorted_by' | t : 'Sorted by' }}</label>
+            <select class="select" [(ngModel)]="fSort"><option value="All">{{ 'all_2' | t : 'All' }}</option><option value="">{{ 'unassigned' | t : 'Unassigned' }}</option>@for (u of users(); track u.id) { <option [value]="u.username">{{ u.username }}</option> }</select></div>
+          <div class="field"><label>{{ 'status' | t : 'Status' }}</label>
+            <select class="select" [(ngModel)]="fStatus"><option value="Pending">{{ 'pending_2' | t : 'Pending' }}</option><option value="Completed">{{ 'completed' | t : 'Completed' }}</option><option value="All">{{ 'all_2' | t : 'All' }}</option></select></div>
+          <div class="field" style="align-self:end"><button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply' | t : 'Apply' }}</button></div>
+          <div class="field" style="align-self:end"><button class="btn btn-s" (click)="reset()" style="height:36px">{{ 'reset' | t : 'Reset' }}</button></div>
         </div>
       </div>
 
       <div class="card" style="padding:0;overflow:hidden">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--slate-150)">
-          <b style="font-size:13px">Sample Area Assignment</b>
+          <b style="font-size:13px">{{ 'sample_area_assignment' | t : 'Sample Area Assignment' }}</b>
           <div style="display:flex;gap:8px">
-            @if (auth.has('SampleTracking')) { <button class="btn btn-p btn-mini" [disabled]="busy() || dirtyCount() === 0" (click)="batchSave()">Batch Save All ({{ dirtyCount() }})</button> }
+            @if (auth.has('SampleTracking')) { <button class="btn btn-p btn-mini" [disabled]="busy() || dirtyCount() === 0" (click)="batchSave()">{{ 'batch_save_all' | t : 'Batch Save All' }} ({{ dirtyCount() }})</button> }
           </div>
         </div>
-        @if (loading()) { <div class="empty" style="padding:24px">Loading…</div> }
+        @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
         @else {
           <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
-            <thead><tr><th>Date</th><th>Area</th><th>Samples</th><th>Data Entry</th><th>Reviewed By</th><th>Sorted By</th><th>Notes</th><th>Actions</th></tr></thead>
+            <thead><tr><th>{{ 'date' | t : 'Date' }}</th><th>{{ 'area_2' | t : 'Area' }}</th><th>{{ 'samples' | t : 'Samples' }}</th><th>{{ 'data_entry' | t : 'Data Entry' }}</th><th>{{ 'reviewed_by' | t : 'Reviewed By' }}</th><th>{{ 'sorted_by_2' | t : 'Sorted By' }}</th><th>{{ 'notes' | t : 'Notes' }}</th><th>{{ 'actions' | t : 'Actions' }}</th></tr></thead>
             <tbody>
               @for (r of filtered(); track r.id) {
                 <tr>
@@ -76,18 +77,18 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
                   <td><b>{{ r.area }}</b></td>
                   <td class="mono" style="font-weight:700">{{ r.count }}</td>
                   <td><select class="select sel" [ngModel]="draft(r).dataEntryUser" (ngModelChange)="setD(r, 'dataEntryUser', $event)" [disabled]="!auth.has('SampleTracking')">
-                    <option value="">Unassigned</option>@for (u of users(); track u.id) { <option [value]="u.username">{{ u.username }}</option> }</select>
+                    <option value="">{{ 'unassigned' | t : 'Unassigned' }}</option>@for (u of users(); track u.id) { <option [value]="u.username">{{ u.username }}</option> }</select>
                     @if (r.dataEntryAt) { <div class="small muted mono">{{ fmt(r.dataEntryAt) }}</div> }</td>
                   <td><select class="select sel" [ngModel]="draft(r).reviewUser" (ngModelChange)="setD(r, 'reviewUser', $event)" [disabled]="!auth.has('SampleTracking') || !draft(r).dataEntryUser">
-                    <option value="">Unassigned</option>@for (u of users(); track u.id) { <option [value]="u.username">{{ u.username }}</option> }</select>
+                    <option value="">{{ 'unassigned' | t : 'Unassigned' }}</option>@for (u of users(); track u.id) { <option [value]="u.username">{{ u.username }}</option> }</select>
                     @if (r.reviewAt) { <div class="small muted mono">{{ fmt(r.reviewAt) }}</div> }</td>
                   <td><select class="select sel" [ngModel]="draft(r).sortUser" (ngModelChange)="setD(r, 'sortUser', $event)" [disabled]="!auth.has('SampleTracking') || !draft(r).reviewUser">
-                    <option value="">Unassigned</option>@for (u of users(); track u.id) { <option [value]="u.username">{{ u.username }}</option> }</select>
+                    <option value="">{{ 'unassigned' | t : 'Unassigned' }}</option>@for (u of users(); track u.id) { <option [value]="u.username">{{ u.username }}</option> }</select>
                     @if (r.sortAt) { <div class="small muted mono">{{ fmt(r.sortAt) }}</div> }</td>
                   <td><input class="input" style="min-width:140px" [ngModel]="draft(r).notes" (ngModelChange)="setD(r, 'notes', $event)" [disabled]="!auth.has('SampleTracking')"></td>
-                  <td>@if (auth.has('SampleTracking')) { <button class="btn btn-mini btn-p" [disabled]="busy() || !draft(r).dirty" (click)="saveRow(r)">Save</button> }</td>
+                  <td>@if (auth.has('SampleTracking')) { <button class="btn btn-mini btn-p" [disabled]="busy() || !draft(r).dirty" (click)="saveRow(r)">{{ 'save_2' | t : 'Save' }}</button> }</td>
                 </tr>
-              } @empty { <tr><td colspan="8" class="empty" style="text-align:center;padding:24px">No records matching filters</td></tr> }
+              } @empty { <tr><td colspan="8" class="empty" style="text-align:center;padding:24px">{{ 'no_records_matching_filters' | t : 'No records matching filters' }}</td></tr> }
             </tbody>
           </table></div>
         }
@@ -97,36 +98,36 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
     <!-- ===================== Lifecycle Tracking Report ===================== -->
     @if (tab() === 'report') {
       <div class="card" style="padding:20px;margin-bottom:16px">
-        <h3 style="margin:0 0 12px;font-size:14px">Report Filtration</h3>
+        <h3 style="margin:0 0 12px;font-size:14px">{{ 'report_filtration' | t : 'Report Filtration' }}</h3>
         <div class="frm-grid" style="grid-template-columns:repeat(4,1fr);gap:12px">
-          <div class="field"><label>Start Date</label><input type="date" class="input" [(ngModel)]="rStart"></div>
-          <div class="field"><label>End Date</label><input type="date" class="input" [(ngModel)]="rEnd"></div>
-          <div class="field"><label>Area</label>
-            <select class="select" [(ngModel)]="rArea"><option value="All">All</option>@for (a of reportAreas(); track a) { <option [value]="a">{{ a }}</option> }</select></div>
-          <div class="field"><label>Group By</label>
-            <select class="select" [(ngModel)]="groupBy"><option value="Area">Area</option><option value="Laboratory">Laboratory</option></select></div>
+          <div class="field"><label>{{ 'start_date' | t : 'Start Date' }}</label><input type="date" class="input" [(ngModel)]="rStart"></div>
+          <div class="field"><label>{{ 'end_date' | t : 'End Date' }}</label><input type="date" class="input" [(ngModel)]="rEnd"></div>
+          <div class="field"><label>{{ 'area_2' | t : 'Area' }}</label>
+            <select class="select" [(ngModel)]="rArea"><option value="All">{{ 'all_2' | t : 'All' }}</option>@for (a of reportAreas(); track a) { <option [value]="a">{{ a }}</option> }</select></div>
+          <div class="field"><label>{{ 'group_by' | t : 'Group By' }}</label>
+            <select class="select" [(ngModel)]="groupBy"><option value="Area">{{ 'area_2' | t : 'Area' }}</option><option value="Laboratory">{{ 'laboratory' | t : 'Laboratory' }}</option></select></div>
         </div>
         <div style="display:flex;gap:8px;margin-top:12px">
-          <button class="btn btn-p" (click)="loadReport()" style="height:36px">Apply</button>
-          <button class="btn btn-s" (click)="resetReport()" style="height:36px">Reset</button>
+          <button class="btn btn-p" (click)="loadReport()" style="height:36px">{{ 'apply' | t : 'Apply' }}</button>
+          <button class="btn btn-s" (click)="resetReport()" style="height:36px">{{ 'reset' | t : 'Reset' }}</button>
         </div>
       </div>
 
       <div class="card" style="padding:0;overflow:hidden">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--slate-150)">
-          <b style="font-size:13px">Sample Life Cycle History</b>
+          <b style="font-size:13px">{{ 'sample_life_cycle_history' | t : 'Sample Life Cycle History' }}</b>
           <div style="display:flex;gap:8px">
-            <button class="btn btn-s btn-mini" (click)="exportReportExcel()" [disabled]="!reportFiltered().length">Export Excel</button>
-            <button class="btn btn-s btn-mini" (click)="exportLifecyclePdf()" [disabled]="!reportFiltered().length">Lifecycle PDF</button>
-            <button class="btn btn-s btn-mini" (click)="exportMotionPdf()" [disabled]="!reportFiltered().length">Motion Tracking PDF</button>
+            <button class="btn btn-s btn-mini" (click)="exportReportExcel()" [disabled]="!reportFiltered().length">{{ 'export_excel' | t : 'Export Excel' }}</button>
+            <button class="btn btn-s btn-mini" (click)="exportLifecyclePdf()" [disabled]="!reportFiltered().length">{{ 'lifecycle_pdf' | t : 'Lifecycle PDF' }}</button>
+            <button class="btn btn-s btn-mini" (click)="exportMotionPdf()" [disabled]="!reportFiltered().length">{{ 'motion_tracking_pdf' | t : 'Motion Tracking PDF' }}</button>
           </div>
         </div>
-        @if (reportLoading()) { <div class="empty" style="padding:24px">Loading…</div> }
+        @if (reportLoading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
         @else {
           @for (grp of reportGroups(); track grp.key) {
-            <div style="background:var(--slate-100);padding:8px 16px;font-weight:700;font-size:12.5px;border-bottom:1px solid var(--slate-150)">{{ groupBy }}: {{ grp.key }}</div>
+            <div style="background:var(--slate-100);padding:8px 16px;font-weight:700;font-size:12.5px;border-bottom:1px solid var(--slate-150)">{{ (groupBy === 'Area' ? 'area_2' : 'laboratory') | t : groupBy }}: {{ grp.key }}</div>
             <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
-              <thead><tr><th>Laboratory</th><th>Visit datetime</th><th>Samples</th><th>Collected</th><th>Transferred</th><th>Received</th><th>Data entry</th><th>Revised</th><th>Sorted</th><th>Notes</th></tr></thead>
+              <thead><tr><th>{{ 'laboratory' | t : 'Laboratory' }}</th><th>{{ 'visit_datetime' | t : 'Visit datetime' }}</th><th>{{ 'samples' | t : 'Samples' }}</th><th>{{ 'collected' | t : 'Collected' }}</th><th>{{ 'transferred' | t : 'Transferred' }}</th><th>{{ 'received' | t : 'Received' }}</th><th>{{ 'data_entry' | t : 'Data entry' }}</th><th>{{ 'revised' | t : 'Revised' }}</th><th>{{ 'sorted' | t : 'Sorted' }}</th><th>{{ 'notes' | t : 'Notes' }}</th></tr></thead>
               <tbody>
                 @for (r of grp.rows; track $index) {
                   <tr>
@@ -144,7 +145,7 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
                 }
               </tbody>
             </table></div>
-          } @empty { <div class="empty" style="text-align:center;padding:24px">No records found</div> }
+          } @empty { <div class="empty" style="text-align:center;padding:24px">{{ 'no_records_found' | t : 'No records found' }}</div> }
         }
       </div>
     }

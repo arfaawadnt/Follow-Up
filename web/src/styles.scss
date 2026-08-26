@@ -705,7 +705,7 @@ tr:hover td {
   color: var(--bad-ink);
   margin-left: 2px;
 }
-.field input, .field select, .field textarea {
+.field input, .field select, .field textarea, .input, .select {
   width: 100%;
   border: 1px solid var(--slate-300);
   border-radius: 10px;
@@ -716,7 +716,7 @@ tr:hover td {
   background: #fff;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.field input:focus, .field select:focus, .field textarea:focus {
+.field input:focus, .field select:focus, .field textarea:focus, .input:focus, .select:focus {
   outline: none;
   border-color: var(--teal-500);
   box-shadow: 0 0 0 2px var(--teal-500);

@@ -55,7 +55,8 @@ export interface Dashboard {
 export interface ComplaintListItem {
   id: string; reference: string; laboratoryId: string; labDisplayCode: string; lab: string; labCategory: string | null;
   category: string; via: string; assignedTo: string | null; description: string;
-  status: string; stage: string; ageDays: number; resolution: string | null; createdAt: string;
+  status: string; stage: string; ageDays: number; resolution: string | null;
+  resolvedAt: string | null; resolutionSummary: string | null; createdAt: string;
 }
 
 export interface ComplaintDetail {

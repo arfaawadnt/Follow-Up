@@ -100,11 +100,19 @@ internal sealed class InsightsQueries : IInsightsQueries
         var inProgCount = await _db.Complaints.CountAsync(c => labIds.Contains(c.LaboratoryId) && c.Status == ComplaintStatus.InProgress, ct);
         var resolvedCount = await _db.Complaints.CountAsync(c => labIds.Contains(c.LaboratoryId) && c.Status == ComplaintStatus.Resolved, ct);
 
-        // Birthdays today.
+        // Upcoming birthdays (next 7 days incl. today, nearest first) — the reference reminds ahead of time.
         var contacts = await _db.Laboratories.ApplyScope(scope)
-            .SelectMany(l => l.Contacts.Select(c => new { c.Name, c.Birthday, LabName = l.Name }))
+            .SelectMany(l => l.Contacts.Select(c => new { c.Name, c.Role, c.Birthday, LabName = l.Name }))
             .Where(x => x.Birthday != null).ToListAsync(ct);
-        var bdayContact = contacts.FirstOrDefault(x => x.Birthday!.Value.Month == today.Month && x.Birthday!.Value.Day == today.Day);
+        var bdayContact = contacts
+            .Select(x =>
+            {
+                var next = new DateOnly(today.Year, x.Birthday!.Value.Month, Math.Min(x.Birthday.Value.Day, DateTime.DaysInMonth(today.Year, x.Birthday.Value.Month)));
+                if (next < today) next = next.AddYears(1);
+                return new { x.Name, x.Role, x.LabName, Next = next };
+            })
+            .Where(x => x.Next.DayNumber - today.DayNumber <= 7)
+            .OrderBy(x => x.Next).FirstOrDefault();
 
         // ---- assemble ----
         var kpis = new DashboardKpisDto(
@@ -131,10 +139,10 @@ internal sealed class InsightsQueries : IInsightsQueries
         var repProg = labs.SelectMany(l => l.CollectorRepIds.Select(c => new { Rep = c, Lab = l }))
             .GroupBy(x => x.Rep)
             .Select(g => { var tgt = g.Sum(x => x.Lab.MonthlyTarget); var mtd = g.Sum(x => MtdOf(x.Lab.Id));
-                return new DashRepProgDto(RepOf(g.Key), $"{mtd:n0} / {tgt:n0}", tgt > 0 ? (int)Math.Round(100.0 * mtd / tgt) : 0); })
-            .Where(r => r.Detail != "0 / 0").OrderByDescending(r => r.Pct).Take(8).ToList();
+                return new DashRepProgDto(RepOf(g.Key), $"{mtd:n0} / {tgt:n0} samples MTD", tgt > 0 ? (int)Math.Round(100.0 * mtd / tgt) : 0); })
+            .Where(r => r.Detail != "0 / 0 samples MTD").OrderByDescending(r => r.Pct).Take(8).ToList();
 
-        var topLabs = labs.Select(l => new DashTopLabDto(l.Name, l.Area, MtdOf(l.Id)))
+        var topLabs = labs.Select(l => new DashTopLabDto(l.Name, l.Area, l.Gov, MtdOf(l.Id)))
             .Where(x => x.V > 0).OrderByDescending(x => x.V).Take(5).ToList();
 
         var trend = months.AsEnumerable().Reverse()
@@ -148,7 +156,9 @@ internal sealed class InsightsQueries : IInsightsQueries
             .OrderByDescending(x => x.V).Take(8).ToList();
 
         return new DashboardDto(kpis,
-            bdayContact is null ? null : new DashboardBirthdayDto($"{bdayContact.Name} at {bdayContact.LabName} has a birthday today"),
+            bdayContact is null ? null : new DashboardBirthdayDto(
+                $"{bdayContact.Name}, {(bdayContact.Role == Domain.Laboratories.ContactRole.Manager ? "Lab Manager" : "Receptionist")} at {bdayContact.LabName}, " +
+                $"on {bdayContact.Next.ToString("dddd, d MMMM", CultureInfo.InvariantCulture)}. A courtesy call goes a long way."),
             schedule, complaints, repProg, topLabs, trend, segMix, govRows);
     }
 

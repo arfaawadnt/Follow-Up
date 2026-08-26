@@ -38,8 +38,8 @@ interface TestSetup { id: string; code: string; nameEn: string; nameAr: string |
               @for (s of setups(); track s.id) {
                 <tr><td class="mono">{{ s.code }}</td><td>{{ s.nameEn }}</td><td>{{ groupName(s.groupId) }}</td>
                   <td class="actions">
-                    @if (auth.has('UpdateTestsetup')) { <button class="btn btn-mini btn-s" (click)="edit(s)">{{ 'edit_2' | t : 'Edit' }}</button> }
-                    @if (auth.has('DeleteTestsetup')) { <button class="btn btn-mini btn-d" (click)="del(s)" [disabled]="busy()">{{ 'delete' | t : 'Delete' }}</button> }
+                    @if (auth.has('UpdateTestsetup')) { <button class="btn-ghost" (click)="edit(s)">{{ 'edit_2' | t : 'Edit' }}</button> }
+                    @if (auth.has('DeleteTestsetup')) { <button class="btn-ghost red" (click)="del(s)" [disabled]="busy()">{{ 'delete' | t : 'Delete' }}</button> }
                   </td></tr>
               } @empty { <tr><td colspan="4" class="empty" style="text-align:center;padding:24px">—</td></tr> }
             </tbody>

@@ -35,8 +35,8 @@ interface TestGroup { id: string; code: string; nameEn: string; nameAr: string |
               @for (g of groups(); track g.id) {
                 <tr><td class="mono">{{ g.code }}</td><td>{{ g.nameEn }}</td>
                   <td class="actions">
-                    @if (auth.has('UpdateGroups')) { <button class="btn btn-mini btn-s" (click)="edit(g)">{{ 'edit_2' | t : 'Edit' }}</button> }
-                    @if (auth.has('DeleteGroups')) { <button class="btn btn-mini btn-d" (click)="del(g)" [disabled]="busy()">{{ 'delete' | t : 'Delete' }}</button> }
+                    @if (auth.has('UpdateGroups')) { <button class="btn-ghost" (click)="edit(g)">{{ 'edit_2' | t : 'Edit' }}</button> }
+                    @if (auth.has('DeleteGroups')) { <button class="btn-ghost red" (click)="del(g)" [disabled]="busy()">{{ 'delete' | t : 'Delete' }}</button> }
                   </td></tr>
               } @empty { <tr><td colspan="3" class="empty" style="text-align:center;padding:24px">—</td></tr> }
             </tbody>

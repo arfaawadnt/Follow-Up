@@ -21,7 +21,7 @@ const STATUSES = ['All', 'Scanned', 'Interactive', 'Active', 'Inactive', 'Stoppe
         @if (auth.has('AddLabs')) { <a class="btn btn-p" routerLink="/labs/new">{{ 'new_lab_btn' | t : '+ New laboratory' }}</a> }
         <button class="btn btn-s" (click)="exportCsv()" [disabled]="!filtered().length">{{ 'export_excel' | t : 'Export Excel' }}</button>
         <button class="btn btn-s" (click)="exportPdf()" [disabled]="!filtered().length">{{ 'export_pdf' | t : 'Export PDF' }}</button>
-        <button class="btn btn-s" (click)="clearFilters()">{{ 'clear_filters' | t : 'Clear Filters' }}</button>
+        <button class="btn-ghost" (click)="clearFilters()">{{ 'clear_filters' | t : 'Clear Filters' }}</button>
       </div>
     </div>
 
@@ -65,8 +65,8 @@ const STATUSES = ['All', 'Scanned', 'Interactive', 'Active', 'Inactive', 'Stoppe
                 <td>{{ l.marketing ?? '—' }}</td>
                 <td class="r mono">{{ l.avgMonthlySamples ?? '—' }}</td>
                 <td class="r" style="white-space:nowrap">
-                  <button class="btn btn-s" (click)="$event.stopPropagation(); open(l.id)">{{ 'images' | t : 'Images' }}</button>
-                  <button class="btn btn-s" style="margin-inline-start:6px" (click)="$event.stopPropagation(); open(l.id)">{{ 'edit' | t : 'Edit' }}</button>
+                  <button class="btn-ghost" (click)="$event.stopPropagation(); open(l.id)">{{ 'images' | t : 'Images' }}</button>
+                  <button class="btn-ghost" (click)="$event.stopPropagation(); open(l.id)">{{ 'edit' | t : 'Edit' }}</button>
                 </td>
               </tr>
             } @empty { <tr><td colspan="10" class="empty" style="text-align:center;padding:24px">{{ 'no_labs_match' | t : 'No labs match.' }}</td></tr> }
