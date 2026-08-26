@@ -41,12 +41,13 @@ type StageForm = 'ack' | 'validity' | 'investigation' | 'outcome' | 'resolve';
       <div class="kpi kpi-green"><div class="lbl">Resolved</div><div class="val">{{ count('Resolved') }}</div></div>
     </div>
 
-    <div class="card" style="padding:12px;margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap">
-      @for (s of statuses; track s) { <span class="pill" [class.on]="status() === s" (click)="setStatus(s)">{{ s === 'All' ? ('all' | t) : s }} ({{ s === 'All' ? (result()?.total ?? 0) : count(s) }})</span> }
-    </div>
-    <div class="card" style="padding:12px;margin-bottom:16px;display:flex;gap:6px;flex-wrap:wrap">
-      <span class="pill" [class.on]="category() === ''" (click)="setCategory('')">{{ 'all' | t : 'All' }}</span>
-      @for (c of categories; track c) { <span class="pill" [class.on]="category() === c" (click)="setCategory(c)">{{ c }} ({{ catCount(c) }})</span> }
+    <!-- One filter row like the reference: status pills + category dropdown -->
+    <div class="card" style="padding:12px;margin-bottom:16px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      @for (s of statuses; track s) { <span class="pill" [class.on]="status() === s" (click)="setStatus(s)">{{ statusLabel(s) }} · {{ s === 'All' ? (result()?.total ?? 0) : count(s) }}</span> }
+      <select class="select" style="width:auto;min-width:180px;margin-inline-start:10px" [ngModel]="category()" (ngModelChange)="setCategory($event)">
+        <option value="">{{ 'all' | t : 'All' }}</option>
+        @for (c of categories; track c) { <option [value]="c">{{ c }}</option> }
+      </select>
     </div>
 
     <div class="card" style="padding:0;overflow:hidden">
@@ -284,7 +285,7 @@ export class ComplaintsComponent {
   constructor() { this.load(); }
 
   count(s: string): number { return (this.result()?.items ?? []).filter((c) => c.status === s).length; }
-  catCount(c: string): number { return (this.result()?.items ?? []).filter((x) => x.category === c).length; }
+  statusLabel(s: string): string { return s === 'All' ? 'All' : s === 'InProgress' ? 'In Progress' : s; }
   badge(s: string): string { return s === 'Resolved' ? 'b-ok' : s === 'InProgress' ? 'b-warn' : 'b-bad'; }
   stageLabel(stage: string): string { return STEPS.find((s) => s.stage === stage)?.label ?? stage; }
   stepIndex(d: ComplaintDetail): number {
