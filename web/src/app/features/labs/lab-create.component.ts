@@ -1,95 +1,133 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApiService } from '../../core/api.service';
+import { TranslatePipe } from '../../core/i18n';
 import { RepListItem } from '../../core/models';
+import { MapComponent } from '../../shared/map.component';
 
 interface Ref { nameEn: string; }
 interface City { id: string; name: string; governorate: string; }
 interface Area { id: string; name: string; cityId: string; }
 interface Contact { name: string; phone: string; birthday: string | null; }
 
-const STATUSES = ['Scanned', 'Interactive', 'Active', 'Inactive', 'Stopped'];
+const STATUSES = ['Scanned', 'Interactive', 'Active', 'Inactive', 'Stopped', 'Pending', 'Suspended', 'Churned'];
 const CHANNELS = ['WhatsApp', 'Phone Call', 'Email', 'In-person'];
 const DAYS = ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
 const DAY_NAMES: Record<string, string> = { Sat: 'Saturday', Sun: 'Sunday', Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday' };
 
+/** Parses "lat, lng" free text; null when the text is not a valid coordinate pair. */
+function parseGeo(text: string): { lat: number; lng: number } | null {
+  const m = text.trim().match(/^(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)$/);
+  if (!m) return null;
+  const lat = +m[1], lng = +m[2];
+  return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null;
+}
+
 @Component({
   selector: 'app-lab-create',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, TranslatePipe, MapComponent],
   template: `
-    <div class="pagehead"><div><div class="breadcrumbs">Home / New Laboratory</div><h1>New Laboratory</h1></div></div>
+    <div class="pagehead"><div><div class="breadcrumbs">Home / {{ 'new_laboratory' | t : 'New Laboratory' }}</div><h1>{{ 'new_laboratory' | t : 'New Laboratory' }}</h1></div></div>
 
-    <section class="card sect"><h3>Identity</h3>
+    @if (error()) { <div class="inline-banner inline-banner-error" style="margin-bottom:12px">{{ error() }}</div> }
+
+    <section class="card sect"><h3>{{ 'identity' | t : 'Identity' }}</h3>
       <div class="grid4">
-        <div class="field"><label>Lab name *</label><input class="input" [(ngModel)]="f.name"></div>
-        <div class="field"><label>Lab code *</label><input class="input" [(ngModel)]="f.code"></div>
-        <div class="field"><label>Segment</label><select class="select" [(ngModel)]="f.segment">@for (s of segments(); track s) { <option [value]="s">{{ s }}</option> }</select></div>
-        <div class="field"><label>Status</label><select class="select" [(ngModel)]="f.status">@for (s of statuses; track s) { <option [value]="s">{{ s }}</option> }</select></div>
-        <div class="field"><label>Lab Category</label><select class="select" [(ngModel)]="f.category"><option value="">—</option>@for (c of categories(); track c) { <option [value]="c">{{ c }}</option> }</select></div>
-        <div class="field"><label>Serving branch</label><select class="select" [(ngModel)]="f.branch"><option value="">—</option>@for (b of branches(); track b) { <option [value]="b">{{ b }}</option> }</select></div>
-        <div class="field"><label>License no.</label><input class="input" [(ngModel)]="f.licenseNo"></div>
-        <div class="field"><label>License date</label><input type="date" class="input" [(ngModel)]="f.licenseDate"></div>
-        <div class="field"><label>Avg monthly samples</label><input type="number" min="0" class="input" [(ngModel)]="f.avgMonthlySamples"></div>
+        <div class="field"><label>{{ 'lab_name_lbl' | t : 'Lab name *' }}</label><input class="input" [(ngModel)]="f.name"></div>
+        <div class="field"><label>{{ 'lab_code_lbl' | t : 'Lab code *' }}</label><input class="input" [(ngModel)]="f.code"></div>
+        <div class="field"><label>{{ 'segment' | t : 'Segment' }}</label><select class="select" [(ngModel)]="f.segment">@for (s of segments(); track s) { <option [value]="s">{{ s }}</option> }</select></div>
+        <div class="field"><label>{{ 'status' | t : 'Status' }}</label><select class="select" [(ngModel)]="f.status">@for (s of statuses; track s) { <option [value]="s">{{ s }}</option> }</select></div>
+        <div class="field"><label>{{ 'lab_category' | t : 'Lab Category' }}</label><select class="select" [(ngModel)]="f.category"><option value="">—</option>@for (c of categories(); track c) { <option [value]="c">{{ c }}</option> }</select></div>
+        <div class="field"><label>{{ 'mapping_code' | t : 'Mapping Code' }}</label><input class="input" [(ngModel)]="f.mappingCode"></div>
+        <div class="field"><label>{{ 'encrypted' | t : 'Encrypted' }}</label><label class="chip"><input type="checkbox" [(ngModel)]="f.isEncrypted"> {{ 'encrypted' | t : 'Encrypted' }}</label></div>
+        <div class="field"><label>{{ 'serving_branch' | t : 'Serving branch' }}</label><select class="select" [(ngModel)]="f.branch"><option value="">—</option>@for (b of branches(); track b) { <option [value]="b">{{ b }}</option> }</select></div>
+        <div class="field"><label>{{ 'license_no' | t : 'License no.' }}</label><input class="input" [(ngModel)]="f.licenseNo"></div>
+        <div class="field"><label>{{ 'license_date' | t : 'License date' }}</label><input type="date" class="input" [(ngModel)]="f.licenseDate"></div>
+        <div class="field"><label>{{ 'avg_monthly_samples' | t : 'Avg monthly samples' }}</label><input type="number" min="0" class="input" [(ngModel)]="f.avgMonthlySamples"></div>
       </div>
     </section>
 
-    <section class="card sect"><h3>Location</h3>
+    <section class="card sect"><h3>{{ 'location' | t : 'Location' }}</h3>
       <div class="grid4">
-        <div class="field"><label>Governorate *</label><select class="select" [(ngModel)]="f.governorate"><option value="">—</option>@for (g of governorates(); track g) { <option [value]="g">{{ g }}</option> }</select></div>
-        <div class="field"><label>City</label><select class="select" [(ngModel)]="f.city"><option value="">—</option>@for (c of cities(); track c.id) { <option [value]="c.name">{{ c.name }}</option> }</select></div>
-        <div class="field"><label>Area</label><select class="select" [(ngModel)]="f.area"><option value="">—</option>@for (a of areas(); track a.id) { <option [value]="a.name">{{ a.name }}</option> }</select></div>
-        <div class="field"><label>Latitude</label><input type="number" class="input" [(ngModel)]="f.latitude"></div>
-        <div class="field"><label>Longitude</label><input type="number" class="input" [(ngModel)]="f.longitude"></div>
-        <div class="field" style="grid-column:1/-1"><label>Address</label><input class="input" [(ngModel)]="f.address" placeholder="street, building, floor…"></div>
+        <div class="field"><label>{{ 'governorate_lbl' | t : 'Governorate *' }}</label><select class="select" [ngModel]="f.governorate" (ngModelChange)="onGovChange($event)"><option value="">—</option>@for (g of governorates(); track g) { <option [value]="g">{{ g }}</option> }</select></div>
+        <div class="field"><label>{{ 'city_lbl' | t : 'City *' }}</label><select class="select" [ngModel]="f.city" (ngModelChange)="onCityChange($event)"><option value="">—</option>@for (c of filteredCities(); track c.id) { <option [value]="c.name">{{ c.name }}</option> }</select></div>
+        <div class="field"><label>{{ 'area' | t : 'Area' }}</label><select class="select" [(ngModel)]="f.area"><option value="">—</option>@for (a of filteredAreas(); track a.id) { <option [value]="a.name">{{ a.name }}</option> }</select></div>
+        <div class="field"><label>{{ 'geo_coords' | t : 'Geo (lat, lng)' }}</label><input class="input" [(ngModel)]="f.geo" placeholder="30.0444, 31.2357"></div>
+        <div class="field" style="grid-column:1/-1"><label>{{ 'address' | t : 'Address' }}</label><input class="input" [(ngModel)]="f.address" placeholder="street, building, floor…"></div>
+        <div class="field" style="grid-column:1/-1"><label>{{ 'search_location_on_map' | t : 'Search location on map' }}</label>
+          <div class="georow">
+            <input class="input" [(ngModel)]="mapQuery" (keyup.enter)="searchLocation()" [placeholder]="'search_by_name_or_paste_google_maps_link' | t : 'Search by name, or paste Google Maps link, or coordinates...'">
+            <button type="button" class="btn btn-s" [disabled]="!mapQuery.trim() || searching()" (click)="searchLocation()">{{ searching() ? ('searching' | t : 'Searching...') : ('search_2' | t : 'Search') }}</button>
+          </div>
+          @if (geoMiss()) { <div class="geo-msg">{{ 'sorry_no_matching_locations_found' | t : 'Sorry, no matching locations found.' }}</div> }
+          @if (geoFail()) { <div class="geo-msg">{{ 'location_search_unavailable' | t : 'Location search is unavailable right now.' }}</div> }
+        </div>
+      </div>
+      <div style="margin-top:10px">
+        <app-map [lat]="geoLat()" [lng]="geoLng()" [editable]="true" [height]="260" (coordChange)="onPick($event)" />
       </div>
     </section>
 
-    <section class="card sect"><h3>Commercial &amp; Assignment</h3>
+    <section class="card sect"><h3>{{ 'commercial_assignment' | t : 'Commercial & Assignment' }}</h3>
       <div class="grid4">
-        <div class="field"><label>Payer type</label><select class="select" [(ngModel)]="f.payer"><option value="">—</option>@for (p of payers(); track p) { <option [value]="p">{{ p }}</option> }</select></div>
-        <div class="field"><label>Contract</label><select class="select" [(ngModel)]="f.contractType"><option value="">—</option>@for (c of contracts(); track c) { <option [value]="c">{{ c }}</option> }</select></div>
-        <div class="field"><label>Marketing rep</label><select class="select" [(ngModel)]="f.marketingRepId"><option value="">—</option>@for (r of marketingReps(); track r.id) { <option [value]="r.id">{{ r.fullName }}</option> }</select></div>
-        <div class="field"><label>Preferred channel</label><select class="select" [(ngModel)]="f.preferredChannel"><option value="">—</option>@for (c of channels; track c) { <option [value]="c">{{ c }}</option> }</select></div>
+        <div class="field"><label>{{ 'payer_type' | t : 'Payer type' }}</label><select class="select" [(ngModel)]="f.payer"><option value="">—</option>@for (p of payers(); track p) { <option [value]="p">{{ p }}</option> }</select></div>
+        <div class="field"><label>{{ 'contract' | t : 'Contract' }}</label><select class="select" [(ngModel)]="f.contractType"><option value="">—</option>@for (c of contracts(); track c) { <option [value]="c">{{ c }}</option> }</select></div>
+        <div class="field"><label>{{ 'marketing_rep' | t : 'Marketing rep' }}</label><select class="select" [(ngModel)]="f.marketingRepId"><option value="">—</option>@for (r of marketingReps(); track r.id) { <option [value]="r.id">{{ r.fullName }}</option> }</select></div>
+        <div class="field"><label>{{ 'preferred_channel' | t : 'Preferred channel' }}</label><select class="select" [(ngModel)]="f.preferredChannel"><option value="">—</option>@for (c of channels; track c) { <option [value]="c">{{ c }}</option> }</select></div>
       </div>
-      <div class="field" style="margin-top:10px"><label>Collection reps (one or more)</label>
-        <div class="chips">
-          @for (r of collectorReps(); track r.id) {
-            <label class="chip"><input type="checkbox" [checked]="collectorIds.includes(r.id)" (change)="toggleCollector(r.id)"> {{ r.fullName }}</label>
-          } @empty { <span class="muted">No collector reps.</span> }
+      <div class="field" style="margin-top:10px"><label>{{ 'collection_rep' | t : 'Collection rep' }}</label>
+        <div class="tags">
+          @for (r of selectedCollectors(); track r.id) { <span class="tag">{{ r.fullName }}<button type="button" class="tag-x" (click)="removeCollector(r.id)" aria-label="Remove">×</button></span> }
+          <select class="select tag-add" #addSel (change)="addCollector(addSel.value); addSel.value = ''">
+            <option value="">{{ 'select_collectors' | t : 'Select collectors...' }}</option>
+            @for (r of availableCollectors(); track r.id) { <option [value]="r.id">{{ r.fullName }}</option> }
+          </select>
         </div>
       </div>
     </section>
 
-    <section class="card sect"><h3>Collection Schedule</h3>
+    <section class="card sect"><h3>{{ 'collection_schedule' | t : 'Collection Schedule' }}</h3>
       <div class="grid4">
-        <div class="field"><label>Visit time 1 *</label><input type="time" class="input" [(ngModel)]="f.time1"></div>
-        <div class="field"><label>Visit time 2 (optional)</label><input type="time" class="input" [(ngModel)]="f.time2"></div>
+        <div class="field"><label>{{ 'visit_time1_lbl' | t : 'Visit time 1 *' }}</label><input type="time" class="input" [(ngModel)]="f.time1"></div>
+        <div class="field"><label>{{ 'visit_time2_lbl' | t : 'Visit time 2 (optional)' }}</label><input type="time" class="input" [(ngModel)]="f.time2"></div>
       </div>
-      <div class="field" style="margin-top:10px"><label>Working days *</label>
-        <div class="chips">@for (d of days; track d) { <label class="chip"><input type="checkbox" [checked]="workDays.includes(d)" (change)="toggleDay(d)"> {{ d }}</label> }</div>
+      <div class="field" style="margin-top:10px"><label>{{ 'working_days_lbl' | t : 'Working days *' }}</label>
+        <div class="chips">@for (d of days; track d) { <button type="button" class="chip" [class.on]="workDays.includes(d)" (click)="toggleDay(d)">{{ d }}</button> }</div>
       </div>
     </section>
 
-    <section class="card sect"><h3>Contacts — Managers</h3>
+    <section class="card sect"><h3>{{ 'contacts_managers' | t : 'Contacts — Managers' }}</h3>
       @for (c of managers; track $index) {
-        <div class="grid4 crow"><input class="input" placeholder="Name" [(ngModel)]="c.name"><input class="input" placeholder="Phone" [(ngModel)]="c.phone"><input type="date" class="input" [(ngModel)]="c.birthday"><button class="btn btn-s btn-mini" (click)="managers.splice($index,1)">Remove</button></div>
+        <div class="grid4 crow"><input class="input" [placeholder]="'name' | t : 'Name'" [(ngModel)]="c.name"><input class="input" [placeholder]="'phone' | t : 'Phone'" [(ngModel)]="c.phone"><input type="date" class="input" [(ngModel)]="c.birthday"><button type="button" class="btn btn-s btn-mini" (click)="managers.splice($index, 1)">{{ 'remove' | t : 'Remove' }}</button></div>
       }
-      <button class="btn btn-s btn-mini" (click)="managers.push({name:'',phone:'',birthday:null})">+ Add manager</button>
+      <button type="button" class="btn btn-s btn-mini" (click)="managers.push({ name: '', phone: '', birthday: null })">{{ 'add_manager' | t : '+ Add manager' }}</button>
     </section>
 
-    <section class="card sect"><h3>Contacts — Receptionists</h3>
+    <section class="card sect"><h3>{{ 'contacts_receptionists' | t : 'Contacts — Receptionists' }}</h3>
       @for (c of receptionists; track $index) {
-        <div class="grid4 crow"><input class="input" placeholder="Name" [(ngModel)]="c.name"><input class="input" placeholder="Phone" [(ngModel)]="c.phone"><input type="date" class="input" [(ngModel)]="c.birthday"><button class="btn btn-s btn-mini" (click)="receptionists.splice($index,1)">Remove</button></div>
+        <div class="grid4 crow"><input class="input" [placeholder]="'name' | t : 'Name'" [(ngModel)]="c.name"><input class="input" [placeholder]="'phone' | t : 'Phone'" [(ngModel)]="c.phone"><input type="date" class="input" [(ngModel)]="c.birthday"><button type="button" class="btn btn-s btn-mini" (click)="receptionists.splice($index, 1)">{{ 'remove' | t : 'Remove' }}</button></div>
       }
-      <button class="btn btn-s btn-mini" (click)="receptionists.push({name:'',phone:'',birthday:null})">+ Add receptionist</button>
+      <button type="button" class="btn btn-s btn-mini" (click)="receptionists.push({ name: '', phone: '', birthday: null })">{{ 'add_receptionist' | t : '+ Add receptionist' }}</button>
     </section>
 
-    @if (error()) { <div class="inline-banner inline-banner-error">{{ error() }}</div> }
-    <div style="display:flex;gap:8px;margin-top:12px">
-      <button class="btn btn-p" [disabled]="!canSave() || busy()" (click)="submit()">Create Laboratory</button>
-      <button class="btn btn-s" (click)="cancel()">Cancel</button>
+    <section class="card sect"><h3>{{ 'attached_laboratory_images' | t : 'Attached Laboratory Images' }}</h3>
+      <div class="field"><label>{{ 'attach_images_multiple_files_supported' | t : 'Attach images (multiple files supported)' }}</label>
+        <input type="file" multiple accept="image/*" (change)="onFiles($event)" [disabled]="busy()">
+      </div>
+      @if (images().length) {
+        <div class="thumbs">
+          @for (img of images(); track $index) {
+            <div class="thumb"><img [src]="img" alt=""><button type="button" class="thumb-x" (click)="removeImage($index)" aria-label="Remove image">×</button></div>
+          }
+        </div>
+      }
+    </section>
+
+    <div class="foot-actions">
+      <button type="button" class="btn btn-p" [disabled]="!canSave() || busy()" (click)="submit()">{{ 'create_laboratory' | t : 'Create Laboratory' }}</button>
+      <button type="button" class="btn btn-s" (click)="cancel()">{{ 'cancel' | t : 'Cancel' }}</button>
     </div>
   `,
   styles: [`
@@ -100,7 +138,20 @@ const DAY_NAMES: Record<string, string> = { Sat: 'Saturday', Sun: 'Sunday', Mon:
     .crow { align-items:center; margin-bottom:8px }
     .field label { display:block; font:600 11px var(--ui); color:var(--slate-600); margin-bottom:4px }
     .chips { display:flex; flex-wrap:wrap; gap:10px }
-    .chip { display:flex; align-items:center; gap:6px; font:600 12px var(--ui); color:var(--slate-700); border:1px solid var(--slate-300); border-radius:8px; padding:6px 10px; cursor:pointer }
+    .chip { display:flex; align-items:center; gap:6px; font:600 12px var(--ui); color:var(--slate-700); border:1px solid var(--slate-300); border-radius:8px; padding:6px 10px; cursor:pointer; background:var(--white) }
+    .chip.on { background:var(--primary-blue); border-color:var(--primary-blue); color:#fff }
+    .tags { display:flex; flex-wrap:wrap; gap:8px; align-items:center }
+    .tag { display:inline-flex; align-items:center; gap:6px; background:var(--slate-100); border:1px solid var(--slate-300); border-radius:999px; padding:4px 10px; font:600 12px var(--ui); color:var(--slate-700) }
+    .tag-x { border:0; background:none; cursor:pointer; font-size:14px; line-height:1; color:var(--slate-500); padding:0 }
+    .tag-x:hover { color:var(--danger, #dc2626) }
+    .tag-add { width:auto; min-width:180px }
+    .georow { display:flex; gap:8px } .georow .input { flex:1 }
+    .geo-msg { margin-top:6px; font:600 12px var(--ui); color:#b45309 }
+    .thumbs { display:flex; flex-wrap:wrap; gap:10px; margin-top:10px }
+    .thumb { position:relative; width:96px; height:96px; border:1px solid var(--slate-200); border-radius:8px; overflow:hidden; background:var(--slate-100) }
+    .thumb img { width:100%; height:100%; object-fit:cover; display:block }
+    .thumb-x { position:absolute; top:2px; right:2px; width:20px; height:20px; border-radius:50%; border:0; background:rgba(15,23,42,.65); color:#fff; cursor:pointer; font-size:13px; line-height:20px; padding:0 }
+    .foot-actions { display:flex; gap:8px; margin-top:12px }
     .muted { color:var(--slate-400) }
   `],
 })
@@ -123,18 +174,34 @@ export class LabCreateComponent {
   readonly cities = signal<City[]>([]);
   readonly areas = signal<Area[]>([]);
   readonly reps = signal<RepListItem[]>([]);
-  readonly collectorReps = computed(() => this.reps().filter((r) => r.type === 'Collector' || r.type === 'Scanning'));
-  readonly marketingReps = computed(() => this.reps().filter((r) => r.type === 'Marketing'));
+  readonly images = signal<string[]>([]);
+
+  readonly collectorReps = () => this.reps().filter((r) => r.type === 'Collector' || r.type === 'Scanning');
+  readonly marketingReps = () => this.reps().filter((r) => r.type === 'Marketing');
+  readonly selectedCollectors = () => this.collectorIds.map((id) => this.reps().find((r) => r.id === id)).filter((r): r is RepListItem => !!r);
+  readonly availableCollectors = () => this.collectorReps().filter((r) => !this.collectorIds.includes(r.id));
+
+  // Dependent selects: cities narrow by governorate, areas narrow by the chosen city (joined via the cities list).
+  readonly filteredCities = () => this.cities().filter((c) => !this.f.governorate || c.governorate === this.f.governorate);
+  readonly filteredAreas = () => {
+    const city = this.filteredCities().find((c) => c.name === this.f.city);
+    return city ? this.areas().filter((a) => a.cityId === city.id) : [];
+  };
 
   collectorIds: string[] = [];
   workDays: string[] = [];
   managers: Contact[] = [];
   receptionists: Contact[] = [];
 
+  mapQuery = '';
+  readonly searching = signal(false);
+  readonly geoMiss = signal(false);
+  readonly geoFail = signal(false);
+
   f = {
-    name: '', code: '', segment: 'A', status: 'Scanned', category: '', branch: '',
+    name: '', code: '', segment: 'A', status: 'Scanned', category: '', mappingCode: '', isEncrypted: false, branch: '',
     licenseNo: '', licenseDate: null as string | null, avgMonthlySamples: null as number | null,
-    governorate: '', city: '', area: '', address: '', latitude: null as number | null, longitude: null as number | null,
+    governorate: '', city: '', area: '', address: '', geo: '',
     payer: '', contractType: '', marketingRepId: '', preferredChannel: '',
     time1: '', time2: '',
   };
@@ -153,11 +220,68 @@ export class LabCreateComponent {
     this.api.get<{ items: RepListItem[] }>('/reps', { pageSize: 500 }).subscribe({ next: (r) => this.reps.set(r.items) });
   }
 
-  toggleCollector(id: string): void { this.collectorIds = this.collectorIds.includes(id) ? this.collectorIds.filter((x) => x !== id) : [...this.collectorIds, id]; }
+  onGovChange(v: string): void {
+    this.f.governorate = v;
+    if (!this.filteredCities().some((c) => c.name === this.f.city)) { this.f.city = ''; this.f.area = ''; }
+  }
+
+  onCityChange(v: string): void {
+    this.f.city = v;
+    if (!this.filteredAreas().some((a) => a.name === this.f.area)) this.f.area = '';
+  }
+
+  addCollector(id: string): void { if (id && !this.collectorIds.includes(id)) this.collectorIds = [...this.collectorIds, id]; }
+  removeCollector(id: string): void { this.collectorIds = this.collectorIds.filter((x) => x !== id); }
   toggleDay(d: string): void { this.workDays = this.workDays.includes(d) ? this.workDays.filter((x) => x !== d) : [...this.workDays, d]; }
-  canSave(): boolean { return !!this.f.name.trim() && !!this.f.code.trim() && !!this.f.time1 && this.workDays.length > 0; }
+
+  geoLat(): number | null { return parseGeo(this.f.geo)?.lat ?? null; }
+  geoLng(): number | null { return parseGeo(this.f.geo)?.lng ?? null; }
+  onPick(c: { lat: number; lng: number }): void { this.f.geo = `${c.lat}, ${c.lng}`; }
+
+  async searchLocation(): Promise<void> {
+    const q = this.mapQuery.trim();
+    if (!q || this.searching()) return;
+    this.geoMiss.set(false); this.geoFail.set(false); this.searching.set(true);
+    try {
+      const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q));
+      const hits = (await res.json()) as { lat: string; lon: string }[];
+      if (Array.isArray(hits) && hits.length) this.f.geo = `${(+hits[0].lat).toFixed(6)}, ${(+hits[0].lon).toFixed(6)}`;
+      else this.geoMiss.set(true);
+    } catch {
+      this.geoFail.set(true); // offline / blocked geocoder must never break the form
+    } finally {
+      this.searching.set(false);
+    }
+  }
+
+  onFiles(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
+    input.value = '';
+    if (!files.length) return;
+    this.busy.set(true);
+    let pending = files.length;
+    for (const file of files) {
+      const data = new FormData();
+      data.append('file', file);
+      this.api.post<{ path: string }>('/labs/upload', data).subscribe({
+        next: (r) => { this.images.update((a) => [...a, r.path]); if (--pending === 0) this.busy.set(false); },
+        error: (e) => { this.error.set(e?.error?.detail ?? 'Image upload failed.'); if (--pending === 0) this.busy.set(false); },
+      });
+    }
+  }
+
+  removeImage(index: number): void { this.images.update((a) => a.filter((_, i) => i !== index)); }
+
+  canSave(): boolean {
+    return !!this.f.name.trim() && !!this.f.code.trim() && !!this.f.governorate && !!this.f.city
+      && !!this.f.time1 && this.workDays.length > 0;
+  }
 
   submit(): void {
+    if (!this.canSave() || this.busy()) return;
+    const geo = parseGeo(this.f.geo);
+    if (this.f.geo.trim() && !geo) { this.error.set('Enter coordinates as "lat, lng" (e.g. 30.0444, 31.2357).'); return; }
     this.busy.set(true); this.error.set(null);
     const contacts = [
       ...this.managers.filter((c) => c.name.trim()).map((c) => ({ name: c.name, role: 'Manager', phone: c.phone || null, birthday: c.birthday || null })),
@@ -166,11 +290,12 @@ export class LabCreateComponent {
     this.api.post<{ id: string }>('/labs', {
       code: this.f.code, name: this.f.name, segment: this.f.segment, status: this.f.status,
       category: this.f.category || null, branch: this.f.branch || null,
+      mappingCode: this.f.mappingCode || null, isEncrypted: this.f.isEncrypted, images: this.images(),
       licenseNo: this.f.licenseNo || null, licenseDate: this.f.licenseDate || null,
       avgMonthlySamples: this.f.avgMonthlySamples, preferredChannel: this.f.preferredChannel || null,
       governorate: this.f.governorate || null, city: this.f.city || null, area: this.f.area || null,
       address: this.f.address || null,
-      latitude: this.f.latitude, longitude: this.f.longitude,
+      latitude: geo?.lat ?? null, longitude: geo?.lng ?? null,
       payer: this.f.payer || null, contractType: this.f.contractType || null,
       collectorRepIds: this.collectorIds, marketingRepId: this.f.marketingRepId || null,
       workDays: this.workDays.map((d) => DAY_NAMES[d]),
@@ -181,5 +306,6 @@ export class LabCreateComponent {
       error: (e) => { this.busy.set(false); this.error.set(e?.error?.detail ?? 'Create failed.'); },
     });
   }
+
   cancel(): void { void this.router.navigate(['/labs']); }
 }

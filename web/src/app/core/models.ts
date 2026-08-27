@@ -33,7 +33,9 @@ export interface ContactDto { id: string; name: string; role: string; phone: str
 export interface LabDetail {
   id: string; displayCode: string; name: string; segment: string; status: string;
   branch: string | null; governorate: string | null; city: string | null; area: string | null;
-  category: string | null; address: string | null; payer: string | null; contractType: string | null;
+  category: string | null; address: string | null;
+  mappingCode: string | null; isEncrypted: boolean; images: string[];
+  payer: string | null; contractType: string | null;
   licenseNo: string | null; licenseDate: string | null; avgMonthlySamples: number | null; preferredChannel: string | null;
   latitude: number | null; longitude: number | null; monthlyTarget: number;
   loyaltyPoints: number; loyaltyTier: string | null;

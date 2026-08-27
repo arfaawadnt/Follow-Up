@@ -50,12 +50,13 @@ internal sealed class LaboratoryQueries : ILaboratoryQueries
                 .Concat(labs.Where(l => l.MarketingRepId != null).Select(l => l.MarketingRepId!.Value)), ct);
 
         var items = labs.Select(l => new LabListItemDto(
-            l.Id.Value, DisplayCode.For(l.Code.Value, canSeeEncrypted), l.Name, l.Segment, l.Status.Name,
+            // Per-lab confidentiality: only labs flagged encrypted are masked for non-privileged users.
+            l.Id.Value, DisplayCode.For(l.Code.Value, canSeeEncrypted || !l.IsEncrypted), l.Name, l.Segment, l.Status.Name,
             l.Branch, l.Governorate, l.City, l.Area, l.Category, l.AvgMonthlySamples,
             l.Location?.Latitude, l.Location?.Longitude,
             l.CollectorRepIds.Select(c => repNames.GetValueOrDefault(c, "—")).ToList(),
             l.MarketingRepId is { } m ? repNames.GetValueOrDefault(m) : null,
-            !canSeeEncrypted)).ToList();
+            l.IsEncrypted && !canSeeEncrypted)).ToList();
 
         return PagedResult<LabListItemDto>.Create(items, total, criteria.Page, criteria.PageSize);
     }
@@ -66,8 +67,9 @@ internal sealed class LaboratoryQueries : ILaboratoryQueries
         if (lab is null) return null;
 
         return new LabDetailDto(
-            lab.Id.Value, DisplayCode.For(lab.Code.Value, canSeeEncrypted), lab.Name, lab.Segment, lab.Status.Name,
-            lab.Branch, lab.Governorate, lab.City, lab.Area, lab.Category, lab.Address, lab.Payer, lab.ContractType,
+            lab.Id.Value, DisplayCode.For(lab.Code.Value, canSeeEncrypted || !lab.IsEncrypted), lab.Name, lab.Segment, lab.Status.Name,
+            lab.Branch, lab.Governorate, lab.City, lab.Area, lab.Category, lab.Address,
+            lab.MappingCode, lab.IsEncrypted, lab.ImagePaths.ToList(), lab.Payer, lab.ContractType,
             lab.LicenseNo, lab.LicenseDate, lab.AvgMonthlySamples, lab.PreferredChannel,
             lab.Location?.Latitude, lab.Location?.Longitude, lab.MonthlyTarget, lab.LoyaltyPoints, lab.LoyaltyTier,
             lab.CollectorRepIds.Select(c => c.Value).ToList(), lab.MarketingRepId?.Value,

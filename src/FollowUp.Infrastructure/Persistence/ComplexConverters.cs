@@ -118,6 +118,25 @@ public sealed class RepIdListComparer : ValueComparer<IReadOnlyCollection<Repres
     { }
 }
 
+// ---- Plain string lists (e.g. lab image paths) <-> json ----
+
+public sealed class StringListConverter : ValueConverter<IReadOnlyCollection<string>, string>
+{
+    public StringListConverter() : base(
+        v => Json.Serialize(v.ToArray()),
+        s => (Json.Deserialize<string[]>(string.IsNullOrWhiteSpace(s) || !s.TrimStart().StartsWith("[") ? "[]" : s) ?? Array.Empty<string>()).ToList())
+    { }
+}
+
+public sealed class StringListComparer : ValueComparer<IReadOnlyCollection<string>>
+{
+    public StringListComparer() : base(
+        (a, b) => a!.SequenceEqual(b!),
+        v => v.Aggregate(0, (h, x) => h ^ x.GetHashCode()),
+        v => v.ToList())
+    { }
+}
+
 // ---- OracleConfig allow-listed queries <-> json ----
 
 internal sealed record QuerySurrogate(string Name, string Sql);

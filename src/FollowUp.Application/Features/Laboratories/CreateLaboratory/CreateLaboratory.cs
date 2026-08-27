@@ -24,6 +24,9 @@ public sealed record CreateLaboratoryCommand : ICommand<Guid>, IAuthorizedReques
     public string? Area { get; init; }
     public string? Category { get; init; }
     public string? Address { get; init; }
+    public string? MappingCode { get; init; }
+    public bool IsEncrypted { get; init; }
+    public IReadOnlyList<string> Images { get; init; } = Array.Empty<string>();
     public string? Payer { get; init; }
     public string? ContractType { get; init; }
     public string? Status { get; init; }
@@ -99,6 +102,9 @@ public sealed class CreateLaboratoryHandler : ICommandHandler<CreateLaboratoryCo
         lab.UpdateProfile(request.Name, request.Segment, request.Payer, request.ContractType, request.Category,
             request.LicenseNo, request.LicenseDate, request.AvgMonthlySamples, request.PreferredChannel);
         lab.SetAddress(request.Address);
+        lab.SetMappingCode(request.MappingCode);
+        lab.SetEncrypted(request.IsEncrypted);
+        lab.SetImages(request.Images);
 
         if (request.Latitude is { } lat && request.Longitude is { } lng)
             lab.SetLocation(GeoLocation.Create(lat, lng));

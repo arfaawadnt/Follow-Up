@@ -58,6 +58,15 @@ internal sealed class LaboratoryConfiguration : IEntityTypeConfiguration<Laborat
             .UsePropertyAccessMode(PropertyAccessMode.Field)
             .HasConversion<RepIdListConverter>(new RepIdListComparer());
 
+        b.Property(x => x.MappingCode).HasMaxLength(64);
+        b.Property(x => x.IsEncrypted);
+        b.Property(x => x.ImagePaths)
+            .HasColumnName("image_paths")
+            .HasColumnType("jsonb")
+            .UsePropertyAccessMode(PropertyAccessMode.Field)
+            .HasConversion<StringListConverter>(new StringListComparer())
+            .HasDefaultValueSql("'[]'::jsonb");
+
         // Marketing rep — single, RESTRICT so an assigned rep can't be silently removed (BR-4).
         b.HasOne<Representative>().WithMany().HasForeignKey(x => x.MarketingRepId).OnDelete(DeleteBehavior.Restrict);
 

@@ -18,6 +18,7 @@ public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAudit
 {
     private readonly List<ContactPerson> _contacts = new();
     private readonly List<RepresentativeId> _collectorRepIds = new();
+    private readonly List<string> _imagePaths = new();
 
     private Laboratory() { } // EF
 
@@ -46,6 +47,11 @@ public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAudit
     public string? Category { get; private set; }
     public string? Address { get; private set; }
 
+    /// <summary>External statistics/mapping code (e.g. the Oracle lab code used by imports).</summary>
+    public string? MappingCode { get; private set; }
+    /// <summary>Confidential lab: code is masked for users without ShowEncryptedLabs (BR-7).</summary>
+    public bool IsEncrypted { get; private set; }
+
     // Commercial.
     public string? Payer { get; private set; }
     public string? ContractType { get; private set; }
@@ -59,6 +65,7 @@ public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAudit
 
     // Rep assignments — multiple collectors, single marketing (matches the reference platform).
     public IReadOnlyCollection<RepresentativeId> CollectorRepIds => _collectorRepIds.AsReadOnly();
+    public IReadOnlyCollection<string> ImagePaths => _imagePaths.AsReadOnly();
     public RepresentativeId? MarketingRepId { get; private set; }
 
     // Loyalty snapshot (per-YM history lives in lab_loyalty_ledger).
@@ -116,6 +123,18 @@ public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAudit
     public void SetLocation(GeoLocation? location) => Location = location;
 
     public void SetAddress(string? address) => Address = string.IsNullOrWhiteSpace(address) ? null : address.Trim();
+
+    public void SetMappingCode(string? mappingCode) =>
+        MappingCode = string.IsNullOrWhiteSpace(mappingCode) ? null : mappingCode.Trim();
+
+    public void SetEncrypted(bool isEncrypted) => IsEncrypted = isEncrypted;
+
+    /// <summary>Replaces the attached image paths (uploaded separately, linked on save).</summary>
+    public void SetImages(IEnumerable<string> paths)
+    {
+        _imagePaths.Clear();
+        _imagePaths.AddRange(paths.Where(p => !string.IsNullOrWhiteSpace(p)).Select(p => p.Trim()).Distinct());
+    }
 
     public void SetSchedule(VisitSchedule schedule)
     {
