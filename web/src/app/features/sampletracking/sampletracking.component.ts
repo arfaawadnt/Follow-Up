@@ -175,15 +175,12 @@ export class SampleTrackingComponent {
   private readonly drafts = new Map<string, Draft>();
   private reportLoaded = false;
 
+  // Both tabs default to today, like the reference (its local-date variant); older days via the range filter.
   private readonly today = localToday();
-  // The reference defaults both tabs to YESTERDAY: received samples become assignable the next day.
-  private readonly yesterday = (() => { const d = new Date(); d.setDate(d.getDate() - 1);
-    const p = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; })();
-  start = this.yesterday; end = this.yesterday;
+  start = this.today; end = this.today;
   gov = 'All'; city = 'All'; areaFilter = 'All'; search = '';
   fDataEntry = 'All'; fReview = 'All'; fSort = 'All'; fStatus = 'All';
-  rStart = this.yesterday; rEnd = this.yesterday; rArea = 'All'; groupBy: 'Area' | 'Laboratory' = 'Area';
+  rStart = this.today; rEnd = this.today; rArea = 'All'; groupBy: 'Area' | 'Laboratory' = 'Area';
 
   constructor() {
     this.load();
@@ -245,7 +242,7 @@ export class SampleTrackingComponent {
     });
   }
   reset(): void {
-    this.start = this.yesterday; this.end = this.yesterday;
+    this.start = this.today; this.end = this.today;
     this.gov = this.city = this.areaFilter = this.fDataEntry = this.fReview = this.fSort = this.fStatus = 'All';
     this.search = ''; this.load();
   }
