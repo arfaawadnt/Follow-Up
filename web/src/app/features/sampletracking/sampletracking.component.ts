@@ -4,7 +4,7 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { SampleLifecycleRow, SampleTracking, UserLookup } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
-import { exportCsv, printTable, localToday } from '../../shared/export.util';
+import { exportCsv, printTable, localToday, localDateTime } from '../../shared/export.util';
 
 interface City { id: string; name: string; governorate: string; }
 interface AreaRef { id: string; name: string; cityId: string; }
@@ -231,7 +231,7 @@ export class SampleTrackingComponent {
     d.dirty = true;
   }
   dirtyCount(): number { return [...this.drafts.values()].filter((d) => d.dirty).length; }
-  fmt(iso: string | null): string { return iso ? iso.slice(0, 16).replace('T', ' ') : '—'; }
+  fmt(iso: string | null): string { return localDateTime(iso); }
   stage(by: string | null, at: string | null): string { return by ? `${by} · ${this.fmt(at)}` : '—'; }
 
   load(): void {
