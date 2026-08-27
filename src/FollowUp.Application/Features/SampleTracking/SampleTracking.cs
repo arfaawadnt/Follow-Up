@@ -25,7 +25,9 @@ public sealed record SampleLifecycleReportRowDto(string Area, DateOnly Date, int
 /// <summary>One visit's full 6-stage lifecycle (reference: Sample Life Cycle History).</summary>
 public sealed record SampleLifecycleRowDto(
     string Lab, string LabDisplayCode, string? Area, DateOnly VisitDate, string VisitTime, int? Samples,
-    DateTimeOffset? CollectedAt, DateTimeOffset? TransferredAt, DateTimeOffset? ReceivedAt,
+    string? CollectorName, DateTimeOffset? CollectedAt,
+    string? TransferRepName, string? DriverName, string? DriverMobile, string? CarPlate, DateTimeOffset? TransferredAt,
+    DateTimeOffset? ReceivedAt,
     string? DataEntryBy, DateTimeOffset? DataEntryAt,
     string? ReviewBy, DateTimeOffset? ReviewAt,
     string? SortBy, DateTimeOffset? SortAt,

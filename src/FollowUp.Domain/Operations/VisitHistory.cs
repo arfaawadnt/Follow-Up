@@ -50,6 +50,12 @@ public sealed class VisitHistory : AggregateRoot<VisitHistoryId>
     public DateTimeOffset? TransferConfirmedAt { get; private set; }
     public DateTimeOffset? ReceivedAt { get; private set; }
 
+    // Transfer leg (flattened) so the lifecycle/motion reports keep driver data after archival.
+    public RepresentativeId? TransferRepId { get; private set; }
+    public string? DriverName { get; private set; }
+    public string? DriverMobile { get; private set; }
+    public string? CarPlate { get; private set; }
+
     /// <summary>Archives a visit verbatim. Callers must ensure the evening sweep already ran (JOBS-001).</summary>
     public static VisitHistory ArchiveFrom(DailyVisit visit, DateTimeOffset archivedAt) =>
         new(VisitHistoryId.New(), visit.Id, visit.LaboratoryId, visit.CollectorRepId, visit.VisitDate,
@@ -59,5 +65,9 @@ public sealed class VisitHistory : AggregateRoot<VisitHistoryId>
             CheckedInAt = visit.CheckedInAt,
             TransferConfirmedAt = visit.TransferConfirmedAt,
             ReceivedAt = visit.ReceivedAt,
+            TransferRepId = visit.TransferRepId,
+            DriverName = visit.Transfer?.DriverName,
+            DriverMobile = visit.Transfer?.DriverMobile,
+            CarPlate = visit.Transfer?.CarPlate,
         };
 }

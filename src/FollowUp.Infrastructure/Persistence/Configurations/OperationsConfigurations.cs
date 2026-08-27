@@ -63,6 +63,12 @@ internal sealed class VisitHistoryConfiguration : IEntityTypeConfiguration<Visit
         b.Property(x => x.TransferConfirmedAt);
         b.Property(x => x.ReceivedAt);
 
+        // Transfer-leg snapshot for the motion tracking report (driver + transfer rep).
+        b.Property(x => x.TransferRepId);
+        b.Property(x => x.DriverName).HasMaxLength(200);
+        b.Property(x => x.DriverMobile).HasMaxLength(40);
+        b.Property(x => x.CarPlate).HasMaxLength(40);
+
         // RESTRICT: permanent archive cannot be silently removed (SRS data rules).
         b.HasOne<Laboratory>().WithMany().HasForeignKey(x => x.LaboratoryId).OnDelete(DeleteBehavior.Restrict);
         b.HasIndex(x => x.VisitDate);

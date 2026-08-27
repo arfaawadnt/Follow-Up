@@ -121,7 +121,9 @@ export interface SampleTracking {
 
 export interface SampleLifecycleRow {
   lab: string; labDisplayCode: string; area: string | null; visitDate: string; visitTime: string; samples: number | null;
-  collectedAt: string | null; transferredAt: string | null; receivedAt: string | null;
+  collectorName: string | null; collectedAt: string | null;
+  transferRepName: string | null; driverName: string | null; driverMobile: string | null; carPlate: string | null;
+  transferredAt: string | null; receivedAt: string | null;
   dataEntryBy: string | null; dataEntryAt: string | null;
   reviewBy: string | null; reviewAt: string | null;
   sortBy: string | null; sortAt: string | null; notes: string | null;

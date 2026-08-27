@@ -134,8 +134,9 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
                     <td><b>{{ r.lab }}</b><div class="small muted">{{ r.labDisplayCode }}</div></td>
                     <td class="mono small">{{ r.visitDate }} {{ r.visitTime }}</td>
                     <td class="mono" style="font-weight:700">{{ r.samples ?? '—' }}</td>
-                    <td class="mono small">{{ fmt(r.collectedAt) }}</td>
-                    <td class="mono small">{{ fmt(r.transferredAt) }}</td>
+                    <td class="small">{{ r.collectorName ?? '—' }}<div class="mono small muted">{{ fmt(r.collectedAt) }}</div></td>
+                    <td class="small">{{ r.transferRepName ?? '—' }}<div class="mono small muted">{{ fmt(r.transferredAt) }}</div>
+                      @if (r.driverName) { <div class="small muted">{{ r.driverName }} ({{ r.carPlate ?? '—' }} · {{ r.driverMobile ?? '—' }})</div> }</td>
                     <td class="mono small">{{ fmt(r.receivedAt) }}</td>
                     <td class="small">{{ stage(r.dataEntryBy, r.dataEntryAt) }}</td>
                     <td class="small">{{ stage(r.reviewBy, r.reviewAt) }}</td>
@@ -175,10 +176,14 @@ export class SampleTrackingComponent {
   private reportLoaded = false;
 
   private readonly today = localToday();
-  start = this.today; end = this.today;
+  // The reference defaults both tabs to YESTERDAY: received samples become assignable the next day.
+  private readonly yesterday = (() => { const d = new Date(); d.setDate(d.getDate() - 1);
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; })();
+  start = this.yesterday; end = this.yesterday;
   gov = 'All'; city = 'All'; areaFilter = 'All'; search = '';
   fDataEntry = 'All'; fReview = 'All'; fSort = 'All'; fStatus = 'All';
-  rStart = this.today; rEnd = this.today; rArea = 'All'; groupBy: 'Area' | 'Laboratory' = 'Area';
+  rStart = this.yesterday; rEnd = this.yesterday; rArea = 'All'; groupBy: 'Area' | 'Laboratory' = 'Area';
 
   constructor() {
     this.load();
@@ -240,7 +245,7 @@ export class SampleTrackingComponent {
     });
   }
   reset(): void {
-    this.start = this.today; this.end = this.today;
+    this.start = this.yesterday; this.end = this.yesterday;
     this.gov = this.city = this.areaFilter = this.fDataEntry = this.fReview = this.fSort = this.fStatus = 'All';
     this.search = ''; this.load();
   }
@@ -290,18 +295,25 @@ export class SampleTrackingComponent {
 
   // ---- Exports ----
 
+  private driver(r: SampleLifecycleRow): string {
+    return r.driverName ? `${r.driverName} (${r.carPlate ?? '—'} · ${r.driverMobile ?? '—'})` : '—';
+  }
   private reportRows(): (string | number | null)[][] {
     return this.reportFiltered().map((r) => [r.lab, r.labDisplayCode, r.area, `${r.visitDate} ${r.visitTime}`, r.samples,
-      this.fmt(r.collectedAt), this.fmt(r.transferredAt), this.fmt(r.receivedAt),
+      this.stage(r.collectorName, r.collectedAt),
+      `${this.stage(r.transferRepName, r.transferredAt)}${r.driverName ? ' — ' + this.driver(r) : ''}`,
+      this.fmt(r.receivedAt),
       this.stage(r.dataEntryBy, r.dataEntryAt), this.stage(r.reviewBy, r.reviewAt), this.stage(r.sortBy, r.sortAt), r.notes]);
   }
   private static readonly REPORT_HEADER = ['Laboratory', 'Code', 'Area', 'Visit datetime', 'Samples', 'Collected', 'Transferred', 'Received', 'Data entry', 'Revised', 'Sorted', 'Notes'];
   exportReportExcel(): void { exportCsv('sample-lifecycle.csv', SampleTrackingComponent.REPORT_HEADER, this.reportRows()); }
   exportLifecyclePdf(): void { printTable('Sample Life Cycle History', SampleTrackingComponent.REPORT_HEADER, this.reportRows()); }
   exportMotionPdf(): void {
+    // Motion tracking mirrors the reference: who moved the samples at each leg, incl. the driver details.
     printTable('Sample Motion Tracking',
-      ['Laboratory', 'Area', 'Visit', 'Stage timeline'],
+      ['Laboratory', 'Area', 'Visit', 'Collector', 'Transfer rep', 'Driver (car · mobile)', 'Stage timeline'],
       this.reportFiltered().map((r) => [r.lab, r.area, `${r.visitDate} ${r.visitTime}`,
+        r.collectorName ?? '—', r.transferRepName ?? '—', this.driver(r),
         ['Collected ' + this.fmt(r.collectedAt), 'Transferred ' + this.fmt(r.transferredAt), 'Received ' + this.fmt(r.receivedAt),
          'Data entry ' + this.fmt(r.dataEntryAt), 'Revised ' + this.fmt(r.reviewAt), 'Sorted ' + this.fmt(r.sortAt)].join(' → ')]));
   }

@@ -202,26 +202,41 @@ internal sealed class SampleTrackingQueries : ISampleTrackingQueries
         var end = to;
 
         // Live visits (today's board) + archived history, both scoped via the lab dimensions.
-        var live = await (from v in _db.DailyVisits.AsNoTracking()
-                          where v.VisitDate >= start && v.VisitDate <= end && v.SampleCount != null
-                          join l in _db.Laboratories.ApplyScope(scope).AsNoTracking() on v.LaboratoryId equals l.Id
-                          select new { l.Code, l.Name, l.Area, v.VisitDate, Time = (TimeOnly?)v.ScheduledTime,
-                              v.SampleCount, v.CheckedInAt, v.TransferConfirmedAt, v.ReceivedAt })
-                         .ToListAsync(ct);
+        var live = (await (from v in _db.DailyVisits.AsNoTracking()
+                           where v.VisitDate >= start && v.VisitDate <= end && v.SampleCount != null
+                           join l in _db.Laboratories.ApplyScope(scope).AsNoTracking() on v.LaboratoryId equals l.Id
+                           select new { l.Code, l.Name, l.Area, v.VisitDate, Time = (TimeOnly?)v.ScheduledTime,
+                               v.SampleCount, v.CheckedInAt, v.TransferConfirmedAt, v.ReceivedAt,
+                               v.CollectorRepId, v.TransferRepId, v.Transfer })
+                          .ToListAsync(ct))
+            .Select(v => new { v.Code, v.Name, v.Area, v.VisitDate, v.Time, v.SampleCount, v.CheckedInAt,
+                v.TransferConfirmedAt, v.ReceivedAt, v.CollectorRepId, v.TransferRepId,
+                DriverName = v.Transfer?.DriverName, DriverMobile = v.Transfer?.DriverMobile, CarPlate = v.Transfer?.CarPlate });
 
         var archived = await (from h in _db.VisitHistory.AsNoTracking()
                               where h.VisitDate >= start && h.VisitDate <= end && h.SampleCount != null
                               join l in _db.Laboratories.ApplyScope(scope).AsNoTracking() on h.LaboratoryId equals l.Id
                               select new { l.Code, l.Name, l.Area, h.VisitDate, Time = h.ScheduledTime,
-                                  h.SampleCount, h.CheckedInAt, h.TransferConfirmedAt, h.ReceivedAt })
+                                  h.SampleCount, h.CheckedInAt, h.TransferConfirmedAt, h.ReceivedAt,
+                                  h.CollectorRepId, h.TransferRepId, h.DriverName, h.DriverMobile, h.CarPlate })
                              .ToListAsync(ct);
+
+        var rows = live.Concat(archived).ToList();
+
+        // Rep names for the collected/transferred legs — single lookup.
+        var repIds = rows.SelectMany(r => new[] { r.CollectorRepId, r.TransferRepId })
+            .Where(id => id != null).Select(id => id!.Value).Distinct().ToList();
+        var repNames = (await _db.Representatives.AsNoTracking().Where(x => repIds.Contains(x.Id))
+            .Select(x => new { x.Id, x.FullName }).ToListAsync(ct)).ToDictionary(x => x.Id, x => x.FullName);
+        string? NameOf(Domain.Representatives.RepresentativeId? id) =>
+            id != null && repNames.TryGetValue(id.Value, out var n) ? n : null;
 
         // Area/day tracking rows (data entry / review / sort + notes), keyed by (area, date).
         var trackingRows = await _db.SampleTracking.AsNoTracking()
             .Where(s => s.Date >= start && s.Date <= end).ToListAsync(ct);
         var tracking = trackingRows.ToDictionary(s => (s.Area, s.Date));
 
-        return live.Concat(archived)
+        return rows
             .OrderByDescending(r => r.VisitDate).ThenBy(r => r.Time)
             .Select(r =>
             {
@@ -229,7 +244,9 @@ internal sealed class SampleTrackingQueries : ISampleTrackingQueries
                 return new SampleLifecycleRowDto(
                     r.Name, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Area,
                     r.VisitDate, r.Time?.ToString("HH:mm") ?? "—", r.SampleCount,
-                    r.CheckedInAt, r.TransferConfirmedAt, r.ReceivedAt,
+                    NameOf(r.CollectorRepId), r.CheckedInAt,
+                    NameOf(r.TransferRepId), r.DriverName, r.DriverMobile, r.CarPlate, r.TransferConfirmedAt,
+                    r.ReceivedAt,
                     t?.DataEntry?.User, t?.DataEntry?.At,
                     t?.Review?.User, t?.Review?.At,
                     t?.Sort?.User, t?.Sort?.At,
