@@ -10,3 +10,7 @@ public sealed record LaboratoryScheduleChanged(LaboratoryId LaboratoryId) : Doma
 
 /// <summary>Raised when a lab's status is derived/changed (BR-5) — feeds insights and notifications.</summary>
 public sealed record LaboratoryStatusChanged(LaboratoryId LaboratoryId, string From, string To) : DomainEvent;
+
+/// <summary>Raised when a lab moves between areas — the derived area/day sample-tracking totals for its
+/// received visits are refreshed for both areas (FR-8), covering receipts confirmed before the lab had an area.</summary>
+public sealed record LaboratoryAreaChanged(LaboratoryId LaboratoryId, string? OldArea, string? NewArea) : DomainEvent;

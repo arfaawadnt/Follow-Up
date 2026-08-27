@@ -127,6 +127,7 @@ public sealed class FakeSampleTrackingRepository : ISampleTrackingRepository
     public Task<Domain.Operations.SampleTracking?> GetByAreaDateAsync(string area, DateOnly date, CancellationToken ct) =>
         Task.FromResult(Store.FirstOrDefault(s => s.Area == area && s.Date == date));
     public void Add(Domain.Operations.SampleTracking tracking) => Store.Add(tracking);
+    public void Remove(Domain.Operations.SampleTracking tracking) => Store.Remove(tracking);
 }
 
 public sealed class FakeRoleRepository : IRoleRepository

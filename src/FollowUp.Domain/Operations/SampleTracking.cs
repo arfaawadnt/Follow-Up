@@ -55,6 +55,9 @@ public sealed class SampleTracking : AggregateRoot<SampleTrackingId>, IAuditable
     /// <summary>Free-text notes on the area/day assignment (reference parity).</summary>
     public string? Notes { get; private set; }
 
+    /// <summary>True while no pipeline step or note exists — such rows may be dropped when a recompute lands on zero.</summary>
+    public bool IsUntouched => DataEntry is null && Review is null && Sort is null && Notes is null;
+
     public DateTimeOffset CreatedAt { get; private set; }
     public string CreatedBy { get; private set; } = null!;
     public DateTimeOffset? UpdatedAt { get; private set; }

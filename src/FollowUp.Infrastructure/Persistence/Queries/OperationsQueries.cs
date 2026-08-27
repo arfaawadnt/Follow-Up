@@ -269,4 +269,17 @@ internal sealed class SampleTrackingQueries : ISampleTrackingQueries
                               select h.SampleCount!.Value).SumAsync(ct);
         return live + archived;
     }
+
+    public async Task<IReadOnlyList<DateOnly>> GetReceivedVisitDatesAsync(
+        FollowUp.Domain.Laboratories.LaboratoryId laboratoryId, CancellationToken ct)
+    {
+        var received = VisitStatus.Received;
+        var live = await _db.DailyVisits.AsNoTracking()
+            .Where(v => v.LaboratoryId == laboratoryId && v.Status == received && v.SampleCount != null)
+            .Select(v => v.VisitDate).Distinct().ToListAsync(ct);
+        var archived = await _db.VisitHistory.AsNoTracking()
+            .Where(h => h.LaboratoryId == laboratoryId && h.Status == "Received" && h.SampleCount != null)
+            .Select(h => h.VisitDate).Distinct().ToListAsync(ct);
+        return live.Union(archived).OrderBy(d => d).ToList();
+    }
 }

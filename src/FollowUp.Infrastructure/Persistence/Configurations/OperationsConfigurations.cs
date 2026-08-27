@@ -104,6 +104,7 @@ internal sealed class SampleTrackingConfiguration : IEntityTypeConfiguration<Sam
         b.HasKey(x => x.Id);
         b.IgnoreDomainEvents();
         b.Ignore(x => x.IsComplete);
+        b.Ignore(x => x.IsUntouched);
         b.MapAuditable();
 
         b.Property(x => x.Area).HasMaxLength(100).IsRequired();

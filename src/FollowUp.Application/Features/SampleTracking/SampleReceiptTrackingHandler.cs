@@ -11,8 +11,8 @@ namespace FollowUp.Application.Features.SampleTracking;
 /// Reference parity for FR-7/FR-8: when a visit's samples are received at the laboratory, the area/day
 /// sample-tracking row is created (or refreshed) automatically with the derived received-samples total —
 /// staff then only assign the data-entry/review/sort users. Runs from the Outbox dispatcher on
-/// <see cref="VisitReceived"/>. Recomputes the total (idempotent under outbox redelivery). Never throws —
-/// a tracking failure must not derail outbox processing.
+/// <see cref="VisitReceived"/>. Recomputes the total (idempotent under outbox redelivery), so failures
+/// propagate — the outbox's bounded per-message retry redelivers instead of losing the refresh.
 /// </summary>
 public sealed class SampleReceiptTrackingHandler : INotificationHandler<DomainEventNotification>
 {
@@ -53,7 +53,8 @@ public sealed class SampleReceiptTrackingHandler : INotificationHandler<DomainEv
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Receipt tracking refresh failed for visit {VisitId}.", received.VisitId.Value);
+            _logger.LogError(ex, "Receipt tracking refresh failed for visit {VisitId}; the outbox will retry.", received.VisitId.Value);
+            throw;
         }
     }
 }

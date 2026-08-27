@@ -42,6 +42,10 @@ public interface ISampleTrackingQueries
     /// <summary>Total received samples for an area on a date (live + archived visits) — the derived
     /// SAMPLES figure of the reference's area-assignment rows.</summary>
     Task<int> SumReceivedSamplesAsync(string area, DateOnly date, CancellationToken ct);
+
+    /// <summary>Distinct dates on which a lab has received visits (live + archived) — the days whose
+    /// derived area totals must refresh when the lab moves between areas.</summary>
+    Task<IReadOnlyList<DateOnly>> GetReceivedVisitDatesAsync(FollowUp.Domain.Laboratories.LaboratoryId laboratoryId, CancellationToken ct);
 }
 
 /// <summary>Lists sample-tracking rows for a date range within scope (SRS FR-8).</summary>
