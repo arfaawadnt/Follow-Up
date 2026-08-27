@@ -32,18 +32,18 @@ public sealed class ReadPathTests
         var queries = scope.ServiceProvider.GetRequiredService<ILaboratoryQueries>();
 
         // Global scope → both labs.
-        var all = await queries.SearchAsync(new LabSearchCriteria(), OrgScope.Global, canSeeEncrypted: true, default);
+        var all = await queries.SearchAsync(new LabSearchCriteria(), OrgScope.Global, canSeeEncrypted: true, canSeeLocation: true, default);
         all.Total.Should().Be(2);
 
         // Governorate-limited scope → only the Cairo lab (scope pushed into SQL).
         var cairoScope = OrgScope.Create(new[] { "*" }, new[] { "Cairo" }, new[] { "*" }, new[] { "*" }, new[] { "*" }, new[] { "*" });
-        var cairo = await queries.SearchAsync(new LabSearchCriteria(), cairoScope, true, default);
+        var cairo = await queries.SearchAsync(new LabSearchCriteria(), cairoScope, true, true, default);
         cairo.Total.Should().Be(1);
         cairo.Items[0].Name.Should().Be("Cairo Lab");
 
         // Segment-limited scope (enum IN translation) → only the A-segment lab.
         var segmentA = OrgScope.Create(new[] { "*" }, new[] { "*" }, new[] { "*" }, new[] { "*" }, new[] { "*" }, new[] { "A" });
-        var segA = await queries.SearchAsync(new LabSearchCriteria(), segmentA, true, default);
+        var segA = await queries.SearchAsync(new LabSearchCriteria(), segmentA, true, true, default);
         segA.Total.Should().Be(1);
         segA.Items[0].Segment.Should().Be("A");
     }
@@ -57,10 +57,10 @@ public sealed class ReadPathTests
         using var scope = _fx.Services.CreateScope();
         var queries = scope.ServiceProvider.GetRequiredService<ILaboratoryQueries>();
 
-        var masked = await queries.SearchAsync(new LabSearchCriteria(), OrgScope.Global, canSeeEncrypted: false, default);
+        var masked = await queries.SearchAsync(new LabSearchCriteria(), OrgScope.Global, canSeeEncrypted: false, canSeeLocation: true, default);
         masked.Items.Should().OnlyContain(i => i.Encrypted && i.DisplayCode.StartsWith("ENC-"));
 
-        var real = await queries.SearchAsync(new LabSearchCriteria(), OrgScope.Global, canSeeEncrypted: true, default);
+        var real = await queries.SearchAsync(new LabSearchCriteria(), OrgScope.Global, canSeeEncrypted: true, canSeeLocation: true, default);
         real.Items.Should().Contain(i => i.DisplayCode == "MGL-A1");
     }
 

@@ -104,8 +104,10 @@ internal sealed class RepresentativeConfiguration : IEntityTypeConfiguration<Rep
         b.Property(x => x.Phone).HasMaxLength(40);
         b.Property(x => x.Branch).HasMaxLength(100);
         b.Property(x => x.Governorate).HasMaxLength(100);
+        b.Property(x => x.City).HasMaxLength(100);
         b.Property(x => x.Area).HasMaxLength(100);
         b.Property(x => x.EmploymentType).HasMaxLength(40);
+        b.Property(x => x.AppointedOn);
         b.Property(x => x.IsActive).HasDefaultValue(true);
 
         b.Property(x => x.RowVersion).IsRowVersion();

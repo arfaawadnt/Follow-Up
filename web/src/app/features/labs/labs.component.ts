@@ -51,7 +51,7 @@ const STATUSES = ['All', 'Scanned', 'Interactive', 'Active', 'Inactive', 'Stoppe
       @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
       @else {
         <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
-          <thead><tr><th>{{ 'laboratory_3' | t : 'Laboratory' }}</th><th>{{ 'code_2' | t : 'Code' }}</th><th>{{ 'segment' | t }}</th><th>{{ 'status' | t }}</th><th>{{ 'address' | t : 'Address' }}</th><th>{{ 'map' | t : 'Map' }}</th><th>{{ 'collector' | t : 'Collector' }}</th><th>{{ 'marketing' | t : 'Marketing' }}</th><th class="r">{{ 'avg_mo' | t : 'Avg/mo' }}</th><th></th></tr></thead>
+          <thead><tr><th>{{ 'laboratory_3' | t : 'Laboratory' }}</th><th>{{ 'code_2' | t : 'Code' }}</th><th>{{ 'segment' | t }}</th><th>{{ 'status' | t }}</th><th>{{ 'address' | t : 'Address' }}</th>@if (canViewLocation()) { <th>{{ 'map' | t : 'Map' }}</th> }<th>{{ 'collector' | t : 'Collector' }}</th><th>{{ 'marketing' | t : 'Marketing' }}</th><th class="r">{{ 'avg_mo' | t : 'Avg/mo' }}</th><th></th></tr></thead>
           <tbody>
             @for (l of filtered(); track l.id) {
               <tr class="clickable" (click)="open(l.id)">
@@ -60,7 +60,7 @@ const STATUSES = ['All', 'Scanned', 'Interactive', 'Active', 'Inactive', 'Stoppe
                 <td>{{ l.segment }}<div class="small muted">{{ l.category ?? '' }}</div></td>
                 <td><span class="badge" [class]="badge(l.status)">{{ l.status }}</span></td>
                 <td>{{ l.area ?? '—' }}<div class="small muted">{{ l.governorate ?? '' }}</div></td>
-                <td>@if (l.latitude != null && l.longitude != null) { <a [href]="mapUrl(l)" target="_blank" rel="noopener" (click)="$event.stopPropagation()">📍 {{ 'map' | t : 'Map' }}</a> } @else { — }</td>
+                @if (canViewLocation()) { <td>@if (l.latitude != null && l.longitude != null) { <a [href]="mapUrl(l)" target="_blank" rel="noopener" (click)="$event.stopPropagation()">📍 {{ 'map' | t : 'Map' }}</a> } @else { — }</td> }
                 <td>{{ l.collectors.length ? l.collectors.join(', ') : '—' }}</td>
                 <td>{{ l.marketing ?? '—' }}</td>
                 <td class="r mono">{{ l.avgMonthlySamples ?? '—' }}</td>
@@ -69,7 +69,7 @@ const STATUSES = ['All', 'Scanned', 'Interactive', 'Active', 'Inactive', 'Stoppe
                   <button class="btn-ghost" (click)="$event.stopPropagation(); open(l.id)">{{ 'edit' | t : 'Edit' }}</button>
                 </td>
               </tr>
-            } @empty { <tr><td colspan="10" class="empty" style="text-align:center;padding:24px">{{ 'no_labs_match' | t : 'No labs match.' }}</td></tr> }
+            } @empty { <tr><td [attr.colspan]="canViewLocation() ? 10 : 9" class="empty" style="text-align:center;padding:24px">{{ 'no_labs_match' | t : 'No labs match.' }}</td></tr> }
           </tbody>
         </table></div>
         <div class="foot" style="padding:10px 14px;font-size:12px;color:var(--slate-500);border-top:1px solid var(--slate-150)">
@@ -117,6 +117,7 @@ export class LabsComponent {
   idleStopped(): number { return this.filtered().filter((l) => l.status === 'Idle' || l.status === 'Stopped').length; }
   estMonthlySamples(): number { return this.filtered().reduce((sum, l) => sum + (l.avgMonthlySamples ?? 0), 0); }
   badge(s: string): string { return s === 'Active' ? 'b-ok' : s === 'Inactive' || s === 'Churned' || s === 'Stopped' ? 'b-bad' : 'b-warn'; }
+  canViewLocation(): boolean { return this.auth.has('ViewLabLocation'); }
   open(id: string): void { void this.router.navigate(['/labs', id]); }
   mapUrl(l: LabListItem): string { return `https://maps.google.com/?q=${l.latitude},${l.longitude}`; }
 
@@ -128,20 +129,22 @@ export class LabsComponent {
   }
 
   exportCsv(): void {
+    const map = this.canViewLocation();
     exportCsv('laboratories.csv',
-      ['Laboratory', 'Code', 'Segment', 'Status', 'Address', 'Map', 'Collector', 'Marketing', 'Avg/mo'],
+      ['Laboratory', 'Code', 'Segment', 'Status', 'Address', ...(map ? ['Map'] : []), 'Collector', 'Marketing', 'Avg/mo'],
       this.filtered().map((l) => [l.name, l.displayCode, l.segment, l.status,
         [l.area, l.governorate].filter(Boolean).join(', '),
-        l.latitude != null && l.longitude != null ? this.mapUrl(l) : '',
+        ...(map ? [l.latitude != null && l.longitude != null ? this.mapUrl(l) : ''] : []),
         l.collectors.join('; '), l.marketing, l.avgMonthlySamples]));
   }
 
   exportPdf(): void {
+    const map = this.canViewLocation();
     printTable('Laboratory Management',
-      ['Laboratory', 'Code', 'Segment', 'Status', 'Address', 'Map', 'Collector', 'Marketing', 'Avg/mo'],
+      ['Laboratory', 'Code', 'Segment', 'Status', 'Address', ...(map ? ['Map'] : []), 'Collector', 'Marketing', 'Avg/mo'],
       this.filtered().map((l) => [l.name, l.displayCode, l.segment, l.status,
         [l.area, l.governorate].filter(Boolean).join(', '),
-        l.latitude != null && l.longitude != null ? `${l.latitude},${l.longitude}` : '',
+        ...(map ? [l.latitude != null && l.longitude != null ? `${l.latitude},${l.longitude}` : ''] : []),
         l.collectors.join(', '), l.marketing, l.avgMonthlySamples]));
   }
 

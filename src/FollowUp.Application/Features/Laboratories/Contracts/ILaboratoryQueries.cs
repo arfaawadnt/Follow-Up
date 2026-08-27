@@ -10,9 +10,9 @@ namespace FollowUp.Application.Features.Laboratories.Contracts;
 public interface ILaboratoryQueries
 {
     Task<PagedResult<LabListItemDto>> SearchAsync(
-        LabSearchCriteria criteria, OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
+        LabSearchCriteria criteria, OrgScope scope, bool canSeeEncrypted, bool canSeeLocation, CancellationToken ct);
 
-    Task<LabDetailDto?> GetByIdAsync(Guid id, bool canSeeEncrypted, CancellationToken ct);
+    Task<LabDetailDto?> GetByIdAsync(Guid id, bool canSeeEncrypted, bool canSeeLocation, CancellationToken ct);
 }
 
 /// <summary>Filter criteria for a laboratory search.</summary>

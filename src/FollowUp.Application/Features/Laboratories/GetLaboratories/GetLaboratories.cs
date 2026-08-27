@@ -41,6 +41,7 @@ public sealed class GetLaboratoriesHandler : IQueryHandler<GetLaboratoriesQuery,
         };
 
         var canSeeEncrypted = _currentUser.Has(Privileges.ShowEncryptedLabs);
-        return _queries.SearchAsync(criteria, _currentUser.Scope, canSeeEncrypted, ct);
+        var canSeeLocation = _currentUser.Has(Privileges.ViewLabLocation);
+        return _queries.SearchAsync(criteria, _currentUser.Scope, canSeeEncrypted, canSeeLocation, ct);
     }
 }

@@ -23,7 +23,8 @@ public sealed class GetLaboratoryByIdHandler : IQueryHandler<GetLaboratoryByIdQu
     public async Task<LabDetailDto> Handle(GetLaboratoryByIdQuery request, CancellationToken ct)
     {
         var canSeeEncrypted = _currentUser.Has(Privileges.ShowEncryptedLabs);
-        var dto = await _queries.GetByIdAsync(request.Id, canSeeEncrypted, ct)
+        var canSeeLocation = _currentUser.Has(Privileges.ViewLabLocation);
+        var dto = await _queries.GetByIdAsync(request.Id, canSeeEncrypted, canSeeLocation, ct)
             ?? throw new NotFoundException("Laboratory", request.Id);
 
         // Record-level scope check on the read (SCOPE-READ fix — reads are scoped like writes).

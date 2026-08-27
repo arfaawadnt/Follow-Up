@@ -21,7 +21,7 @@ internal sealed class LaboratoryQueries : ILaboratoryQueries
     public LaboratoryQueries(FollowUpDbContext db) => _db = db;
 
     public async Task<PagedResult<LabListItemDto>> SearchAsync(
-        LabSearchCriteria criteria, OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
+        LabSearchCriteria criteria, OrgScope scope, bool canSeeEncrypted, bool canSeeLocation, CancellationToken ct)
     {
         var query = _db.Laboratories.AsNoTracking().ApplyScope(scope);
 
@@ -53,7 +53,8 @@ internal sealed class LaboratoryQueries : ILaboratoryQueries
             // Per-lab confidentiality: only labs flagged encrypted are masked for non-privileged users.
             l.Id.Value, DisplayCode.For(l.Code.Value, canSeeEncrypted || !l.IsEncrypted), l.Name, l.Segment, l.Status.Name,
             l.Branch, l.Governorate, l.City, l.Area, l.Category, l.AvgMonthlySamples,
-            l.Location?.Latitude, l.Location?.Longitude,
+            // Coordinates are privilege-gated (ViewLabLocation), mirroring the encrypted-code pattern.
+            canSeeLocation ? l.Location?.Latitude : null, canSeeLocation ? l.Location?.Longitude : null,
             l.CollectorRepIds.Select(c => repNames.GetValueOrDefault(c, "—")).ToList(),
             l.MarketingRepId is { } m ? repNames.GetValueOrDefault(m) : null,
             l.IsEncrypted && !canSeeEncrypted)).ToList();
@@ -61,7 +62,7 @@ internal sealed class LaboratoryQueries : ILaboratoryQueries
         return PagedResult<LabListItemDto>.Create(items, total, criteria.Page, criteria.PageSize);
     }
 
-    public async Task<LabDetailDto?> GetByIdAsync(Guid id, bool canSeeEncrypted, CancellationToken ct)
+    public async Task<LabDetailDto?> GetByIdAsync(Guid id, bool canSeeEncrypted, bool canSeeLocation, CancellationToken ct)
     {
         var lab = await _db.Laboratories.AsNoTracking().FirstOrDefaultAsync(l => l.Id == new LaboratoryId(id), ct);
         if (lab is null) return null;
@@ -71,7 +72,8 @@ internal sealed class LaboratoryQueries : ILaboratoryQueries
             lab.Branch, lab.Governorate, lab.City, lab.Area, lab.Category, lab.Address,
             lab.MappingCode, lab.IsEncrypted, lab.ImagePaths.ToList(), lab.Payer, lab.ContractType,
             lab.LicenseNo, lab.LicenseDate, lab.AvgMonthlySamples, lab.PreferredChannel,
-            lab.Location?.Latitude, lab.Location?.Longitude, lab.MonthlyTarget, lab.LoyaltyPoints, lab.LoyaltyTier,
+            canSeeLocation ? lab.Location?.Latitude : null, canSeeLocation ? lab.Location?.Longitude : null,
+            lab.MonthlyTarget, lab.LoyaltyPoints, lab.LoyaltyTier,
             lab.CollectorRepIds.Select(c => c.Value).ToList(), lab.MarketingRepId?.Value,
             lab.Schedule.WorkDays.Select(d => d.ToString()).ToList(),
             lab.Schedule.VisitTimes.Select(t => t.ToString("HH:mm")).ToList(),
@@ -110,7 +112,7 @@ internal sealed class RepresentativeQueries : IRepresentativeQueries
         var rows = await query
             .OrderBy(r => r.FullName)
             .Skip(criteria.Skip).Take(criteria.PageSize)
-            .Select(r => new { r.Id, r.FullName, r.Type, r.GoalDuration, r.GoalType, r.Metric, r.Target, r.Salary, r.Phone, r.IsActive, r.Branch, r.Governorate, r.Area, r.EmploymentType })
+            .Select(r => new { r.Id, r.FullName, r.Type, r.GoalDuration, r.GoalType, r.Metric, r.Target, r.Salary, r.Phone, r.IsActive, r.Branch, r.Governorate, r.City, r.Area, r.EmploymentType, r.AppointedOn })
             .ToListAsync(ct);
 
         // Assigned-lab counts (collector across the jsonb list, or marketing rep) — materialize and count in memory.
@@ -125,7 +127,7 @@ internal sealed class RepresentativeQueries : IRepresentativeQueries
         var items = rows.Select(r => new Application.Features.Representatives.Contracts.RepListItemDto(
             r.Id.Value, r.FullName, r.Type.Name, r.GoalDuration.Name, r.GoalType, r.Metric,
             r.Target.Amount, r.Salary.Amount, r.Phone, counts.GetValueOrDefault(r.Id), r.IsActive,
-            r.Branch, r.Governorate, r.Area, r.EmploymentType)).ToList();
+            r.Branch, r.Governorate, r.City, r.Area, r.EmploymentType, r.AppointedOn)).ToList();
 
         return PagedResult<Application.Features.Representatives.Contracts.RepListItemDto>
             .Create(items, total, criteria.Page, criteria.PageSize);
@@ -136,6 +138,7 @@ internal sealed class RepresentativeQueries : IRepresentativeQueries
         var r = await _db.Representatives.AsNoTracking().FirstOrDefaultAsync(x => x.Id == new Domain.Representatives.RepresentativeId(id), ct);
         return r is null ? null : new Application.Features.Representatives.Contracts.RepDetailDto(
             r.Id.Value, r.FullName, r.Type.Name, r.GoalDuration.Name, r.GoalType, r.Metric,
-            r.Salary.Amount, r.Target.Amount, r.Phone, r.Branch, r.Governorate, r.Area, r.EmploymentType, r.IsActive, r.RowVersion);
+            r.Salary.Amount, r.Target.Amount, r.Phone, r.Branch, r.Governorate, r.City, r.Area,
+            r.EmploymentType, r.AppointedOn, r.IsActive, r.RowVersion);
     }
 }

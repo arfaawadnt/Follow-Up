@@ -23,6 +23,8 @@ public sealed record UpdateRepresentativeCommand : ICommand, IAuthorizedRequest
     public string? Branch { get; init; }
     public string? Governorate { get; init; }
     public string? Area { get; init; }
+    public string? City { get; init; }
+    public DateOnly? AppointedOn { get; init; }
     public string? EmploymentType { get; init; }
 
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.UpdateReps, Privileges.ManageReps };
@@ -55,7 +57,8 @@ public sealed class UpdateRepresentativeHandler : ICommandHandler<UpdateRepresen
 
         rep.UpdateProfile(request.FullName, new Money(request.Salary), new Money(request.Target), request.GoalType, request.Metric);
         rep.SetContact(request.Phone);
-        rep.AssignScope(request.Branch, request.Governorate, request.Area);
+        rep.AssignScope(request.Branch, request.Governorate, request.Area, request.City);
+        rep.SetAppointedOn(request.AppointedOn);
         rep.SetEmployment(request.EmploymentType);
         return Unit.Value;
     }

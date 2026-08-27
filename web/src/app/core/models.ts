@@ -82,13 +82,15 @@ export interface BoardItem {
 export interface RepListItem {
   id: string; fullName: string; type: string; goalDuration: string; goalType: string | null; metric: string | null;
   target: number; salary: number; phone: string | null; assignedCount: number;
-  isActive: boolean; branch: string | null; governorate: string | null; area: string | null; employmentType: string | null;
+  isActive: boolean; branch: string | null; governorate: string | null; city: string | null; area: string | null;
+  employmentType: string | null; appointedOn: string | null;
 }
 
 export interface RepDetail {
   id: string; fullName: string; type: string; goalDuration: string; goalType: string | null; metric: string | null;
   salary: number; target: number; phone: string | null; branch: string | null; governorate: string | null;
-  area: string | null; employmentType: string | null; isActive: boolean; rowVersion: number;
+  city: string | null; area: string | null; employmentType: string | null; appointedOn: string | null;
+  isActive: boolean; rowVersion: number;
 }
 
 export interface MarketingVisit {

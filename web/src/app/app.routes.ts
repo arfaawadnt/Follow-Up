@@ -41,6 +41,8 @@ export const routes: Routes = [
       { path: 'labs/new', loadComponent: () => import('./features/labs/lab-create.component').then((m) => m.LabCreateComponent) },
       { path: 'labs/:id', loadComponent: () => import('./features/labs/lab-detail.component').then((m) => m.LabDetailComponent) },
       { path: 'reps', loadComponent: () => import('./features/reps/reps.component').then((m) => m.RepsComponent) },
+      { path: 'reps/new', loadComponent: () => import('./features/reps/rep-form.component').then((m) => m.RepFormComponent) },
+      { path: 'reps/:id', loadComponent: () => import('./features/reps/rep-form.component').then((m) => m.RepFormComponent) },
       { path: 'test-groups', loadComponent: () => import('./features/groups/groups.component').then((m) => m.GroupsComponent) },
       { path: 'test-setups', loadComponent: () => import('./features/testsetup/testsetup.component').then((m) => m.TestSetupComponent) },
       { path: 'loyalty', loadComponent: () => import('./features/loyalty/loyalty.component').then((m) => m.LoyaltyComponent) },

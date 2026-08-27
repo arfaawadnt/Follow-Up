@@ -60,20 +60,24 @@ function parseGeo(text: string): { lat: number; lng: number } | null {
           <div class="field"><label>{{ 'governorate_lbl' | t : 'Governorate *' }}</label><select class="select" [ngModel]="f.governorate" (ngModelChange)="onGovChange($event)"><option value="">—</option>@for (g of governorates(); track g) { <option [value]="g">{{ g }}</option> }</select></div>
           <div class="field"><label>{{ 'city_lbl' | t : 'City *' }}</label><select class="select" [ngModel]="f.city" (ngModelChange)="onCityChange($event)"><option value="">—</option>@for (c of filteredCities(); track c.id) { <option [value]="c.name">{{ c.name }}</option> }</select></div>
           <div class="field"><label>{{ 'area' | t : 'Area' }}</label><select class="select" [(ngModel)]="f.area"><option value="">—</option>@for (a of filteredAreas(); track a.id) { <option [value]="a.name">{{ a.name }}</option> }</select></div>
-          <div class="field"><label>{{ 'geo_coords' | t : 'Geo (lat, lng)' }}</label><input class="input" [(ngModel)]="f.geo" placeholder="30.0444, 31.2357"></div>
+          @if (canViewLocation()) { <div class="field"><label>{{ 'geo_coords' | t : 'Geo (lat, lng)' }}</label><input class="input" [(ngModel)]="f.geo" placeholder="30.0444, 31.2357"></div> }
           <div class="field" style="grid-column:1/-1"><label>{{ 'address' | t : 'Address' }}</label><input class="input" [(ngModel)]="f.address" placeholder="street, building, floor…"></div>
-          <div class="field" style="grid-column:1/-1"><label>{{ 'search_location_on_map' | t : 'Search location on map' }}</label>
-            <div class="georow">
-              <input class="input" [(ngModel)]="mapQuery" (keyup.enter)="searchLocation()" [placeholder]="'search_by_name_or_paste_google_maps_link' | t : 'Search by name, or paste Google Maps link, or coordinates...'">
-              <button type="button" class="btn btn-s" [disabled]="!mapQuery.trim() || searching()" (click)="searchLocation()">{{ searching() ? ('searching' | t : 'Searching...') : ('search_2' | t : 'Search') }}</button>
+          @if (canViewLocation()) {
+            <div class="field" style="grid-column:1/-1"><label>{{ 'search_location_on_map' | t : 'Search location on map' }}</label>
+              <div class="georow">
+                <input class="input" [(ngModel)]="mapQuery" (keyup.enter)="searchLocation()" [placeholder]="'search_by_name_or_paste_google_maps_link' | t : 'Search by name, or paste Google Maps link, or coordinates...'">
+                <button type="button" class="btn btn-s" [disabled]="!mapQuery.trim() || searching()" (click)="searchLocation()">{{ searching() ? ('searching' | t : 'Searching...') : ('search_2' | t : 'Search') }}</button>
+              </div>
+              @if (geoMiss()) { <div class="geo-msg">{{ 'sorry_no_matching_locations_found' | t : 'Sorry, no matching locations found.' }}</div> }
+              @if (geoFail()) { <div class="geo-msg">{{ 'location_search_unavailable' | t : 'Location search is unavailable right now.' }}</div> }
             </div>
-            @if (geoMiss()) { <div class="geo-msg">{{ 'sorry_no_matching_locations_found' | t : 'Sorry, no matching locations found.' }}</div> }
-            @if (geoFail()) { <div class="geo-msg">{{ 'location_search_unavailable' | t : 'Location search is unavailable right now.' }}</div> }
+          }
+        </div>
+        @if (canViewLocation()) {
+          <div style="margin-top:10px">
+            <app-map [lat]="geoLat()" [lng]="geoLng()" [editable]="true" [height]="260" (coordChange)="onPick($event)" />
           </div>
-        </div>
-        <div style="margin-top:10px">
-          <app-map [lat]="geoLat()" [lng]="geoLng()" [editable]="true" [height]="260" (coordChange)="onPick($event)" />
-        </div>
+        }
       </section>
 
       <section class="card sect"><h3>{{ 'commercial_assignment' | t : 'Commercial & Assignment' }}</h3>
@@ -274,6 +278,7 @@ export class LabDetailComponent {
 
   addCollector(id: string): void { if (id && !this.collectorIds.includes(id)) this.collectorIds = [...this.collectorIds, id]; }
   removeCollector(id: string): void { this.collectorIds = this.collectorIds.filter((x) => x !== id); }
+  canViewLocation(): boolean { return this.auth.has('ViewLabLocation'); }
   toggleDay(d: string): void { this.workDays = this.workDays.includes(d) ? this.workDays.filter((x) => x !== d) : [...this.workDays, d]; }
 
   geoLat(): number | null { return parseGeo(this.f.geo)?.lat ?? null; }
@@ -322,8 +327,9 @@ export class LabDetailComponent {
   save(): void {
     const l = this.lab();
     if (!l || !this.canSave() || this.busy()) return;
-    const geo = parseGeo(this.f.geo);
-    if (this.f.geo.trim() && !geo) { this.error.set('Enter coordinates as "lat, lng" (e.g. 30.0444, 31.2357).'); return; }
+    const canGeo = this.canViewLocation();
+    const geo = canGeo ? parseGeo(this.f.geo) : null;
+    if (canGeo && this.f.geo.trim() && !geo) { this.error.set('Enter coordinates as "lat, lng" (e.g. 30.0444, 31.2357).'); return; }
     this.busy.set(true); this.error.set(null);
     const contacts = [
       ...this.managers.filter((c) => c.name.trim()).map((c) => ({ name: c.name, role: 'Manager', phone: c.phone || null, birthday: c.birthday || null })),
@@ -338,7 +344,9 @@ export class LabDetailComponent {
       payer: this.f.payer || null, contractType: this.f.contractType || null,
       licenseNo: this.f.licenseNo || null, licenseDate: this.f.licenseDate || null,
       avgMonthlySamples: this.f.avgMonthlySamples, preferredChannel: this.f.preferredChannel || null,
-      latitude: geo?.lat ?? null, longitude: geo?.lng ?? null,
+      // Editors without ViewLabLocation never see coordinates — preserve the loaded values, never wipe them.
+      latitude: canGeo ? geo?.lat ?? null : l.latitude,
+      longitude: canGeo ? geo?.lng ?? null : l.longitude,
       workDays: this.workDays.map((d) => DAY_NAMES[d]),
       visitTimes: [this.f.time1, this.f.time2].filter(Boolean),
       collectorRepIds: this.collectorIds, marketingRepId: this.f.marketingRepId || null,
