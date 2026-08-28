@@ -93,7 +93,8 @@ public class SignatureHandlerTests
         complaints.Add(complaint);
         var recordId = complaint.Id.Value.ToString();
 
-        var sign = new SignRecordHandler(sigs, users, hasher, recordHasher, caller, new FakeClock(Now), complaints, labs);
+        var sign = new SignRecordHandler(sigs, users, hasher, recordHasher, caller, new FakeClock(Now), complaints, labs,
+            new FakeAuthPolicy(), new FakeFailedLoginRecorder());
         await sign.Handle(new SignRecordCommand("complaint", recordId, "Approval", "ok", "pw12345678"), CancellationToken.None);
         sigs.Store.Should().ContainSingle();
 
@@ -117,10 +118,56 @@ public class SignatureHandlerTests
         users.Store.Add(user);
         var caller = new FakeCurrentUser { UserId = user.Id };
         var sign = new SignRecordHandler(new FakeElectronicSignatureRepository(), users, hasher,
-            new FakeRecordHasher(), caller, new FakeClock(Now), new FakeComplaintRepository(), new FakeLaboratoryRepository());
+            new FakeRecordHasher(), caller, new FakeClock(Now), new FakeComplaintRepository(), new FakeLaboratoryRepository(),
+            new FakeAuthPolicy(), new FakeFailedLoginRecorder());
 
         var act = () => sign.Handle(new SignRecordCommand("complaint", "c-1", "Approval", null, "wrong-pw"), CancellationToken.None);
         await act.Should().ThrowAsync<ForbiddenException>();
+    }
+
+    [Fact]
+    public async Task Wrong_sign_password_counts_toward_lockout_and_is_recorded_durably()
+    {
+        // SIG-5: a wrong re-auth password on the sign endpoint must advance the lockout counter AND persist it via
+        // the durable recorder (which survives the command's transaction rollback), exactly as login does — else
+        // signing is a lockout-bypassing password oracle.
+        var hasher = new FakePasswordHasher();
+        var users = new FakeAppUserRepository();
+        var user = AppUser.Create("signer", hasher.Hash("correct-pw"), RoleId.New());
+        users.Store.Add(user);
+        var caller = new FakeCurrentUser { UserId = user.Id };
+        var recorder = new FakeFailedLoginRecorder();
+        var sign = new SignRecordHandler(new FakeElectronicSignatureRepository(), users, hasher,
+            new FakeRecordHasher(), caller, new FakeClock(Now), new FakeComplaintRepository(), new FakeLaboratoryRepository(),
+            new FakeAuthPolicy(), recorder);
+
+        var act = () => sign.Handle(new SignRecordCommand("complaint", "c-1", "Approval", null, "wrong-pw"), CancellationToken.None);
+
+        await act.Should().ThrowAsync<ForbiddenException>();
+        user.FailedLoginCount.Should().Be(1);
+        recorder.Calls.Should().Be(1, "the failed attempt must be persisted in its own unit of work (IDN-1 path)");
+    }
+
+    [Fact]
+    public async Task Locked_out_account_cannot_sign_even_with_the_correct_password()
+    {
+        // SIG-5: a locked account is refused before the password is even checked — no signature is produced.
+        var hasher = new FakePasswordHasher();
+        var users = new FakeAppUserRepository();
+        var user = AppUser.Create("signer", hasher.Hash("correct-pw"), RoleId.New());
+        for (var i = 0; i < 10; i++) user.RegisterFailedLogin(10, TimeSpan.FromMinutes(15), Now);
+        users.Store.Add(user);
+        var caller = new FakeCurrentUser { UserId = user.Id };
+        var sigs = new FakeElectronicSignatureRepository();
+        var sign = new SignRecordHandler(sigs, users, hasher,
+            new FakeRecordHasher(), caller, new FakeClock(Now), new FakeComplaintRepository(), new FakeLaboratoryRepository(),
+            new FakeAuthPolicy(), new FakeFailedLoginRecorder());
+
+        var act = () => sign.Handle(
+            new SignRecordCommand("complaint", "c-1", "Approval", null, "correct-pw"), CancellationToken.None);
+
+        await act.Should().ThrowAsync<ForbiddenException>().WithMessage("*locked*");
+        sigs.Store.Should().BeEmpty();
     }
 
     [Fact]
@@ -143,7 +190,8 @@ public class SignatureHandlerTests
             new[] { "*" }, new[] { "Giza" }, new[] { "*" }, new[] { "*" }, new[] { "*" }, new[] { "*" });
         var caller = new FakeCurrentUser { UserId = user.Id, Username = "signer", Scope = giza };
         var sign = new SignRecordHandler(new FakeElectronicSignatureRepository(), users, hasher,
-            new FakeRecordHasher(), caller, new FakeClock(Now), complaints, labs);
+            new FakeRecordHasher(), caller, new FakeClock(Now), complaints, labs,
+            new FakeAuthPolicy(), new FakeFailedLoginRecorder());
 
         // Correct password (re-auth passes) but out of scope -> refused.
         var act = () => sign.Handle(

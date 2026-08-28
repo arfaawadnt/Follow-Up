@@ -41,23 +41,40 @@ public sealed class SignRecordHandler : ICommandHandler<SignRecordCommand, Guid>
     private readonly IClock _clock;
     private readonly IComplaintRepository _complaints;
     private readonly ILaboratoryRepository _labs;
+    private readonly IAuthPolicy _policy;
+    private readonly IFailedLoginRecorder _failedLogins;
 
     public SignRecordHandler(IElectronicSignatureRepository signatures, IAppUserRepository users,
         IPasswordHasher hasher, IRecordHasher recordHasher, ICurrentUser caller, IClock clock,
-        IComplaintRepository complaints, ILaboratoryRepository labs)
+        IComplaintRepository complaints, ILaboratoryRepository labs,
+        IAuthPolicy policy, IFailedLoginRecorder failedLogins)
     {
         _signatures = signatures; _users = users; _hasher = hasher;
         _recordHasher = recordHasher; _caller = caller; _clock = clock;
         _complaints = complaints; _labs = labs;
+        _policy = policy; _failedLogins = failedLogins;
     }
 
     public async Task<Guid> Handle(SignRecordCommand request, CancellationToken ct)
     {
-        // Re-authenticate the signer (SRS FR-19).
+        // Re-authenticate the signer (SRS FR-19). This is a password check like login, so it honours the same
+        // lockout (FR-1/NFR-SEC-4): a locked account cannot sign even with the right password, and a wrong
+        // password counts toward lockout — otherwise signing is a lockout-bypassing password oracle (SIG-5).
+        var now = _clock.UtcNow;
         var user = await _users.GetByIdAsync(_caller.UserId, ct)
             ?? throw new NotFoundException("User", _caller.UserId);
+
+        if (user.IsLockedOut(now))
+            throw new ForbiddenException("The account is temporarily locked. Try again later.");
+
         if (!_hasher.Verify(request.Password, user.Password))
+        {
+            // The throw rolls back this command's transaction, so persist the attempt in its own unit of work —
+            // the same durable path login uses, or the counter never advances in production (finding IDN-1).
+            user.RegisterFailedLogin(_policy.MaxFailedAttempts, _policy.LockoutWindow, now);
+            await _failedLogins.RecordAsync(user.Id, ct);
             throw new ForbiddenException("Re-authentication failed.");
+        }
 
         // Signing is "within organizational scope" (SRS FR-19): the record's lab must be in the signer's
         // scope. Runs after re-auth so a wrong password never reveals whether the record exists (finding SIG-2).
@@ -71,7 +88,7 @@ public sealed class SignRecordHandler : ICommandHandler<SignRecordCommand, Guid>
             request.Module, request.RecordId, computed.Version,
             _caller.UserId.Value, _caller.Username, authLevel: "password",
             Enumeration.FromName<SignatureMeaning>(request.Meaning), request.Reason,
-            computed.ContentHash, _clock.UtcNow, _caller.Ip);
+            computed.ContentHash, now, _caller.Ip);
 
         _signatures.Add(signature);
         return signature.Id.Value;
