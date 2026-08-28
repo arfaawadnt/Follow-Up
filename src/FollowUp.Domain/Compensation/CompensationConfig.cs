@@ -72,8 +72,18 @@ public sealed class CompensationConfig : AggregateRoot<string>, IVersioned, IAud
 
     public void SetTiers(IEnumerable<LoyaltyTier> tiers)
     {
+        // Guard the loyalty formula's inputs (CPN-6): an empty set zeroes points/nulls the tier for every lab on
+        // the next recalc, and duplicate names or thresholds make TierFor order-dependent and nondeterministic.
+        var list = tiers?.ToList() ?? throw new DomainException("At least one loyalty tier is required.");
+        if (list.Count == 0)
+            throw new DomainException("At least one loyalty tier is required.");
+        if (list.Select(t => t.Name.ToLowerInvariant()).Distinct().Count() != list.Count)
+            throw new DomainException("Loyalty tier names must be unique.");
+        if (list.Select(t => t.MinAchievementPercent).Distinct().Count() != list.Count)
+            throw new DomainException("Loyalty tier thresholds must be unique.");
+
         _loyaltyTiers.Clear();
-        _loyaltyTiers.AddRange(tiers);
+        _loyaltyTiers.AddRange(list);
     }
 
     public void SetCommission(decimal ratePercent, decimal bonusThresholdPercent, Money bonusAmount)

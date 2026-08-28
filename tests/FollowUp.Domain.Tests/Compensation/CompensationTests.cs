@@ -67,6 +67,43 @@ public class CompensationConfigTests
 
         act.Should().Throw<DomainException>();
     }
+
+    private static CompensationConfig ValidConfig() =>
+        CompensationConfig.Create(5m, 100m, new Money(500m), new[] { new LoyaltyTier("Gold", 100m, 500) });
+
+    [Fact]
+    public void SetTiers_rejects_an_empty_set()
+    {
+        // CPN-6: an empty set zeroes points/nulls the tier for every lab on the next recalc.
+        var act = () => ValidConfig().SetTiers(Array.Empty<LoyaltyTier>());
+
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void SetTiers_rejects_duplicate_names_case_insensitively()
+    {
+        var act = () => ValidConfig().SetTiers(new[]
+        {
+            new LoyaltyTier("Gold", 50m, 100),
+            new LoyaltyTier("gold", 80m, 250),
+        });
+
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void SetTiers_rejects_duplicate_thresholds()
+    {
+        // CPN-6: duplicate MinAchievementPercent makes TierFor order-dependent/nondeterministic.
+        var act = () => ValidConfig().SetTiers(new[]
+        {
+            new LoyaltyTier("Bronze", 50m, 100),
+            new LoyaltyTier("Silver", 50m, 250),
+        });
+
+        act.Should().Throw<DomainException>();
+    }
 }
 
 public class OracleConfigTests
