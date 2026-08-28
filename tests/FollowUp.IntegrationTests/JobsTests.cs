@@ -49,6 +49,66 @@ public sealed class JobsTests
     }
 
     [SkippableFact]
+    public async Task Rollover_rolls_multiple_verified_visits_for_one_lab_into_a_single_monthly_row()
+    {
+        // Regression for BRD-1: a lab with more than one verified+received visit on the same day must roll
+        // all of them into ONE monthly_sample row. The previous RollToMonthlyAsync looked the row up in the
+        // database only, missed the row staged for the first visit, and staged a duplicate that violated the
+        // unique (laboratory_id, period) index — throwing on the roll-over commit and stopping board
+        // generation entirely. Without the fix this test throws DbUpdateException; with it, it passes.
+        Skip.IfNot(_fx.DatabaseAvailable, "FOLLOWUP_DB not set.");
+        await _fx.ResetAsync();
+
+        var everyDay = new[] { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
+        var labId = new Domain.Laboratories.LaboratoryId(await Send(new CreateLaboratoryCommand
+        {
+            Code = "MGL-ROLL",
+            Name = "Rollover Lab",
+            Segment = "A",
+            Governorate = "Cairo",
+            WorkDays = everyDay,
+            VisitTimes = new[] { "09:00", "12:00" },
+        }));
+
+        DateOnly yesterday;
+        Domain.Common.YearMonth period;
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var sp = scope.ServiceProvider;
+            var board = sp.GetRequiredService<BoardService>();
+            var clock = sp.GetRequiredService<FollowUp.Application.Common.Abstractions.IClock>();
+            var db = sp.GetRequiredService<FollowUpDbContext>();
+            yesterday = clock.CairoToday.AddDays(-1);
+            period = Domain.Common.YearMonth.From(yesterday);
+
+            // Two visits for the same lab on the same (past) day.
+            (await board.GenerateBoardAsync(yesterday)).Should().Be(2);
+
+            // Drive both to verified + received so each RollsToMonthly.
+            var visits = await db.DailyVisits
+                .Where(v => v.LaboratoryId == labId && v.VisitDate == yesterday).ToListAsync();
+            visits.Should().HaveCount(2);
+            visits[0].CheckIn(3, "tester", clock.UtcNow);
+            visits[1].CheckIn(5, "tester", clock.UtcNow);
+            foreach (var v in visits) { v.ReceiveAtLab(clock.UtcNow); v.SetVerified(true); }
+            await db.SaveChangesAsync();
+        }
+
+        // The roll-over (which internally targets yesterday) must not throw and must produce one summed row.
+        using (var scope = _fx.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<BoardService>().RunRolloverAsync();
+
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FollowUpDbContext>();
+            var monthly = await db.MonthlySamples
+                .Where(m => m.LaboratoryId == labId && m.Period == period).ToListAsync();
+            monthly.Should().ContainSingle("both verified visits roll into one monthly row");
+            monthly[0].SampleCount.Should().Be(8); // 3 + 5
+        }
+    }
+
+    [SkippableFact]
     public async Task Outbox_dispatcher_drains_pending_messages()
     {
         Skip.IfNot(_fx.DatabaseAvailable, "FOLLOWUP_DB not set.");

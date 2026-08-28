@@ -140,8 +140,15 @@ public sealed class BoardService : IBoardScheduler
 
     private async Task RollToMonthlyAsync(DailyVisit visit, YearMonth period, CancellationToken ct)
     {
-        var monthly = await _db.MonthlySamples
-            .FirstOrDefaultAsync(m => m.LaboratoryId == visit.LaboratoryId && m.Period == period, ct);
+        // Resolve the change-tracker first: several rolling visits for one lab in a day are rolled in the
+        // same unit of work, so the row staged for the first visit is not yet in the database when the
+        // second is processed. Querying only the database (the previous behaviour) missed it and staged a
+        // second MonthlySample that violated the unique (laboratory_id, period) index, throwing on the
+        // roll-over commit and poisoning the job. (Mirrors SampleTrackingRepository.GetByAreaDateAsync.)
+        var monthly = _db.MonthlySamples.Local
+                          .FirstOrDefault(m => m.LaboratoryId == visit.LaboratoryId && m.Period == period)
+                      ?? await _db.MonthlySamples
+                          .FirstOrDefaultAsync(m => m.LaboratoryId == visit.LaboratoryId && m.Period == period, ct);
         if (monthly is null)
         {
             monthly = MonthlySample.Start(visit.LaboratoryId, visit.CollectorRepId, period);
