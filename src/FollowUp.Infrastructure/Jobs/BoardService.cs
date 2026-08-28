@@ -41,30 +41,53 @@ public sealed class BoardService : IBoardScheduler
         return visits.Count;
     }
 
-    /// <summary>Midnight roll-over: sweep, archive yesterday, roll verified samples, generate today's board.</summary>
+    /// <summary>
+    /// Midnight roll-over: sweep, archive everything up to yesterday, roll verified samples, generate today's
+    /// board — all in ONE transaction so the whole unit commits or rolls back together and a Hangfire retry is
+    /// safe (BRD-3). It selects <c>VisitDate &lt;= yesterday</c> so a day a previously failed run left behind is
+    /// picked up once the window advances instead of being orphaned, and rolls each visit into its OWN month so
+    /// a straggler is never miscredited to yesterday's period.
+    /// </summary>
     public async Task RunRolloverAsync(CancellationToken ct = default)
     {
         var today = _clock.CairoToday;
         var yesterday = today.AddDays(-1);
         var now = _clock.UtcNow;
+        var pending = VisitStatus.Pending;
 
-        // Safety: ensure yesterday's still-Pending visits are Missed before archiving verbatim (JOBS-001).
-        await RunMissedSweepAsync(yesterday, ct);
-
-        var toArchive = await _db.DailyVisits.Where(v => v.VisitDate == yesterday).ToListAsync(ct);
-        var period = YearMonth.From(yesterday);
-        foreach (var visit in toArchive)
+        var swept = 0;
+        var archived = 0;
+        var strategy = _db.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
         {
-            _db.VisitHistory.Add(VisitHistory.ArchiveFrom(visit, now));
-            if (visit.RollsToMonthly && visit.SampleCount is > 0)
-                await RollToMonthlyAsync(visit, period, ct);
-        }
-        _db.DailyVisits.RemoveRange(toArchive);
+            await using var transaction = await _db.Database.BeginTransactionAsync(ct);
 
-        await GenerateBoardAsync(today, ct);
+            var toArchive = await _db.DailyVisits.Where(v => v.VisitDate <= yesterday).ToListAsync(ct);
 
-        await _db.SaveChangesAsync(ct);
-        _logger.LogInformation("Board roll-over archived {Archived} visits and generated today's board", toArchive.Count);
+            // Missed-sweep folded into the same unit (was a separate commit): mark still-Pending visits Missed
+            // before archiving verbatim (JOBS-001), so the sweep can never commit ahead of a failed archive.
+            var toMiss = toArchive.Where(v => v.Status == pending).ToList();
+            foreach (var visit in toMiss) visit.Miss();
+
+            foreach (var visit in toArchive)
+            {
+                _db.VisitHistory.Add(VisitHistory.ArchiveFrom(visit, now));
+                if (visit.RollsToMonthly && visit.SampleCount is > 0)
+                    await RollToMonthlyAsync(visit, YearMonth.From(visit.VisitDate), ct);
+            }
+            _db.DailyVisits.RemoveRange(toArchive);
+
+            await StageBoardAsync(today, ct); // stage today's board into the same transaction, no inner save
+
+            await _db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+
+            swept = toMiss.Count;
+            archived = toArchive.Count;
+        });
+
+        _logger.LogInformation(
+            "Board roll-over swept {Swept}, archived {Archived} visits and generated today's board", swept, archived);
     }
 
     /// <summary>BR-3 intra-day reconcile — generates any missing visits for today's board (<see cref="IBoardScheduler"/>).</summary>
@@ -114,6 +137,18 @@ public sealed class BoardService : IBoardScheduler
     /// <summary>Generates the board for <paramref name="date"/> from each schedulable lab's schedule (BR-3 intra-day too).</summary>
     public async Task<int> GenerateBoardAsync(DateOnly date, CancellationToken ct = default)
     {
+        var created = await StageBoardAsync(date, ct);
+        await _db.SaveChangesAsync(ct); // persist so BR-3 intra-day callers don't need to
+        return created;
+    }
+
+    /// <summary>
+    /// Stages (without saving) the missing visits for <paramref name="date"/> from each schedulable lab's
+    /// schedule. The public <see cref="GenerateBoardAsync"/> saves; the roll-over calls this directly so the
+    /// board commits inside its own single transaction (BRD-3).
+    /// </summary>
+    private async Task<int> StageBoardAsync(DateOnly date, CancellationToken ct)
+    {
         var active = LaboratoryStatus.Active;
         var pending = LaboratoryStatus.Pending;
         var interactive = LaboratoryStatus.Interactive;
@@ -134,7 +169,6 @@ public sealed class BoardService : IBoardScheduler
                 created++;
             }
         }
-        await _db.SaveChangesAsync(ct); // persist so callers (roll-over, BR-3 intra-day) don't need to
         return created;
     }
 
