@@ -21,6 +21,19 @@ public static class ScopeGuard
             throw new ForbiddenException("This laboratory is outside your organizational scope.");
     }
 
+    /// <summary>
+    /// Ensures a representative is within the caller's org scope (finding CPN-3). Reps carry
+    /// Branch/Governorate/City/Area; the lab-only Category/Segment dimensions are wildcarded, matching the
+    /// read-side rule in GetCommissionsAsync (CPN-2). Unattributed reps are in scope only for a global caller.
+    /// </summary>
+    public static void EnsureInScope(this ICurrentUser user, Representative rep)
+    {
+        var allowed = user.Scope.Allows(rep.Branch, rep.Governorate, rep.City, rep.Area,
+            FollowUp.Domain.Identity.OrgScope.Wildcard, FollowUp.Domain.Identity.OrgScope.Wildcard);
+        if (!allowed)
+            throw new ForbiddenException("This representative is outside your organizational scope.");
+    }
+
     /// <summary>Ensures the caller's scope permits the given hierarchy (used before creating a record).</summary>
     public static void EnsureHierarchyInScope(this ICurrentUser user,
         string? branch, string? governorate, string? city, string? area, string? category, string? segment)

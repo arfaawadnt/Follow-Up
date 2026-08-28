@@ -178,18 +178,20 @@ public sealed class SaveCommissionHandler : ICommandHandler<SaveCommissionComman
     private readonly IRepCommissionRepository _commissions;
     private readonly ICompensationConfigRepository _configs;
     private readonly ICompensationData _data;
+    private readonly ICurrentUser _user;
     private readonly IClock _clock;
 
     public SaveCommissionHandler(IRepresentativeRepository reps, IRepCommissionRepository commissions,
-        ICompensationConfigRepository configs, ICompensationData data, IClock clock)
+        ICompensationConfigRepository configs, ICompensationData data, ICurrentUser user, IClock clock)
     {
-        _reps = reps; _commissions = commissions; _configs = configs; _data = data; _clock = clock;
+        _reps = reps; _commissions = commissions; _configs = configs; _data = data; _user = user; _clock = clock;
     }
 
     public async Task<Unit> Handle(SaveCommissionCommand request, CancellationToken ct)
     {
         var rep = await _reps.GetByIdAsync(new RepresentativeId(request.RepresentativeId), ct)
             ?? throw new NotFoundException("Representative", request.RepresentativeId);
+        _user.EnsureInScope(rep); // finding CPN-3: resource-level org-scope check before the payroll write
         var config = await _configs.GetAsync(ct)
             ?? throw new ConflictException("Compensation configuration has not been set.");
 
