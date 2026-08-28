@@ -156,8 +156,17 @@ public sealed class DailyVisit : AggregateRoot<DailyVisitId>, IVersioned, IAudit
         Raise(new VisitReceived(Id, LaboratoryId));
     }
 
-    /// <summary>Elevated verification toggle (FR-5, VerifyDailyFollowup).</summary>
-    public void SetVerified(bool verified) => AdminChecked = verified;
+    /// <summary>Elevated verification toggle (FR-5, VerifyDailyFollowup). Only a collected visit can be
+    /// verified: the workflow verifies after check-in/receipt, and <see cref="RollsToMonthly"/> trusts
+    /// <see cref="AdminChecked"/>, so a Pending/Missed visit must never carry it — otherwise a direct API call
+    /// verifies a Pending visit that later rolls into monthly totals though never verified while collected
+    /// (finding BRD-6). Mirrors the reference's Visited/Received-only verify gate.</summary>
+    public void SetVerified(bool verified)
+    {
+        if (Status != VisitStatus.Visited && Status != VisitStatus.Received)
+            throw new DomainException("Only a checked-in (Visited) or received visit can be verified.");
+        AdminChecked = verified;
+    }
 
     /// <summary>Whether this visit's samples count toward monthly totals at roll-over (verified &amp; received).</summary>
     public bool RollsToMonthly => AdminChecked && Status == VisitStatus.Received;

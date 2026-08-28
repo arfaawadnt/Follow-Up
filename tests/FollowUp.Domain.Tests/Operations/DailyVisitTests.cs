@@ -100,4 +100,28 @@ public class DailyVisitTests
         var act = () => visit.ConfirmTransfer(RepresentativeId.New(), new TransferDetails("A", "0100", null), Now);
         act.Should().Throw<DomainException>();
     }
+
+    [Fact]
+    public void A_pending_visit_cannot_be_verified()
+    {
+        // BRD-6: verifying a not-yet-collected visit must be refused, so it cannot later roll into monthly
+        // totals (RollsToMonthly trusts AdminChecked) without ever having been verified while collected.
+        var visit = NewPendingVisit();
+
+        var act = () => visit.SetVerified(true);
+
+        act.Should().Throw<DomainException>();
+        visit.AdminChecked.Should().BeFalse();
+    }
+
+    [Fact]
+    public void A_checked_in_visit_can_be_verified()
+    {
+        var visit = NewPendingVisit();
+        visit.CheckIn(3, "c", Now); // -> Visited
+
+        visit.SetVerified(true);
+
+        visit.AdminChecked.Should().BeTrue();
+    }
 }
