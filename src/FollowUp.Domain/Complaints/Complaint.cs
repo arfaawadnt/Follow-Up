@@ -17,7 +17,7 @@ public sealed record ComplaintResolved(ComplaintId ComplaintId, LaboratoryId Lab
 /// restricted status machine (BR-11 — illegal transitions → 409) and a staged-investigation narrative.
 /// All status changes go through the state machine; resolution honours the optional e-signature gate.
 /// </summary>
-public sealed class Complaint : AggregateRoot<ComplaintId>, IAuditable
+public sealed class Complaint : AggregateRoot<ComplaintId>, IVersioned, IAuditable
 {
     private Complaint() { } // EF
 
@@ -37,6 +37,9 @@ public sealed class Complaint : AggregateRoot<ComplaintId>, IAuditable
     }
 
     // Optional intake metadata (reference parity).
+    /// <summary>Optimistic-concurrency token (Postgres xmin); concurrent workflow edits conflict (409). Finding CMP-6.</summary>
+    public uint RowVersion { get; private set; }
+
     public Guid? RepresentativeId { get; private set; }
     public DateTimeOffset? ReceivedAt { get; private set; }
 

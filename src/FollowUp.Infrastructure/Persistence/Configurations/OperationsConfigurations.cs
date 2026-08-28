@@ -12,6 +12,7 @@ internal sealed class DailyVisitConfiguration : IEntityTypeConfiguration<DailyVi
     {
         b.ToTable("daily_visit");
         b.HasKey(x => x.Id);
+        b.Property(x => x.RowVersion).IsRowVersion().HasColumnName("xmin").HasColumnType("xid"); // xmin optimistic concurrency (BRD-2)
         b.IgnoreDomainEvents();
         b.Ignore(x => x.RollsToMonthly);
         b.MapAuditable();

@@ -41,6 +41,7 @@ internal sealed class ComplaintConfiguration : IEntityTypeConfiguration<Complain
     {
         b.ToTable("complaint");
         b.HasKey(x => x.Id);
+        b.Property(x => x.RowVersion).IsRowVersion().HasColumnName("xmin").HasColumnType("xid"); // xmin optimistic concurrency (CMP-6)
         b.IgnoreDomainEvents();
         b.Ignore(x => x.Reference); // derived from Number
 

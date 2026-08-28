@@ -14,7 +14,7 @@ public readonly record struct AppUserId(Guid Value)
 /// a <see cref="Representative"/> (one login per rep), and per-account lockout state. Passwords are never
 /// held in clear — only a <see cref="PasswordHash"/>. Session lifecycle lives in <c>UserSession</c>.
 /// </summary>
-public sealed class AppUser : AggregateRoot<AppUserId>, IAuditable
+public sealed class AppUser : AggregateRoot<AppUserId>, IVersioned, IAuditable
 {
     private AppUser() { } // EF
 
@@ -29,6 +29,9 @@ public sealed class AppUser : AggregateRoot<AppUserId>, IAuditable
     }
 
     public string Username { get; private set; } = null!;
+
+    /// <summary>Optimistic-concurrency token (Postgres xmin); concurrent edits conflict (409). Finding IDN-4.</summary>
+    public uint RowVersion { get; private set; }
     public string? DisplayName { get; private set; }
     public PasswordHash Password { get; private set; } = null!;
     public RoleId RoleId { get; private set; }

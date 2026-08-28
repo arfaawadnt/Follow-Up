@@ -32,7 +32,7 @@ public sealed class LoyaltyTier : ValueObject
 /// are not hardcoded; the engines read this to compute ledgers and payouts. A single configuration record.
 /// The concrete tier thresholds/rates are seeded as placeholders (see docs/ASSUMPTIONS.md A3).
 /// </summary>
-public sealed class CompensationConfig : AggregateRoot<string>, IAuditable
+public sealed class CompensationConfig : AggregateRoot<string>, IVersioned, IAuditable
 {
     private readonly List<LoyaltyTier> _loyaltyTiers = new();
 
@@ -49,6 +49,9 @@ public sealed class CompensationConfig : AggregateRoot<string>, IAuditable
     public const string SingletonId = "default";
 
     /// <summary>Percent of achieved value paid as commission.</summary>
+    /// <summary>Optimistic-concurrency token (Postgres xmin); concurrent edits conflict (409). Finding CPN-9.</summary>
+    public uint RowVersion { get; private set; }
+
     public decimal CommissionRatePercent { get; private set; }
 
     /// <summary>Achievement percent at/above which the flat bonus is awarded.</summary>

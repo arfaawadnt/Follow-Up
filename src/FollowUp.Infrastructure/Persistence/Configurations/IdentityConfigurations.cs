@@ -10,6 +10,7 @@ internal sealed class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
     {
         b.ToTable("app_user");
         b.HasKey(x => x.Id);
+        b.Property(x => x.RowVersion).IsRowVersion().HasColumnName("xmin").HasColumnType("xid"); // xmin optimistic concurrency (IDN-4)
         b.IgnoreDomainEvents();
         b.MapAuditable();
 
@@ -46,6 +47,7 @@ internal sealed class RoleConfiguration : IEntityTypeConfiguration<Role>
     {
         b.ToTable("role");
         b.HasKey(x => x.Id);
+        b.Property(x => x.RowVersion).IsRowVersion().HasColumnName("xmin").HasColumnType("xid"); // xmin optimistic concurrency (IDN-4)
         b.IgnoreDomainEvents();
         b.Ignore(x => x.EffectivePrivileges);
         b.MapAuditable();

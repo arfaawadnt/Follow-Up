@@ -41,7 +41,7 @@ public sealed class TransferDetails : ValueObject
 /// midnight board job from a lab's schedule; driven through Pending → Visited/Missed → Received.
 /// Undo is refused once the visit has been transferred (the guard on the reverse edge).
 /// </summary>
-public sealed class DailyVisit : AggregateRoot<DailyVisitId>, IAuditable
+public sealed class DailyVisit : AggregateRoot<DailyVisitId>, IVersioned, IAuditable
 {
     private DailyVisit() { } // EF
 
@@ -57,6 +57,9 @@ public sealed class DailyVisit : AggregateRoot<DailyVisitId>, IAuditable
     }
 
     public LaboratoryId LaboratoryId { get; private set; }
+
+    /// <summary>Optimistic-concurrency token (Postgres xmin); concurrent visit updates conflict (409). Finding BRD-2.</summary>
+    public uint RowVersion { get; private set; }
     public RepresentativeId? CollectorRepId { get; private set; }
     public DateOnly VisitDate { get; private set; }
     public TimeOnly ScheduledTime { get; private set; }
