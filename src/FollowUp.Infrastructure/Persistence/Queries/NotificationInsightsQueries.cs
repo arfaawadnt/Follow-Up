@@ -316,7 +316,7 @@ internal sealed class InsightsQueries : IInsightsQueries
         var complaints = await _db.Complaints.CountAsync(c => c.LaboratoryId == lid, ct);
 
         return new LabHistoryDto(
-            DisplayCode.For(lab.Code.Value, canSeeEncrypted), lab.Code.ToEncryptedAlias(), lab.Name, lab.Segment, lab.Status.Name,
+            DisplayCode.For(lab.Code.Value, lab.IsEncrypted, canSeeEncrypted), lab.Code.ToEncryptedAlias(), lab.Name, lab.Segment, lab.Status.Name,
             lab.Branch, lab.Payer, lab.ContractType, lab.LicenseNo, lab.LicenseDate,
             lab.PreferredChannel,
             lab.Schedule.VisitTimes.Select(t => t.ToString("HH:mm")).ToList(),
@@ -335,16 +335,16 @@ internal sealed class InsightsQueries : IInsightsQueries
         var live = (await (from v in _db.DailyVisits.AsNoTracking()
                            where v.VisitDate >= start && v.VisitDate <= end && scopedLabs.Contains(v.LaboratoryId)
                            join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
-                           select new { l.Code, l.Name, l.Branch, l.Governorate, l.City, l.Area, v.VisitDate, v.ScheduledTime, v.SampleCount,
+                           select new { l.Code, l.IsEncrypted, l.Name, l.Branch, l.Governorate, l.City, l.Area, v.VisitDate, v.ScheduledTime, v.SampleCount,
                                v.CollectorRepId, v.CheckedInAt, v.TransferConfirmedAt, v.ReceivedAt }).ToListAsync(ct))
-            .Select(v => new { v.Code, v.Name, v.Branch, v.Governorate, v.City, v.Area, v.VisitDate, ScheduledTime = (TimeOnly?)v.ScheduledTime,
+            .Select(v => new { v.Code, v.IsEncrypted, v.Name, v.Branch, v.Governorate, v.City, v.Area, v.VisitDate, ScheduledTime = (TimeOnly?)v.ScheduledTime,
                 v.SampleCount, v.CollectorRepId, v.CheckedInAt, v.TransferConfirmedAt, v.ReceivedAt });
 
         // Archived rows keep their stage timestamps (OperationsReferenceParity), so past days report too.
         var archived = await (from v in _db.VisitHistory.AsNoTracking()
                               where v.VisitDate >= start && v.VisitDate <= end && scopedLabs.Contains(v.LaboratoryId)
                               join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
-                              select new { l.Code, l.Name, l.Branch, l.Governorate, l.City, l.Area, v.VisitDate, v.ScheduledTime, v.SampleCount,
+                              select new { l.Code, l.IsEncrypted, l.Name, l.Branch, l.Governorate, l.City, l.Area, v.VisitDate, v.ScheduledTime, v.SampleCount,
                                   v.CollectorRepId, v.CheckedInAt, v.TransferConfirmedAt, v.ReceivedAt }).ToListAsync(ct);
 
         var rows = live.Concat(archived)
@@ -362,7 +362,7 @@ internal sealed class InsightsQueries : IInsightsQueries
             var planned = r.ScheduledTime is { } st ? new DateTimeOffset(r.VisitDate.ToDateTime(st), TimeSpan.Zero) : (DateTimeOffset?)null;
             return new RepIntervalRowDto(
                 r.CollectorRepId != null && repName.TryGetValue(r.CollectorRepId.Value, out var n) ? n : "—",
-                r.Name, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Branch, r.Governorate, r.City, r.Area,
+                r.Name, DisplayCode.For(r.Code.Value, r.IsEncrypted, canSeeEncrypted), r.Branch, r.Governorate, r.City, r.Area,
                 r.VisitDate, r.ScheduledTime?.ToString("HH:mm") ?? "—", r.SampleCount,
                 Mins(r.CheckedInAt, planned), Mins(r.TransferConfirmedAt, r.CheckedInAt),
                 Mins(r.ReceivedAt, r.TransferConfirmedAt), Mins(r.ReceivedAt, r.CheckedInAt),

@@ -34,13 +34,13 @@ internal sealed class ComplaintQueries : IComplaintQueries
         var rows = await (from cp in q
                           join l in _db.Laboratories.AsNoTracking() on cp.LaboratoryId equals l.Id
                           orderby cp.Number descending
-                          select new { cp.Id, cp.Number, cp.LaboratoryId, l.Code, l.Name, LabCategory = l.Category, cp.Category, cp.ViaChannel,
+                          select new { cp.Id, cp.Number, cp.LaboratoryId, l.Code, l.IsEncrypted, l.Name, LabCategory = l.Category, cp.Category, cp.ViaChannel,
                               cp.AssignedTeam, cp.Details, cp.Status, cp.Stage, cp.ResolvedBy, cp.ResolvedAt, cp.ResolutionSummary, cp.CreatedAt })
                          .Skip(criteria.Skip).Take(criteria.PageSize).ToListAsync(ct);
 
         var todayNum = DateOnly.FromDateTime(DateTime.UtcNow).DayNumber;
         var items = rows.Select(r => new ComplaintListItemDto(
-            r.Id.Value, $"CMP-{r.Number}", r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Name,
+            r.Id.Value, $"CMP-{r.Number}", r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, r.IsEncrypted, canSeeEncrypted), r.Name,
             r.LabCategory, r.Category, r.ViaChannel, r.AssignedTeam, r.Details, r.Status.Name, r.Stage.Name,
             Math.Max(0, todayNum - DateOnly.FromDateTime(r.CreatedAt.UtcDateTime).DayNumber),
             r.ResolvedBy, r.ResolvedAt, r.ResolutionSummary, r.CreatedAt)).ToList();
@@ -55,7 +55,7 @@ internal sealed class ComplaintQueries : IComplaintQueries
         var row = await (from c in _db.Complaints.AsNoTracking()
                          where c.Id == new Domain.Complaints.ComplaintId(id)
                          join l in _db.Laboratories.ApplyScope(scope).AsNoTracking() on c.LaboratoryId equals l.Id
-                         select new { c, l.Code, l.Name }).FirstOrDefaultAsync(ct);
+                         select new { c, l.Code, l.IsEncrypted, l.Name }).FirstOrDefaultAsync(ct);
         if (row is null) return null;
         var complaint = row.c;
 
@@ -66,7 +66,7 @@ internal sealed class ComplaintQueries : IComplaintQueries
                 .Select(r => r.FullName).FirstOrDefaultAsync(ct);
 
         return new ComplaintDetailDto(
-            complaint.Id.Value, complaint.Reference, complaint.LaboratoryId.Value, DisplayCode.For(row.Code.Value, canSeeEncrypted),
+            complaint.Id.Value, complaint.Reference, complaint.LaboratoryId.Value, DisplayCode.For(row.Code.Value, row.IsEncrypted, canSeeEncrypted),
             row.Name, complaint.Category, complaint.ViaChannel, complaint.AssignedTeam, complaint.Details,
             complaint.Status.Name, complaint.Stage.Name, complaint.ResolvedAt, complaint.ResolvedBy,
             complaint.RepresentativeId, repName, complaint.ReceivedAt,
@@ -119,7 +119,7 @@ internal sealed class MarketingQueries : IMarketingQueries
         var rows = await (from mv in q
                           join l in _db.Laboratories.AsNoTracking() on mv.LaboratoryId equals l.Id
                           orderby (mv.Status == scheduled ? 0 : 1), mv.ScheduledDate descending, mv.Number descending // BR-10: scheduled first
-                          select new { mv.Id, mv.Number, mv.LaboratoryId, l.Code, l.Name, l.Area, l.Governorate, mv.RepresentativeId, mv.Purpose, mv.ScheduledDate, mv.ScheduledTime, mv.Plan, mv.Status, mv.Outcome })
+                          select new { mv.Id, mv.Number, mv.LaboratoryId, l.Code, l.IsEncrypted, l.Name, l.Area, l.Governorate, mv.RepresentativeId, mv.Purpose, mv.ScheduledDate, mv.ScheduledTime, mv.Plan, mv.Status, mv.Outcome })
                          .Skip(criteria.Skip).Take(criteria.PageSize).ToListAsync(ct);
 
         var repIds = rows.Select(r => r.RepresentativeId).Distinct().ToList();
@@ -127,7 +127,7 @@ internal sealed class MarketingQueries : IMarketingQueries
             .Select(r => new { r.Id, r.FullName }).ToListAsync(ct)).ToDictionary(r => r.Id, r => r.FullName);
 
         var items = rows.Select(r => new MarketingVisitDto(
-            r.Id.Value, $"MV{r.Number}", r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Name, r.Area, r.Governorate,
+            r.Id.Value, $"MV{r.Number}", r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, r.IsEncrypted, canSeeEncrypted), r.Name, r.Area, r.Governorate,
             r.RepresentativeId.Value, repName.TryGetValue(r.RepresentativeId, out var n) ? n : null,
             r.Purpose.Name, r.ScheduledDate, r.ScheduledTime.HasValue ? r.ScheduledTime.Value.ToString("HH:mm") : null, r.Plan,
             r.Status.Name, r.Outcome)).ToList();
