@@ -79,6 +79,42 @@ public class ComplaintTests
     }
 
     [Fact]
+    public void MoveToStage_cannot_jump_to_a_gated_terminal_stage()
+    {
+        var complaint = NewComplaint(); // Open / Logged
+
+        // Resolution carries the resolve + optional e-signature gate; RejectedInvalid carries the validity
+        // decision. A bare stage move must not reach either, or the resolve-gate is bypassable (CMP-2).
+        var toResolution = () => complaint.MoveToStage(ComplaintStage.Resolution);
+        toResolution.Should().Throw<IllegalStateTransitionException>();
+
+        var toRejected = () => complaint.MoveToStage(ComplaintStage.RejectedInvalid);
+        toRejected.Should().Throw<IllegalStateTransitionException>();
+
+        complaint.Stage.Should().Be(ComplaintStage.Logged); // nothing changed
+    }
+
+    [Fact]
+    public void Resolved_complaint_narrative_is_frozen()
+    {
+        var complaint = NewComplaint();
+        complaint.Resolve("manager", Now); // Open -> Resolved (direct)
+
+        // No stage edit is permitted once the complaint is closed (CMP-2).
+        var investigate = () => complaint.RecordInvestigation("late edit");
+        investigate.Should().Throw<IllegalStateTransitionException>();
+
+        var recheck = () => complaint.CheckValidity(true, "late");
+        recheck.Should().Throw<IllegalStateTransitionException>();
+
+        var outcome = () => complaint.RecordOutcome("x", null);
+        outcome.Should().Throw<IllegalStateTransitionException>();
+
+        var move = () => complaint.MoveToStage(ComplaintStage.Acknowledged);
+        move.Should().Throw<IllegalStateTransitionException>();
+    }
+
+    [Fact]
     public void SetIntake_records_representative_and_received_time()
     {
         var complaint = NewComplaint();

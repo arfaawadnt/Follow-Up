@@ -95,6 +95,7 @@ public sealed class Complaint : AggregateRoot<ComplaintId>, IAuditable
     /// <summary>Validity check: valid continues the flow; invalid short-circuits to RejectedInvalid.</summary>
     public void CheckValidity(bool isValid, string? notes)
     {
+        EnsureNotResolved();
         IsValid = isValid;
         ValidityNotes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
         Stage = isValid ? ComplaintStage.ValidityChecked : ComplaintStage.RejectedInvalid;
@@ -103,6 +104,7 @@ public sealed class Complaint : AggregateRoot<ComplaintId>, IAuditable
     /// <summary>Investigation notes / root-cause analysis (stage → Investigation).</summary>
     public void RecordInvestigation(string notes)
     {
+        EnsureNotResolved();
         if (string.IsNullOrWhiteSpace(notes))
             throw new DomainException("Investigation notes are required.");
         InvestigationNotes = notes.Trim();
@@ -112,6 +114,7 @@ public sealed class Complaint : AggregateRoot<ComplaintId>, IAuditable
     /// <summary>Business outcome (communication type + summary; stage → BusinessOutcome).</summary>
     public void RecordOutcome(string outcomeType, string? summary)
     {
+        EnsureNotResolved();
         if (string.IsNullOrWhiteSpace(outcomeType))
             throw new DomainException("An outcome type is required.");
         OutcomeType = outcomeType.Trim();
@@ -157,6 +160,26 @@ public sealed class Complaint : AggregateRoot<ComplaintId>, IAuditable
         ResolvedBy = null;
     }
 
-    /// <summary>Advances the investigation narrative (metadata only — never changes status).</summary>
-    public void MoveToStage(ComplaintStage stage) => Stage = stage;
+    /// <summary>
+    /// Advances the investigation-narrative stage (metadata only — never changes status). The two terminal
+    /// stages are reached solely through their gated operations: <see cref="Resolution"/> via
+    /// <see cref="Resolve"/> (status machine + optional e-signature gate + ResolveComplaints privilege) and
+    /// <see cref="RejectedInvalid"/> via <see cref="CheckValidity"/>. A bare stage move to either — and any
+    /// stage edit after resolution — is refused with a 409-mapped exception, so the resolve/e-signature gate
+    /// cannot be bypassed through the stage field (finding CMP-2, SRS FR-11 CMP-STAGE consistency rule).
+    /// </summary>
+    public void MoveToStage(ComplaintStage stage)
+    {
+        EnsureNotResolved();
+        if (stage == ComplaintStage.Resolution || stage == ComplaintStage.RejectedInvalid)
+            throw new IllegalStateTransitionException(nameof(ComplaintStage), Stage.Name, stage.Name);
+        Stage = stage;
+    }
+
+    /// <summary>A resolved complaint is closed: its investigation narrative is frozen (finding CMP-2).</summary>
+    private void EnsureNotResolved()
+    {
+        if (Status == ComplaintStatus.Resolved)
+            throw new IllegalStateTransitionException(nameof(Complaint), ComplaintStatus.Resolved.Name, "edit stage");
+    }
 }
