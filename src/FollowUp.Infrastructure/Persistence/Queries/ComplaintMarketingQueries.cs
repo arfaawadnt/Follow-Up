@@ -48,11 +48,13 @@ internal sealed class ComplaintQueries : IComplaintQueries
         return PagedResult<ComplaintListItemDto>.Create(items, total, criteria.Page, criteria.PageSize);
     }
 
-    public async Task<ComplaintDetailDto?> GetByIdAsync(Guid id, bool canSeeEncrypted, CancellationToken ct)
+    public async Task<ComplaintDetailDto?> GetByIdAsync(Guid id, OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
     {
+        // Scope the join to the caller's org scope: an out-of-scope complaint yields no row → null → 404,
+        // matching the list read (SearchAsync) and the SRS SCOPE-READ requirement.
         var row = await (from c in _db.Complaints.AsNoTracking()
                          where c.Id == new Domain.Complaints.ComplaintId(id)
-                         join l in _db.Laboratories.AsNoTracking() on c.LaboratoryId equals l.Id
+                         join l in _db.Laboratories.ApplyScope(scope).AsNoTracking() on c.LaboratoryId equals l.Id
                          select new { c, l.Code, l.Name }).FirstOrDefaultAsync(ct);
         if (row is null) return null;
         var complaint = row.c;
@@ -72,8 +74,16 @@ internal sealed class ComplaintQueries : IComplaintQueries
             complaint.OutcomeType, complaint.OutcomeSummary, complaint.ResolutionSummary, complaint.CreatedAt);
     }
 
-    public async Task<IReadOnlyList<ComplaintAuditRowDto>> GetAuditAsync(Guid id, CancellationToken ct)
+    public async Task<IReadOnlyList<ComplaintAuditRowDto>> GetAuditAsync(Guid id, OrgScope scope, CancellationToken ct)
     {
+        // Confirm the complaint's lab is within the caller's org scope before exposing its audit trail
+        // (the trail includes before/after snapshots). Out of scope → empty, never a cross-scope disclosure.
+        var inScope = await (from c in _db.Complaints.AsNoTracking()
+                             join l in _db.Laboratories.ApplyScope(scope) on c.LaboratoryId equals l.Id
+                             where c.Id == new Domain.Complaints.ComplaintId(id)
+                             select c.Id).AnyAsync(ct);
+        if (!inScope) return Array.Empty<ComplaintAuditRowDto>();
+
         var idStr = id.ToString();
         return await _db.AuditEntries.AsNoTracking()
             .Where(a => a.Entity == "Complaint" && a.EntityId == idStr)

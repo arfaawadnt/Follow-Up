@@ -2,6 +2,7 @@ using FollowUp.Application.Common.Abstractions;
 using FollowUp.Application.Common.Abstractions.Persistence;
 using FollowUp.Application.Common.Exceptions;
 using FollowUp.Application.Common.Messaging;
+using FollowUp.Application.Features.Complaints.Commands; // ComplaintActionSupport — single-sourced record scope check
 using FollowUp.Domain.Common;
 using FollowUp.Domain.Signatures;
 using FluentValidation;
@@ -85,14 +86,25 @@ public sealed class VerifySignatureHandler : IQueryHandler<VerifySignatureQuery,
 {
     private readonly IElectronicSignatureRepository _signatures;
     private readonly IRecordHasher _recordHasher;
+    private readonly ICurrentUser _user;
+    private readonly IComplaintRepository _complaints;
+    private readonly ILaboratoryRepository _labs;
 
-    public VerifySignatureHandler(IElectronicSignatureRepository signatures, IRecordHasher recordHasher)
+    public VerifySignatureHandler(IElectronicSignatureRepository signatures, IRecordHasher recordHasher,
+        ICurrentUser user, IComplaintRepository complaints, ILaboratoryRepository labs)
     {
         _signatures = signatures; _recordHasher = recordHasher;
+        _user = user; _complaints = complaints; _labs = labs;
     }
 
     public async Task<SignatureVerificationDto> Handle(VerifySignatureQuery request, CancellationToken ct)
     {
+        // Enforce record-level org scope before disclosing signature metadata (SRS SCOPE-READ): the signed
+        // record's lab must be within the caller's scope. Reuses the canonical complaint load+authorize
+        // helper so the scope rule stays single-sourced; "complaint" is the only signable module today and
+        // an unknown module fails closed.
+        await EnsureRecordInScopeAsync(request.Module, request.RecordId, ct);
+
         var signature = await _signatures.GetLatestAsync(request.Module, request.RecordId, ct);
         if (signature is null)
             return new SignatureVerificationDto(false, false, null, null, null, null);
@@ -102,5 +114,17 @@ public sealed class VerifySignatureHandler : IQueryHandler<VerifySignatureQuery,
 
         return new SignatureVerificationDto(true, stillValid, signature.SignerUsername,
             signature.Meaning.Name, signature.SignedAt, signature.RecordVersion);
+    }
+
+    private async Task EnsureRecordInScopeAsync(string module, string recordId, CancellationToken ct)
+    {
+        if (string.Equals(module, ComplaintActionSupport.Module, StringComparison.OrdinalIgnoreCase)
+            && Guid.TryParse(recordId, out var complaintId))
+        {
+            // Throws NotFound if the record is absent, Forbidden if it is outside the caller's scope.
+            await ComplaintActionSupport.LoadAuthorizedAsync(complaintId, _complaints, _labs, _user, ct);
+            return;
+        }
+        throw new NotFoundException($"{module} record", recordId);
     }
 }

@@ -23,8 +23,8 @@ public interface IComplaintQueries
 {
     Task<PagedResult<ComplaintListItemDto>> SearchAsync(ComplaintSearchCriteria criteria, OrgScope scope,
         bool canSeeEncrypted, CancellationToken ct);
-    Task<ComplaintDetailDto?> GetByIdAsync(Guid id, bool canSeeEncrypted, CancellationToken ct);
-    Task<IReadOnlyList<ComplaintAuditRowDto>> GetAuditAsync(Guid id, CancellationToken ct);
+    Task<ComplaintDetailDto?> GetByIdAsync(Guid id, OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
+    Task<IReadOnlyList<ComplaintAuditRowDto>> GetAuditAsync(Guid id, OrgScope scope, CancellationToken ct);
 }
 
 public sealed record ComplaintSearchCriteria : ListQuery

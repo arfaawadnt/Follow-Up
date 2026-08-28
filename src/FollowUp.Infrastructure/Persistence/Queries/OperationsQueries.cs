@@ -55,10 +55,14 @@ internal sealed class DailyBoardQueries : IDailyBoardQueries
             r.TransferConfirmedAt != null)).ToList();
     }
 
-    public async Task<int?> GetSuggestedSampleCountAsync(Guid visitId, CancellationToken ct)
+    public async Task<int?> GetSuggestedSampleCountAsync(Guid visitId, OrgScope scope, CancellationToken ct)
     {
-        // Suggested value = the lab's most recent recorded sample count (SRS FR-5 helper).
-        var visit = await _db.DailyVisits.AsNoTracking().FirstOrDefaultAsync(v => v.Id == new DailyVisitId(visitId), ct);
+        // Suggested value = the lab's most recent recorded sample count (SRS FR-5 helper). Scope the lookup:
+        // a visit whose lab is outside the caller's org scope is not resolvable here (SRS SCOPE-READ).
+        var visit = await (from v in _db.DailyVisits.AsNoTracking()
+                           join l in _db.Laboratories.ApplyScope(scope) on v.LaboratoryId equals l.Id
+                           where v.Id == new DailyVisitId(visitId)
+                           select v).FirstOrDefaultAsync(ct);
         if (visit is null) return null;
         return await _db.DailyVisits.AsNoTracking()
             .Where(v => v.LaboratoryId == visit.LaboratoryId && v.SampleCount != null)

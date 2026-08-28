@@ -29,7 +29,7 @@ public interface ICompensationQueries
 {
     Task<IReadOnlyList<LoyaltyLedgerDto>> GetLedgersAsync(int period, OrgScope scope, CancellationToken ct);
     Task<IReadOnlyList<LoyaltyRowDto>> GetLoyaltySummaryAsync(OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
-    Task<IReadOnlyList<LoyaltyLedgerDto>> GetLabLedgerAsync(Guid labId, CancellationToken ct);
+    Task<IReadOnlyList<LoyaltyLedgerDto>> GetLabLedgerAsync(Guid labId, OrgScope scope, CancellationToken ct);
     Task<IReadOnlyList<CommissionDto>> GetCommissionsAsync(int period, OrgScope scope, CancellationToken ct);
     Task<CompensationConfigDto?> GetConfigAsync(CancellationToken ct);
 }
@@ -270,9 +270,10 @@ public sealed record GetLoyaltyLedgerQuery(Guid LabId) : IQuery<IReadOnlyList<Lo
 public sealed class GetLoyaltyLedgerHandler : IQueryHandler<GetLoyaltyLedgerQuery, IReadOnlyList<LoyaltyLedgerDto>>
 {
     private readonly ICompensationQueries _queries;
-    public GetLoyaltyLedgerHandler(ICompensationQueries queries) => _queries = queries;
+    private readonly ICurrentUser _user;
+    public GetLoyaltyLedgerHandler(ICompensationQueries queries, ICurrentUser user) { _queries = queries; _user = user; }
     public Task<IReadOnlyList<LoyaltyLedgerDto>> Handle(GetLoyaltyLedgerQuery request, CancellationToken ct) =>
-        _queries.GetLabLedgerAsync(request.LabId, ct);
+        _queries.GetLabLedgerAsync(request.LabId, _user.Scope, ct);
 }
 
 public sealed record GetCommissionsQuery(int Period) : IQuery<IReadOnlyList<CommissionDto>>, IAuthorizedRequest

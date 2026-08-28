@@ -58,7 +58,7 @@ public sealed class GetComplaintByIdHandler : IQueryHandler<GetComplaintByIdQuer
 
     public async Task<ComplaintDetailDto> Handle(GetComplaintByIdQuery request, CancellationToken ct)
     {
-        var dto = await _queries.GetByIdAsync(request.Id, _user.Has(Privileges.ShowEncryptedLabs), ct)
+        var dto = await _queries.GetByIdAsync(request.Id, _user.Scope, _user.Has(Privileges.ShowEncryptedLabs), ct)
             ?? throw new Common.Exceptions.NotFoundException("Complaint", request.Id);
         return dto;
     }
@@ -73,9 +73,13 @@ public sealed record GetComplaintAuditQuery(Guid Id) : IQuery<IReadOnlyList<Comp
 public sealed class GetComplaintAuditHandler : IQueryHandler<GetComplaintAuditQuery, IReadOnlyList<ComplaintAuditRowDto>>
 {
     private readonly IComplaintQueries _queries;
+    private readonly ICurrentUser _user;
 
-    public GetComplaintAuditHandler(IComplaintQueries queries) => _queries = queries;
+    public GetComplaintAuditHandler(IComplaintQueries queries, ICurrentUser user)
+    {
+        _queries = queries; _user = user;
+    }
 
     public Task<IReadOnlyList<ComplaintAuditRowDto>> Handle(GetComplaintAuditQuery request, CancellationToken ct) =>
-        _queries.GetAuditAsync(request.Id, ct);
+        _queries.GetAuditAsync(request.Id, _user.Scope, ct);
 }

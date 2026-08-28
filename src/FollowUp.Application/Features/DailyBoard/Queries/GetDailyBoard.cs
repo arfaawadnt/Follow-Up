@@ -23,9 +23,10 @@ public sealed record GetSuggestedSampleCountQuery(Guid VisitId) : IQuery<int?>, 
 public sealed class GetSuggestedSampleCountHandler : IQueryHandler<GetSuggestedSampleCountQuery, int?>
 {
     private readonly IDailyBoardQueries _queries;
-    public GetSuggestedSampleCountHandler(IDailyBoardQueries queries) => _queries = queries;
+    private readonly ICurrentUser _user;
+    public GetSuggestedSampleCountHandler(IDailyBoardQueries queries, ICurrentUser user) { _queries = queries; _user = user; }
     public Task<int?> Handle(GetSuggestedSampleCountQuery request, CancellationToken ct) =>
-        _queries.GetSuggestedSampleCountAsync(request.VisitId, ct);
+        _queries.GetSuggestedSampleCountAsync(request.VisitId, _user.Scope, ct);
 }
 
 public sealed class GetDailyBoardHandler : IQueryHandler<GetDailyBoardQuery, IReadOnlyList<BoardItemDto>>

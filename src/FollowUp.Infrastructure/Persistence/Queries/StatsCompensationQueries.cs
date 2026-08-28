@@ -111,19 +111,29 @@ internal sealed class CompensationQueries : ICompensationQueries
             l.MonthlyTarget, mtd.TryGetValue(l.Id, out var v) ? v : 0, l.LoyaltyPoints, l.LoyaltyTier)).ToList();
     }
 
-    public async Task<IReadOnlyList<LoyaltyLedgerDto>> GetLabLedgerAsync(Guid labId, CancellationToken ct) =>
-        await _db.LoyaltyLedgers.AsNoTracking()
-            .Where(x => x.LaboratoryId == new Domain.Laboratories.LaboratoryId(labId))
+    public async Task<IReadOnlyList<LoyaltyLedgerDto>> GetLabLedgerAsync(Guid labId, OrgScope scope, CancellationToken ct)
+    {
+        // Scope the ledger read (SRS SCOPE-READ), mirroring GetLedgersAsync: an out-of-scope labId yields an
+        // empty history rather than leaking another scope's target/points/tier figures.
+        var scopedLabs = _db.Laboratories.ApplyScope(scope).Select(l => l.Id);
+        return await _db.LoyaltyLedgers.AsNoTracking()
+            .Where(x => x.LaboratoryId == new Domain.Laboratories.LaboratoryId(labId) && scopedLabs.Contains(x.LaboratoryId))
             .OrderByDescending(x => x.Period)
             .Select(x => new LoyaltyLedgerDto(x.LaboratoryId.Value, x.Period.Code, x.Target, x.Achieved, x.Points, x.Tier))
             .ToListAsync(ct);
+    }
 
     public async Task<IReadOnlyList<CommissionDto>> GetCommissionsAsync(int period, OrgScope scope, CancellationToken ct)
     {
-        // Commissions are org-wide aggregates (SCOPE-READ decision: documented as org-wide, not lab-scoped).
-        // One row per active rep (grouped by type in the UI), with saved amounts or zeros/defaults.
+        // Scope commissions to the caller's org scope (SRS SCOPE-READ / finding CPN-2): a rep is visible only
+        // when its attribution falls within scope. Reps carry Branch/Governorate/City/Area (not the lab-only
+        // Category/Segment dimensions, which are therefore wildcarded), so the isolation rule is the same
+        // OrgScope.Allows used everywhere else; a rep with no attribution is visible only to a global-scoped
+        // caller (fail-closed, matching OrgScope.Allows' null semantics). One row per active in-scope rep.
         var ym = YearMonth.FromCode(period);
-        var reps = await _db.Representatives.AsNoTracking().Where(r => r.IsActive).ToListAsync(ct);
+        var reps = (await _db.Representatives.AsNoTracking().Where(r => r.IsActive).ToListAsync(ct))
+            .Where(r => scope.Allows(r.Branch, r.Governorate, r.City, r.Area, OrgScope.Wildcard, OrgScope.Wildcard))
+            .ToList();
         var comms = (await _db.Commissions.AsNoTracking().Where(x => x.Period == ym).ToListAsync(ct))
             .ToDictionary(x => x.RepresentativeId);
         return reps.Select(r =>
