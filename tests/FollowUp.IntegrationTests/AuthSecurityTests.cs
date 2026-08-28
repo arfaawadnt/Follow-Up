@@ -2,7 +2,11 @@ using FluentAssertions;
 using FollowUp.Application.Common.Abstractions;
 using FollowUp.Application.Common.Exceptions;
 using FollowUp.Application.Features.Auth;
+using FollowUp.Application.Features.Complaints.Commands;
+using FollowUp.Application.Features.Laboratories.CreateLaboratory;
+using FollowUp.Domain.Complaints;
 using FollowUp.Domain.Identity;
+using FollowUp.Domain.Laboratories;
 using FollowUp.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -99,5 +103,47 @@ public sealed class AuthSecurityTests
         {
             _fx.Idempotency.CurrentKey = null;
         }
+    }
+
+    [SkippableFact]
+    public async Task Signature_hash_covers_material_fields_the_old_formula_ignored()
+    {
+        Skip.IfNot(_fx.DatabaseAvailable, "FOLLOWUP_DB not set.");
+        await _fx.ResetAsync();
+
+        Guid complaintId;
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var labId = await mediator.Send(new CreateLaboratoryCommand
+            { Code = "MGL-SIG1", Name = "Sig Lab", Segment = "A", Governorate = "Cairo" });
+            await mediator.Send(new LogComplaintCommand
+            { LaboratoryId = labId, Category = "Result Quality", ViaChannel = "Phone", Details = "d" });
+            var db = scope.ServiceProvider.GetRequiredService<FollowUpDbContext>();
+            complaintId = (await db.Complaints.AsNoTracking()
+                .FirstAsync(c => c.LaboratoryId == new LaboratoryId(labId))).Id.Value;
+        }
+
+        string before, after;
+        using (var scope = _fx.Services.CreateScope())
+            before = (await scope.ServiceProvider.GetRequiredService<IRecordHasher>()
+                .ComputeAsync("complaint", complaintId.ToString(), default))!.Value.ContentHash;
+
+        // The resolution summary is a material field the previous "|"-joined hash did not cover, and changing
+        // it leaves the Stage the old hash *did* cover untouched — so only a hash over all material fields reacts.
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FollowUpDbContext>();
+            var complaint = await db.Complaints.FirstAsync(c => c.Id == new ComplaintId(complaintId));
+            complaint.SetResolutionSummary("credited the affected order");
+            await db.SaveChangesAsync();
+        }
+
+        using (var scope = _fx.Services.CreateScope())
+            after = (await scope.ServiceProvider.GetRequiredService<IRecordHasher>()
+                .ComputeAsync("complaint", complaintId.ToString(), default))!.Value.ContentHash;
+
+        after.Should().NotBe(before,
+            "changing a material field (resolution summary) must invalidate a bound signature (SIG-1/SIG-7)");
     }
 }
