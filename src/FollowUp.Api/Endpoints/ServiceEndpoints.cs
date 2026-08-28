@@ -39,7 +39,7 @@ public static class ServiceEndpoints
     public static void MapSignatureEndpoints(this RouteGroupBuilder api)
     {
         api.MapPost("/esign/sign", async (SignBody b, IMediator m, CancellationToken ct) =>
-        { var id = await m.Send(new SignRecordCommand(b.Module, b.RecordId, b.Meaning, b.Reason, b.Password), ct); return Results.Ok(new { id }); }).WithTags("Signatures");
+        { var id = await m.Send(new SignRecordCommand(b.Module, b.RecordId, b.Meaning, b.Reason, b.Password), ct); return Results.Ok(new { id }); }).WithTags("Signatures").RequireRateLimiting("esign");
         api.MapGet("/esign/{module}/{recordId}", async (string module, string recordId, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new VerifySignatureQuery(module, recordId), ct))).WithTags("Signatures");
     }

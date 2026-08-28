@@ -49,6 +49,17 @@ builder.Services.AddRateLimiter(options =>
             Window = TimeSpan.FromMinutes(1),
             QueueLimit = 0,
         }));
+    // E-sign re-authenticates a password too (SRS FR-19), so throttle it like login — its own bucket so signing
+    // traffic never starves the login limiter for a shared IP, and a stolen token can't brute the password freely
+    // (finding SIG-9; pairs with the lockout enforced in SignRecordHandler, SIG-5).
+    options.AddPolicy("esign", http => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+        }));
 });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
