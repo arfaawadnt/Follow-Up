@@ -60,21 +60,30 @@ public sealed class CheckInVisitHandler : ICommandHandler<CheckInVisitCommand>
     private readonly IDailyVisitRepository _visits;
     private readonly ILaboratoryRepository _labs;
     private readonly IOutsourceSampleRepository _outsource;
+    private readonly IRepresentativeRepository _reps;
     private readonly ICurrentUser _user;
     private readonly IClock _clock;
 
     public CheckInVisitHandler(IDailyVisitRepository visits, ILaboratoryRepository labs,
-        IOutsourceSampleRepository outsource, ICurrentUser user, IClock clock)
+        IOutsourceSampleRepository outsource, IRepresentativeRepository reps, ICurrentUser user, IClock clock)
     {
-        _visits = visits; _labs = labs; _outsource = outsource; _user = user; _clock = clock;
+        _visits = visits; _labs = labs; _outsource = outsource; _reps = reps; _user = user; _clock = clock;
     }
 
     public async Task<Unit> Handle(CheckInVisitCommand request, CancellationToken ct)
     {
         var (visit, lab) = await VisitActionSupport.LoadAuthorizedAsync(request.VisitId, _visits, _labs, _user, ct);
 
+        // A reassigned collector must exist — mirror ConfirmTransferHandler's rep check so a crafted check-in
+        // can't credit samples/commission to a non-existent rep (which otherwise fails late at the Restrict FK
+        // as an unmapped 500) (finding BRD-7).
         if (request.CollectorRepId is { } repId)
-            visit.ReassignCollector(new Domain.Representatives.RepresentativeId(repId));
+        {
+            var collectorRepId = new Domain.Representatives.RepresentativeId(repId);
+            if (!await _reps.ExistsAsync(collectorRepId, ct))
+                throw new NotFoundException("Representative", repId);
+            visit.ReassignCollector(collectorRepId);
+        }
 
         visit.CheckIn(request.SampleCount, _user.Username, _clock.UtcNow,
             request.TotalRequired, request.RequestCount, request.OutsourceCount, request.Notes);

@@ -1,5 +1,6 @@
 using FluentAssertions;
 using FollowUp.Application.Common.Exceptions;
+using FollowUp.Application.Features.DailyBoard.Commands;
 using FollowUp.Application.Features.LabCheckIn;
 using FollowUp.Application.Features.Marketing;
 using FollowUp.Application.Features.Outsource;
@@ -48,6 +49,49 @@ public class OperationalModulesTests
 
         visit.Transfer!.DriverName.Should().Be("Ahmed");
         visit.TransferConfirmedAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Check_in_reassigning_a_nonexistent_collector_is_rejected()
+    {
+        // BRD-7: the collector override took any GUID; a non-existent rep failed late at the Restrict FK as a
+        // 500 (or a valid wrong rep was silently credited). The handler must verify existence up front.
+        var (labs, lab) = SeedLab();
+        var visit = DailyVisit.Schedule(lab.Id, null, Today, new TimeOnly(9, 0));
+        var visits = new FakeDailyVisitRepository();
+        visits.Store.Add(visit);
+        var reps = new FakeRepresentativeRepository(); // empty -> the override rep does not exist
+
+        var handler = new CheckInVisitHandler(visits, labs, new FakeOutsourceSampleRepository(), reps,
+            new FakeCurrentUser(), new FakeClock(Now));
+
+        var act = () => handler.Handle(
+            new CheckInVisitCommand(visit.Id.Value, 5) { CollectorRepId = Guid.NewGuid() }, CancellationToken.None);
+
+        await act.Should().ThrowAsync<NotFoundException>();
+        visit.Status.Should().Be(VisitStatus.Pending); // nothing was checked in
+    }
+
+    [Fact]
+    public async Task Check_in_reassigning_an_existing_collector_succeeds()
+    {
+        var (labs, lab) = SeedLab();
+        var rep = Representative.Register("Collector Rep", RepresentativeType.Collector, GoalDuration.Monthly,
+            new Domain.Common.Money(0), new Domain.Common.Money(0));
+        var reps = new FakeRepresentativeRepository();
+        reps.Store.Add(rep);
+        var visit = DailyVisit.Schedule(lab.Id, null, Today, new TimeOnly(9, 0));
+        var visits = new FakeDailyVisitRepository();
+        visits.Store.Add(visit);
+
+        var handler = new CheckInVisitHandler(visits, labs, new FakeOutsourceSampleRepository(), reps,
+            new FakeCurrentUser(), new FakeClock(Now));
+
+        await handler.Handle(
+            new CheckInVisitCommand(visit.Id.Value, 5) { CollectorRepId = rep.Id.Value }, CancellationToken.None);
+
+        visit.Status.Should().Be(VisitStatus.Visited);
+        visit.CollectorRepId.Should().Be(rep.Id);
     }
 
     [Fact]
