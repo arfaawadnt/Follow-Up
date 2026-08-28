@@ -93,7 +93,7 @@ public class SignatureHandlerTests
         complaints.Add(complaint);
         var recordId = complaint.Id.Value.ToString();
 
-        var sign = new SignRecordHandler(sigs, users, hasher, recordHasher, caller, new FakeClock(Now));
+        var sign = new SignRecordHandler(sigs, users, hasher, recordHasher, caller, new FakeClock(Now), complaints, labs);
         await sign.Handle(new SignRecordCommand("complaint", recordId, "Approval", "ok", "pw12345678"), CancellationToken.None);
         sigs.Store.Should().ContainSingle();
 
@@ -117,9 +117,37 @@ public class SignatureHandlerTests
         users.Store.Add(user);
         var caller = new FakeCurrentUser { UserId = user.Id };
         var sign = new SignRecordHandler(new FakeElectronicSignatureRepository(), users, hasher,
-            new FakeRecordHasher(), caller, new FakeClock(Now));
+            new FakeRecordHasher(), caller, new FakeClock(Now), new FakeComplaintRepository(), new FakeLaboratoryRepository());
 
         var act = () => sign.Handle(new SignRecordCommand("complaint", "c-1", "Approval", null, "wrong-pw"), CancellationToken.None);
+        await act.Should().ThrowAsync<ForbiddenException>();
+    }
+
+    [Fact]
+    public async Task Sign_is_refused_when_the_record_is_outside_the_signers_scope()
+    {
+        var hasher = new FakePasswordHasher();
+        var users = new FakeAppUserRepository();
+        var user = AppUser.Create("signer", hasher.Hash("pw12345678"), RoleId.New());
+        users.Store.Add(user);
+        var lab = Laboratory.Register(LabCode.Create("MGL-OOS"), "Lab", "B");
+        var complaint = Complaint.Log(1, lab.Id, "Result Quality", "Phone", null, "details");
+        var labs = new FakeLaboratoryRepository();
+        labs.Add(lab);
+        var complaints = new FakeComplaintRepository();
+        complaints.Add(complaint);
+        var recordId = complaint.Id.Value.ToString();
+
+        // Signer scoped to Giza; the lab is not in that scope (SRS FR-19: sign is within scope, finding SIG-2).
+        var giza = OrgScope.Create(
+            new[] { "*" }, new[] { "Giza" }, new[] { "*" }, new[] { "*" }, new[] { "*" }, new[] { "*" });
+        var caller = new FakeCurrentUser { UserId = user.Id, Username = "signer", Scope = giza };
+        var sign = new SignRecordHandler(new FakeElectronicSignatureRepository(), users, hasher,
+            new FakeRecordHasher(), caller, new FakeClock(Now), complaints, labs);
+
+        // Correct password (re-auth passes) but out of scope -> refused.
+        var act = () => sign.Handle(
+            new SignRecordCommand("complaint", recordId, "Approval", null, "pw12345678"), CancellationToken.None);
         await act.Should().ThrowAsync<ForbiddenException>();
     }
 }

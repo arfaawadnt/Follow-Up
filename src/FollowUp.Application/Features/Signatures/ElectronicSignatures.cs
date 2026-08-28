@@ -2,7 +2,6 @@ using FollowUp.Application.Common.Abstractions;
 using FollowUp.Application.Common.Abstractions.Persistence;
 using FollowUp.Application.Common.Exceptions;
 using FollowUp.Application.Common.Messaging;
-using FollowUp.Application.Features.Complaints.Commands; // ComplaintActionSupport — single-sourced record scope check
 using FollowUp.Domain.Common;
 using FollowUp.Domain.Signatures;
 using FluentValidation;
@@ -40,12 +39,16 @@ public sealed class SignRecordHandler : ICommandHandler<SignRecordCommand, Guid>
     private readonly IRecordHasher _recordHasher;
     private readonly ICurrentUser _caller;
     private readonly IClock _clock;
+    private readonly IComplaintRepository _complaints;
+    private readonly ILaboratoryRepository _labs;
 
     public SignRecordHandler(IElectronicSignatureRepository signatures, IAppUserRepository users,
-        IPasswordHasher hasher, IRecordHasher recordHasher, ICurrentUser caller, IClock clock)
+        IPasswordHasher hasher, IRecordHasher recordHasher, ICurrentUser caller, IClock clock,
+        IComplaintRepository complaints, ILaboratoryRepository labs)
     {
         _signatures = signatures; _users = users; _hasher = hasher;
         _recordHasher = recordHasher; _caller = caller; _clock = clock;
+        _complaints = complaints; _labs = labs;
     }
 
     public async Task<Guid> Handle(SignRecordCommand request, CancellationToken ct)
@@ -55,6 +58,10 @@ public sealed class SignRecordHandler : ICommandHandler<SignRecordCommand, Guid>
             ?? throw new NotFoundException("User", _caller.UserId);
         if (!_hasher.Verify(request.Password, user.Password))
             throw new ForbiddenException("Re-authentication failed.");
+
+        // Signing is "within organizational scope" (SRS FR-19): the record's lab must be in the signer's
+        // scope. Runs after re-auth so a wrong password never reveals whether the record exists (finding SIG-2).
+        await SignatureRecordScope.EnsureInScopeAsync(request.Module, request.RecordId, _complaints, _labs, _caller, ct);
 
         // Server-computed content hash + version (client never supplies these).
         var computed = await _recordHasher.ComputeAsync(request.Module, request.RecordId, ct)
@@ -99,11 +106,9 @@ public sealed class VerifySignatureHandler : IQueryHandler<VerifySignatureQuery,
 
     public async Task<SignatureVerificationDto> Handle(VerifySignatureQuery request, CancellationToken ct)
     {
-        // Enforce record-level org scope before disclosing signature metadata (SRS SCOPE-READ): the signed
-        // record's lab must be within the caller's scope. Reuses the canonical complaint load+authorize
-        // helper so the scope rule stays single-sourced; "complaint" is the only signable module today and
-        // an unknown module fails closed.
-        await EnsureRecordInScopeAsync(request.Module, request.RecordId, ct);
+        // Enforce record-level org scope before disclosing signature metadata (SRS SCOPE-READ / FR-19):
+        // the signed record's lab must be within the caller's scope.
+        await SignatureRecordScope.EnsureInScopeAsync(request.Module, request.RecordId, _complaints, _labs, _user, ct);
 
         var signature = await _signatures.GetLatestAsync(request.Module, request.RecordId, ct);
         if (signature is null)
@@ -114,17 +119,5 @@ public sealed class VerifySignatureHandler : IQueryHandler<VerifySignatureQuery,
 
         return new SignatureVerificationDto(true, stillValid, signature.SignerUsername,
             signature.Meaning.Name, signature.SignedAt, signature.RecordVersion);
-    }
-
-    private async Task EnsureRecordInScopeAsync(string module, string recordId, CancellationToken ct)
-    {
-        if (string.Equals(module, ComplaintActionSupport.Module, StringComparison.OrdinalIgnoreCase)
-            && Guid.TryParse(recordId, out var complaintId))
-        {
-            // Throws NotFound if the record is absent, Forbidden if it is outside the caller's scope.
-            await ComplaintActionSupport.LoadAuthorizedAsync(complaintId, _complaints, _labs, _user, ct);
-            return;
-        }
-        throw new NotFoundException($"{module} record", recordId);
     }
 }
