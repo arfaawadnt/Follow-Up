@@ -206,6 +206,14 @@ public sealed class FakeCompensationData : ICompensationData
         Task.FromResult(RepAchieved);
 }
 
+public sealed class FakeLabLoyaltyLedgerRepository : ILabLoyaltyLedgerRepository
+{
+    public readonly List<Domain.Compensation.LabLoyaltyLedger> Store = new();
+    public Task<Domain.Compensation.LabLoyaltyLedger?> GetAsync(LaboratoryId labId, Domain.Common.YearMonth period, CancellationToken ct) =>
+        Task.FromResult(Store.FirstOrDefault(l => l.LaboratoryId == labId && l.Period == period));
+    public void Add(Domain.Compensation.LabLoyaltyLedger ledger) => Store.Add(ledger);
+}
+
 public sealed class FakeUserSessionRepository : IUserSessionRepository
 {
     public readonly List<UserSession> Store = new();

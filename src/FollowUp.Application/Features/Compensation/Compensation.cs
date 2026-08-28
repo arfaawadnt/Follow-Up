@@ -105,7 +105,14 @@ public sealed class RecalculateLoyaltyHandler : ICommandHandler<RecalculateLoyal
             _ledgers.Add(ledger);
         }
         ledger.Record(lab.MonthlyTarget, achieved, points, tier, _clock.UtcNow);
-        lab.SetLoyalty(lab.MonthlyTarget, points, tier); // update snapshot on the lab
+
+        // The ledger row is period-specific, but the lab's live snapshot (which drives the loyalty page) must
+        // only reflect the CURRENT month — recalculating a past period would otherwise overwrite the lab's
+        // standing with stale numbers while MtdSamples stays current (finding CPN-7). Mirrors
+        // RecalculateAllLoyaltyHandler, which always targets the current Cairo month.
+        if (period == YearMonth.From(_clock.CairoToday))
+            lab.SetLoyalty(lab.MonthlyTarget, points, tier);
+
         return Unit.Value;
     }
 }
