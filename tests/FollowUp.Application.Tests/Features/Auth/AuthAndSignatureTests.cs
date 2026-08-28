@@ -3,7 +3,9 @@ using FollowUp.Application.Common.Exceptions;
 using FollowUp.Application.Features.Auth;
 using FollowUp.Application.Features.Signatures;
 using FollowUp.Application.Tests.Common;
+using FollowUp.Domain.Complaints;
 using FollowUp.Domain.Identity;
+using FollowUp.Domain.Laboratories;
 
 namespace FollowUp.Application.Tests.Features.Auth;
 
@@ -24,7 +26,7 @@ public class LoginHandlerTests
     }
 
     private static LoginHandler Handler(FakeAppUserRepository users, FakeRoleRepository roles, FakeUserSessionRepository sessions) =>
-        new(users, roles, sessions, new FakePasswordHasher(), new FakeTokenService(), new FakeAuthPolicy(), new FakeClock(Now));
+        new(users, roles, sessions, new FakePasswordHasher(), new FakeTokenService(), new FakeAuthPolicy(), new FakeClock(Now), new FakeFailedLoginRecorder());
 
     [Fact]
     public async Task Successful_login_returns_token_and_effective_privileges()
@@ -82,17 +84,26 @@ public class SignatureHandlerTests
         var sigs = new FakeElectronicSignatureRepository();
         var recordHasher = new FakeRecordHasher { Hash = "HASH-1", Version = 1 };
 
+        // A real in-scope complaint so the verify handler's record-scope guard (SIG-3) is satisfied.
+        var lab = Laboratory.Register(LabCode.Create("MGL-SIG"), "Lab", "B");
+        var complaint = Complaint.Log(1, lab.Id, "Result Quality", "Phone", null, "details");
+        var labs = new FakeLaboratoryRepository();
+        labs.Add(lab);
+        var complaints = new FakeComplaintRepository();
+        complaints.Add(complaint);
+        var recordId = complaint.Id.Value.ToString();
+
         var sign = new SignRecordHandler(sigs, users, hasher, recordHasher, caller, new FakeClock(Now));
-        await sign.Handle(new SignRecordCommand("complaint", "c-1", "Approval", "ok", "pw12345678"), CancellationToken.None);
+        await sign.Handle(new SignRecordCommand("complaint", recordId, "Approval", "ok", "pw12345678"), CancellationToken.None);
         sigs.Store.Should().ContainSingle();
 
-        var verify = new VerifySignatureHandler(sigs, recordHasher);
-        (await verify.Handle(new VerifySignatureQuery("complaint", "c-1"), CancellationToken.None))
+        var verify = new VerifySignatureHandler(sigs, recordHasher, caller, complaints, labs);
+        (await verify.Handle(new VerifySignatureQuery("complaint", recordId), CancellationToken.None))
             .StillValid.Should().BeTrue();
 
         // Simulate a material record change -> signature no longer valid.
         recordHasher.Hash = "HASH-2"; recordHasher.Version = 2;
-        var after = await verify.Handle(new VerifySignatureQuery("complaint", "c-1"), CancellationToken.None);
+        var after = await verify.Handle(new VerifySignatureQuery("complaint", recordId), CancellationToken.None);
         after.Signed.Should().BeTrue();
         after.StillValid.Should().BeFalse();
     }

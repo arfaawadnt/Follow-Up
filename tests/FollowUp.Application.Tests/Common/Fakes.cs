@@ -280,3 +280,14 @@ public sealed class FakeSetupQueries : Application.Features.Setup.ISetupQueries
     public Task<IReadOnlyList<Application.Features.Setup.AreaDto>> GetAreasAsync(CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<Application.Features.Setup.AreaDto>>(new List<Application.Features.Setup.AreaDto>());
 }
+
+/// <summary>No-op failed-login recorder for handler tests (persistence is proven in the integration suite).</summary>
+public sealed class FakeFailedLoginRecorder : IFailedLoginRecorder
+{
+    public int Calls { get; private set; }
+    public Task RecordAsync(AppUserId userId, CancellationToken ct)
+    {
+        Calls++;
+        return Task.CompletedTask;
+    }
+}
