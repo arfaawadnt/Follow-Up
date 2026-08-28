@@ -229,12 +229,15 @@ public sealed class ChangeOwnPasswordValidator : AbstractValidator<ChangeOwnPass
 public sealed class ChangeOwnPasswordHandler : ICommandHandler<ChangeOwnPasswordCommand>
 {
     private readonly IAppUserRepository _users;
+    private readonly IUserSessionRepository _sessions;
     private readonly ICurrentUser _caller;
     private readonly IPasswordHasher _hasher;
+    private readonly IClock _clock;
 
-    public ChangeOwnPasswordHandler(IAppUserRepository users, ICurrentUser caller, IPasswordHasher hasher)
+    public ChangeOwnPasswordHandler(IAppUserRepository users, IUserSessionRepository sessions,
+        ICurrentUser caller, IPasswordHasher hasher, IClock clock)
     {
-        _users = users; _caller = caller; _hasher = hasher;
+        _users = users; _sessions = sessions; _caller = caller; _hasher = hasher; _clock = clock;
     }
 
     public async Task<Unit> Handle(ChangeOwnPasswordCommand request, CancellationToken ct)
@@ -246,6 +249,14 @@ public sealed class ChangeOwnPasswordHandler : ICommandHandler<ChangeOwnPassword
             throw new ForbiddenException("The current password is incorrect.");
 
         user.SetPassword(_hasher.Hash(request.NewPassword));
+
+        // Evict the user's other sessions so a stolen bearer token cannot outlive the password change
+        // (finding IDN-5); keep the caller's current session so they are not logged out mid-change.
+        var now = _clock.UtcNow;
+        foreach (var session in await _sessions.GetActiveByUserAsync(_caller.UserId, ct))
+            if (session.Id != _caller.SessionId)
+                session.Revoke(now);
+
         return Unit.Value;
     }
 }

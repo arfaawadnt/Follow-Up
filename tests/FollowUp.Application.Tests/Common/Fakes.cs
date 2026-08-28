@@ -213,6 +213,8 @@ public sealed class FakeUserSessionRepository : IUserSessionRepository
         Task.FromResult(Store.FirstOrDefault(s => s.Id == id));
     public Task<UserSession?> GetActiveByTokenHashAsync(string tokenHash, CancellationToken ct) =>
         Task.FromResult(Store.FirstOrDefault(s => s.TokenHash == tokenHash));
+    public Task<IReadOnlyList<UserSession>> GetActiveByUserAsync(AppUserId userId, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<UserSession>>(Store.Where(s => s.UserId == userId && s.RevokedAt == null).ToList());
     public void Add(UserSession session) => Store.Add(session);
 }
 

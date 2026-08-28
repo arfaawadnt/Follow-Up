@@ -29,5 +29,7 @@ public interface IUserSessionRepository
 {
     Task<UserSession?> GetByIdAsync(UserSessionId id, CancellationToken ct);
     Task<UserSession?> GetActiveByTokenHashAsync(string tokenHash, CancellationToken ct);
+    /// <summary>The user's non-revoked sessions — used to evict them on a password change (IDN-5).</summary>
+    Task<IReadOnlyList<UserSession>> GetActiveByUserAsync(AppUserId userId, CancellationToken ct);
     void Add(UserSession session);
 }
