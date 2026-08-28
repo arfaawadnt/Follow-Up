@@ -38,13 +38,7 @@ public sealed class CompensationConfig : AggregateRoot<string>, IVersioned, IAud
 
     private CompensationConfig() { } // EF
 
-    private CompensationConfig(string id, decimal commissionRatePercent, decimal bonusThresholdPercent, Money bonusAmount)
-        : base(id)
-    {
-        CommissionRatePercent = commissionRatePercent;
-        BonusThresholdPercent = bonusThresholdPercent;
-        BonusAmount = bonusAmount;
-    }
+    private CompensationConfig(string id) : base(id) { }
 
     public const string SingletonId = "default";
 
@@ -68,7 +62,10 @@ public sealed class CompensationConfig : AggregateRoot<string>, IVersioned, IAud
     public static CompensationConfig Create(decimal commissionRatePercent, decimal bonusThresholdPercent,
         Money bonusAmount, IEnumerable<LoyaltyTier> tiers)
     {
-        var cfg = new CompensationConfig(SingletonId, commissionRatePercent, bonusThresholdPercent, bonusAmount);
+        // Route through SetCommission so first-time config cannot bypass the negative-rate guard the way the
+        // old ctor assignment did — a negative rate then hard-failed every rep's commission recompute (CPN-5).
+        var cfg = new CompensationConfig(SingletonId);
+        cfg.SetCommission(commissionRatePercent, bonusThresholdPercent, bonusAmount);
         cfg.SetTiers(tiers);
         return cfg;
     }
@@ -83,6 +80,8 @@ public sealed class CompensationConfig : AggregateRoot<string>, IVersioned, IAud
     {
         if (ratePercent < 0 || bonusThresholdPercent < 0)
             throw new DomainException("Commission rates cannot be negative.");
+        if (bonusAmount.Amount < 0)
+            throw new DomainException("Bonus amount cannot be negative.");
         CommissionRatePercent = ratePercent;
         BonusThresholdPercent = bonusThresholdPercent;
         BonusAmount = bonusAmount;

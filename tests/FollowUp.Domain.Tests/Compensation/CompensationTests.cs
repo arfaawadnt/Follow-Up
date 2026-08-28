@@ -46,6 +46,27 @@ public class CompensationConfigTests
         cfg.TierFor(100m)!.Name.Should().Be("Gold");
         cfg.TierFor(10m).Should().BeNull();
     }
+
+    [Fact]
+    public void Create_rejects_a_negative_commission_rate()
+    {
+        // CPN-5: Create routed around SetCommission's guard, so a negative rate persisted and then hard-failed
+        // every rep's commission recompute until the config was repaired.
+        var act = () => CompensationConfig.Create(-1m, 100m, new Money(500m),
+            new[] { new LoyaltyTier("Gold", 100m, 500) });
+
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void Create_rejects_a_negative_bonus_amount()
+    {
+        // CPN-5: Money accepts negatives and the old ctor path never checked the bonus.
+        var act = () => CompensationConfig.Create(5m, 100m, new Money(-500m),
+            new[] { new LoyaltyTier("Gold", 100m, 500) });
+
+        act.Should().Throw<DomainException>();
+    }
 }
 
 public class OracleConfigTests
