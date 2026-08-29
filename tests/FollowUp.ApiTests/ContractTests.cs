@@ -142,5 +142,16 @@ public sealed class ContractTests
         codes.Should().Contain(HttpStatusCode.TooManyRequests, "signing must be throttled to blunt password guessing (SIG-9)");
     }
 
+    [SkippableFact]
+    public async Task Retired_stage_endpoint_returns_410_gone()
+    {
+        // CMP-5: /complaints/{id}/stage duplicated /advance and is retired; it answers 410 to any caller
+        // (anonymous, so the tombstone is testable) pointing them to /advance.
+        Skip.IfNot(_fx.DatabaseAvailable, "FOLLOWUP_DB not set.");
+        using var client = _fx.CreateClient();
+        var resp = await client.PostAsJsonAsync($"/api/v1/complaints/{Guid.NewGuid()}/stage", new { stage = "Investigation" });
+        resp.StatusCode.Should().Be(HttpStatusCode.Gone);
+    }
+
     private sealed record IdResponse(Guid Id);
 }

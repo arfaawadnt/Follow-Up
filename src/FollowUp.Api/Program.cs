@@ -116,8 +116,13 @@ app.UseMiddleware<TokenAuthMiddleware>();
 app.Use(async (ctx, next) =>
 {
     var path = ctx.Request.Path;
+    // Honour explicit AllowAnonymous (e.g. the retired /complaints/{id}/stage tombstone, CMP-5) alongside the
+    // login endpoint, so an endpoint that opts out of auth is not still gated here.
+    var anonymous = ctx.GetEndpoint()?.Metadata
+        .GetMetadata<Microsoft.AspNetCore.Authorization.IAllowAnonymous>() is not null;
     if (path.StartsWithSegments("/api/v1")
         && !path.StartsWithSegments("/api/v1/auth/login")
+        && !anonymous
         && ctx.Items[FollowUp.Api.Auth.CurrentUser.ItemKey] is null)
     {
         ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;

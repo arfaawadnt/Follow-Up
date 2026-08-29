@@ -8,7 +8,6 @@ namespace FollowUp.Api.Endpoints;
 
 public static class ServiceEndpoints
 {
-    public sealed record StageBody(string Stage);
     public sealed record AdvanceStageBody(string Stage, string? Notes, bool? IsValid, string? OutcomeType, string? Summary);
     public sealed record ResolveBody(string? ResolutionSummary);
     public sealed record SignBody(string Module, string RecordId, string Meaning, string? Reason, string Password);
@@ -30,8 +29,12 @@ public static class ServiceEndpoints
         { await m.Send(new ResolveComplaintCommand(id, b?.ResolutionSummary), ct); return Results.NoContent(); }).WithTags("Complaints");
         api.MapPost("/complaints/{id:guid}/reopen", async (Guid id, IMediator m, CancellationToken ct) =>
         { await m.Send(new ReopenComplaintCommand(id), ct); return Results.NoContent(); }).WithTags("Complaints");
-        api.MapPost("/complaints/{id:guid}/stage", async (Guid id, StageBody b, IMediator m, CancellationToken ct) =>
-        { await m.Send(new MoveComplaintStageCommand(id, b.Stage), ct); return Results.NoContent(); }).WithTags("Complaints");
+        // Retired (CMP-5): /stage duplicated /advance, which survives. Return 410 Gone so callers get a clear
+        // signal to migrate rather than a silent behaviour change.
+        api.MapPost("/complaints/{id:guid}/stage", (Guid id) =>
+            Results.Problem(statusCode: 410, title: "Endpoint retired",
+                detail: "POST /complaints/{id}/stage is retired. Use POST /complaints/{id}/advance."))
+            .WithTags("Complaints").AllowAnonymous();
         api.MapPost("/complaints/{id:guid}/advance", async (Guid id, AdvanceStageBody b, IMediator m, CancellationToken ct) =>
         { await m.Send(new AdvanceComplaintStageCommand(id, b.Stage, b.Notes, b.IsValid, b.OutcomeType, b.Summary), ct); return Results.NoContent(); }).WithTags("Complaints");
     }

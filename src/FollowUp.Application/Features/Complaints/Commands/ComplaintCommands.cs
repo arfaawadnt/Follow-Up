@@ -168,31 +168,9 @@ public sealed class ReopenComplaintHandler : ICommandHandler<ReopenComplaintComm
     }
 }
 
-// ---- Move stage (metadata only; never changes status) ----
-
-public sealed record MoveComplaintStageCommand(Guid Id, string Stage) : ICommand, IAuthorizedRequest
-{
-    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.UpdateComplaints, Privileges.ManageComplaints };
-}
-
-public sealed class MoveComplaintStageHandler : ICommandHandler<MoveComplaintStageCommand>
-{
-    private readonly IComplaintRepository _complaints;
-    private readonly ILaboratoryRepository _labs;
-    private readonly ICurrentUser _user;
-
-    public MoveComplaintStageHandler(IComplaintRepository complaints, ILaboratoryRepository labs, ICurrentUser user)
-    {
-        _complaints = complaints; _labs = labs; _user = user;
-    }
-
-    public async Task<Unit> Handle(MoveComplaintStageCommand request, CancellationToken ct)
-    {
-        var complaint = await ComplaintActionSupport.LoadAuthorizedAsync(request.Id, _complaints, _labs, _user, ct);
-        complaint.MoveToStage(Enumeration.FromName<ComplaintStage>(request.Stage));
-        return Unit.Value;
-    }
-}
+// The metadata-only "move stage" command and its POST /complaints/{id}/stage route are retired (CMP-5): they
+// duplicated the advance operation below, which survives. The route now returns 410 Gone. The stage still
+// stays a captured narrative — status only ever changes through the guarded machine (CMP-2).
 
 // ---- Advance stage with payload (reference parity: validity / investigation / outcome narratives) ----
 
