@@ -198,4 +198,38 @@ public class SignatureHandlerTests
             new SignRecordCommand("complaint", recordId, "Approval", null, "pw12345678"), CancellationToken.None);
         await act.Should().ThrowAsync<ForbiddenException>();
     }
+
+    [Fact]
+    public async Task Signing_the_same_state_twice_is_idempotent_but_a_different_meaning_creates_a_new_signature()
+    {
+        // SIG-6: a retried identical sign must not append a duplicate to the append-only log; a deliberate
+        // re-sign with a different meaning still creates a new attestation.
+        var hasher = new FakePasswordHasher();
+        var users = new FakeAppUserRepository();
+        var user = AppUser.Create("signer", hasher.Hash("pw12345678"), RoleId.New());
+        users.Store.Add(user);
+        var caller = new FakeCurrentUser { UserId = user.Id, Username = "signer" };
+        var sigs = new FakeElectronicSignatureRepository();
+        var recordHasher = new FakeRecordHasher { Hash = "HASH-1", Version = 1 };
+
+        var lab = Laboratory.Register(LabCode.Create("MGL-SIG6"), "Lab", "B");
+        var complaint = Complaint.Log(1, lab.Id, "Result Quality", "Phone", null, "details");
+        var labs = new FakeLaboratoryRepository();
+        labs.Add(lab);
+        var complaints = new FakeComplaintRepository();
+        complaints.Add(complaint);
+        var recordId = complaint.Id.Value.ToString();
+
+        var sign = new SignRecordHandler(sigs, users, hasher, recordHasher, caller, new FakeClock(Now), complaints, labs,
+            new FakeAuthPolicy(), new FakeFailedLoginRecorder());
+
+        var first = await sign.Handle(new SignRecordCommand("complaint", recordId, "Approval", "ok", "pw12345678"), CancellationToken.None);
+        var retry = await sign.Handle(new SignRecordCommand("complaint", recordId, "Approval", "ok", "pw12345678"), CancellationToken.None);
+
+        retry.Should().Be(first, "an identical retried sign returns the existing signature");
+        sigs.Store.Should().ContainSingle("no duplicate row is appended for a retry");
+
+        await sign.Handle(new SignRecordCommand("complaint", recordId, "Review", "ok", "pw12345678"), CancellationToken.None);
+        sigs.Store.Should().HaveCount(2, "a re-sign with a different meaning is a new attestation");
+    }
 }

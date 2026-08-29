@@ -83,11 +83,28 @@ public sealed class SignRecordHandler : ICommandHandler<SignRecordCommand, Guid>
         // Server-computed content hash + version (client never supplies these).
         var computed = await _recordHasher.ComputeAsync(request.Module, request.RecordId, ct)
             ?? throw new NotFoundException($"{request.Module} record", request.RecordId);
+        var meaning = Enumeration.FromName<SignatureMeaning>(request.Meaning);
+
+        // Idempotency (SIG-6): a retried sign — timeout+re-click, gateway retry, double-tap racing the client's
+        // busy flag (which the standard forbids as the boundary) — must not append a second near-identical row
+        // to the append-only signature log. If the latest signature already attests this exact state (same
+        // signer, meaning, reason, hash, version), return it. A deliberate re-sign with a different meaning or
+        // reason, or after a material change (new hash/version), still creates a new signature.
+        var latest = await _signatures.GetLatestAsync(request.Module, request.RecordId, ct);
+        if (latest is not null
+            && latest.SignerUserId == _caller.UserId.Value
+            && latest.Meaning == meaning
+            && latest.RecordVersion == computed.Version
+            && string.Equals(latest.ContentHash, computed.ContentHash, StringComparison.Ordinal)
+            && string.Equals(latest.Reason, request.Reason, StringComparison.Ordinal))
+        {
+            return latest.Id.Value;
+        }
 
         var signature = ElectronicSignature.Create(
             request.Module, request.RecordId, computed.Version,
             _caller.UserId.Value, _caller.Username, authLevel: "password",
-            Enumeration.FromName<SignatureMeaning>(request.Meaning), request.Reason,
+            meaning, request.Reason,
             computed.ContentHash, now, _caller.Ip);
 
         _signatures.Add(signature);
