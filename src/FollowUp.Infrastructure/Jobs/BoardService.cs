@@ -34,7 +34,15 @@ public sealed class BoardService : IBoardScheduler
     {
         var day = date ?? _clock.CairoToday;
         var pending = VisitStatus.Pending;
-        var visits = await _db.DailyVisits.Where(v => v.VisitDate == day && v.Status == pending).ToListAsync(ct);
+        var q = _db.DailyVisits.Where(v => v.VisitDate == day && v.Status == pending);
+        // On today's standalone (evening) sweep, don't mark a slot Missed before its scheduled time — a lab that
+        // visits after the sweep runs would otherwise be missed before its window (BRD-10). A past day is all due.
+        if (day == _clock.CairoToday)
+        {
+            var cutoff = TimeOnly.FromTimeSpan(_clock.CairoNow.TimeOfDay);
+            q = q.Where(v => v.ScheduledTime <= cutoff);
+        }
+        var visits = await q.ToListAsync(ct);
         foreach (var visit in visits) visit.Miss();
         await _db.SaveChangesAsync(ct);
         _logger.LogInformation("Missed-sweep marked {Count} visits missed for {Day}", visits.Count, day);
