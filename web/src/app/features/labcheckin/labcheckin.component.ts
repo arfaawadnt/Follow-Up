@@ -65,7 +65,7 @@ import { exportCsv, printTable, localToday, localDateTime } from '../../shared/e
             @for (r of filtered(); track r.visitId) {
               <tr>
                 <td>@if (r.status !== 'Received') { <input type="checkbox" [checked]="selected.has(r.visitId)" (change)="toggleRow(r.visitId)"> }</td>
-                <td><b style="color:var(--slate-900)">{{ r.labName }}</b><div class="small muted">{{ r.labCode }}@if (r.area) { · {{ r.area }} }</div></td>
+                <td><b style="color:var(--slate-900)">{{ r.labName }}</b><div class="small muted">{{ r.labDisplayCode }}@if (r.area) { · {{ r.area }} }</div></td>
                 <td class="mono small">{{ r.visitDate }} · {{ r.visitTime }}</td>
                 <td>{{ r.collectorName ?? '—' }}<div class="small muted">{{ r.transferRepName ?? '' }}</div></td>
                 <td class="mono" style="font-weight:700">{{ r.samples ?? 0 }}</td>
@@ -148,7 +148,7 @@ export class LabCheckInComponent {
   // ---- Exports ----
 
   private exportRows(): (string | number | null)[][] {
-    return this.filtered().map((r) => [r.labName, r.labCode, r.area, r.governorate, `${r.visitDate} ${r.visitTime}`,
+    return this.filtered().map((r) => [r.labName, r.labDisplayCode, r.area, r.governorate, `${r.visitDate} ${r.visitTime}`,
       r.collectorName, r.transferRepName, r.samples ?? 0, this.when(r.transferTime), r.status, this.when(r.receivedTime)]);
   }
   private static readonly EXPORT_HEADER = ['Laboratory', 'Code', 'Area', 'Governorate', 'Collected', 'Collector rep', 'Transfer rep', 'Samples', 'Transfer time', 'Status', 'Received at'];

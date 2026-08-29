@@ -72,7 +72,7 @@ export interface ComplaintDetail {
 export interface ComplaintAuditRow { occurredAt: string; actor: string; action: string; before: string | null; after: string | null; }
 
 export interface BoardItem {
-  visitId: string; laboratoryId: string; labDisplayCode: string; labCode: string; lab: string;
+  visitId: string; laboratoryId: string; labDisplayCode: string; lab: string;
   collectorRepId: string | null; rep: string | null;
   branch: string | null; governorate: string | null; city: string | null; area: string | null;
   visitDate: string; scheduledTime: string;
@@ -100,14 +100,14 @@ export interface MarketingVisit {
 }
 
 export interface TransferItem {
-  visitId: string; laboratoryId: string; labDisplayCode: string; labCode: string; labName: string;
+  visitId: string; laboratoryId: string; labDisplayCode: string; labName: string;
   branch: string | null; governorate: string | null; city: string | null; area: string | null;
   visitDate: string; visitTime: string; collectorName: string | null; samples: number | null;
   transferDone: boolean; driverName: string | null; driverMobile: string | null; carPlate: string | null;
   transferRepId: string | null; transferRepName: string | null; transferTime: string | null;
 }
 export interface ReceivingItem {
-  visitId: string; laboratoryId: string; labDisplayCode: string; labCode: string; labName: string;
+  visitId: string; laboratoryId: string; labDisplayCode: string; labName: string;
   branch: string | null; governorate: string | null; city: string | null; area: string | null;
   visitDate: string; visitTime: string; collectorName: string | null; samples: number | null; status: string;
   transferRepName: string | null; transferTime: string | null; receivedTime: string | null;
