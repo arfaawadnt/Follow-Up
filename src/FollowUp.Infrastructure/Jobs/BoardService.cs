@@ -149,11 +149,10 @@ public sealed class BoardService : IBoardScheduler
     /// </summary>
     private async Task<int> StageBoardAsync(DateOnly date, CancellationToken ct)
     {
-        var active = LaboratoryStatus.Active;
-        var pending = LaboratoryStatus.Pending;
-        var interactive = LaboratoryStatus.Interactive;
+        // Filter by the domain's single schedulable-status set (BRD-4) rather than re-listing the statuses here,
+        // so generation and reconcile can never disagree about which labs belong on the board.
         var labs = await _db.Laboratories
-            .Where(l => l.Status == active || l.Status == pending || l.Status == interactive)
+            .Where(l => LaboratoryStatus.Schedulable.Contains(l.Status))
             .ToListAsync(ct);
 
         var existing = (await _db.DailyVisits.Where(v => v.VisitDate == date).Select(v => v.LaboratoryId).ToListAsync(ct)).ToHashSet();
