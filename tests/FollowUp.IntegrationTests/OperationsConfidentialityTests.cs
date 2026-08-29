@@ -45,9 +45,9 @@ public sealed class OperationsConfidentialityTests
         // A caller WITHOUT ShowEncryptedLabs.
         var board = await queries.GetBoardAsync(today, today, null, null, OrgScope.Global, canSeeEncrypted: false, default);
 
-        AssertPerLabMasking(
-            board.Single(b => b.LaboratoryId == encId).LabDisplayCode, StringFields(board.Single(b => b.LaboratoryId == encId)),
-            board.Single(b => b.LaboratoryId == plainId).LabDisplayCode);
+        var enc = board.Single(b => b.LaboratoryId == encId);
+        var plain = board.Single(b => b.LaboratoryId == plainId);
+        AssertPerLabMasking(enc.LabDisplayCode, StringFields(enc), plain.LabDisplayCode);
     }
 
     [SkippableFact]
@@ -63,9 +63,9 @@ public sealed class OperationsConfidentialityTests
         var queries = read.ServiceProvider.GetRequiredService<ITransferQueries>();
         var rows = await queries.GetTransferableAsync(today, today, OrgScope.Global, canSeeEncrypted: false, default);
 
-        AssertPerLabMasking(
-            rows.Single(r => r.LaboratoryId == encId).LabDisplayCode, StringFields(rows.Single(r => r.LaboratoryId == encId)),
-            rows.Single(r => r.LaboratoryId == plainId).LabDisplayCode);
+        var enc = rows.Single(r => r.LaboratoryId == encId);
+        var plain = rows.Single(r => r.LaboratoryId == plainId);
+        AssertPerLabMasking(enc.LabDisplayCode, StringFields(enc), plain.LabDisplayCode);
     }
 
     [SkippableFact]
@@ -88,9 +88,9 @@ public sealed class OperationsConfidentialityTests
         var queries = read.ServiceProvider.GetRequiredService<ILabCheckInQueries>();
         var rows = await queries.GetAwaitingReceiptAsync(today, today, OrgScope.Global, canSeeEncrypted: false, default);
 
-        AssertPerLabMasking(
-            rows.Single(r => r.LaboratoryId == encId).LabDisplayCode, StringFields(rows.Single(r => r.LaboratoryId == encId)),
-            rows.Single(r => r.LaboratoryId == plainId).LabDisplayCode);
+        var enc = rows.Single(r => r.LaboratoryId == encId);
+        var plain = rows.Single(r => r.LaboratoryId == plainId);
+        AssertPerLabMasking(enc.LabDisplayCode, StringFields(enc), plain.LabDisplayCode);
     }
 
     // ---- helpers ----
