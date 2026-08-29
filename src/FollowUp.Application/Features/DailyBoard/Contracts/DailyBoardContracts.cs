@@ -8,7 +8,6 @@ public sealed record BoardItemDto(
     Guid VisitId,
     Guid LaboratoryId,
     string LabDisplayCode,
-    string LabCode,
     string Lab,
     Guid? CollectorRepId,
     string? Rep,

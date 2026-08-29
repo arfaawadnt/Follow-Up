@@ -37,7 +37,7 @@ internal sealed class DailyBoardQueries : IDailyBoardQueries
         var rows = await (from v in q
                           join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
                           orderby v.VisitDate, v.ScheduledTime
-                          select new { v.Id, v.LaboratoryId, l.Code, l.Name, l.Branch, l.Governorate, l.City, l.Area,
+                          select new { v.Id, v.LaboratoryId, l.Code, l.IsEncrypted, l.Name, l.Branch, l.Governorate, l.City, l.Area,
                               v.CollectorRepId, v.VisitDate, v.ScheduledTime, v.Status, v.SampleCount, v.CheckedInAt, v.AdminChecked, v.TransferConfirmedAt })
                          .ToListAsync(ct);
 
@@ -46,7 +46,7 @@ internal sealed class DailyBoardQueries : IDailyBoardQueries
             .Select(r => new { r.Id, r.FullName }).ToListAsync(ct)).ToDictionary(r => r.Id, r => r.FullName);
 
         return rows.Select(r => new BoardItemDto(
-            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Code.Value, r.Name,
+            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted || !r.IsEncrypted), r.Name,
             r.CollectorRepId != null ? r.CollectorRepId.Value.Value : (Guid?)null,
             r.CollectorRepId != null && repName.TryGetValue(r.CollectorRepId.Value, out var n) ? n : null,
             r.Branch, r.Governorate, r.City, r.Area,
@@ -81,7 +81,7 @@ internal sealed class TransferQueries : ITransferQueries
                           where v.Status == visited && v.VisitDate >= start && v.VisitDate <= end && scopedLabs.Contains(v.LaboratoryId)
                           join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
                           orderby v.VisitDate, v.ScheduledTime
-                          select new { v.Id, v.LaboratoryId, l.Code, l.Name, l.Branch, l.Governorate, l.City, l.Area,
+                          select new { v.Id, v.LaboratoryId, l.Code, l.IsEncrypted, l.Name, l.Branch, l.Governorate, l.City, l.Area,
                               v.VisitDate, v.ScheduledTime, v.CollectorRepId, v.SampleCount, v.TransferConfirmedAt,
                               v.TransferRepId, v.Transfer })
                          .ToListAsync(ct);
@@ -92,7 +92,7 @@ internal sealed class TransferQueries : ITransferQueries
         string? Name(RepresentativeId? id) => id != null && repName.TryGetValue(id.Value, out var n) ? n : null;
 
         return rows.Select(r => new TransferItemDto(
-            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Code.Value, r.Name,
+            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted || !r.IsEncrypted), r.Name,
             r.Branch, r.Governorate, r.City, r.Area,
             r.VisitDate, r.ScheduledTime.ToString("HH:mm"), Name(r.CollectorRepId), r.SampleCount,
             r.TransferConfirmedAt != null, r.Transfer?.DriverName, r.Transfer?.DriverMobile, r.Transfer?.CarPlate,
@@ -116,7 +116,7 @@ internal sealed class LabCheckInQueries : ILabCheckInQueries
                                 && v.VisitDate >= start && v.VisitDate <= end && scopedLabs.Contains(v.LaboratoryId)
                           join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
                           orderby v.VisitDate, v.ScheduledTime
-                          select new { v.Id, v.LaboratoryId, l.Code, l.Name, l.Branch, l.Governorate, l.City, l.Area,
+                          select new { v.Id, v.LaboratoryId, l.Code, l.IsEncrypted, l.Name, l.Branch, l.Governorate, l.City, l.Area,
                               v.VisitDate, v.ScheduledTime, v.CollectorRepId, v.SampleCount, v.Status, v.TransferRepId,
                               v.TransferConfirmedAt, v.ReceivedAt })
                          .ToListAsync(ct);
@@ -128,7 +128,7 @@ internal sealed class LabCheckInQueries : ILabCheckInQueries
         string? Name(RepresentativeId? id) => id != null && repName.TryGetValue(id.Value, out var n) ? n : null;
 
         return rows.Select(r => new ReceivingItemDto(
-            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Code.Value, r.Name,
+            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted || !r.IsEncrypted), r.Name,
             r.Branch, r.Governorate, r.City, r.Area, r.VisitDate, r.ScheduledTime.ToString("HH:mm"),
             Name(r.CollectorRepId), r.SampleCount,
             r.Status == received ? "Received" : "Transferred",
