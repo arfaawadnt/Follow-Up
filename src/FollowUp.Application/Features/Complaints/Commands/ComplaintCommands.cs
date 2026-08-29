@@ -48,8 +48,13 @@ public sealed class LogComplaintValidator : AbstractValidator<LogComplaintComman
     public LogComplaintValidator()
     {
         RuleFor(x => x.LaboratoryId).NotEmpty();
-        RuleFor(x => x.Category).NotEmpty();
-        RuleFor(x => x.ViaChannel).NotEmpty();
+        // Mirror the schema's varchar bounds so over-length input is a 400, not a DbUpdateException 22001 → 500
+        // (CMP-19). Details/InvestigationNotes are `text` and need no bound.
+        RuleFor(x => x.Category).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.ViaChannel).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.AssignedTeam).MaximumLength(100);
+        RuleFor(x => x.ReceivedAt).LessThanOrEqualTo(_ => DateTimeOffset.UtcNow)
+            .When(x => x.ReceivedAt.HasValue).WithMessage("The received date cannot be in the future.");
     }
 }
 
@@ -195,6 +200,10 @@ public sealed class AdvanceComplaintStageValidator : AbstractValidator<AdvanceCo
             .WithMessage("Investigation notes are required.");
         RuleFor(x => x.OutcomeType).NotEmpty().When(x => x.Stage == "BusinessOutcome")
             .WithMessage("An outcome type is required.");
+        // Schema bounds (CMP-19): OutcomeType varchar(100); Notes/Summary land in varchar(2000) narrative fields.
+        RuleFor(x => x.OutcomeType).MaximumLength(100);
+        RuleFor(x => x.Notes).MaximumLength(2000);
+        RuleFor(x => x.Summary).MaximumLength(2000);
     }
 }
 
