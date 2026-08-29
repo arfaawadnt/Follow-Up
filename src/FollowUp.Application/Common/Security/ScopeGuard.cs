@@ -22,15 +22,16 @@ public static class ScopeGuard
     }
 
     /// <summary>
-    /// Ensures a representative is within the caller's org scope (finding CPN-3). Reps carry
-    /// Branch/Governorate/City/Area; the lab-only Category/Segment dimensions are wildcarded, matching the
-    /// read-side rule in GetCommissionsAsync (CPN-2). Unattributed reps are in scope only for a global caller.
+    /// Ensures a representative is within the caller's org scope (finding CPN-3). Reps carry only
+    /// Branch/Governorate/City/Area, so scope is checked on those geographic dimensions alone — never the
+    /// lab-only Category/Segment — matching the read-side rule in GetCommissionsAsync (CPN-2). Unattributed reps
+    /// are in scope only for a geographically-global caller.
     /// </summary>
     public static void EnsureInScope(this ICurrentUser user, Representative rep)
     {
-        var allowed = user.Scope.Allows(rep.Branch, rep.Governorate, rep.City, rep.Area,
-            FollowUp.Domain.Identity.OrgScope.Wildcard, FollowUp.Domain.Identity.OrgScope.Wildcard);
-        if (!allowed)
+        // Reps carry only geographic attribution — check those four dimensions, never Category/Segment (which
+        // would deny a Category/Segment-scoped manager every rep). Matches GetCommissionsAsync's read filter.
+        if (!user.Scope.Allows(rep.Branch, rep.Governorate, rep.City, rep.Area))
             throw new ForbiddenException("This representative is outside your organizational scope.");
     }
 

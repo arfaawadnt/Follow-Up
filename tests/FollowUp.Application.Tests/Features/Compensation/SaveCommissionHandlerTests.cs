@@ -58,4 +58,29 @@ public class SaveCommissionHandlerTests
         var act = () => handler.Handle(new SaveCommissionCommand(rep.Id.Value, new YearMonth(2026, 8).Code), CancellationToken.None);
         await act.Should().ThrowAsync<ForbiddenException>();
     }
+
+    [Fact]
+    public async Task Save_is_allowed_for_a_category_scoped_caller_reaching_a_rep_in_their_geography()
+    {
+        // Review fix to CPN-2/CPN-3: reps carry no Category/Segment, so a Category-restricted (but
+        // geographically global) commission manager must still reach reps in their geography — the old
+        // six-dimension check with "*" passed as the category/segment value denied them every rep.
+        var rep = Representative.Register("Rep", RepresentativeType.Collector, GoalDuration.Monthly,
+            salary: new Money(3000m), target: new Money(2000m));
+        rep.AssignScope(branch: null, governorate: "Cairo", area: null, city: null);
+        var reps = new FakeRepresentativeRepository();
+        reps.Store.Add(rep);
+        var configs = new FakeCompensationConfigRepository();
+        configs.Add(CompensationConfig.Create(5m, 100m, new Money(500m), new[] { new LoyaltyTier("Gold", 100m, 500) }));
+
+        // Restricted to the "Private" category, global in every geographic dimension.
+        var categoryScoped = OrgScope.Create(
+            new[] { "*" }, new[] { "*" }, new[] { "*" }, new[] { "*" }, new[] { "Private" }, new[] { "*" });
+        var handler = new SaveCommissionHandler(reps, new FakeRepCommissionRepository(), configs,
+            new FakeCompensationData { RepAchieved = 2000 }, new FakeCurrentUser { Scope = categoryScoped }, new FakeClock(Now));
+
+        var act = () => handler.Handle(new SaveCommissionCommand(rep.Id.Value, new YearMonth(2026, 8).Code), CancellationToken.None);
+
+        await act.Should().NotThrowAsync();
+    }
 }

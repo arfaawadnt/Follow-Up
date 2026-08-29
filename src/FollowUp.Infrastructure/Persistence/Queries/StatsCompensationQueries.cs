@@ -126,13 +126,14 @@ internal sealed class CompensationQueries : ICompensationQueries
     public async Task<IReadOnlyList<CommissionDto>> GetCommissionsAsync(int period, OrgScope scope, CancellationToken ct)
     {
         // Scope commissions to the caller's org scope (SRS SCOPE-READ / finding CPN-2): a rep is visible only
-        // when its attribution falls within scope. Reps carry Branch/Governorate/City/Area (not the lab-only
-        // Category/Segment dimensions, which are therefore wildcarded), so the isolation rule is the same
-        // OrgScope.Allows used everywhere else; a rep with no attribution is visible only to a global-scoped
-        // caller (fail-closed, matching OrgScope.Allows' null semantics). One row per active in-scope rep.
+        // when its attribution falls within scope. Reps carry only Branch/Governorate/City/Area (never the
+        // lab-only Category/Segment dimensions), so scope them by the geographic-only OrgScope.Allows overload
+        // — checking Category/Segment here would deny every rep to a Category/Segment-scoped manager. A rep with
+        // no geographic attribution is visible only to a geographically-global caller (fail-closed, matching
+        // OrgScope.Allows' null semantics). One row per active in-scope rep.
         var ym = YearMonth.FromCode(period);
         var reps = (await _db.Representatives.AsNoTracking().Where(r => r.IsActive).ToListAsync(ct))
-            .Where(r => scope.Allows(r.Branch, r.Governorate, r.City, r.Area, OrgScope.Wildcard, OrgScope.Wildcard))
+            .Where(r => scope.Allows(r.Branch, r.Governorate, r.City, r.Area))
             .ToList();
         var comms = (await _db.Commissions.AsNoTracking().Where(x => x.Period == ym).ToListAsync(ct))
             .ToDictionary(x => x.RepresentativeId);
