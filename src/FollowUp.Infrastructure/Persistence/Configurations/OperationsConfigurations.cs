@@ -41,6 +41,9 @@ internal sealed class DailyVisitConfiguration : IEntityTypeConfiguration<DailyVi
         b.HasIndex(x => x.VisitDate);
         b.HasIndex(x => new { x.LaboratoryId, x.VisitDate });
         b.HasIndex(x => x.Status);
+        // A lab has at most one visit per scheduled time per day: a DB-level second line of defense (BRD-9)
+        // against the two-Hangfire-job race (rollover vs intra-day reconcile) that app-level skip checks miss.
+        b.HasIndex(x => new { x.LaboratoryId, x.VisitDate, x.ScheduledTime }).IsUnique();
     }
 }
 
