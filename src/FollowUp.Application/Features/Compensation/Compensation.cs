@@ -220,6 +220,76 @@ public sealed class SaveCommissionHandler : ICommandHandler<SaveCommissionComman
     }
 }
 
+// ---- Save commissions for every in-scope rep (one transaction, finding CPN-8) ----
+
+/// <summary>
+/// Recomputes and persists the commission for EVERY in-scope rep for a period in a single transaction, backing
+/// the "Save payouts" action. Replaces the client's per-rep fan-out (one POST per row, no rollback, silent
+/// abort on error) that could leave a payroll month half-saved in production (finding CPN-8). Server-computed
+/// throughout (BR-9); per-rep org-scope enforced (CPN-3). Returns the number of reps saved.
+/// </summary>
+public sealed record SaveAllCommissionsCommand(int Period) : ICommand<int>, IAuthorizedRequest
+{
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageCommissions };
+}
+
+public sealed class SaveAllCommissionsValidator : AbstractValidator<SaveAllCommissionsCommand>
+{
+    public SaveAllCommissionsValidator() =>
+        RuleFor(x => x.Period).GreaterThan(0).WithMessage("Period must be a positive YYYYMM code.");
+}
+
+public sealed class SaveAllCommissionsHandler : ICommandHandler<SaveAllCommissionsCommand, int>
+{
+    private readonly IRepresentativeRepository _reps;
+    private readonly IRepCommissionRepository _commissions;
+    private readonly ICompensationConfigRepository _configs;
+    private readonly ICompensationData _data;
+    private readonly ICompensationQueries _queries;
+    private readonly ICurrentUser _user;
+    private readonly IClock _clock;
+
+    public SaveAllCommissionsHandler(IRepresentativeRepository reps, IRepCommissionRepository commissions,
+        ICompensationConfigRepository configs, ICompensationData data, ICompensationQueries queries,
+        ICurrentUser user, IClock clock)
+    {
+        _reps = reps; _commissions = commissions; _configs = configs; _data = data; _queries = queries; _user = user; _clock = clock;
+    }
+
+    public async Task<int> Handle(SaveAllCommissionsCommand request, CancellationToken ct)
+    {
+        var config = await _configs.GetAsync(ct)
+            ?? throw new ConflictException("Compensation configuration has not been set.");
+        var period = YearMonth.FromCode(request.Period);
+        var calculator = new CompensationCalculator(config);
+
+        // In-scope, active reps only — the query already applies the caller's OrgScope (CPN-2).
+        var rows = await _queries.GetCommissionsAsync(request.Period, _user.Scope, ct);
+
+        var count = 0;
+        foreach (var row in rows)
+        {
+            var rep = await _reps.GetByIdAsync(new RepresentativeId(row.RepId), ct);
+            if (rep is null) continue;
+            _user.EnsureInScope(rep); // defense in depth (CPN-3)
+
+            var achieved = await _data.GetRepAchievedSamplesAsync(rep.Id, period, ct);
+            var target = rep.Target.Amount;
+            var (commission, bonus) = calculator.ComputeCommission(achieved, target, rep.Salary);
+
+            var record = await _commissions.GetAsync(rep.Id, period, ct);
+            if (record is null)
+            {
+                record = RepCommission.For(rep.Id, period);
+                _commissions.Add(record);
+            }
+            record.Recompute(target, achieved, rep.Salary, commission, bonus, _clock.UtcNow);
+            count++;
+        }
+        return count;
+    }
+}
+
 // ---- Set compensation config ----
 
 public sealed record SetCompensationConfigCommand(

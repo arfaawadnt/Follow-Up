@@ -10,6 +10,7 @@ public static class AnalyticsEndpoints
 {
     public sealed record SetTargetBody(Guid LaboratoryId, int MonthlyTarget);
     public sealed record SaveCommissionBody(Guid RepresentativeId, int Period);
+    public sealed record SaveAllCommissionsBody(int Period);
     public sealed record ImportBody(byte[] Content);
     public sealed record IntegrationConfigBody(bool Enabled, int IntervalHours);
 
@@ -28,6 +29,8 @@ public static class AnalyticsEndpoints
             Results.Ok(await m.Send(new GetCommissionsQuery(period), ct))).WithTags("Commissions");
         api.MapPost("/commissions/save", async (SaveCommissionBody b, IMediator m, CancellationToken ct) =>
         { await m.Send(new SaveCommissionCommand(b.RepresentativeId, b.Period), ct); return Results.NoContent(); }).WithTags("Commissions");
+        api.MapPost("/commissions/save-all", async (SaveAllCommissionsBody b, IMediator m, CancellationToken ct) =>
+        { var n = await m.Send(new SaveAllCommissionsCommand(b.Period), ct); return Results.Ok(new { saved = n }); }).WithTags("Commissions");
 
         api.MapGet("/setup/compensation-config", async (IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetCompensationConfigQuery(), ct))).WithTags("Compensation");

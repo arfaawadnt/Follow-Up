@@ -1,7 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { DecimalPipe, formatDate } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { forkJoin } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { TranslatePipe } from '../../core/i18n';
@@ -89,11 +88,11 @@ export class CommissionsComponent {
     });
   }
   save(): void {
-    const rows = this.rows();
-    if (!rows.length) return;
+    if (!this.rows().length) return;
     this.busy.set(true);
-    const period = this.period;
-    forkJoin(rows.map((r) => this.api.post('/commissions/save', { representativeId: r.repId, period })))
+    // One transactional call (CPN-8): the server recomputes and saves every in-scope rep's payout together,
+    // so a period is never left half-saved the way the old per-row fan-out could.
+    this.api.post('/commissions/save-all', { period: this.period })
       .subscribe({ next: () => { this.busy.set(false); this.load(); }, error: () => this.busy.set(false) });
   }
 }
