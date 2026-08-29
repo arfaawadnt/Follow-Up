@@ -189,4 +189,23 @@ public class ComplaintTests
         complaint.ResolutionSummary.Should().Be("credited the affected order");
         complaint.Status.Should().Be(ComplaintStatus.Resolved);
     }
+
+    [Fact]
+    public void Content_version_advances_on_every_material_change_and_a_revert_never_lowers_it()
+    {
+        // SIG-4: a monotonic content version, so an edit-and-revert (A→B→A) can never restore an earlier version
+        // and resurrect a signature bound to that earlier state.
+        var complaint = NewComplaint();
+        complaint.ContentVersion.Should().Be(1u);
+
+        complaint.RecordInvestigation("root cause A");
+        var atA = complaint.ContentVersion;
+        atA.Should().BeGreaterThan(1u);
+
+        complaint.RecordInvestigation("root cause B");
+        complaint.ContentVersion.Should().BeGreaterThan(atA);
+
+        complaint.RecordInvestigation("root cause A"); // revert the field to its earlier value
+        complaint.ContentVersion.Should().BeGreaterThan(atA, "reverting content must not restore an earlier version");
+    }
 }

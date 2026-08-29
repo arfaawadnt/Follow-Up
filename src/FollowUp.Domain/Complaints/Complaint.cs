@@ -40,6 +40,17 @@ public sealed class Complaint : AggregateRoot<ComplaintId>, IVersioned, IAuditab
     /// <summary>Optimistic-concurrency token (Postgres xmin); concurrent workflow edits conflict (409). Finding CMP-6.</summary>
     public uint RowVersion { get; private set; }
 
+    /// <summary>
+    /// Monotonic content version (SIG-4): incremented on every change to a field covered by the signature
+    /// content hash, so a material edit — even one later reverted (A→B→A) — always yields a strictly higher
+    /// version and can never resurrect a signature bound to an earlier state (SRS line 322: a material change
+    /// creates a new version). Distinct from <see cref="RowVersion"/> (xmin), which bumps on ANY update
+    /// including audit-only saves and so would over-invalidate. Starts at 1 when the complaint is logged.
+    /// </summary>
+    public uint ContentVersion { get; private set; } = 1;
+
+    private void BumpContentVersion() => ContentVersion++;
+
     public Guid? RepresentativeId { get; private set; }
     public DateTimeOffset? ReceivedAt { get; private set; }
 
@@ -93,6 +104,7 @@ public sealed class Complaint : AggregateRoot<ComplaintId>, IVersioned, IAuditab
     {
         RepresentativeId = representativeId;
         ReceivedAt = receivedAt;
+        BumpContentVersion();
     }
 
     /// <summary>Validity check: valid continues the flow; invalid short-circuits to RejectedInvalid.</summary>
@@ -102,6 +114,7 @@ public sealed class Complaint : AggregateRoot<ComplaintId>, IVersioned, IAuditab
         IsValid = isValid;
         ValidityNotes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
         Stage = isValid ? ComplaintStage.ValidityChecked : ComplaintStage.RejectedInvalid;
+        BumpContentVersion();
     }
 
     /// <summary>Investigation notes / root-cause analysis (stage → Investigation).</summary>
@@ -112,6 +125,7 @@ public sealed class Complaint : AggregateRoot<ComplaintId>, IVersioned, IAuditab
             throw new DomainException("Investigation notes are required.");
         InvestigationNotes = notes.Trim();
         Stage = ComplaintStage.Investigation;
+        BumpContentVersion();
     }
 
     /// <summary>Business outcome (communication type + summary; stage → BusinessOutcome).</summary>
@@ -123,11 +137,15 @@ public sealed class Complaint : AggregateRoot<ComplaintId>, IVersioned, IAuditab
         OutcomeType = outcomeType.Trim();
         OutcomeSummary = string.IsNullOrWhiteSpace(summary) ? null : summary.Trim();
         Stage = ComplaintStage.BusinessOutcome;
+        BumpContentVersion();
     }
 
     /// <summary>Resolution summary text shown on the closed complaint.</summary>
-    public void SetResolutionSummary(string? summary) =>
+    public void SetResolutionSummary(string? summary)
+    {
         ResolutionSummary = string.IsNullOrWhiteSpace(summary) ? null : summary.Trim();
+        BumpContentVersion();
+    }
 
     /// <summary>Open → InProgress (start investigation).</summary>
     public void Start()
@@ -135,6 +153,7 @@ public sealed class Complaint : AggregateRoot<ComplaintId>, IVersioned, IAuditab
         Status.EnsureCanTransitionTo(ComplaintStatus.InProgress);
         Status = ComplaintStatus.InProgress;
         // Stage stays Logged: acknowledging is an explicit workflow step (reference parity).
+        BumpContentVersion();
     }
 
     /// <summary>
@@ -151,6 +170,7 @@ public sealed class Complaint : AggregateRoot<ComplaintId>, IVersioned, IAuditab
         Stage = ComplaintStage.Resolution;
         ResolvedAt = when;
         ResolvedBy = actor;
+        BumpContentVersion();
         Raise(new ComplaintResolved(Id, LaboratoryId, Reference));
     }
 
@@ -161,6 +181,7 @@ public sealed class Complaint : AggregateRoot<ComplaintId>, IVersioned, IAuditab
         Status = ComplaintStatus.Open;
         ResolvedAt = null;
         ResolvedBy = null;
+        BumpContentVersion();
     }
 
     /// <summary>
@@ -177,6 +198,7 @@ public sealed class Complaint : AggregateRoot<ComplaintId>, IVersioned, IAuditab
         if (stage == ComplaintStage.Resolution || stage == ComplaintStage.RejectedInvalid)
             throw new IllegalStateTransitionException(nameof(ComplaintStage), Stage.Name, stage.Name);
         Stage = stage;
+        BumpContentVersion();
     }
 
     /// <summary>A resolved complaint is closed: its investigation narrative is frozen (finding CMP-2).</summary>

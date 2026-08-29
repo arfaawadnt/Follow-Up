@@ -55,10 +55,11 @@ public sealed class RecordHasher : IRecordHasher
         });
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
 
-        // No dedicated row-version column on complaint; a deterministic version derived from the content lets
-        // ElectronicSignature.StillValidFor bind to a specific state.
-        var version = BitConverter.ToUInt32(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)), 0);
-        return (hash, version);
+        // The complaint's monotonic ContentVersion (bumped by every material mutator) is the real version — a
+        // strictly increasing counter, so an edit-and-revert (A→B→A) cannot resurrect an earlier signature the
+        // way the previous hash-derived "version" did (SIG-4). The hash stays the change discriminator; the
+        // version adds continuity. StillValidFor requires BOTH to match.
+        return (hash, c.ContentVersion);
     }
 }
 

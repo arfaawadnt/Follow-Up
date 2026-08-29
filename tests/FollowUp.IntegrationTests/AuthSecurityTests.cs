@@ -146,4 +146,57 @@ public sealed class AuthSecurityTests
         after.Should().NotBe(before,
             "changing a material field (resolution summary) must invalidate a bound signature (SIG-1/SIG-7)");
     }
+
+    [SkippableFact]
+    public async Task Reverting_a_material_field_advances_the_version_so_a_prior_signature_cannot_resurrect()
+    {
+        // SIG-4: the version was derived from the same content as the hash, so an edit-and-revert restored both
+        // and resurrected an old signature. The version is now the complaint's monotonic ContentVersion, so a
+        // revert restores the hash but NOT the version — StillValidFor (which requires both) stays false.
+        Skip.IfNot(_fx.DatabaseAvailable, "FOLLOWUP_DB not set.");
+        await _fx.ResetAsync();
+
+        Guid complaintId;
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            var labId = await mediator.Send(new CreateLaboratoryCommand
+            { Code = "MGL-SIG4", Name = "Sig4 Lab", Segment = "A", Governorate = "Cairo" });
+            await mediator.Send(new LogComplaintCommand
+            { LaboratoryId = labId, Category = "Result Quality", ViaChannel = "Phone", Details = "d" });
+            var db = scope.ServiceProvider.GetRequiredService<FollowUpDbContext>();
+            complaintId = (await db.Complaints.AsNoTracking()
+                .FirstAsync(c => c.LaboratoryId == new LaboratoryId(labId))).Id.Value;
+        }
+
+        // The state a signature would bind to.
+        (string Hash, uint Version) signed;
+        using (var scope = _fx.Services.CreateScope())
+            signed = (await scope.ServiceProvider.GetRequiredService<IRecordHasher>()
+                .ComputeAsync("complaint", complaintId.ToString(), default))!.Value;
+
+        // Edit a material field, then revert it to its original value.
+        foreach (var value in new string?[] { "temporary edit", null })
+            using (var scope = _fx.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<FollowUpDbContext>();
+                var c = await db.Complaints.FirstAsync(x => x.Id == new ComplaintId(complaintId));
+                c.SetResolutionSummary(value);
+                await db.SaveChangesAsync();
+            }
+
+        (string Hash, uint Version) now;
+        using (var scope = _fx.Services.CreateScope())
+            now = (await scope.ServiceProvider.GetRequiredService<IRecordHasher>()
+                .ComputeAsync("complaint", complaintId.ToString(), default))!.Value;
+
+        now.Hash.Should().Be(signed.Hash, "reverting the field restores the content hash");
+        now.Version.Should().BeGreaterThan(signed.Version, "but the monotonic version has advanced (SIG-4)");
+
+        var sig = Domain.Signatures.ElectronicSignature.Create("complaint", complaintId.ToString(), signed.Version,
+            Guid.NewGuid(), "tester", "password", Domain.Signatures.SignatureMeaning.Approval, null,
+            signed.Hash, DateTimeOffset.UtcNow, null);
+        sig.StillValidFor(now.Hash, now.Version)
+            .Should().BeFalse("the reverted content must not resurrect a signature bound to the earlier version");
+    }
 }
