@@ -52,16 +52,23 @@ public sealed class ReadPathTests
     public async Task Encrypted_alias_is_applied_when_not_permitted()
     {
         Skip.IfNot(_fx.DatabaseAvailable, "FOLLOWUP_DB not set.");
-        await SeedTwoLabs();
+        // BR-7 confidentiality is per-lab, not mask-everything: seed one encrypted lab and one plain lab.
+        await _fx.ResetAsync();
+        await Send(new CreateLaboratoryCommand { Code = "MGL-A1", Name = "Cairo Lab", Segment = "A", Governorate = "Cairo", IsEncrypted = true });
+        await Send(new CreateLaboratoryCommand { Code = "MGL-B1", Name = "Giza Lab", Segment = "B", Governorate = "Giza" });
 
         using var scope = _fx.Services.CreateScope();
         var queries = scope.ServiceProvider.GetRequiredService<ILaboratoryQueries>();
 
+        // Without ShowEncryptedLabs: only the encrypted lab is aliased; the plain lab keeps its real code.
         var masked = await queries.SearchAsync(new LabSearchCriteria(), OrgScope.Global, canSeeEncrypted: false, canSeeLocation: true, default);
-        masked.Items.Should().OnlyContain(i => i.Encrypted && i.DisplayCode.StartsWith("ENC-"));
+        masked.Items.Single(i => i.Encrypted).DisplayCode.Should().StartWith("ENC-");
+        masked.Items.Single(i => !i.Encrypted).DisplayCode.Should().Be("MGL-B1");
 
+        // With the privilege: both labs show their real code and none is flagged encrypted.
         var real = await queries.SearchAsync(new LabSearchCriteria(), OrgScope.Global, canSeeEncrypted: true, canSeeLocation: true, default);
-        real.Items.Should().Contain(i => i.DisplayCode == "MGL-A1");
+        real.Items.Should().OnlyContain(i => !i.Encrypted);
+        real.Items.Select(i => i.DisplayCode).Should().Contain(new[] { "MGL-A1", "MGL-B1" });
     }
 
     [SkippableFact]
