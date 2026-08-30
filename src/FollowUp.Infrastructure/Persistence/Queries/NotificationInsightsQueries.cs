@@ -304,9 +304,10 @@ internal sealed class InsightsQueries : IInsightsQueries
         // 14-day completion: done (Visited/Received) over all scheduled rows in the window, plus missed count.
         var d14Start = today.AddDays(-13);
         var window = allVisits.Where(v => v.VisitDate >= d14Start && v.VisitDate <= today).ToList();
-        var done14 = window.Count(v => v.Status is "Visited" or "Received");
+        // Read-side status compared against the enumeration's names, not raw literals (BRD-11).
+        var done14 = window.Count(v => v.Status == VisitStatus.Visited.Name || v.Status == VisitStatus.Received.Name);
         var completion14 = window.Count > 0 ? (int)Math.Round(100.0 * done14 / window.Count) : 0;
-        var missed14 = window.Count(v => v.Status == "Missed");
+        var missed14 = window.Count(v => v.Status == VisitStatus.Missed.Name);
 
         var complaintRows = (await _db.Complaints.AsNoTracking().Where(c => c.LaboratoryId == lid)
                 .OrderByDescending(c => c.Number).Take(20)

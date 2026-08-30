@@ -28,7 +28,7 @@ internal sealed class DailyBoardQueries : IDailyBoardQueries
         if (status is { Length: > 0 })
         {
             // "Visited" spans the collected + received states; other pills match exactly (converted equality translates).
-            if (status == "Visited")
+            if (status == VisitStatus.Visited.Name) // BRD-11: bound to the enumeration, not a raw literal
                 q = q.Where(v => v.Status == VisitStatus.Visited || v.Status == VisitStatus.Received);
             else
                 q = q.Where(v => v.Status == Enumeration.FromName<VisitStatus>(status));
@@ -135,7 +135,8 @@ internal sealed class LabCheckInQueries : ILabCheckInQueries
             r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, r.IsEncrypted, canSeeEncrypted), r.Code.Value, r.Name,
             r.Branch, r.Governorate, r.City, r.Area, r.VisitDate, r.ScheduledTime.ToString("HH:mm"),
             Name(r.CollectorRepId), r.SampleCount,
-            r.Status == received ? "Received" : "Transferred",
+            // "Transferred" is a display-only status (no VisitStatus member); "Received" is bound to the enum (BRD-11).
+            r.Status == received ? VisitStatus.Received.Name : "Transferred",
             Name(r.TransferRepId),
             r.TransferConfirmedAt?.ToString("o"),
             r.ReceivedAt?.ToString("o"))).ToList();
@@ -267,7 +268,7 @@ internal sealed class SampleTrackingQueries : ISampleTrackingQueries
                           where l.Area == area
                           select v.SampleCount!.Value).SumAsync(ct);
         var archived = await (from h in _db.VisitHistory.AsNoTracking()
-                              where h.VisitDate == date && h.Status == "Received" && h.SampleCount != null
+                              where h.VisitDate == date && h.Status == received.Name && h.SampleCount != null
                               join l in _db.Laboratories.AsNoTracking() on h.LaboratoryId equals l.Id
                               where l.Area == area
                               select h.SampleCount!.Value).SumAsync(ct);
@@ -282,7 +283,7 @@ internal sealed class SampleTrackingQueries : ISampleTrackingQueries
             .Where(v => v.LaboratoryId == laboratoryId && v.Status == received && v.SampleCount != null)
             .Select(v => v.VisitDate).Distinct().ToListAsync(ct);
         var archived = await _db.VisitHistory.AsNoTracking()
-            .Where(h => h.LaboratoryId == laboratoryId && h.Status == "Received" && h.SampleCount != null)
+            .Where(h => h.LaboratoryId == laboratoryId && h.Status == received.Name && h.SampleCount != null)
             .Select(h => h.VisitDate).Distinct().ToListAsync(ct);
         return live.Union(archived).OrderBy(d => d).ToList();
     }
