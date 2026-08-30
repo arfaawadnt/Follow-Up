@@ -48,6 +48,23 @@ internal sealed class ComplaintQueries : IComplaintQueries
         return PagedResult<ComplaintListItemDto>.Create(items, total, criteria.Page, criteria.PageSize);
     }
 
+    public async Task<ComplaintCountsDto> CountsAsync(OrgScope scope, string? category, Guid? laboratoryId, CancellationToken ct)
+    {
+        // Status breakdown over the whole in-scope set (CMP-16), honouring category/lab but not status, so the
+        // filter pills stay accurate no matter which status page is loaded. Converted-type equality translates.
+        var scopedLabs = _db.Laboratories.ApplyScope(scope).Select(l => l.Id);
+        var q = _db.Complaints.AsNoTracking().Where(c => scopedLabs.Contains(c.LaboratoryId));
+        if (!string.IsNullOrWhiteSpace(category))
+            q = q.Where(c => c.Category == category);
+        if (laboratoryId is { } labId)
+            q = q.Where(c => c.LaboratoryId == new Domain.Laboratories.LaboratoryId(labId));
+
+        var open = await q.CountAsync(c => c.Status == Domain.Complaints.ComplaintStatus.Open, ct);
+        var inProgress = await q.CountAsync(c => c.Status == Domain.Complaints.ComplaintStatus.InProgress, ct);
+        var resolved = await q.CountAsync(c => c.Status == Domain.Complaints.ComplaintStatus.Resolved, ct);
+        return new ComplaintCountsDto(open + inProgress + resolved, open, inProgress, resolved);
+    }
+
     public async Task<ComplaintDetailDto?> GetByIdAsync(Guid id, OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
     {
         // Scope the join to the caller's org scope: an out-of-scope complaint yields no row → null → 404,

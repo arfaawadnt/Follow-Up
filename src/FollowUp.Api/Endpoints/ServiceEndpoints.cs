@@ -20,6 +20,8 @@ public static class ServiceEndpoints
     {
         api.MapGet("/complaints", async (int? page, int? pageSize, string? status, string? category, Guid? laboratoryId, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetComplaintsQuery { Page = page ?? 1, PageSize = pageSize ?? 50, Status = status, Category = category, LaboratoryId = laboratoryId }, ct))).WithTags("Complaints");
+        api.MapGet("/complaints/counts", async (string? category, Guid? laboratoryId, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetComplaintCountsQuery(laboratoryId, category), ct))).WithTags("Complaints"); // CMP-16 server-side pill counts
         api.MapGet("/complaints/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetComplaintByIdQuery(id), ct))).WithTags("Complaints");
         api.MapGet("/complaints/{id:guid}/audit", async (Guid id, IMediator m, CancellationToken ct) =>

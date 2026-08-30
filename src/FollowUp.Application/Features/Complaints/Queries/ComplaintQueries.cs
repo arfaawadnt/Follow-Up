@@ -39,6 +39,24 @@ public sealed class GetComplaintsHandler : IQueryHandler<GetComplaintsQuery, Pag
     }
 }
 
+/// <summary>Status counts for the complaint list's filter pills, computed server-side (SRS FR-11, finding CMP-16).</summary>
+public sealed record GetComplaintCountsQuery(Guid? LaboratoryId = null, string? Category = null)
+    : IQuery<ComplaintCountsDto>, IAuthorizedRequest
+{
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ViewComplaints, Privileges.ManageComplaints };
+}
+
+public sealed class GetComplaintCountsHandler : IQueryHandler<GetComplaintCountsQuery, ComplaintCountsDto>
+{
+    private readonly IComplaintQueries _queries;
+    private readonly ICurrentUser _user;
+
+    public GetComplaintCountsHandler(IComplaintQueries queries, ICurrentUser user) { _queries = queries; _user = user; }
+
+    public Task<ComplaintCountsDto> Handle(GetComplaintCountsQuery request, CancellationToken ct) =>
+        _queries.CountsAsync(_user.Scope, request.Category, request.LaboratoryId, ct);
+}
+
 /// <summary>Returns one complaint's detail (SRS FR-11).</summary>
 public sealed record GetComplaintByIdQuery(Guid Id) : IQuery<ComplaintDetailDto>, IAuthorizedRequest
 {
