@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, inject, signal, ViewChild } from '@angular/core';
 import { DatePipe, SlicePipe } from '@angular/common';
 import { FormsModule, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
@@ -36,7 +36,7 @@ type StageForm = 'ack' | 'validity' | 'investigation' | 'outcome' | 'resolve';
 
     <!-- Reference has no KPI cards here — one filter row: status pills + category dropdown -->
     <div class="card" style="padding:12px;margin-bottom:16px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-      @for (s of statuses; track s) { <span class="pill" [class.on]="status() === s" (click)="setStatus(s)">{{ statusLabel(s) }} · {{ s === 'All' ? (result()?.total ?? 0) : count(s) }}</span> }
+      @for (s of statuses; track s) { <button type="button" class="pill" [class.on]="status() === s" [attr.aria-pressed]="status() === s" (click)="setStatus(s)">{{ statusLabel(s) }} · {{ s === 'All' ? (result()?.total ?? 0) : count(s) }}</button> }
       <select class="select" style="width:auto;min-width:180px;margin-inline-start:10px" [ngModel]="category()" (ngModelChange)="setCategory($event)">
         <option value="">{{ 'all' | t : 'All' }}</option>
         @for (c of categories; track c) { <option [value]="c">{{ c }}</option> }
@@ -82,9 +82,10 @@ type StageForm = 'ack' | 'validity' | 'investigation' | 'outcome' | 'resolve';
     <!-- Log complaint popup -->
     @if (showLog()) {
       <div class="overlay" (click)="showLog.set(false)">
-        <div class="dlg" (click)="$event.stopPropagation()" style="width:min(94vw,620px)">
+        <div #dlg class="dlg" role="dialog" aria-modal="true" aria-labelledby="logComplaintTitle" tabindex="-1"
+             (click)="$event.stopPropagation()" style="width:min(94vw,620px)">
           <div class="dlg-head">
-            <div><h2>{{ 'log_complaint_title' | t : 'Log Complaint' }}</h2>
+            <div><h2 id="logComplaintTitle">{{ 'log_complaint_title' | t : 'Log Complaint' }}</h2>
               <div class="small muted">{{ 'cmp_ref_auto_hint' | t : 'A sequential reference (CMP-nnn) is assigned automatically' }}</div></div>
             <button class="btn btn-mini btn-s" (click)="showLog.set(false)">✕</button>
           </div>
@@ -114,9 +115,10 @@ type StageForm = 'ack' | 'validity' | 'investigation' | 'outcome' | 'resolve';
     <!-- Details popup (reference: "View Details" with stepper, metadata cards and staged forms) -->
     @if (detail(); as d) {
       <div class="overlay" (click)="closeDetail()">
-        <div class="dlg" (click)="$event.stopPropagation()" style="width:min(94vw,800px);max-height:88vh;overflow-y:auto">
+        <div #dlg class="dlg" role="dialog" aria-modal="true" aria-labelledby="complaintDetailTitle" tabindex="-1"
+             (click)="$event.stopPropagation()" style="width:min(94vw,800px);max-height:88vh;overflow-y:auto">
           <div class="dlg-head">
-            <h2>{{ 'view_details' | t : 'View Details' }} <span class="badge" [class]="badge(d.status)">{{ d.status }}</span>
+            <h2 id="complaintDetailTitle">{{ 'view_details' | t : 'View Details' }} <span class="badge" [class]="badge(d.status)">{{ d.status }}</span>
               @if (d.stage === 'RejectedInvalid') { <span class="badge b-bad">{{ 'invalid' | t : 'Invalid' }}</span> }</h2>
             <button class="btn btn-mini btn-s" (click)="closeDetail()">✕</button>
           </div>
@@ -131,9 +133,9 @@ type StageForm = 'ack' | 'validity' | 'investigation' | 'outcome' | 'resolve';
             }
           </div>
 
-          <div class="toolbar" style="padding:0 16px;display:flex;gap:6px">
-            <span class="pill" [class.on]="detailTab() === 'meta'" (click)="detailTab.set('meta')">{{ 'details_meta' | t : 'Details & Metadata' }}</span>
-            <span class="pill" [class.on]="detailTab() === 'audit'" (click)="loadAudit(d.id)">{{ 'audit_log' | t : 'Audit Log' }}</span>
+          <div class="toolbar" role="tablist" style="padding:0 16px;display:flex;gap:6px">
+            <button type="button" class="pill" role="tab" [attr.aria-selected]="detailTab() === 'meta'" [class.on]="detailTab() === 'meta'" (click)="detailTab.set('meta')">{{ 'details_meta' | t : 'Details & Metadata' }}</button>
+            <button type="button" class="pill" role="tab" [attr.aria-selected]="detailTab() === 'audit'" [class.on]="detailTab() === 'audit'" (click)="loadAudit(d.id)">{{ 'audit_log' | t : 'Audit Log' }}</button>
           </div>
 
           @if (detailTab() === 'meta') {
@@ -261,6 +263,12 @@ export class ComplaintsComponent {
   readonly showLog = signal(false);
   readonly detail = signal<ComplaintDetail | null>(null);
   readonly detailTab = signal<'meta' | 'audit'>('meta');
+  // CMP-17: move focus into whichever dialog opens, and let Escape close it (keyboard/screen-reader operable).
+  @ViewChild('dlg') set dlg(el: ElementRef<HTMLElement> | undefined) { el?.nativeElement.focus(); }
+  @HostListener('document:keydown.escape') onEscape(): void {
+    if (this.detail()) this.closeDetail();
+    else if (this.showLog()) this.showLog.set(false);
+  }
   readonly audit = signal<ComplaintAuditRow[] | null>(null);
   readonly formError = signal<string | null>(null);
   readonly actionError = signal<string | null>(null);
