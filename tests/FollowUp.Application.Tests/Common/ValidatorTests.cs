@@ -31,6 +31,20 @@ public class ValidatorTests
     }
 
     [Fact]
+    public void CreateUser_enforces_password_complexity_and_a_deny_list()
+    {
+        // IDN-10: length alone is not enough — require mixed case + a digit, and reject common choices.
+        static bool Valid(string pw) => new CreateUserValidator()
+            .Validate(new CreateUserCommand { Username = "u", Password = pw, RoleId = System.Guid.NewGuid() }).IsValid;
+
+        Valid("alllower12345").Should().BeFalse();       // no upper-case
+        Valid("ALLUPPER12345").Should().BeFalse();       // no lower-case
+        Valid("NoDigitsHere!").Should().BeFalse();       // no digit
+        Valid("Password1").Should().BeFalse();           // passes complexity but is on the deny-list
+        Valid("Str0ng-Passphrase").Should().BeTrue();    // length + complexity + not common
+    }
+
+    [Fact]
     public void SetRetention_enforces_the_30_day_minimum()
     {
         new SetRetentionValidator().Validate(new SetRetentionCommand(10)).IsValid.Should().BeFalse();

@@ -45,7 +45,7 @@ public sealed class CreateUserValidator : AbstractValidator<CreateUserCommand>
     public CreateUserValidator()
     {
         RuleFor(x => x.Username).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.Password).NotEmpty().MinimumLength(8);
+        RuleFor(x => x.Password).StrongPassword(); // length + complexity + deny-list (IDN-10)
         RuleFor(x => x.RoleId).NotEmpty();
     }
 }
@@ -223,7 +223,7 @@ public sealed record ChangeOwnPasswordCommand(string OldPassword, string NewPass
 
 public sealed class ChangeOwnPasswordValidator : AbstractValidator<ChangeOwnPasswordCommand>
 {
-    public ChangeOwnPasswordValidator() => RuleFor(x => x.NewPassword).NotEmpty().MinimumLength(8);
+    public ChangeOwnPasswordValidator() => RuleFor(x => x.NewPassword).StrongPassword(); // IDN-10
 }
 
 public sealed class ChangeOwnPasswordHandler : ICommandHandler<ChangeOwnPasswordCommand>
