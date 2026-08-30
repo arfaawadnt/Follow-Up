@@ -153,5 +153,28 @@ public sealed class ContractTests
         resp.StatusCode.Should().Be(HttpStatusCode.Gone);
     }
 
+    [SkippableFact]
+    public async Task Log_complaint_returns_201_with_id_and_reference_at_the_resource_uri()
+    {
+        // CMP-13: POST /complaints takes a dedicated body, returns {id, reference}, and points Location at the
+        // new resource (/complaints/{id}) rather than the collection.
+        Skip.IfNot(_fx.AuthReady, "Auth not ready.");
+        using var client = _fx.CreateAuthedClient();
+        var code = $"MGL-CM{Guid.NewGuid().ToString("N")[..6].ToUpperInvariant()}";
+        var labResp = await client.PostAsJsonAsync("/api/v1/labs",
+            new { code, name = "Complaint Contract Lab", segment = "A", governorate = "Cairo", workDays = Array.Empty<string>(), visitTimes = Array.Empty<string>() });
+        var lab = await labResp.Content.ReadFromJsonAsync<IdResponse>();
+
+        var resp = await client.PostAsJsonAsync("/api/v1/complaints",
+            new { laboratoryId = lab!.Id, category = "Result Quality", viaChannel = "Phone", details = "d" });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Created);
+        var body = await resp.Content.ReadFromJsonAsync<ComplaintCreatedResponse>();
+        body!.Id.Should().NotBeEmpty();
+        body.Reference.Should().StartWith("CMP-");
+        resp.Headers.Location!.ToString().Should().EndWith($"/api/v1/complaints/{body.Id}");
+    }
+
     private sealed record IdResponse(Guid Id);
+    private sealed record ComplaintCreatedResponse(Guid Id, string Reference);
 }

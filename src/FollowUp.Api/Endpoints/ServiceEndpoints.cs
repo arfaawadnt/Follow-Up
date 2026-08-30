@@ -8,6 +8,8 @@ namespace FollowUp.Api.Endpoints;
 
 public static class ServiceEndpoints
 {
+    public sealed record LogComplaintBody(Guid LaboratoryId, string Category, string ViaChannel, string? AssignedTeam,
+        string Details, Guid? RepresentativeId, DateTimeOffset? ReceivedAt);
     public sealed record AdvanceStageBody(string Stage, string? Notes, bool? IsValid, string? OutcomeType, string? Summary);
     public sealed record ResolveBody(string? ResolutionSummary);
     public sealed record SignActionBody(string Meaning, string? Reason, string Password); // module+recordId are in the route (SIG-12)
@@ -22,8 +24,15 @@ public static class ServiceEndpoints
             Results.Ok(await m.Send(new GetComplaintByIdQuery(id), ct))).WithTags("Complaints");
         api.MapGet("/complaints/{id:guid}/audit", async (Guid id, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetComplaintAuditQuery(id), ct))).WithTags("Complaints");
-        api.MapPost("/complaints", async (LogComplaintCommand cmd, IMediator m, CancellationToken ct) =>
-        { var reference = await m.Send(cmd, ct); return Results.Created($"/api/v1/complaints", new { reference }); }).WithTags("Complaints");
+        api.MapPost("/complaints", async (LogComplaintBody b, IMediator m, CancellationToken ct) =>
+        {
+            var r = await m.Send(new LogComplaintCommand
+            {
+                LaboratoryId = b.LaboratoryId, Category = b.Category, ViaChannel = b.ViaChannel,
+                AssignedTeam = b.AssignedTeam, Details = b.Details, RepresentativeId = b.RepresentativeId, ReceivedAt = b.ReceivedAt,
+            }, ct);
+            return Results.Created($"/api/v1/complaints/{r.Id}", r); // resource URI carries the new id (CMP-13)
+        }).WithTags("Complaints");
         api.MapPost("/complaints/{id:guid}/start", async (Guid id, IMediator m, CancellationToken ct) =>
         { await m.Send(new StartComplaintCommand(id), ct); return Results.NoContent(); }).WithTags("Complaints");
         api.MapPost("/complaints/{id:guid}/resolve", async (Guid id, ResolveBody? b, IMediator m, CancellationToken ct) =>

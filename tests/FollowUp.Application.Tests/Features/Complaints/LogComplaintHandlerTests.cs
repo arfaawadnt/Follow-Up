@@ -49,8 +49,8 @@ public class LogComplaintHandlerTests
         reps.Store.Add(rep);
         var handler = new LogComplaintHandler(complaints, labs, reps, new FakeCurrentUser());
 
-        (await handler.Handle(Cmd(lab.Id.Value, rep.Id.Value), CancellationToken.None)).Should().StartWith("CMP-");
-        (await handler.Handle(Cmd(lab.Id.Value, null), CancellationToken.None)).Should().StartWith("CMP-");
+        (await handler.Handle(Cmd(lab.Id.Value, rep.Id.Value), CancellationToken.None)).Reference.Should().StartWith("CMP-");
+        (await handler.Handle(Cmd(lab.Id.Value, null), CancellationToken.None)).Reference.Should().StartWith("CMP-");
         complaints.Store.Should().HaveCount(2);
     }
 }

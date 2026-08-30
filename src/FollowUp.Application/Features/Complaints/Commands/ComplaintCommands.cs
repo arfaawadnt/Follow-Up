@@ -32,7 +32,10 @@ internal static class ComplaintActionSupport
 
 // ---- Log (create) ----
 
-public sealed record LogComplaintCommand : ICommand<string>, IAuthorizedRequest
+/// <summary>The created complaint's identity (CMP-13): both the id (for the resource URI) and the CMP-n reference.</summary>
+public sealed record LogComplaintResult(Guid Id, string Reference);
+
+public sealed record LogComplaintCommand : ICommand<LogComplaintResult>, IAuthorizedRequest
 {
     public Guid LaboratoryId { get; init; }
     public string Category { get; init; } = string.Empty;
@@ -60,7 +63,7 @@ public sealed class LogComplaintValidator : AbstractValidator<LogComplaintComman
     }
 }
 
-public sealed class LogComplaintHandler : ICommandHandler<LogComplaintCommand, string>
+public sealed class LogComplaintHandler : ICommandHandler<LogComplaintCommand, LogComplaintResult>
 {
     private readonly IComplaintRepository _complaints;
     private readonly ILaboratoryRepository _labs;
@@ -73,7 +76,7 @@ public sealed class LogComplaintHandler : ICommandHandler<LogComplaintCommand, s
         _complaints = complaints; _labs = labs; _reps = reps; _user = user;
     }
 
-    public async Task<string> Handle(LogComplaintCommand request, CancellationToken ct)
+    public async Task<LogComplaintResult> Handle(LogComplaintCommand request, CancellationToken ct)
     {
         var lab = await _labs.GetByIdAsync(new LaboratoryId(request.LaboratoryId), ct)
             ?? throw new NotFoundException("Laboratory", request.LaboratoryId);
@@ -90,7 +93,7 @@ public sealed class LogComplaintHandler : ICommandHandler<LogComplaintCommand, s
         complaint.SetIntake(request.RepresentativeId, request.ReceivedAt);
 
         _complaints.Add(complaint);
-        return complaint.Reference; // e.g. CMP-42
+        return new LogComplaintResult(complaint.Id.Value, complaint.Reference); // id for the resource URI + CMP-42
     }
 }
 
