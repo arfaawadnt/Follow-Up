@@ -111,7 +111,8 @@ internal sealed class AuditQueries : IAuditQueries
 internal sealed class SessionQueries : ISessionQueries
 {
     private readonly FollowUpDbContext _db;
-    public SessionQueries(FollowUpDbContext db) => _db = db;
+    private readonly IClock _clock;
+    public SessionQueries(FollowUpDbContext db, IClock clock) { _db = db; _clock = clock; }
 
     public async Task<IReadOnlyList<SessionDto>> GetForUserAsync(AppUserId userId, CancellationToken ct) =>
         await _db.Sessions.AsNoTracking().Where(s => s.UserId == userId)
@@ -121,7 +122,7 @@ internal sealed class SessionQueries : ISessionQueries
 
     public async Task<IReadOnlyList<AdminSessionDto>> GetAllAsync(CancellationToken ct)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = _clock.UtcNow; // IClock, not wall-clock (IDN-8)
         var rows = await (from s in _db.Sessions.AsNoTracking()
                           join u in _db.Users.AsNoTracking() on s.UserId equals u.Id
                           orderby s.IssuedAt descending

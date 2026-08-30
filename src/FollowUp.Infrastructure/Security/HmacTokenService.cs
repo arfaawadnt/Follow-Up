@@ -14,13 +14,15 @@ public sealed class HmacTokenService : ITokenService
 {
     private readonly byte[] _key;
     private readonly TimeSpan _lifetime;
+    private readonly IClock _clock;
 
-    public HmacTokenService(AuthOptions options)
+    public HmacTokenService(AuthOptions options, IClock clock)
     {
         if (string.IsNullOrWhiteSpace(options.SigningSecret))
             throw new InvalidOperationException("Auth:SigningSecret is not configured (fail-fast, NFR-SEC-3).");
         _key = Encoding.UTF8.GetBytes(options.SigningSecret);
         _lifetime = TimeSpan.FromHours(options.TokenLifetimeHours);
+        _clock = clock;
     }
 
     public IssuedToken Issue(AppUserId userId, UserSessionId sessionId, DateTimeOffset issuedAt)
@@ -49,7 +51,7 @@ public sealed class HmacTokenService : ITokenService
         var fields = payload.Split('.');
         if (fields.Length != 3) return null;
         if (!long.TryParse(fields[2], out var expUnix)) return null;
-        if (DateTimeOffset.FromUnixTimeSeconds(expUnix) <= DateTimeOffset.UtcNow) return null;
+        if (DateTimeOffset.FromUnixTimeSeconds(expUnix) <= _clock.UtcNow) return null; // IClock, not wall-clock (IDN-8)
         if (!Guid.TryParseExact(fields[1], "N", out var sessionGuid)) return null;
 
         return new UserSessionId(sessionGuid);
