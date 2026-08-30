@@ -87,16 +87,6 @@ internal sealed class CompensationQueries : ICompensationQueries
     private readonly FollowUpDbContext _db;
     public CompensationQueries(FollowUpDbContext db) => _db = db;
 
-    public async Task<IReadOnlyList<LoyaltyLedgerDto>> GetLedgersAsync(int period, OrgScope scope, CancellationToken ct)
-    {
-        var ym = YearMonth.FromCode(period);
-        var scopedLabs = _db.Laboratories.ApplyScope(scope).Select(l => l.Id);
-        return await _db.LoyaltyLedgers.AsNoTracking()
-            .Where(x => x.Period == ym && scopedLabs.Contains(x.LaboratoryId))
-            .Select(x => new LoyaltyLedgerDto(x.LaboratoryId.Value, x.Period.Code, x.Target, x.Achieved, x.Points, x.Tier))
-            .ToListAsync(ct);
-    }
-
     public async Task<IReadOnlyList<LoyaltyRowDto>> GetLoyaltySummaryAsync(OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -113,8 +103,8 @@ internal sealed class CompensationQueries : ICompensationQueries
 
     public async Task<IReadOnlyList<LoyaltyLedgerDto>> GetLabLedgerAsync(Guid labId, OrgScope scope, CancellationToken ct)
     {
-        // Scope the ledger read (SRS SCOPE-READ), mirroring GetLedgersAsync: an out-of-scope labId yields an
-        // empty history rather than leaking another scope's target/points/tier figures.
+        // Scope the ledger read (SRS SCOPE-READ): an out-of-scope labId yields an empty history rather than
+        // leaking another scope's target/points/tier figures.
         var scopedLabs = _db.Laboratories.ApplyScope(scope).Select(l => l.Id);
         return await _db.LoyaltyLedgers.AsNoTracking()
             .Where(x => x.LaboratoryId == new Domain.Laboratories.LaboratoryId(labId) && scopedLabs.Contains(x.LaboratoryId))
@@ -142,7 +132,7 @@ internal sealed class CompensationQueries : ICompensationQueries
             comms.TryGetValue(r.Id, out var c);
             return new CommissionDto(r.Id.Value, r.FullName, r.Type.Name, r.GoalType ?? r.GoalDuration.Name, period,
                 c?.Target ?? r.Target.Amount, c?.Achieved ?? 0m, c?.BaseSalary.Amount ?? r.Salary.Amount,
-                c?.Commission.Amount ?? 0m, c?.Bonus.Amount ?? 0m, c?.Total.Amount ?? r.Salary.Amount, false);
+                c?.Commission.Amount ?? 0m, c?.Bonus.Amount ?? 0m, c?.Total.Amount ?? r.Salary.Amount);
         }).ToList();
     }
 

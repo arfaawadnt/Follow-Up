@@ -20,14 +20,13 @@ public sealed record LoyaltyRowDto(Guid LaboratoryId, string Code, string Name, 
     int MonthlyTarget, int MtdSamples, int LoyaltyPoints, string? LoyaltyTier);
 public sealed record CommissionDto(Guid RepId, string Name, string Type, string GoalType, int Period,
     decimal TargetAmount, decimal AchievedAmount, decimal BaseSalary, decimal CommissionEarned,
-    decimal BonusEarned, decimal TotalPayout, bool IsLocked);
+    decimal BonusEarned, decimal TotalPayout);
 public sealed record CompensationConfigDto(decimal CommissionRatePercent, decimal BonusThresholdPercent,
     decimal BonusAmount, IReadOnlyList<LoyaltyTierDto> Tiers);
 public sealed record LoyaltyTierDto(string Name, decimal MinAchievementPercent, int Points);
 
 public interface ICompensationQueries
 {
-    Task<IReadOnlyList<LoyaltyLedgerDto>> GetLedgersAsync(int period, OrgScope scope, CancellationToken ct);
     Task<IReadOnlyList<LoyaltyRowDto>> GetLoyaltySummaryAsync(OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
     Task<IReadOnlyList<LoyaltyLedgerDto>> GetLabLedgerAsync(Guid labId, OrgScope scope, CancellationToken ct);
     Task<IReadOnlyList<CommissionDto>> GetCommissionsAsync(int period, OrgScope scope, CancellationToken ct);

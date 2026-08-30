@@ -8,7 +8,7 @@ import { TranslatePipe } from '../../core/i18n';
 interface Commission {
   repId: string; name: string; type: string; goalType: string; period: number;
   targetAmount: number; achievedAmount: number; baseSalary: number;
-  commissionEarned: number; bonusEarned: number; totalPayout: number; isLocked: boolean;
+  commissionEarned: number; bonusEarned: number; totalPayout: number;
 }
 const GROUPS = ['Collector', 'Marketing', 'Scanning'];
 
