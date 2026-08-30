@@ -194,11 +194,13 @@ public sealed class AdvanceComplaintStageValidator : AbstractValidator<AdvanceCo
     {
         RuleFor(x => x.Id).NotEmpty();
         RuleFor(x => x.Stage).NotEmpty();
-        RuleFor(x => x.IsValid).NotNull().When(x => x.Stage == "ValidityChecked")
+        // Stage names bound to the enumeration (CMP-14): renaming a ComplaintStage member breaks compilation
+        // here instead of silently detaching these conditional rules from the switch below.
+        RuleFor(x => x.IsValid).NotNull().When(x => x.Stage == ComplaintStage.ValidityChecked.Name)
             .WithMessage("The validity check requires a valid/invalid decision.");
-        RuleFor(x => x.Notes).NotEmpty().When(x => x.Stage == "Investigation")
+        RuleFor(x => x.Notes).NotEmpty().When(x => x.Stage == ComplaintStage.Investigation.Name)
             .WithMessage("Investigation notes are required.");
-        RuleFor(x => x.OutcomeType).NotEmpty().When(x => x.Stage == "BusinessOutcome")
+        RuleFor(x => x.OutcomeType).NotEmpty().When(x => x.Stage == ComplaintStage.BusinessOutcome.Name)
             .WithMessage("An outcome type is required.");
         // Schema bounds (CMP-19): OutcomeType varchar(100); Notes/Summary land in varchar(2000) narrative fields.
         RuleFor(x => x.OutcomeType).MaximumLength(100);
@@ -221,21 +223,16 @@ public sealed class AdvanceComplaintStageHandler : ICommandHandler<AdvanceCompla
     public async Task<Unit> Handle(AdvanceComplaintStageCommand request, CancellationToken ct)
     {
         var complaint = await ComplaintActionSupport.LoadAuthorizedAsync(request.Id, _complaints, _labs, _user, ct);
-        switch (request.Stage)
-        {
-            case "ValidityChecked":
-                complaint.CheckValidity(request.IsValid!.Value, request.Notes);
-                break;
-            case "Investigation":
-                complaint.RecordInvestigation(request.Notes!);
-                break;
-            case "BusinessOutcome":
-                complaint.RecordOutcome(request.OutcomeType!, request.Summary);
-                break;
-            default:
-                complaint.MoveToStage(Enumeration.FromName<ComplaintStage>(request.Stage));
-                break;
-        }
+        // Route on the enumeration's names (CMP-14) rather than repeated string literals; the default resolves and
+        // validates any other stage via FromName (throws on an unknown name), exactly as before.
+        if (request.Stage == ComplaintStage.ValidityChecked.Name)
+            complaint.CheckValidity(request.IsValid!.Value, request.Notes);
+        else if (request.Stage == ComplaintStage.Investigation.Name)
+            complaint.RecordInvestigation(request.Notes!);
+        else if (request.Stage == ComplaintStage.BusinessOutcome.Name)
+            complaint.RecordOutcome(request.OutcomeType!, request.Summary);
+        else
+            complaint.MoveToStage(Enumeration.FromName<ComplaintStage>(request.Stage));
         return Unit.Value;
     }
 }
