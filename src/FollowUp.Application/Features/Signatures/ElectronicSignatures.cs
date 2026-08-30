@@ -103,7 +103,7 @@ public sealed class SignRecordHandler : ICommandHandler<SignRecordCommand, Guid>
 
         var signature = ElectronicSignature.Create(
             request.Module, request.RecordId, computed.Version,
-            _caller.UserId.Value, _caller.Username, authLevel: "password",
+            _caller.UserId.Value, _caller.Username, authLevel: SignatureAuthLevel.Password, // the re-auth ceremony's level (SIG-11)
             meaning, request.Reason,
             computed.ContentHash, now, _caller.Ip);
 
