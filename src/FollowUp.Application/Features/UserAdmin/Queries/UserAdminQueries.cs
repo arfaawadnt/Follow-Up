@@ -40,7 +40,10 @@ public sealed class GetUsersHandler : IQueryHandler<GetUsersQuery, PagedResult<U
 /// <summary>Directory lookup returning non-credential attribution info (SRS FR-2; authenticated).</summary>
 public sealed record LookupUsersQuery(string? Search = null) : IQuery<IReadOnlyList<UserLookupDto>>, IAuthorizedRequest
 {
-    public IReadOnlyCollection<string> RequiredPrivileges { get; } = Array.Empty<string>();
+    // IDN-9: enumerating usernames aided targeted credential attacks when open to any authenticated caller.
+    // Gate it behind the privileges of its legitimate consumers (sample-tracking assignment + user admin);
+    // ANY-of semantics, so either privilege still grants access.
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.SampleTracking, Privileges.ManageUsers };
 }
 
 public sealed class LookupUsersHandler : IQueryHandler<LookupUsersQuery, IReadOnlyList<UserLookupDto>>
