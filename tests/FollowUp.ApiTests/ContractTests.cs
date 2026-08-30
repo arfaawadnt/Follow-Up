@@ -135,8 +135,8 @@ public sealed class ContractTests
         var codes = new List<HttpStatusCode>();
         for (var i = 0; i < 15; i++)
         {
-            var resp = await client.PostAsJsonAsync("/api/v1/esign/sign",
-                new { module = "complaint", recordId = "x", meaning = "Approval", reason = (string?)null, password = "wrong-on-purpose" });
+            var resp = await client.PostAsJsonAsync("/api/v1/esign/complaint/x/sign",
+                new { meaning = "Approval", reason = (string?)null, password = "wrong-on-purpose" });
             codes.Add(resp.StatusCode);
         }
         codes.Should().Contain(HttpStatusCode.TooManyRequests, "signing must be throttled to blunt password guessing (SIG-9)");

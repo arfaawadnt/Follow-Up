@@ -10,7 +10,8 @@ public static class ServiceEndpoints
 {
     public sealed record AdvanceStageBody(string Stage, string? Notes, bool? IsValid, string? OutcomeType, string? Summary);
     public sealed record ResolveBody(string? ResolutionSummary);
-    public sealed record SignBody(string Module, string RecordId, string Meaning, string? Reason, string Password);
+    public sealed record SignActionBody(string Meaning, string? Reason, string Password); // module+recordId are in the route (SIG-12)
+    public sealed record SignatureCreatedDto(Guid Id);
     public sealed record PreferenceBody(string EventKey, bool System, bool Mail, bool WhatsApp);
 
     public static void MapComplaintEndpoints(this RouteGroupBuilder api)
@@ -41,8 +42,11 @@ public static class ServiceEndpoints
 
     public static void MapSignatureEndpoints(this RouteGroupBuilder api)
     {
-        api.MapPost("/esign/sign", async (SignBody b, IMediator m, CancellationToken ct) =>
-        { var id = await m.Send(new SignRecordCommand(b.Module, b.RecordId, b.Meaning, b.Reason, b.Password), ct); return Results.Ok(new { id }); }).WithTags("Signatures").RequireRateLimiting("esign");
+        api.MapPost("/esign/{module}/{recordId}/sign", async (string module, string recordId, SignActionBody b, IMediator m, CancellationToken ct) =>
+        {
+            var id = await m.Send(new SignRecordCommand(module, recordId, b.Meaning, b.Reason, b.Password), ct);
+            return Results.Ok(new SignatureCreatedDto(id));
+        }).WithTags("Signatures").RequireRateLimiting("esign");
         api.MapGet("/esign/{module}/{recordId}", async (string module, string recordId, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new VerifySignatureQuery(module, recordId), ct))).WithTags("Signatures");
     }
