@@ -226,10 +226,11 @@ public sealed class AdvanceComplaintStageHandler : ICommandHandler<AdvanceCompla
     private readonly IComplaintRepository _complaints;
     private readonly ILaboratoryRepository _labs;
     private readonly ICurrentUser _user;
+    private readonly IClock _clock;
 
-    public AdvanceComplaintStageHandler(IComplaintRepository complaints, ILaboratoryRepository labs, ICurrentUser user)
+    public AdvanceComplaintStageHandler(IComplaintRepository complaints, ILaboratoryRepository labs, ICurrentUser user, IClock clock)
     {
-        _complaints = complaints; _labs = labs; _user = user;
+        _complaints = complaints; _labs = labs; _user = user; _clock = clock;
     }
 
     public async Task<Unit> Handle(AdvanceComplaintStageCommand request, CancellationToken ct)
@@ -238,7 +239,7 @@ public sealed class AdvanceComplaintStageHandler : ICommandHandler<AdvanceCompla
         // Route on the enumeration's names (CMP-14) rather than repeated string literals; the default resolves and
         // validates any other stage via FromName (throws on an unknown name), exactly as before.
         if (request.Stage == ComplaintStage.ValidityChecked.Name)
-            complaint.CheckValidity(request.IsValid!.Value, request.Notes);
+            complaint.CheckValidity(request.IsValid!.Value, request.Notes, _user.Username, _clock.UtcNow); // invalid auto-closes (CMP-21)
         else if (request.Stage == ComplaintStage.Investigation.Name)
             complaint.RecordInvestigation(request.Notes!);
         else if (request.Stage == ComplaintStage.BusinessOutcome.Name)

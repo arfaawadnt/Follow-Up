@@ -107,13 +107,27 @@ public sealed class Complaint : AggregateRoot<ComplaintId>, IVersioned, IAuditab
         BumpContentVersion();
     }
 
-    /// <summary>Validity check: valid continues the flow; invalid short-circuits to RejectedInvalid.</summary>
-    public void CheckValidity(bool isValid, string? notes)
+    /// <summary>Validity check: valid continues the flow; invalid closes the complaint immediately (CMP-21).</summary>
+    public void CheckValidity(bool isValid, string? notes, string actor, DateTimeOffset when)
     {
         EnsureNotResolved();
         IsValid = isValid;
         ValidityNotes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
-        Stage = isValid ? ComplaintStage.ValidityChecked : ComplaintStage.RejectedInvalid;
+        if (isValid)
+        {
+            Stage = ComplaintStage.ValidityChecked;
+        }
+        else
+        {
+            // CMP-21: an invalid complaint is closed on the spot — it needs no resolution e-signature and must not
+            // keep inflating the Open KPIs. Modeled explicitly as a resolution into the RejectedInvalid stage.
+            Status.EnsureCanTransitionTo(ComplaintStatus.Resolved);
+            Stage = ComplaintStage.RejectedInvalid;
+            Status = ComplaintStatus.Resolved;
+            ResolvedAt = when;
+            ResolvedBy = actor;
+            Raise(new ComplaintResolved(Id, LaboratoryId, Reference));
+        }
         BumpContentVersion();
     }
 

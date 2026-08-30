@@ -109,7 +109,7 @@ public class ComplaintTests
         var investigate = () => complaint.RecordInvestigation("late edit");
         investigate.Should().Throw<IllegalStateTransitionException>();
 
-        var recheck = () => complaint.CheckValidity(true, "late");
+        var recheck = () => complaint.CheckValidity(true, "late", "u", Now);
         recheck.Should().Throw<IllegalStateTransitionException>();
 
         var outcome = () => complaint.RecordOutcome("x", null);
@@ -136,23 +136,27 @@ public class ComplaintTests
     {
         var complaint = NewComplaint();
 
-        complaint.CheckValidity(true, "confirmed with the lab");
+        complaint.CheckValidity(true, "confirmed with the lab", "checker", Now);
 
         complaint.Stage.Should().Be(ComplaintStage.ValidityChecked);
         complaint.IsValid.Should().BeTrue();
         complaint.ValidityNotes.Should().Be("confirmed with the lab");
-        complaint.Status.Should().Be(ComplaintStatus.Open); // stage payloads never touch status
+        complaint.Status.Should().Be(ComplaintStatus.Open); // a valid verdict never touches status
     }
 
     [Fact]
-    public void CheckValidity_invalid_routes_to_RejectedInvalid()
+    public void CheckValidity_invalid_closes_the_complaint()
     {
         var complaint = NewComplaint();
 
-        complaint.CheckValidity(false, "not reproducible");
+        complaint.CheckValidity(false, "not reproducible", "checker", Now);
 
+        // CMP-21: an invalid verdict auto-closes the complaint (no e-sign resolve, drops out of Open KPIs).
         complaint.Stage.Should().Be(ComplaintStage.RejectedInvalid);
         complaint.IsValid.Should().BeFalse();
+        complaint.Status.Should().Be(ComplaintStatus.Resolved);
+        complaint.ResolvedBy.Should().Be("checker");
+        complaint.ResolvedAt.Should().Be(Now);
     }
 
     [Fact]
