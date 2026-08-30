@@ -68,6 +68,35 @@ public class CompensationConfigTests
         act.Should().Throw<DomainException>();
     }
 
+    [Fact]
+    public void Create_rejects_a_commission_rate_above_100()
+    {
+        // CPN-17: a commission rate is a fraction of a base and cannot exceed 100% (rate = 5000 was accepted).
+        var act = () => CompensationConfig.Create(5000m, 100m, new Money(500m),
+            new[] { new LoyaltyTier("Gold", 100m, 500) });
+
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void Create_rejects_an_absurd_bonus_threshold()
+    {
+        // CPN-17: over-achievement above target is allowed, but a threshold beyond the sanity ceiling is a typo.
+        var act = () => CompensationConfig.Create(5m, 5000m, new Money(500m),
+            new[] { new LoyaltyTier("Gold", 100m, 500) });
+
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void A_loyalty_tier_rejects_an_absurd_threshold()
+    {
+        // CPN-17: tier thresholds are achievement percents; a 5000% tier is an unreachable data-entry error.
+        var act = () => new LoyaltyTier("Gold", 5000m, 500);
+
+        act.Should().Throw<DomainException>();
+    }
+
     private static CompensationConfig ValidConfig() =>
         CompensationConfig.Create(5m, 100m, new Money(500m), new[] { new LoyaltyTier("Gold", 100m, 500) });
 

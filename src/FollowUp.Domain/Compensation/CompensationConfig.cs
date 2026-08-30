@@ -13,6 +13,8 @@ public sealed class LoyaltyTier : ValueObject
     {
         if (string.IsNullOrWhiteSpace(name)) throw new DomainException("Tier name is required.");
         if (minAchievementPercent < 0) throw new DomainException("Tier threshold cannot be negative.");
+        if (minAchievementPercent > CompensationConfig.MaxAchievementPercent) // CPN-17: guard absurd thresholds
+            throw new DomainException($"Tier threshold cannot exceed {CompensationConfig.MaxAchievementPercent}%.");
         if (points < 0) throw new DomainException("Tier points cannot be negative.");
         Name = name.Trim();
         MinAchievementPercent = minAchievementPercent;
@@ -41,6 +43,11 @@ public sealed class CompensationConfig : AggregateRoot<string>, IVersioned, IAud
     private CompensationConfig(string id) : base(id) { }
 
     public const string SingletonId = "default";
+
+    /// <summary>Sanity ceiling for achievement-based percentages (CPN-17): a lab/rep can exceed 100% of target,
+    /// but a threshold beyond 10× target is a data-entry error, not a real one. Interim guard pending a
+    /// dedicated Percentage value object.</summary>
+    public const decimal MaxAchievementPercent = 1000m;
 
     /// <summary>Percent of achieved value paid as commission.</summary>
     /// <summary>Optimistic-concurrency token (Postgres xmin); concurrent edits conflict (409). Finding CPN-9.</summary>
@@ -90,6 +97,12 @@ public sealed class CompensationConfig : AggregateRoot<string>, IVersioned, IAud
     {
         if (ratePercent < 0 || bonusThresholdPercent < 0)
             throw new DomainException("Commission rates cannot be negative.");
+        // Upper bounds (CPN-17): a commission rate is a fraction of a base, so it cannot exceed 100%; the bonus
+        // threshold is an achievement percent (over-achievement allowed) but is sanity-capped against typos.
+        if (ratePercent > 100)
+            throw new DomainException("Commission rate cannot exceed 100%.");
+        if (bonusThresholdPercent > MaxAchievementPercent)
+            throw new DomainException($"Bonus threshold cannot exceed {MaxAchievementPercent}%.");
         if (bonusAmount.Amount < 0)
             throw new DomainException("Bonus amount cannot be negative.");
         CommissionRatePercent = ratePercent;
