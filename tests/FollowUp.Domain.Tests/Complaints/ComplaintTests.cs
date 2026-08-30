@@ -58,14 +58,19 @@ public class ComplaintTests
     }
 
     [Fact]
-    public void Reopen_from_resolved_clears_resolution()
+    public void Reopen_from_resolved_resets_stage_to_investigation_and_keeps_the_summary()
     {
         var complaint = NewComplaint();
+        complaint.SetResolutionSummary("closed after contacting the lab");
         complaint.Resolve("manager", Now); // Open -> Resolved (direct)
         complaint.Reopen();
 
         complaint.Status.Should().Be(ComplaintStatus.Open);
         complaint.ResolvedAt.Should().BeNull();
+        // CMP-20: reopened complaints flow forward from Investigation, not dead-end at Resolution; the prior
+        // resolution summary is kept as an audit-trail record.
+        complaint.Stage.Should().Be(ComplaintStage.Investigation);
+        complaint.ResolutionSummary.Should().Be("closed after contacting the lab");
     }
 
     [Fact]

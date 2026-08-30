@@ -181,6 +181,9 @@ public sealed class Complaint : AggregateRoot<ComplaintId>, IVersioned, IAuditab
         Status = ComplaintStatus.Open;
         ResolvedAt = null;
         ResolvedBy = null;
+        // CMP-20: return to Investigation so the reopened complaint can flow forward again instead of dead-ending
+        // at Resolution; the resolution summary is deliberately kept as an audit-trail record of the prior close.
+        Stage = ComplaintStage.Investigation;
         BumpContentVersion();
     }
 
