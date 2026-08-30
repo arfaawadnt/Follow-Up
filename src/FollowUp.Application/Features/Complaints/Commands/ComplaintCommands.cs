@@ -8,6 +8,7 @@ using FollowUp.Domain.Complaints;
 using FollowUp.Domain.Identity;
 using FollowUp.Domain.Laboratories;
 using FollowUp.Domain.Representatives;
+using FollowUp.Domain.Signatures;
 using FluentValidation;
 using MediatR;
 
@@ -15,7 +16,7 @@ namespace FollowUp.Application.Features.Complaints.Commands;
 
 internal static class ComplaintActionSupport
 {
-    public const string Module = "complaint";
+    public const string Module = SignableModule.Complaint; // single authority for the signable-module name (SIG-10)
 
     public static async Task<Complaint> LoadAuthorizedAsync(Guid id, IComplaintRepository complaints,
         ILaboratoryRepository labs, ICurrentUser user, CancellationToken ct)

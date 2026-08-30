@@ -24,7 +24,7 @@ public sealed class SignRecordValidator : AbstractValidator<SignRecordCommand>
 {
     public SignRecordValidator()
     {
-        RuleFor(x => x.Module).NotEmpty();
+        RuleFor(x => x.Module).Must(SignableModule.IsKnown).WithMessage("'{PropertyValue}' is not a signable record type."); // SIG-10 closed set
         RuleFor(x => x.RecordId).NotEmpty();
         RuleFor(x => x.Meaning).NotEmpty();
         RuleFor(x => x.Password).NotEmpty();
