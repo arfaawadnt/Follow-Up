@@ -11,7 +11,6 @@ public sealed record GetComplaintsQuery : IQuery<PagedResult<ComplaintListItemDt
 {
     public int Page { get; init; } = 1;
     public int PageSize { get; init; } = 50;
-    public string? Search { get; init; }
     public string? Status { get; init; }
     public string? Category { get; init; }
     public Guid? LaboratoryId { get; init; }
@@ -33,7 +32,7 @@ public sealed class GetComplaintsHandler : IQueryHandler<GetComplaintsQuery, Pag
     {
         var criteria = new ComplaintSearchCriteria
         {
-            Page = request.Page, PageSize = request.PageSize, Search = request.Search,
+            Page = request.Page, PageSize = request.PageSize,
             Status = request.Status, Category = request.Category, LaboratoryId = request.LaboratoryId,
         };
         return _queries.SearchAsync(criteria, _user.Scope, _user.Has(Privileges.ShowEncryptedLabs), ct);
