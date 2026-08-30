@@ -16,7 +16,9 @@ internal sealed class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
 
         b.Property(x => x.Username).HasMaxLength(100).IsRequired();
         b.Property(x => x.DisplayName).HasMaxLength(150);
-        b.HasIndex(x => x.Username).IsUnique();
+        // Username uniqueness is case-insensitive to match the ToLower lookup (IDN-7); the unique index is
+        // functional (lower(username)), added by raw SQL in the AddCaseInsensitiveUsernameIndex migration since
+        // EF cannot express an expression index here.
 
         b.Property(x => x.Email).HasMaxLength(200);
         b.Property(x => x.Phone).HasMaxLength(40);
