@@ -175,6 +175,20 @@ public sealed class ContractTests
         resp.Headers.Location!.ToString().Should().EndWith($"/api/v1/complaints/{body.Id}");
     }
 
+    [SkippableFact]
+    public async Task Compensation_config_binds_the_body_record_and_validates()
+    {
+        // CPN-15: POST /setup/compensation-config now takes a dedicated body record (not the command). An empty
+        // tier set must reach the handler and be rejected as 400 — proving the body binds and validation runs
+        // (and, being rejected, it does not mutate the seeded singleton).
+        Skip.IfNot(_fx.AuthReady, "Auth not ready.");
+        using var client = _fx.CreateAuthedClient();
+        var resp = await client.PostAsJsonAsync("/api/v1/setup/compensation-config",
+            new { commissionRatePercent = 5m, bonusThresholdPercent = 100m, bonusAmount = 500m, tiers = Array.Empty<object>() });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     private sealed record IdResponse(Guid Id);
     private sealed record ComplaintCreatedResponse(Guid Id, string Reference);
 }

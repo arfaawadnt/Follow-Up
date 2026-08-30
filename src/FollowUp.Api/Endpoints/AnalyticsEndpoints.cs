@@ -13,29 +13,46 @@ public static class AnalyticsEndpoints
     public sealed record SaveAllCommissionsBody(int Period);
     public sealed record ImportBody(byte[] Content);
     public sealed record IntegrationConfigBody(bool Enabled, int IntervalHours);
+    // CPN-15: dedicated body + typed response shapes (no anonymous objects / command-as-wire-body).
+    public sealed record CompensationConfigBody(decimal CommissionRatePercent, decimal BonusThresholdPercent,
+        decimal BonusAmount, IReadOnlyList<LoyaltyTierInput> Tiers);
+    public sealed record RecalculatedDto(int Recalculated);
+    public sealed record SavedDto(int Saved);
 
     public static void MapCompensationEndpoints(this RouteGroupBuilder api)
     {
         api.MapGet("/loyalty", async (IMediator m, CancellationToken ct) =>
-            Results.Ok(await m.Send(new GetLoyaltyQuery(), ct))).WithTags("Loyalty");
+            Results.Ok(await m.Send(new GetLoyaltyQuery(), ct))).WithTags("Loyalty")
+            .Produces<IReadOnlyList<LoyaltyRowDto>>();
         api.MapGet("/loyalty/ledger/{labId:guid}", async (Guid labId, IMediator m, CancellationToken ct) =>
-            Results.Ok(await m.Send(new GetLoyaltyLedgerQuery(labId), ct))).WithTags("Loyalty");
+            Results.Ok(await m.Send(new GetLoyaltyLedgerQuery(labId), ct))).WithTags("Loyalty")
+            .Produces<IReadOnlyList<LoyaltyLedgerDto>>();
         api.MapPost("/loyalty/target", async (SetTargetBody b, IMediator m, CancellationToken ct) =>
-        { await m.Send(new SetLabTargetCommand(b.LaboratoryId, b.MonthlyTarget), ct); return Results.NoContent(); }).WithTags("Loyalty");
+        { await m.Send(new SetLabTargetCommand(b.LaboratoryId, b.MonthlyTarget), ct); return Results.NoContent(); }).WithTags("Loyalty")
+            .Produces(StatusCodes.Status204NoContent).ProducesProblem(StatusCodes.Status400BadRequest);
         api.MapPost("/loyalty/recalculate", async (IMediator m, CancellationToken ct) =>
-        { var n = await m.Send(new RecalculateAllLoyaltyCommand(), ct); return Results.Ok(new { recalculated = n }); }).WithTags("Loyalty");
+        { var n = await m.Send(new RecalculateAllLoyaltyCommand(), ct); return Results.Ok(new RecalculatedDto(n)); }).WithTags("Loyalty")
+            .Produces<RecalculatedDto>();
 
         api.MapGet("/commissions", async (int period, IMediator m, CancellationToken ct) =>
-            Results.Ok(await m.Send(new GetCommissionsQuery(period), ct))).WithTags("Commissions");
+            Results.Ok(await m.Send(new GetCommissionsQuery(period), ct))).WithTags("Commissions")
+            .Produces<IReadOnlyList<CommissionDto>>();
         api.MapPost("/commissions/save", async (SaveCommissionBody b, IMediator m, CancellationToken ct) =>
-        { await m.Send(new SaveCommissionCommand(b.RepresentativeId, b.Period), ct); return Results.NoContent(); }).WithTags("Commissions");
+        { await m.Send(new SaveCommissionCommand(b.RepresentativeId, b.Period), ct); return Results.NoContent(); }).WithTags("Commissions")
+            .Produces(StatusCodes.Status204NoContent).ProducesProblem(StatusCodes.Status400BadRequest);
         api.MapPost("/commissions/save-all", async (SaveAllCommissionsBody b, IMediator m, CancellationToken ct) =>
-        { var n = await m.Send(new SaveAllCommissionsCommand(b.Period), ct); return Results.Ok(new { saved = n }); }).WithTags("Commissions");
+        { var n = await m.Send(new SaveAllCommissionsCommand(b.Period), ct); return Results.Ok(new SavedDto(n)); }).WithTags("Commissions")
+            .Produces<SavedDto>();
 
         api.MapGet("/setup/compensation-config", async (IMediator m, CancellationToken ct) =>
-            Results.Ok(await m.Send(new GetCompensationConfigQuery(), ct))).WithTags("Compensation");
-        api.MapPost("/setup/compensation-config", async (SetCompensationConfigCommand cmd, IMediator m, CancellationToken ct) =>
-        { await m.Send(cmd, ct); return Results.NoContent(); }).WithTags("Compensation");
+            Results.Ok(await m.Send(new GetCompensationConfigQuery(), ct))).WithTags("Compensation")
+            .Produces<CompensationConfigDto>();
+        api.MapPost("/setup/compensation-config", async (CompensationConfigBody b, IMediator m, CancellationToken ct) =>
+        {
+            await m.Send(new SetCompensationConfigCommand(b.CommissionRatePercent, b.BonusThresholdPercent, b.BonusAmount, b.Tiers), ct);
+            return Results.NoContent();
+        }).WithTags("Compensation")
+            .Produces(StatusCodes.Status204NoContent).ProducesProblem(StatusCodes.Status400BadRequest);
     }
 
     public static void MapStatsEndpoints(this RouteGroupBuilder api)
