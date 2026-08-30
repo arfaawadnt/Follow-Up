@@ -7,6 +7,7 @@ using FollowUp.Domain.Common;
 using FollowUp.Domain.Complaints;
 using FollowUp.Domain.Identity;
 using FollowUp.Domain.Laboratories;
+using FollowUp.Domain.Representatives;
 using FluentValidation;
 using MediatR;
 
@@ -62,11 +63,13 @@ public sealed class LogComplaintHandler : ICommandHandler<LogComplaintCommand, s
 {
     private readonly IComplaintRepository _complaints;
     private readonly ILaboratoryRepository _labs;
+    private readonly IRepresentativeRepository _reps;
     private readonly ICurrentUser _user;
 
-    public LogComplaintHandler(IComplaintRepository complaints, ILaboratoryRepository labs, ICurrentUser user)
+    public LogComplaintHandler(IComplaintRepository complaints, ILaboratoryRepository labs,
+        IRepresentativeRepository reps, ICurrentUser user)
     {
-        _complaints = complaints; _labs = labs; _user = user;
+        _complaints = complaints; _labs = labs; _reps = reps; _user = user;
     }
 
     public async Task<string> Handle(LogComplaintCommand request, CancellationToken ct)
@@ -74,6 +77,11 @@ public sealed class LogComplaintHandler : ICommandHandler<LogComplaintCommand, s
         var lab = await _labs.GetByIdAsync(new LaboratoryId(request.LaboratoryId), ct)
             ?? throw new NotFoundException("Laboratory", request.LaboratoryId);
         _user.EnsureInScope(lab);
+
+        // The intake representative is an unconstrained Guid (CMP-12); reject an unknown id here with a clean 404
+        // rather than letting a dangling reference persist (the FK is the matching database second line).
+        if (request.RepresentativeId is { } repId && !await _reps.ExistsAsync(new RepresentativeId(repId), ct))
+            throw new NotFoundException("Representative", repId);
 
         var number = await _complaints.NextNumberAsync(ct);
         var complaint = Complaint.Log(number, lab.Id, request.Category, request.ViaChannel,
