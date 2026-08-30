@@ -62,10 +62,7 @@ internal sealed class ComplaintConfiguration : IEntityTypeConfiguration<Complain
         b.Property(x => x.OutcomeType).HasMaxLength(100);
         b.Property(x => x.OutcomeSummary).HasMaxLength(2000);
         b.Property(x => x.ResolutionSummary).HasMaxLength(2000);
-        b.Property(x => x.CreatedAt);
-        b.Property(x => x.CreatedBy).HasMaxLength(100).HasDefaultValue("system");
-        b.Property(x => x.UpdatedAt);
-        b.Property(x => x.UpdatedBy).HasMaxLength(100);
+        b.MapAuditable(); // the shared IAuditable mapping, not a hand-inlined copy (CMP-18)
 
         b.HasOne<Laboratory>().WithMany().HasForeignKey(x => x.LaboratoryId).OnDelete(DeleteBehavior.Cascade);
         b.HasIndex(x => x.LaboratoryId);
