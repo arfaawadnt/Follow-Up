@@ -184,8 +184,8 @@ public sealed class DeleteUserHandler : ICommandHandler<DeleteUserCommand>
 
         if (_caller.UserId == user.Id)
             throw new ConflictException("You cannot delete your own account.");
-        if (string.Equals(user.Username, "admin", StringComparison.OrdinalIgnoreCase))
-            throw new ConflictException("The built-in admin account cannot be deleted.");
+        if (user.IsBuiltIn)
+            throw new ConflictException("The built-in administrator account cannot be deleted.");
 
         _users.Remove(user);
         return Unit.Value;

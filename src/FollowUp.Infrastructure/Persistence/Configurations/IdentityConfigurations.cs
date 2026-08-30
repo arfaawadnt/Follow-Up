@@ -22,6 +22,7 @@ internal sealed class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
         b.Property(x => x.Phone).HasMaxLength(40);
         b.Property(x => x.Language).HasMaxLength(8).IsRequired();
         b.Property(x => x.IsActive).HasDefaultValue(true);
+        b.Property(x => x.IsBuiltIn).HasDefaultValue(false); // protected built-in admin (IDN-6)
         b.Property(x => x.FailedLoginCount);
         b.Property(x => x.LockedUntil);
 

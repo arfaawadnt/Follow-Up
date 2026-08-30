@@ -41,6 +41,10 @@ public sealed class AppUser : AggregateRoot<AppUserId>, IVersioned, IAuditable
     public RepresentativeId? RepresentativeId { get; private set; }
     public bool IsActive { get; private set; }
 
+    /// <summary>The seeded administrator: it cannot be deleted or demoted, so the platform always retains an
+    /// account that can manage users (finding IDN-6 — replaces the hardcoded "admin" username check).</summary>
+    public bool IsBuiltIn { get; private set; }
+
     // Lockout state (SRS FR-1 / NFR-SEC-4).
     public int FailedLoginCount { get; private set; }
     public DateTimeOffset? LockedUntil { get; private set; }
@@ -61,7 +65,17 @@ public sealed class AppUser : AggregateRoot<AppUserId>, IVersioned, IAuditable
     public void SetDisplayName(string? displayName) =>
         DisplayName = string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim();
     public void SetLanguage(string language) => Language = string.IsNullOrWhiteSpace(language) ? "en" : language.Trim();
-    public void ChangeRole(RoleId roleId) => RoleId = roleId;
+    public void ChangeRole(RoleId roleId)
+    {
+        // The built-in administrator must never be demoted out of its role (IDN-6); a same-role call (a profile
+        // update that re-passes the current role) is fine.
+        if (IsBuiltIn && roleId != RoleId)
+            throw new DomainException("The built-in administrator's role cannot be changed.");
+        RoleId = roleId;
+    }
+
+    /// <summary>Marks this account as the protected built-in administrator (seeder only).</summary>
+    public void MarkAsBuiltIn() => IsBuiltIn = true;
     public void LinkRepresentative(RepresentativeId? repId) => RepresentativeId = repId;
     public void SetPassword(PasswordHash password) => Password = password;
     public void Deactivate() => IsActive = false;
