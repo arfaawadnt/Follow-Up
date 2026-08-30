@@ -16,7 +16,8 @@ internal static class DisplayCode
     /// encrypted AND the caller lacks the privilege — plain labs always show their real code. The rule takes
     /// <paramref name="isEncrypted"/> here (not a pre-combined boolean) so every projection applies the same
     /// rule and none can half-copy it (the loyalty/board/complaint/marketing pages previously passed only
-    /// <paramref name="canSeeEncrypted"/>, masking plain labs for non-privileged callers).
+    /// <paramref name="canSeeEncrypted"/>, masking plain labs for non-privileged callers). This is the single
+    /// source of the BR-7 branch policy; the aggregate's dead DisplayCode duplicate was removed (BRD-12).
     /// </summary>
     public static string For(string realCode, bool isEncrypted, bool canSeeEncrypted) =>
         canSeeEncrypted || !isEncrypted ? realCode : LabCode.Create(realCode).ToEncryptedAlias();
