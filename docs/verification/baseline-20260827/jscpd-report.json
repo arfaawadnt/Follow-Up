@@ -1,0 +1,417 @@
+{
+  "duplicates": [
+    {
+      "firstFile": {
+        "end": 66,
+        "endLoc": {
+          "column": 45,
+          "line": 66,
+          "position": 3227
+        },
+        "name": "FollowUp.Application\\Features\\LabStats\\LabStats.cs",
+        "start": 51,
+        "startLoc": {
+          "column": 66,
+          "line": 51,
+          "position": 2371
+        }
+      },
+      "format": "csharp",
+      "fragment": "    public async Task<ImportSummary> Handle(ImportLabStatsCommand request, CancellationToken ct)\n    {\n        if (request.Content is null || request.Content.Length == 0)\n            throw new Common.Exceptions.ValidationException(new Dictionary<string, string[]> { [\"file\"] = new[] { \"The uploaded file is empty.\" } });\n        IReadOnlyList<IReadOnlyDictionary<string, string>> rows;\n        try { rows = _reader.ReadRows(request.Content); }\n        catch (Exception ex)\n        { throw new Common.Exceptions.ValidationException(new Dictionary<string, string[]> { [\"file\"] = new[] { $\"Could not read the spreadsheet: {ex.Message}\" } }); }\n        int processed = 0, upserted = 0, skipped = 0;\n        var warnings = new List<string>();\n\n        foreach (var row in rows)\n        {\n            processed++;\n            if (!ImportParsing.TryDate(row, \"Date\", out var date) ||\n                !ImportParsing.TryString(row, \"LabCode\", out var labCode))",
+      "lines": 16,
+      "secondFile": {
+        "end": 194,
+        "endLoc": {
+          "column": 45,
+          "line": 194,
+          "position": 8986
+        },
+        "name": "FollowUp.Application\\Features\\TestCatalogue\\TestCatalogue.cs",
+        "start": 179,
+        "startLoc": {
+          "column": 67,
+          "line": 179,
+          "position": 8130
+        }
+      },
+      "tokens": 179
+    },
+    {
+      "firstFile": {
+        "end": 32,
+        "endLoc": {
+          "column": 18,
+          "line": 32,
+          "position": 1400
+        },
+        "name": "FollowUp.Application\\Features\\Laboratories\\CreateLaboratory\\CreateLaboratory.cs",
+        "start": 19,
+        "startLoc": {
+          "column": 4,
+          "line": 19,
+          "position": 778
+        }
+      },
+      "format": "csharp",
+      "fragment": "    public string Name { get; init; } = string.Empty;\n    public string Segment { get; init; } = \"C\";\n    public string? Branch { get; init; }\n    public string? Governorate { get; init; }\n    public string? City { get; init; }\n    public string? Area { get; init; }\n    public string? Category { get; init; }\n    public string? Address { get; init; }\n    public string? MappingCode { get; init; }\n    public bool IsEncrypted { get; init; }\n    public IReadOnlyList<string> Images { get; init; } = Array.Empty<string>();\n    public string? Payer { get; init; }\n    public string? ContractType { get; init; }\n    public string? Status { get; init; }",
+      "lines": 14,
+      "secondFile": {
+        "end": 35,
+        "endLoc": {
+          "column": 18,
+          "line": 35,
+          "position": 1547
+        },
+        "name": "FollowUp.Application\\Features\\Laboratories\\UpdateLaboratory\\UpdateLaboratory.cs",
+        "start": 22,
+        "startLoc": {
+          "column": 4,
+          "line": 22,
+          "position": 925
+        }
+      },
+      "tokens": 150
+    },
+    {
+      "firstFile": {
+        "end": 45,
+        "endLoc": {
+          "column": 88,
+          "line": 45,
+          "position": 2179
+        },
+        "name": "FollowUp.Application\\Features\\Laboratories\\CreateLaboratory\\CreateLaboratory.cs",
+        "start": 32,
+        "startLoc": {
+          "column": 26,
+          "line": 32,
+          "position": 1408
+        }
+      },
+      "format": "csharp",
+      "fragment": "    public string? Status { get; init; }\n    public string? LicenseNo { get; init; }\n    public DateOnly? LicenseDate { get; init; }\n    public int? AvgMonthlySamples { get; init; }\n    public string? PreferredChannel { get; init; }\n    public double? Latitude { get; init; }\n    public double? Longitude { get; init; }\n    public IReadOnlyList<string> WorkDays { get; init; } = Array.Empty<string>();\n    public IReadOnlyList<string> VisitTimes { get; init; } = Array.Empty<string>();\n    public IReadOnlyList<Guid> CollectorRepIds { get; init; } = Array.Empty<Guid>();\n    public Guid? MarketingRepId { get; init; }\n    public IReadOnlyList<NewContact> Contacts { get; init; } = Array.Empty<NewContact>();\n\n    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.AddLabs, Privileges.ManageLabs };",
+      "lines": 14,
+      "secondFile": {
+        "end": 47,
+        "endLoc": {
+          "column": 88,
+          "line": 47,
+          "position": 2285
+        },
+        "name": "FollowUp.Application\\Features\\Laboratories\\UpdateLaboratory\\UpdateLaboratory.cs",
+        "start": 34,
+        "startLoc": {
+          "column": 32,
+          "line": 34,
+          "position": 1514
+        }
+      },
+      "tokens": 181
+    },
+    {
+      "firstFile": {
+        "end": 28,
+        "endLoc": {
+          "column": 88,
+          "line": 28,
+          "position": 1191
+        },
+        "name": "FollowUp.Application\\Features\\Representatives\\CreateRepresentative\\CreateRepresentative.cs",
+        "start": 15,
+        "startLoc": {
+          "column": 57,
+          "line": 15,
+          "position": 632
+        }
+      },
+      "format": "csharp",
+      "fragment": "    public string GoalDuration { get; init; } = \"Monthly\";\n    public decimal Salary { get; init; }\n    public decimal Target { get; init; }\n    public string? GoalType { get; init; }\n    public string? Metric { get; init; }\n    public string? Phone { get; init; }\n    public string? Branch { get; init; }\n    public string? Governorate { get; init; }\n    public string? Area { get; init; }\n    public string? City { get; init; }\n    public DateOnly? AppointedOn { get; init; }\n    public string? EmploymentType { get; init; }\n\n    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.AddReps, Privileges.ManageReps };",
+      "lines": 14,
+      "secondFile": {
+        "end": 30,
+        "endLoc": {
+          "column": 88,
+          "line": 30,
+          "position": 1261
+        },
+        "name": "FollowUp.Application\\Features\\Representatives\\UpdateRepresentative\\UpdateRepresentative.cs",
+        "start": 17,
+        "startLoc": {
+          "column": 56,
+          "line": 17,
+          "position": 702
+        }
+      },
+      "tokens": 126
+    },
+    {
+      "firstFile": {
+        "end": 125,
+        "endLoc": {
+          "column": 12,
+          "line": 125,
+          "position": 4906
+        },
+        "name": "FollowUp.Application\\Features\\UserAdmin\\Users\\UserCommands.cs",
+        "start": 113,
+        "startLoc": {
+          "column": 53,
+          "line": 113,
+          "position": 4363
+        }
+      },
+      "format": "csharp",
+      "fragment": "    public async Task<Unit> Handle(UpdateUserCommand request, CancellationToken ct)\n    {\n        var user = await _users.GetByIdAsync(new AppUserId(request.Id), ct)\n            ?? throw new NotFoundException(\"User\", request.Id);\n\n        // Self-role-change is blocked (SRS §2.3).\n        if (_caller.UserId == user.Id && new RoleId(request.RoleId) != user.RoleId)\n            throw new ForbiddenException(\"You cannot change your own role.\");\n\n        var role = await RoleGrantSupport.LoadGrantableRoleAsync(request.RoleId, _roles, _caller, ct);\n\n        user.ChangeRole(role.Id);\n        user.SetProfile(request.Email, request.Phone);",
+      "lines": 13,
+      "secondFile": {
+        "end": 162,
+        "endLoc": {
+          "column": 14,
+          "line": 162,
+          "position": 6470
+        },
+        "name": "FollowUp.Application\\Features\\UserAdmin\\Users\\UserCommands.cs",
+        "start": 151,
+        "startLoc": {
+          "column": 57,
+          "line": 151,
+          "position": 5926
+        }
+      },
+      "tokens": 98
+    },
+    {
+      "firstFile": {
+        "end": 245,
+        "endLoc": {
+          "column": 6,
+          "line": 245,
+          "position": 14305
+        },
+        "name": "app\\features\\daily\\daily.component.ts",
+        "start": 232,
+        "startLoc": {
+          "column": 60,
+          "line": 232,
+          "position": 13877
+        }
+      },
+      "format": "typescript",
+      "fragment": "    this.api.post(`/daily/${v.visitId}/checkin?source=daily`, {\n      sampleCount: this.recordCount,\n      collectorRepId: this.recordRep || null,\n      totalRequired: this.recordTotalRequired,\n      requestCount: this.recordRequests,\n      outsourceCount: this.recordOutsource,\n      notes: this.recordNotes.trim() || null,\n    }).subscribe({\n      next: () => { this.busy.set(false); this.recording.set(null); this.load(); },\n      error: () => this.busy.set(false),\n    });\n  }\n\n  miss(v: BoardItem): void {",
+      "lines": 14,
+      "secondFile": {
+        "end": 230,
+        "endLoc": {
+          "column": 4,
+          "line": 230,
+          "position": 14181
+        },
+        "name": "app\\features\\dashboard\\dashboard.component.ts",
+        "start": 217,
+        "startLoc": {
+          "column": 59,
+          "line": 217,
+          "position": 13755
+        }
+      },
+      "tokens": 102
+    },
+    {
+      "firstFile": {
+        "end": 21,
+        "endLoc": {
+          "column": 8,
+          "line": 21,
+          "position": 1150
+        },
+        "name": "app\\features\\labs\\lab-create.component.ts",
+        "start": 7,
+        "startLoc": {
+          "column": 9,
+          "line": 7,
+          "position": 313
+        }
+      },
+      "format": "typescript",
+      "fragment": "import { RepListItem } from '../../core/models';\nimport { MapComponent } from '../../shared/map.component';\n\ninterface Ref { nameEn: string; }\ninterface City { id: string; name: string; governorate: string; }\ninterface Area { id: string; name: string; cityId: string; }\ninterface Contact { name: string; phone: string; birthday: string | null; }\n\nconst STATUSES = ['Scanned', 'Interactive', 'Active', 'Inactive', 'Stopped', 'Pending', 'Suspended', 'Churned'];\nconst CHANNELS = ['WhatsApp', 'Phone Call', 'Email', 'In-person'];\nconst DAYS = ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'];\nconst DAY_NAMES: Record<string, string> = { Sat: 'Saturday', Sun: 'Sunday', Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday' };\n\n/** Parses \"lat, lng\" free text; null when the text is not a valid coordinate pair. */\nfunction parseGeo(text: string): { lat: number; lng: number } | null {",
+      "lines": 15,
+      "secondFile": {
+        "end": 19,
+        "endLoc": {
+          "column": 5,
+          "line": 19,
+          "position": 1098
+        },
+        "name": "app\\features\\labs\\lab-detail.component.ts",
+        "start": 7,
+        "startLoc": {
+          "column": 20,
+          "line": 7,
+          "position": 352
+        }
+      },
+      "tokens": 163
+    },
+    {
+      "firstFile": {
+        "end": 208,
+        "endLoc": {
+          "column": 32,
+          "line": 208,
+          "position": 15601
+        },
+        "name": "app\\features\\labs\\lab-create.component.ts",
+        "start": 169,
+        "startLoc": {
+          "column": 33,
+          "line": 169,
+          "position": 13895
+        }
+      },
+      "format": "typescript",
+      "fragment": "  readonly error = signal<string | null>(null);\n  readonly statuses = STATUSES;\n  readonly channels = CHANNELS;\n  readonly days = DAYS;\n\n  readonly segments = signal<string[]>([]);\n  readonly governorates = signal<string[]>([]);\n  readonly branches = signal<string[]>([]);\n  readonly categories = signal<string[]>([]);\n  readonly payers = signal<string[]>([]);\n  readonly contracts = signal<string[]>([]);\n  readonly cities = signal<City[]>([]);\n  readonly areas = signal<Area[]>([]);\n  readonly reps = signal<RepListItem[]>([]);\n  readonly images = signal<string[]>([]);\n\n  readonly collectorReps = () => this.reps().filter((r) => r.type === 'Collector' || r.type === 'Scanning');\n  readonly marketingReps = () => this.reps().filter((r) => r.type === 'Marketing');\n  readonly selectedCollectors = () => this.collectorIds.map((id) => this.reps().find((r) => r.id === id)).filter((r): r is RepListItem => !!r);\n  readonly availableCollectors = () => this.collectorReps().filter((r) => !this.collectorIds.includes(r.id));\n\n  // Dependent selects: cities narrow by governorate, areas narrow by the chosen city (joined via the cities list).\n  readonly filteredCities = () => this.cities().filter((c) => !this.f.governorate || c.governorate === this.f.governorate);\n  readonly filteredAreas = () => {\n    const city = this.filteredCities().find((c) => c.name === this.f.city);\n    return city ? this.areas().filter((a) => a.cityId === city.id) : [];\n  };\n\n  collectorIds: string[] = [];\n  workDays: string[] = [];\n  managers: Contact[] = [];\n  receptionists: Contact[] = [];\n\n  mapQuery = '';\n  readonly searching = signal(false);\n  readonly geoMiss = signal(false);\n  readonly geoFail = signal(false);\n\n  f = {\n    name: '', code: '', segment: 'A', status: 'Scanned', category: '', mappingCode: '', isEncrypted: false, branch: '',",
+      "lines": 40,
+      "secondFile": {
+        "end": 218,
+        "endLoc": {
+          "column": 32,
+          "line": 218,
+          "position": 16466
+        },
+        "name": "app\\features\\labs\\lab-detail.component.ts",
+        "start": 179,
+        "startLoc": {
+          "column": 34,
+          "line": 179,
+          "position": 14760
+        }
+      },
+      "tokens": 475
+    },
+    {
+      "firstFile": {
+        "end": 284,
+        "endLoc": {
+          "column": 44,
+          "line": 284,
+          "position": 19350
+        },
+        "name": "app\\features\\labs\\lab-create.component.ts",
+        "start": 226,
+        "startLoc": {
+          "column": 119,
+          "line": 226,
+          "position": 16779
+        }
+      },
+      "format": "typescript",
+      "fragment": "    this.api.get<{ items: RepListItem[] }>('/reps', { pageSize: 500 }).subscribe({ next: (r) => this.reps.set(r.items) });\n  }\n\n  onGovChange(v: string): void {\n    this.f.governorate = v;\n    if (!this.filteredCities().some((c) => c.name === this.f.city)) { this.f.city = ''; this.f.area = ''; }\n  }\n\n  onCityChange(v: string): void {\n    this.f.city = v;\n    if (!this.filteredAreas().some((a) => a.name === this.f.area)) this.f.area = '';\n  }\n\n  addCollector(id: string): void { if (id && !this.collectorIds.includes(id)) this.collectorIds = [...this.collectorIds, id]; }\n  removeCollector(id: string): void { this.collectorIds = this.collectorIds.filter((x) => x !== id); }\n  canViewLocation(): boolean { return this.auth.has('ViewLabLocation'); }\n  toggleDay(d: string): void { this.workDays = this.workDays.includes(d) ? this.workDays.filter((x) => x !== d) : [...this.workDays, d]; }\n\n  geoLat(): number | null { return parseGeo(this.f.geo)?.lat ?? null; }\n  geoLng(): number | null { return parseGeo(this.f.geo)?.lng ?? null; }\n  onPick(c: { lat: number; lng: number }): void { this.f.geo = `${c.lat}, ${c.lng}`; }\n\n  async searchLocation(): Promise<void> {\n    const q = this.mapQuery.trim();\n    if (!q || this.searching()) return;\n    this.geoMiss.set(false); this.geoFail.set(false); this.searching.set(true);\n    try {\n      const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q));\n      const hits = (await res.json()) as { lat: string; lon: string }[];\n      if (Array.isArray(hits) && hits.length) this.f.geo = `${(+hits[0].lat).toFixed(6)}, ${(+hits[0].lon).toFixed(6)}`;\n      else this.geoMiss.set(true);\n    } catch {\n      this.geoFail.set(true); // offline / blocked geocoder must never break the form\n    } finally {\n      this.searching.set(false);\n    }\n  }\n\n  onFiles(event: Event): void {\n    const input = event.target as HTMLInputElement;\n    const files = Array.from(input.files ?? []);\n    input.value = '';\n    if (!files.length) return;\n    this.busy.set(true);\n    let pending = files.length;\n    for (const file of files) {\n      const data = new FormData();\n      data.append('file', file);\n      this.api.post<{ path: string }>('/labs/upload', data).subscribe({\n        next: (r) => { this.images.update((a) => [...a, r.path]); if (--pending === 0) this.busy.set(false); },\n        error: (e) => { this.error.set(e?.error?.detail ?? 'Image upload failed.'); if (--pending === 0) this.busy.set(false); },\n      });\n    }\n  }\n\n  removeImage(index: number): void { this.images.update((a) => a.filter((_, i) => i !== index)); }\n\n  canSave(): boolean {\n    return !!this.f.name.trim() && !!this.f.code.trim() && !!this.f.governorate && !!this.f.city",
+      "lines": 59,
+      "secondFile": {
+        "end": 324,
+        "endLoc": {
+          "column": 44,
+          "line": 324,
+          "position": 21940
+        },
+        "name": "app\\features\\labs\\lab-detail.component.ts",
+        "start": 266,
+        "startLoc": {
+          "column": 4,
+          "line": 266,
+          "position": 19369
+        }
+      },
+      "tokens": 777
+    },
+    {
+      "firstFile": {
+        "end": 277,
+        "endLoc": {
+          "column": 3,
+          "line": 277,
+          "position": 19695
+        },
+        "name": "app\\features\\labs\\lab-detail.component.ts",
+        "start": 265,
+        "startLoc": {
+          "column": 89,
+          "line": 265,
+          "position": 19359
+        }
+      },
+      "format": "typescript",
+      "fragment": "      error: () => { this.loading.set(false); this.error.set('Could not load laboratory.'); },\n    });\n  }\n\n  onGovChange(v: string): void {\n    this.f.governorate = v;\n    if (!this.filteredCities().some((c) => c.name === this.f.city)) { this.f.city = ''; this.f.area = ''; }\n  }\n\n  onCityChange(v: string): void {\n    this.f.city = v;\n    if (!this.filteredAreas().some((a) => a.name === this.f.area)) this.f.area = '';\n  }",
+      "lines": 13,
+      "secondFile": {
+        "end": 149,
+        "endLoc": {
+          "column": 3,
+          "line": 149,
+          "position": 8843
+        },
+        "name": "app\\features\\reps\\rep-form.component.ts",
+        "start": 137,
+        "startLoc": {
+          "column": 93,
+          "line": 137,
+          "position": 8507
+        }
+      },
+      "tokens": 122
+    }
+  ],
+  "statistics": {
+    "detectionDate": "2026-08-27T18:07:06.516Z",
+    "formats": {
+      "csharp": {
+        "clones": 5,
+        "duplicatedLines": 66,
+        "duplicatedTokens": 734,
+        "lines": 14538,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 0.4539826661163846,
+        "percentageTokens": 0.6522936921244867,
+        "sources": 179,
+        "tokens": 112526
+      },
+      "markup": {
+        "clones": 0,
+        "duplicatedLines": 0,
+        "duplicatedTokens": 0,
+        "lines": 18,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 0.0,
+        "percentageTokens": 0.0,
+        "sources": 1,
+        "tokens": 153
+      },
+      "typescript": {
+        "clones": 5,
+        "duplicatedLines": 136,
+        "duplicatedTokens": 1639,
+        "lines": 9470,
+        "newClones": 0,
+        "newDuplicatedLines": 0,
+        "percentage": 1.4361140443505809,
+        "percentageTokens": 2.6676432291666665,
+        "sources": 53,
+        "tokens": 61440
+      }
+    },
+    "total": {
+      "clones": 10,
+      "duplicatedLines": 202,
+      "duplicatedTokens": 2373,
+      "lines": 24026,
+      "newClones": 0,
+      "newDuplicatedLines": 0,
+      "percentage": 0.8407558478315159,
+      "percentageTokens": 1.3628610318230636,
+      "sources": 233,
+      "tokens": 174119
+    }
+  }
+}

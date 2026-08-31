@@ -43,8 +43,11 @@ public class OperationalModulesTests
         var handler = new ConfirmTransferHandler(visits, labs, reps, new FakeCurrentUser(), new FakeClock(Now));
         await handler.Handle(new ConfirmTransferCommand
         {
-            VisitId = visit.Id.Value, TransferRepId = rep.Id.Value,
-            DriverName = "Ahmed", DriverMobile = "01000000000", CarPlate = "XYZ-1",
+            VisitId = visit.Id.Value,
+            TransferRepId = rep.Id.Value,
+            DriverName = "Ahmed",
+            DriverMobile = "01000000000",
+            CarPlate = "XYZ-1",
         }, CancellationToken.None);
 
         visit.Transfer!.DriverName.Should().Be("Ahmed");
@@ -119,7 +122,10 @@ public class OperationalModulesTests
         var handler = new CreateOutsourceSampleHandler(repo, labs, new FakeCurrentUser());
         var cmd = new CreateOutsourceSampleCommand
         {
-            LaboratoryId = lab.Id.Value, VisitDate = Today, DestinationLab = "Ext", Quantity = 2,
+            LaboratoryId = lab.Id.Value,
+            VisitDate = Today,
+            DestinationLab = "Ext",
+            Quantity = 2,
         };
         await handler.Handle(cmd, CancellationToken.None);
 
@@ -140,8 +146,12 @@ public class OperationalModulesTests
         var scheduleHandler = new ScheduleMarketingVisitHandler(repo, labs, reps, new FakeCurrentUser());
         var id = await scheduleHandler.Handle(new ScheduleMarketingVisitCommand
         {
-            LaboratoryId = lab.Id.Value, RepresentativeId = rep.Id.Value, Purpose = "Pitch", ScheduledDate = Today,
-            ScheduledTime = new TimeOnly(11, 0), Plan = "bring the new brochure",
+            LaboratoryId = lab.Id.Value,
+            RepresentativeId = rep.Id.Value,
+            Purpose = "Pitch",
+            ScheduledDate = Today,
+            ScheduledTime = new TimeOnly(11, 0),
+            Plan = "bring the new brochure",
         }, CancellationToken.None);
 
         repo.Store[0].Reference.Should().Be("MV1"); // sequential number assigned by the handler

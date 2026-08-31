@@ -138,8 +138,11 @@ internal sealed class InsightsQueries : IInsightsQueries
 
         var repProg = labs.SelectMany(l => l.CollectorRepIds.Select(c => new { Rep = c, Lab = l }))
             .GroupBy(x => x.Rep)
-            .Select(g => { var tgt = g.Sum(x => x.Lab.MonthlyTarget); var mtd = g.Sum(x => MtdOf(x.Lab.Id));
-                return new DashRepProgDto(RepOf(g.Key), $"{mtd:n0} / {tgt:n0} samples MTD", tgt > 0 ? (int)Math.Round(100.0 * mtd / tgt) : 0); })
+            .Select(g =>
+            {
+                var tgt = g.Sum(x => x.Lab.MonthlyTarget); var mtd = g.Sum(x => MtdOf(x.Lab.Id));
+                return new DashRepProgDto(RepOf(g.Key), $"{mtd:n0} / {tgt:n0} samples MTD", tgt > 0 ? (int)Math.Round(100.0 * mtd / tgt) : 0);
+            })
             .Where(r => r.Detail != "0 / 0 samples MTD").OrderByDescending(r => r.Pct).Take(8).ToList();
 
         var topLabs = labs.Select(l => new DashTopLabDto(l.Name, l.Area, l.Gov, MtdOf(l.Id)))
@@ -336,17 +339,62 @@ internal sealed class InsightsQueries : IInsightsQueries
         var live = (await (from v in _db.DailyVisits.AsNoTracking()
                            where v.VisitDate >= start && v.VisitDate <= end && scopedLabs.Contains(v.LaboratoryId)
                            join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
-                           select new { l.Code, l.IsEncrypted, l.Name, l.Branch, l.Governorate, l.City, l.Area, v.VisitDate, v.ScheduledTime, v.SampleCount,
-                               v.CollectorRepId, v.CheckedInAt, v.TransferConfirmedAt, v.ReceivedAt }).ToListAsync(ct))
-            .Select(v => new { v.Code, v.IsEncrypted, v.Name, v.Branch, v.Governorate, v.City, v.Area, v.VisitDate, ScheduledTime = (TimeOnly?)v.ScheduledTime,
-                v.SampleCount, v.CollectorRepId, v.CheckedInAt, v.TransferConfirmedAt, v.ReceivedAt });
+                           select new
+                           {
+                               l.Code,
+                               l.IsEncrypted,
+                               l.Name,
+                               l.Branch,
+                               l.Governorate,
+                               l.City,
+                               l.Area,
+                               v.VisitDate,
+                               v.ScheduledTime,
+                               v.SampleCount,
+                               v.CollectorRepId,
+                               v.CheckedInAt,
+                               v.TransferConfirmedAt,
+                               v.ReceivedAt
+                           }).ToListAsync(ct))
+            .Select(v => new
+            {
+                v.Code,
+                v.IsEncrypted,
+                v.Name,
+                v.Branch,
+                v.Governorate,
+                v.City,
+                v.Area,
+                v.VisitDate,
+                ScheduledTime = (TimeOnly?)v.ScheduledTime,
+                v.SampleCount,
+                v.CollectorRepId,
+                v.CheckedInAt,
+                v.TransferConfirmedAt,
+                v.ReceivedAt
+            });
 
         // Archived rows keep their stage timestamps (OperationsReferenceParity), so past days report too.
         var archived = await (from v in _db.VisitHistory.AsNoTracking()
                               where v.VisitDate >= start && v.VisitDate <= end && scopedLabs.Contains(v.LaboratoryId)
                               join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
-                              select new { l.Code, l.IsEncrypted, l.Name, l.Branch, l.Governorate, l.City, l.Area, v.VisitDate, v.ScheduledTime, v.SampleCount,
-                                  v.CollectorRepId, v.CheckedInAt, v.TransferConfirmedAt, v.ReceivedAt }).ToListAsync(ct);
+                              select new
+                              {
+                                  l.Code,
+                                  l.IsEncrypted,
+                                  l.Name,
+                                  l.Branch,
+                                  l.Governorate,
+                                  l.City,
+                                  l.Area,
+                                  v.VisitDate,
+                                  v.ScheduledTime,
+                                  v.SampleCount,
+                                  v.CollectorRepId,
+                                  v.CheckedInAt,
+                                  v.TransferConfirmedAt,
+                                  v.ReceivedAt
+                              }).ToListAsync(ct);
 
         var rows = live.Concat(archived)
             .OrderByDescending(r => r.VisitDate).ThenBy(r => r.ScheduledTime).ToList();

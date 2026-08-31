@@ -37,6 +37,10 @@ builder.Services.AddScoped<IRealtimeNotifier, FollowUp.Api.Realtime.SignalRRealt
 builder.Services.AddScoped<IIdempotencyKeyProvider, FollowUp.Api.Auth.HttpIdempotencyKeyProvider>();
 builder.Services.AddSignalR();
 
+// Binding failures must surface as RFC 7807 like every other error (SRS NFR-UX-4): throw so the
+// ExceptionHandlingMiddleware maps them to 400 in every environment, not only in Development.
+builder.Services.Configure<RouteHandlerOptions>(o => o.ThrowOnBadRequest = true);
+
 // Per-IP rate limiting on login (SRS NFR-SEC-4) — complements per-account lockout.
 builder.Services.AddRateLimiter(options =>
 {

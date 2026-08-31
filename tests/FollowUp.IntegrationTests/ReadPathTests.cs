@@ -53,14 +53,28 @@ public sealed class ReadPathTests
     {
         Skip.IfNot(_fx.DatabaseAvailable, "FOLLOWUP_DB not set.");
         await SeedTwoLabs();
+        // Per-lab confidentiality (reference parity): only labs flagged encrypted are masked for
+        // non-privileged callers; plain labs always show their real code.
+        await Send(new CreateLaboratoryCommand
+        {
+            Code = "MGL-C9",
+            Name = "Confidential Lab",
+            Segment = "A",
+            Governorate = "Cairo",
+            IsEncrypted = true,
+        });
 
         using var scope = _fx.Services.CreateScope();
         var queries = scope.ServiceProvider.GetRequiredService<ILaboratoryQueries>();
 
         var masked = await queries.SearchAsync(new LabSearchCriteria(), OrgScope.Global, canSeeEncrypted: false, canSeeLocation: true, default);
-        masked.Items.Should().OnlyContain(i => i.Encrypted && i.DisplayCode.StartsWith("ENC-"));
+        var secret = masked.Items.Should().ContainSingle(i => i.Encrypted).Which;
+        secret.DisplayCode.Should().StartWith("ENC-");
+        masked.Items.Should().Contain(i => i.DisplayCode == "MGL-A1" && !i.Encrypted);
+        masked.Items.Should().NotContain(i => i.DisplayCode == "MGL-C9");
 
         var real = await queries.SearchAsync(new LabSearchCriteria(), OrgScope.Global, canSeeEncrypted: true, canSeeLocation: true, default);
+        real.Items.Should().Contain(i => i.DisplayCode == "MGL-C9" && !i.Encrypted);
         real.Items.Should().Contain(i => i.DisplayCode == "MGL-A1");
     }
 

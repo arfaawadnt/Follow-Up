@@ -1,5 +1,23 @@
 {
-  "/api": { "target": "http://localhost:5088", "secure": false, "changeOrigin": true },
-  "/hubs": { "target": "http://localhost:5088", "secure": false, "ws": true, "changeOrigin": true },
-  "/healthz": { "target": "http://localhost:5088", "secure": false, "changeOrigin": true }
+  "/api": {
+    "target": "http://localhost:5155",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/hubs": {
+    "target": "http://localhost:5155",
+    "secure": false,
+    "ws": true,
+    "changeOrigin": true
+  },
+  "/healthz": {
+    "target": "http://localhost:5155",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/uploads": {
+    "target": "http://localhost:5155",
+    "secure": false,
+    "changeOrigin": true
+  }
 }

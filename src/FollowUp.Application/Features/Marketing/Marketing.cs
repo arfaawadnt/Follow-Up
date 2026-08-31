@@ -56,8 +56,11 @@ public sealed class GetMarketingVisitsHandler : IQueryHandler<GetMarketingVisits
     {
         var criteria = new MarketingSearchCriteria
         {
-            Page = request.Page, PageSize = request.PageSize, Search = request.Search,
-            Status = request.Status, LaboratoryId = request.LaboratoryId,
+            Page = request.Page,
+            PageSize = request.PageSize,
+            Search = request.Search,
+            Status = request.Status,
+            LaboratoryId = request.LaboratoryId,
         };
         return _queries.SearchAsync(criteria, _user.Scope, _user.Has(Privileges.ShowEncryptedLabs), ct);
     }
