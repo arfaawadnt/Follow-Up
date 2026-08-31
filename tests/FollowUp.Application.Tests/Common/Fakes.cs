@@ -19,6 +19,9 @@ public sealed class FakeLaboratoryRepository : ILaboratoryRepository
     public Task<Laboratory?> GetByIdAsync(LaboratoryId id, CancellationToken ct) =>
         Task.FromResult(Store.FirstOrDefault(l => l.Id == id));
 
+    public Task<IReadOnlyList<Laboratory>> GetByIdsAsync(IReadOnlyCollection<LaboratoryId> ids, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Laboratory>>(Store.Where(l => ids.Contains(l.Id)).ToList());
+
     public Task<Laboratory?> GetByCodeAsync(LabCode code, CancellationToken ct) =>
         Task.FromResult(Store.FirstOrDefault(l => l.Code == code));
 
@@ -202,8 +205,20 @@ public sealed class FakeCompensationData : ICompensationData
     public int RepAchieved { get; init; }
     public Task<int> GetLabAchievedSamplesAsync(LaboratoryId labId, Domain.Common.YearMonth period, CancellationToken ct) =>
         Task.FromResult(LabAchieved);
+    public Task<IReadOnlyDictionary<LaboratoryId, int>> GetLabAchievedSamplesForPeriodAsync(Domain.Common.YearMonth period, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyDictionary<LaboratoryId, int>>(new Dictionary<LaboratoryId, int>());
     public Task<int> GetRepAchievedSamplesAsync(RepresentativeId repId, Domain.Common.YearMonth period, CancellationToken ct) =>
         Task.FromResult(RepAchieved);
+}
+
+public sealed class FakeLabLoyaltyLedgerRepository : ILabLoyaltyLedgerRepository
+{
+    public readonly List<Domain.Compensation.LabLoyaltyLedger> Store = new();
+    public Task<Domain.Compensation.LabLoyaltyLedger?> GetAsync(LaboratoryId labId, Domain.Common.YearMonth period, CancellationToken ct) =>
+        Task.FromResult(Store.FirstOrDefault(l => l.LaboratoryId == labId && l.Period == period));
+    public Task<IReadOnlyList<Domain.Compensation.LabLoyaltyLedger>> GetForPeriodAsync(Domain.Common.YearMonth period, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Domain.Compensation.LabLoyaltyLedger>>(Store.Where(l => l.Period == period).ToList());
+    public void Add(Domain.Compensation.LabLoyaltyLedger ledger) => Store.Add(ledger);
 }
 
 public sealed class FakeUserSessionRepository : IUserSessionRepository
@@ -213,6 +228,8 @@ public sealed class FakeUserSessionRepository : IUserSessionRepository
         Task.FromResult(Store.FirstOrDefault(s => s.Id == id));
     public Task<UserSession?> GetActiveByTokenHashAsync(string tokenHash, CancellationToken ct) =>
         Task.FromResult(Store.FirstOrDefault(s => s.TokenHash == tokenHash));
+    public Task<IReadOnlyList<UserSession>> GetActiveByUserAsync(AppUserId userId, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<UserSession>>(Store.Where(s => s.UserId == userId && s.RevokedAt == null).ToList());
     public void Add(UserSession session) => Store.Add(session);
 }
 
@@ -279,4 +296,15 @@ public sealed class FakeSetupQueries : Application.Features.Setup.ISetupQueries
 
     public Task<IReadOnlyList<Application.Features.Setup.AreaDto>> GetAreasAsync(CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<Application.Features.Setup.AreaDto>>(new List<Application.Features.Setup.AreaDto>());
+}
+
+/// <summary>No-op failed-login recorder for handler tests (persistence is proven in the integration suite).</summary>
+public sealed class FakeFailedLoginRecorder : IFailedLoginRecorder
+{
+    public int Calls { get; private set; }
+    public Task RecordAsync(AppUserId userId, CancellationToken ct)
+    {
+        Calls++;
+        return Task.CompletedTask;
+    }
 }

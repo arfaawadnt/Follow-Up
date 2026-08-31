@@ -33,7 +33,9 @@ public sealed class IdempotencyBehavior<TRequest, TResponse> : IPipelineBehavior
     public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken ct)
     {
         var key = _keys.CurrentKey;
-        if (request is not IBaseCommand || string.IsNullOrWhiteSpace(key))
+        // Excluded commands (e.g. login) never cache a response — that would persist a bearer token in the
+        // idempotency store and could replay a stale one (finding IDN-2).
+        if (request is not IBaseCommand || request is IExcludeFromIdempotency || string.IsNullOrWhiteSpace(key))
             return await next();
 
         var existing = await _db.IdempotencyRecords.AsNoTracking().FirstOrDefaultAsync(r => r.Key == key, ct);

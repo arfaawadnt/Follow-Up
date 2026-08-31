@@ -8,38 +8,56 @@ namespace FollowUp.Api.Endpoints;
 
 public static class ServiceEndpoints
 {
-    public sealed record StageBody(string Stage);
+    public sealed record LogComplaintBody(Guid LaboratoryId, string Category, string ViaChannel, string? AssignedTeam,
+        string Details, Guid? RepresentativeId, DateTimeOffset? ReceivedAt);
     public sealed record AdvanceStageBody(string Stage, string? Notes, bool? IsValid, string? OutcomeType, string? Summary);
     public sealed record ResolveBody(string? ResolutionSummary);
-    public sealed record SignBody(string Module, string RecordId, string Meaning, string? Reason, string Password);
+    public sealed record SignActionBody(string Meaning, string? Reason, string Password); // module+recordId are in the route (SIG-12)
+    public sealed record SignatureCreatedDto(Guid Id);
     public sealed record PreferenceBody(string EventKey, bool System, bool Mail, bool WhatsApp);
 
     public static void MapComplaintEndpoints(this RouteGroupBuilder api)
     {
         api.MapGet("/complaints", async (int? page, int? pageSize, string? status, string? category, Guid? laboratoryId, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetComplaintsQuery { Page = page ?? 1, PageSize = pageSize ?? 50, Status = status, Category = category, LaboratoryId = laboratoryId }, ct))).WithTags("Complaints");
+        api.MapGet("/complaints/counts", async (string? category, Guid? laboratoryId, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetComplaintCountsQuery(laboratoryId, category), ct))).WithTags("Complaints"); // CMP-16 server-side pill counts
         api.MapGet("/complaints/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetComplaintByIdQuery(id), ct))).WithTags("Complaints");
         api.MapGet("/complaints/{id:guid}/audit", async (Guid id, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetComplaintAuditQuery(id), ct))).WithTags("Complaints");
-        api.MapPost("/complaints", async (LogComplaintCommand cmd, IMediator m, CancellationToken ct) =>
-        { var reference = await m.Send(cmd, ct); return Results.Created($"/api/v1/complaints", new { reference }); }).WithTags("Complaints");
+        api.MapPost("/complaints", async (LogComplaintBody b, IMediator m, CancellationToken ct) =>
+        {
+            var r = await m.Send(new LogComplaintCommand
+            {
+                LaboratoryId = b.LaboratoryId, Category = b.Category, ViaChannel = b.ViaChannel,
+                AssignedTeam = b.AssignedTeam, Details = b.Details, RepresentativeId = b.RepresentativeId, ReceivedAt = b.ReceivedAt,
+            }, ct);
+            return Results.Created($"/api/v1/complaints/{r.Id}", r); // resource URI carries the new id (CMP-13)
+        }).WithTags("Complaints");
         api.MapPost("/complaints/{id:guid}/start", async (Guid id, IMediator m, CancellationToken ct) =>
         { await m.Send(new StartComplaintCommand(id), ct); return Results.NoContent(); }).WithTags("Complaints");
         api.MapPost("/complaints/{id:guid}/resolve", async (Guid id, ResolveBody? b, IMediator m, CancellationToken ct) =>
         { await m.Send(new ResolveComplaintCommand(id, b?.ResolutionSummary), ct); return Results.NoContent(); }).WithTags("Complaints");
         api.MapPost("/complaints/{id:guid}/reopen", async (Guid id, IMediator m, CancellationToken ct) =>
         { await m.Send(new ReopenComplaintCommand(id), ct); return Results.NoContent(); }).WithTags("Complaints");
-        api.MapPost("/complaints/{id:guid}/stage", async (Guid id, StageBody b, IMediator m, CancellationToken ct) =>
-        { await m.Send(new MoveComplaintStageCommand(id, b.Stage), ct); return Results.NoContent(); }).WithTags("Complaints");
+        // Retired (CMP-5): /stage duplicated /advance, which survives. Return 410 Gone so callers get a clear
+        // signal to migrate rather than a silent behaviour change.
+        api.MapPost("/complaints/{id:guid}/stage", (Guid id) =>
+            Results.Problem(statusCode: 410, title: "Endpoint retired",
+                detail: "POST /complaints/{id}/stage is retired. Use POST /complaints/{id}/advance."))
+            .WithTags("Complaints").AllowAnonymous();
         api.MapPost("/complaints/{id:guid}/advance", async (Guid id, AdvanceStageBody b, IMediator m, CancellationToken ct) =>
         { await m.Send(new AdvanceComplaintStageCommand(id, b.Stage, b.Notes, b.IsValid, b.OutcomeType, b.Summary), ct); return Results.NoContent(); }).WithTags("Complaints");
     }
 
     public static void MapSignatureEndpoints(this RouteGroupBuilder api)
     {
-        api.MapPost("/esign/sign", async (SignBody b, IMediator m, CancellationToken ct) =>
-        { var id = await m.Send(new SignRecordCommand(b.Module, b.RecordId, b.Meaning, b.Reason, b.Password), ct); return Results.Ok(new { id }); }).WithTags("Signatures");
+        api.MapPost("/esign/{module}/{recordId}/sign", async (string module, string recordId, SignActionBody b, IMediator m, CancellationToken ct) =>
+        {
+            var id = await m.Send(new SignRecordCommand(module, recordId, b.Meaning, b.Reason, b.Password), ct);
+            return Results.Ok(new SignatureCreatedDto(id));
+        }).WithTags("Signatures").RequireRateLimiting("esign");
         api.MapGet("/esign/{module}/{recordId}", async (string module, string recordId, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new VerifySignatureQuery(module, recordId), ct))).WithTags("Signatures");
     }

@@ -54,7 +54,16 @@ jobs:
           done
           kill "$API_PID" 2>/dev/null || true
       - name: Test
-        run: dotnet test FollowUp.sln -c Debug --no-build --verbosity normal
+        # Run the suites sequentially, not via `dotnet test <sln>`: IntegrationTests and ApiTests share the one
+        # Postgres, and the solution runner parallelises across projects on the CI runner — so IntegrationTests'
+        # ResetAsync deletes would race the ApiTests' create/fetch (labs deleted mid-test -> 404). The suites are
+        # designed for exclusive DB access; run them one at a time.
+        run: |
+          dotnet test tests/FollowUp.Domain.Tests/FollowUp.Domain.Tests.csproj -c Debug --no-build --verbosity normal
+          dotnet test tests/FollowUp.Application.Tests/FollowUp.Application.Tests.csproj -c Debug --no-build --verbosity normal
+          dotnet test tests/FollowUp.ArchitectureTests/FollowUp.ArchitectureTests.csproj -c Debug --no-build --verbosity normal
+          dotnet test tests/FollowUp.IntegrationTests/FollowUp.IntegrationTests.csproj -c Debug --no-build --verbosity normal
+          dotnet test tests/FollowUp.ApiTests/FollowUp.ApiTests.csproj -c Debug --no-build --verbosity normal
 
   frontend:
     name: Frontend build + unit tests

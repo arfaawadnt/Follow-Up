@@ -1,5 +1,6 @@
 using FluentAssertions;
 using FollowUp.Application.Features.Laboratories.CreateLaboratory;
+using FollowUp.Application.Features.SampleTracking;
 using FollowUp.Application.Features.Setup;
 using FollowUp.Application.Features.UserAdmin.Users;
 
@@ -28,6 +29,30 @@ public class ValidatorTests
         var result = new CreateUserValidator().Validate(new CreateUserCommand { Username = "u", Password = "short", RoleId = System.Guid.NewGuid() });
         result.IsValid.Should().BeFalse();
         result.Errors.Should().Contain(e => e.PropertyName == "Password");
+    }
+
+    [Fact]
+    public void CreateUser_enforces_password_complexity_and_a_deny_list()
+    {
+        // IDN-10: length alone is not enough — require mixed case + a digit, and reject common choices.
+        static bool Valid(string pw) => new CreateUserValidator()
+            .Validate(new CreateUserCommand { Username = "u", Password = pw, RoleId = System.Guid.NewGuid() }).IsValid;
+
+        Valid("alllower12345").Should().BeFalse();       // no upper-case
+        Valid("ALLUPPER12345").Should().BeFalse();       // no lower-case
+        Valid("NoDigitsHere!").Should().BeFalse();       // no digit
+        Valid("Password1").Should().BeFalse();           // passes complexity but is on the deny-list
+        Valid("Str0ng-Passphrase").Should().BeTrue();    // length + complexity + not common
+    }
+
+    [Fact]
+    public void SampleLifecycleReport_bounds_the_date_range()
+    {
+        // ST-10: a valid window of at most a year; an inverted or over-wide range is rejected.
+        var v = new GetSampleLifecycleReportValidator();
+        v.Validate(new GetSampleLifecycleReportQuery(new System.DateOnly(2026, 1, 1), new System.DateOnly(2026, 1, 31))).IsValid.Should().BeTrue();
+        v.Validate(new GetSampleLifecycleReportQuery(new System.DateOnly(2026, 1, 31), new System.DateOnly(2026, 1, 1))).IsValid.Should().BeFalse();
+        v.Validate(new GetSampleLifecycleReportQuery(new System.DateOnly(2020, 1, 1), new System.DateOnly(2026, 1, 1))).IsValid.Should().BeFalse();
     }
 
     [Fact]

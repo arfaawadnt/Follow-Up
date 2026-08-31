@@ -65,6 +65,8 @@ public class ResolveComplaintHandlerTests
 
 public class AdvanceComplaintStageHandlerTests
 {
+    private static readonly DateTimeOffset Now = new(2026, 8, 15, 10, 0, 0, TimeSpan.FromHours(2));
+
     private static (FakeComplaintRepository, FakeLaboratoryRepository, Complaint) Seed()
     {
         var lab = Laboratory.Register(LabCode.Create("MGL-2"), "Lab", "B");
@@ -81,7 +83,7 @@ public class AdvanceComplaintStageHandlerTests
     public async Task Validity_stage_routes_to_CheckValidity()
     {
         var (complaints, labs, complaint) = Seed();
-        var handler = new AdvanceComplaintStageHandler(complaints, labs, new FakeCurrentUser());
+        var handler = new AdvanceComplaintStageHandler(complaints, labs, new FakeCurrentUser(), new FakeClock(Now));
 
         await handler.Handle(new AdvanceComplaintStageCommand(complaint.Id.Value, "ValidityChecked",
             Notes: "verified", IsValid: true), CancellationToken.None);
@@ -92,22 +94,24 @@ public class AdvanceComplaintStageHandlerTests
     }
 
     [Fact]
-    public async Task Invalid_validity_routes_to_RejectedInvalid()
+    public async Task Invalid_validity_closes_the_complaint()
     {
         var (complaints, labs, complaint) = Seed();
-        var handler = new AdvanceComplaintStageHandler(complaints, labs, new FakeCurrentUser());
+        var handler = new AdvanceComplaintStageHandler(complaints, labs, new FakeCurrentUser(), new FakeClock(Now));
 
         await handler.Handle(new AdvanceComplaintStageCommand(complaint.Id.Value, "ValidityChecked",
             IsValid: false), CancellationToken.None);
 
+        // CMP-21: an invalid verdict auto-closes the complaint.
         complaint.Stage.Should().Be(ComplaintStage.RejectedInvalid);
+        complaint.Status.Should().Be(ComplaintStatus.Resolved);
     }
 
     [Fact]
     public async Task Investigation_and_outcome_stages_store_their_payloads()
     {
         var (complaints, labs, complaint) = Seed();
-        var handler = new AdvanceComplaintStageHandler(complaints, labs, new FakeCurrentUser());
+        var handler = new AdvanceComplaintStageHandler(complaints, labs, new FakeCurrentUser(), new FakeClock(Now));
 
         await handler.Handle(new AdvanceComplaintStageCommand(complaint.Id.Value, "Investigation",
             Notes: "courier delay"), CancellationToken.None);

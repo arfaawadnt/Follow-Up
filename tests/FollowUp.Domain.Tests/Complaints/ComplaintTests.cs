@@ -58,14 +58,19 @@ public class ComplaintTests
     }
 
     [Fact]
-    public void Reopen_from_resolved_clears_resolution()
+    public void Reopen_from_resolved_resets_stage_to_investigation_and_keeps_the_summary()
     {
         var complaint = NewComplaint();
+        complaint.SetResolutionSummary("closed after contacting the lab");
         complaint.Resolve("manager", Now); // Open -> Resolved (direct)
         complaint.Reopen();
 
         complaint.Status.Should().Be(ComplaintStatus.Open);
         complaint.ResolvedAt.Should().BeNull();
+        // CMP-20: reopened complaints flow forward from Investigation, not dead-end at Resolution; the prior
+        // resolution summary is kept as an audit-trail record.
+        complaint.Stage.Should().Be(ComplaintStage.Investigation);
+        complaint.ResolutionSummary.Should().Be("closed after contacting the lab");
     }
 
     [Fact]
@@ -76,6 +81,42 @@ public class ComplaintTests
 
         complaint.Stage.Should().Be(ComplaintStage.Investigation);
         complaint.Status.Should().Be(ComplaintStatus.Open); // stage is metadata only (CMP-STAGE fix)
+    }
+
+    [Fact]
+    public void MoveToStage_cannot_jump_to_a_gated_terminal_stage()
+    {
+        var complaint = NewComplaint(); // Open / Logged
+
+        // Resolution carries the resolve + optional e-signature gate; RejectedInvalid carries the validity
+        // decision. A bare stage move must not reach either, or the resolve-gate is bypassable (CMP-2).
+        var toResolution = () => complaint.MoveToStage(ComplaintStage.Resolution);
+        toResolution.Should().Throw<IllegalStateTransitionException>();
+
+        var toRejected = () => complaint.MoveToStage(ComplaintStage.RejectedInvalid);
+        toRejected.Should().Throw<IllegalStateTransitionException>();
+
+        complaint.Stage.Should().Be(ComplaintStage.Logged); // nothing changed
+    }
+
+    [Fact]
+    public void Resolved_complaint_narrative_is_frozen()
+    {
+        var complaint = NewComplaint();
+        complaint.Resolve("manager", Now); // Open -> Resolved (direct)
+
+        // No stage edit is permitted once the complaint is closed (CMP-2).
+        var investigate = () => complaint.RecordInvestigation("late edit");
+        investigate.Should().Throw<IllegalStateTransitionException>();
+
+        var recheck = () => complaint.CheckValidity(true, "late", "u", Now);
+        recheck.Should().Throw<IllegalStateTransitionException>();
+
+        var outcome = () => complaint.RecordOutcome("x", null);
+        outcome.Should().Throw<IllegalStateTransitionException>();
+
+        var move = () => complaint.MoveToStage(ComplaintStage.Acknowledged);
+        move.Should().Throw<IllegalStateTransitionException>();
     }
 
     [Fact]
@@ -95,23 +136,27 @@ public class ComplaintTests
     {
         var complaint = NewComplaint();
 
-        complaint.CheckValidity(true, "confirmed with the lab");
+        complaint.CheckValidity(true, "confirmed with the lab", "checker", Now);
 
         complaint.Stage.Should().Be(ComplaintStage.ValidityChecked);
         complaint.IsValid.Should().BeTrue();
         complaint.ValidityNotes.Should().Be("confirmed with the lab");
-        complaint.Status.Should().Be(ComplaintStatus.Open); // stage payloads never touch status
+        complaint.Status.Should().Be(ComplaintStatus.Open); // a valid verdict never touches status
     }
 
     [Fact]
-    public void CheckValidity_invalid_routes_to_RejectedInvalid()
+    public void CheckValidity_invalid_closes_the_complaint()
     {
         var complaint = NewComplaint();
 
-        complaint.CheckValidity(false, "not reproducible");
+        complaint.CheckValidity(false, "not reproducible", "checker", Now);
 
+        // CMP-21: an invalid verdict auto-closes the complaint (no e-sign resolve, drops out of Open KPIs).
         complaint.Stage.Should().Be(ComplaintStage.RejectedInvalid);
         complaint.IsValid.Should().BeFalse();
+        complaint.Status.Should().Be(ComplaintStatus.Resolved);
+        complaint.ResolvedBy.Should().Be("checker");
+        complaint.ResolvedAt.Should().Be(Now);
     }
 
     [Fact]
@@ -152,5 +197,24 @@ public class ComplaintTests
 
         complaint.ResolutionSummary.Should().Be("credited the affected order");
         complaint.Status.Should().Be(ComplaintStatus.Resolved);
+    }
+
+    [Fact]
+    public void Content_version_advances_on_every_material_change_and_a_revert_never_lowers_it()
+    {
+        // SIG-4: a monotonic content version, so an edit-and-revert (A→B→A) can never restore an earlier version
+        // and resurrect a signature bound to that earlier state.
+        var complaint = NewComplaint();
+        complaint.ContentVersion.Should().Be(1u);
+
+        complaint.RecordInvestigation("root cause A");
+        var atA = complaint.ContentVersion;
+        atA.Should().BeGreaterThan(1u);
+
+        complaint.RecordInvestigation("root cause B");
+        complaint.ContentVersion.Should().BeGreaterThan(atA);
+
+        complaint.RecordInvestigation("root cause A"); // revert the field to its earlier value
+        complaint.ContentVersion.Should().BeGreaterThan(atA, "reverting content must not restore an earlier version");
     }
 }

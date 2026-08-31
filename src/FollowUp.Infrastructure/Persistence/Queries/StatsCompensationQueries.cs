@@ -87,43 +87,44 @@ internal sealed class CompensationQueries : ICompensationQueries
     private readonly FollowUpDbContext _db;
     public CompensationQueries(FollowUpDbContext db) => _db = db;
 
-    public async Task<IReadOnlyList<LoyaltyLedgerDto>> GetLedgersAsync(int period, OrgScope scope, CancellationToken ct)
-    {
-        var ym = YearMonth.FromCode(period);
-        var scopedLabs = _db.Laboratories.ApplyScope(scope).Select(l => l.Id);
-        return await _db.LoyaltyLedgers.AsNoTracking()
-            .Where(x => x.Period == ym && scopedLabs.Contains(x.LaboratoryId))
-            .Select(x => new LoyaltyLedgerDto(x.LaboratoryId.Value, x.Period.Code, x.Target, x.Achieved, x.Points, x.Tier))
-            .ToListAsync(ct);
-    }
-
     public async Task<IReadOnlyList<LoyaltyRowDto>> GetLoyaltySummaryAsync(OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var thisYm = new YearMonth(today.Year, today.Month);
         var labs = await _db.Laboratories.ApplyScope(scope).AsNoTracking()
-            .Select(l => new { l.Id, l.Code, l.Name, l.Branch, l.City, l.MonthlyTarget, l.LoyaltyPoints, l.LoyaltyTier }).ToListAsync(ct);
+            .Select(l => new { l.Id, l.Code, l.IsEncrypted, l.Name, l.Branch, l.City, l.MonthlyTarget, l.LoyaltyPoints, l.LoyaltyTier }).ToListAsync(ct);
         var labIds = labs.Select(l => l.Id).ToList();
         var ms = await _db.MonthlySamples.AsNoTracking().Where(m => labIds.Contains(m.LaboratoryId) && m.Period == thisYm)
             .Select(m => new { m.LaboratoryId, m.SampleCount }).ToListAsync(ct);
         var mtd = ms.GroupBy(x => x.LaboratoryId).ToDictionary(g => g.Key, g => g.Sum(x => x.SampleCount));
-        return labs.Select(l => new LoyaltyRowDto(l.Id.Value, DisplayCode.For(l.Code.Value, canSeeEncrypted), l.Name, l.Branch, l.City,
+        return labs.Select(l => new LoyaltyRowDto(l.Id.Value, DisplayCode.For(l.Code.Value, l.IsEncrypted, canSeeEncrypted), l.Name, l.Branch, l.City,
             l.MonthlyTarget, mtd.TryGetValue(l.Id, out var v) ? v : 0, l.LoyaltyPoints, l.LoyaltyTier)).ToList();
     }
 
-    public async Task<IReadOnlyList<LoyaltyLedgerDto>> GetLabLedgerAsync(Guid labId, CancellationToken ct) =>
-        await _db.LoyaltyLedgers.AsNoTracking()
-            .Where(x => x.LaboratoryId == new Domain.Laboratories.LaboratoryId(labId))
+    public async Task<IReadOnlyList<LoyaltyLedgerDto>> GetLabLedgerAsync(Guid labId, OrgScope scope, CancellationToken ct)
+    {
+        // Scope the ledger read (SRS SCOPE-READ): an out-of-scope labId yields an empty history rather than
+        // leaking another scope's target/points/tier figures.
+        var scopedLabs = _db.Laboratories.ApplyScope(scope).Select(l => l.Id);
+        return await _db.LoyaltyLedgers.AsNoTracking()
+            .Where(x => x.LaboratoryId == new Domain.Laboratories.LaboratoryId(labId) && scopedLabs.Contains(x.LaboratoryId))
             .OrderByDescending(x => x.Period)
             .Select(x => new LoyaltyLedgerDto(x.LaboratoryId.Value, x.Period.Code, x.Target, x.Achieved, x.Points, x.Tier))
             .ToListAsync(ct);
+    }
 
     public async Task<IReadOnlyList<CommissionDto>> GetCommissionsAsync(int period, OrgScope scope, CancellationToken ct)
     {
-        // Commissions are org-wide aggregates (SCOPE-READ decision: documented as org-wide, not lab-scoped).
-        // One row per active rep (grouped by type in the UI), with saved amounts or zeros/defaults.
+        // Scope commissions to the caller's org scope (SRS SCOPE-READ / finding CPN-2): a rep is visible only
+        // when its attribution falls within scope. Reps carry only Branch/Governorate/City/Area (never the
+        // lab-only Category/Segment dimensions), so scope them by the geographic-only OrgScope.Allows overload
+        // — checking Category/Segment here would deny every rep to a Category/Segment-scoped manager. A rep with
+        // no geographic attribution is visible only to a geographically-global caller (fail-closed, matching
+        // OrgScope.Allows' null semantics). One row per active in-scope rep.
         var ym = YearMonth.FromCode(period);
-        var reps = await _db.Representatives.AsNoTracking().Where(r => r.IsActive).ToListAsync(ct);
+        var reps = (await _db.Representatives.AsNoTracking().Where(r => r.IsActive).ToListAsync(ct))
+            .Where(r => scope.Allows(r.Branch, r.Governorate, r.City, r.Area))
+            .ToList();
         var comms = (await _db.Commissions.AsNoTracking().Where(x => x.Period == ym).ToListAsync(ct))
             .ToDictionary(x => x.RepresentativeId);
         return reps.Select(r =>
@@ -131,7 +132,7 @@ internal sealed class CompensationQueries : ICompensationQueries
             comms.TryGetValue(r.Id, out var c);
             return new CommissionDto(r.Id.Value, r.FullName, r.Type.Name, r.GoalType ?? r.GoalDuration.Name, period,
                 c?.Target ?? r.Target.Amount, c?.Achieved ?? 0m, c?.BaseSalary.Amount ?? r.Salary.Amount,
-                c?.Commission.Amount ?? 0m, c?.Bonus.Amount ?? 0m, c?.Total.Amount ?? r.Salary.Amount, false);
+                c?.Commission.Amount ?? 0m, c?.Bonus.Amount ?? 0m, c?.Total.Amount ?? r.Salary.Amount);
         }).ToList();
     }
 

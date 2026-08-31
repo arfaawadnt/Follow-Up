@@ -14,7 +14,7 @@ public readonly record struct AppUserId(Guid Value)
 /// a <see cref="Representative"/> (one login per rep), and per-account lockout state. Passwords are never
 /// held in clear — only a <see cref="PasswordHash"/>. Session lifecycle lives in <c>UserSession</c>.
 /// </summary>
-public sealed class AppUser : AggregateRoot<AppUserId>, IAuditable
+public sealed class AppUser : AggregateRoot<AppUserId>, IVersioned, IAuditable
 {
     private AppUser() { } // EF
 
@@ -29,6 +29,9 @@ public sealed class AppUser : AggregateRoot<AppUserId>, IAuditable
     }
 
     public string Username { get; private set; } = null!;
+
+    /// <summary>Optimistic-concurrency token (Postgres xmin); concurrent edits conflict (409). Finding IDN-4.</summary>
+    public uint RowVersion { get; private set; }
     public string? DisplayName { get; private set; }
     public PasswordHash Password { get; private set; } = null!;
     public RoleId RoleId { get; private set; }
@@ -37,6 +40,10 @@ public sealed class AppUser : AggregateRoot<AppUserId>, IAuditable
     public string Language { get; private set; } = "en";
     public RepresentativeId? RepresentativeId { get; private set; }
     public bool IsActive { get; private set; }
+
+    /// <summary>The seeded administrator: it cannot be deleted or demoted, so the platform always retains an
+    /// account that can manage users (finding IDN-6 — replaces the hardcoded "admin" username check).</summary>
+    public bool IsBuiltIn { get; private set; }
 
     // Lockout state (SRS FR-1 / NFR-SEC-4).
     public int FailedLoginCount { get; private set; }
@@ -58,7 +65,17 @@ public sealed class AppUser : AggregateRoot<AppUserId>, IAuditable
     public void SetDisplayName(string? displayName) =>
         DisplayName = string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim();
     public void SetLanguage(string language) => Language = string.IsNullOrWhiteSpace(language) ? "en" : language.Trim();
-    public void ChangeRole(RoleId roleId) => RoleId = roleId;
+    public void ChangeRole(RoleId roleId)
+    {
+        // The built-in administrator must never be demoted out of its role (IDN-6); a same-role call (a profile
+        // update that re-passes the current role) is fine.
+        if (IsBuiltIn && roleId != RoleId)
+            throw new DomainException("The built-in administrator's role cannot be changed.");
+        RoleId = roleId;
+    }
+
+    /// <summary>Marks this account as the protected built-in administrator (seeder only).</summary>
+    public void MarkAsBuiltIn() => IsBuiltIn = true;
     public void LinkRepresentative(RepresentativeId? repId) => RepresentativeId = repId;
     public void SetPassword(PasswordHash password) => Password = password;
     public void Deactivate() => IsActive = false;

@@ -215,8 +215,4 @@ public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAudit
 
     public void RemoveContact(ContactPersonId contactId) =>
         _contacts.RemoveAll(c => c.Id == contactId);
-
-    /// <summary>The display code a caller sees: real code when permitted, else the ENC alias (BR-7).</summary>
-    public string DisplayCode(bool canSeeEncrypted) =>
-        canSeeEncrypted ? Code.Value : Code.ToEncryptedAlias();
 }

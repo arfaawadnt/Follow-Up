@@ -53,7 +53,8 @@ public sealed class ElectronicSignature : AggregateRoot<ElectronicSignatureId>
         Guid signerUserId, string signerUsername, string authLevel, SignatureMeaning meaning, string? reason,
         string contentHash, DateTimeOffset signedAt, string? signerIp)
     {
-        if (string.IsNullOrWhiteSpace(module)) throw new DomainException("Signature module is required.");
+        if (!SignableModule.IsKnown(module)) throw new DomainException($"'{module}' is not a signable module."); // SIG-10 closed set
+        if (!SignatureAuthLevel.IsKnown(authLevel)) throw new DomainException($"'{authLevel}' is not a known auth level."); // SIG-11 closed set
         if (string.IsNullOrWhiteSpace(recordId)) throw new DomainException("Signature record id is required.");
         if (string.IsNullOrWhiteSpace(contentHash)) throw new DomainException("Signature content hash is required.");
         return new ElectronicSignature(ElectronicSignatureId.New(), module, recordId, recordVersion, signerUserId,

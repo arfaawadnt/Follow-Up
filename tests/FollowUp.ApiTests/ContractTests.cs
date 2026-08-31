@@ -123,5 +123,72 @@ public sealed class ContractTests
         codes.Should().Contain(HttpStatusCode.TooManyRequests, "the fixed-window login limiter should reject once the burst exceeds the permit");
     }
 
+    [SkippableFact]
+    public async Task Esign_sign_endpoint_is_rate_limited()
+    {
+        // SIG-9: signing re-authenticates a password (like login) yet carried no throttle, leaving it a
+        // credential-guessing surface. The limiter runs before auth, so an unauthenticated burst still trips it
+        // once the endpoint declares the "esign" policy; without the policy every request is a plain 401.
+        Skip.IfNot(_fx.DatabaseAvailable, "FOLLOWUP_DB not set.");
+        using var factory = _fx.WithWebHostBuilder(_ => { });
+        using var client = factory.CreateClient();
+        var codes = new List<HttpStatusCode>();
+        for (var i = 0; i < 15; i++)
+        {
+            var resp = await client.PostAsJsonAsync("/api/v1/esign/complaint/x/sign",
+                new { meaning = "Approval", reason = (string?)null, password = "wrong-on-purpose" });
+            codes.Add(resp.StatusCode);
+        }
+        codes.Should().Contain(HttpStatusCode.TooManyRequests, "signing must be throttled to blunt password guessing (SIG-9)");
+    }
+
+    [SkippableFact]
+    public async Task Retired_stage_endpoint_returns_410_gone()
+    {
+        // CMP-5: /complaints/{id}/stage duplicated /advance and is retired; it answers 410 to any caller
+        // (anonymous, so the tombstone is testable) pointing them to /advance.
+        Skip.IfNot(_fx.DatabaseAvailable, "FOLLOWUP_DB not set.");
+        using var client = _fx.CreateClient();
+        var resp = await client.PostAsJsonAsync($"/api/v1/complaints/{Guid.NewGuid()}/stage", new { stage = "Investigation" });
+        resp.StatusCode.Should().Be(HttpStatusCode.Gone);
+    }
+
+    [SkippableFact]
+    public async Task Log_complaint_returns_201_with_id_and_reference_at_the_resource_uri()
+    {
+        // CMP-13: POST /complaints takes a dedicated body, returns {id, reference}, and points Location at the
+        // new resource (/complaints/{id}) rather than the collection.
+        Skip.IfNot(_fx.AuthReady, "Auth not ready.");
+        using var client = _fx.CreateAuthedClient();
+        var code = $"MGL-CM{Guid.NewGuid().ToString("N")[..6].ToUpperInvariant()}";
+        var labResp = await client.PostAsJsonAsync("/api/v1/labs",
+            new { code, name = "Complaint Contract Lab", segment = "A", governorate = "Cairo", workDays = Array.Empty<string>(), visitTimes = Array.Empty<string>() });
+        var lab = await labResp.Content.ReadFromJsonAsync<IdResponse>();
+
+        var resp = await client.PostAsJsonAsync("/api/v1/complaints",
+            new { laboratoryId = lab!.Id, category = "Result Quality", viaChannel = "Phone", details = "d" });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Created);
+        var body = await resp.Content.ReadFromJsonAsync<ComplaintCreatedResponse>();
+        body!.Id.Should().NotBeEmpty();
+        body.Reference.Should().StartWith("CMP-");
+        resp.Headers.Location!.ToString().Should().EndWith($"/api/v1/complaints/{body.Id}");
+    }
+
+    [SkippableFact]
+    public async Task Compensation_config_binds_the_body_record_and_validates()
+    {
+        // CPN-15: POST /setup/compensation-config now takes a dedicated body record (not the command). An empty
+        // tier set must reach the handler and be rejected as 400 — proving the body binds and validation runs
+        // (and, being rejected, it does not mutate the seeded singleton).
+        Skip.IfNot(_fx.AuthReady, "Auth not ready.");
+        using var client = _fx.CreateAuthedClient();
+        var resp = await client.PostAsJsonAsync("/api/v1/setup/compensation-config",
+            new { commissionRatePercent = 5m, bonusThresholdPercent = 100m, bonusAmount = 500m, tiers = Array.Empty<object>() });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     private sealed record IdResponse(Guid Id);
+    private sealed record ComplaintCreatedResponse(Guid Id, string Reference);
 }

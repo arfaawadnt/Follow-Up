@@ -20,16 +20,15 @@ public sealed record LoyaltyRowDto(Guid LaboratoryId, string Code, string Name, 
     int MonthlyTarget, int MtdSamples, int LoyaltyPoints, string? LoyaltyTier);
 public sealed record CommissionDto(Guid RepId, string Name, string Type, string GoalType, int Period,
     decimal TargetAmount, decimal AchievedAmount, decimal BaseSalary, decimal CommissionEarned,
-    decimal BonusEarned, decimal TotalPayout, bool IsLocked);
+    decimal BonusEarned, decimal TotalPayout);
 public sealed record CompensationConfigDto(decimal CommissionRatePercent, decimal BonusThresholdPercent,
     decimal BonusAmount, IReadOnlyList<LoyaltyTierDto> Tiers);
 public sealed record LoyaltyTierDto(string Name, decimal MinAchievementPercent, int Points);
 
 public interface ICompensationQueries
 {
-    Task<IReadOnlyList<LoyaltyLedgerDto>> GetLedgersAsync(int period, OrgScope scope, CancellationToken ct);
     Task<IReadOnlyList<LoyaltyRowDto>> GetLoyaltySummaryAsync(OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
-    Task<IReadOnlyList<LoyaltyLedgerDto>> GetLabLedgerAsync(Guid labId, CancellationToken ct);
+    Task<IReadOnlyList<LoyaltyLedgerDto>> GetLabLedgerAsync(Guid labId, OrgScope scope, CancellationToken ct);
     Task<IReadOnlyList<CommissionDto>> GetCommissionsAsync(int period, OrgScope scope, CancellationToken ct);
     Task<CompensationConfigDto?> GetConfigAsync(CancellationToken ct);
 }
@@ -105,7 +104,14 @@ public sealed class RecalculateLoyaltyHandler : ICommandHandler<RecalculateLoyal
             _ledgers.Add(ledger);
         }
         ledger.Record(lab.MonthlyTarget, achieved, points, tier, _clock.UtcNow);
-        lab.SetLoyalty(lab.MonthlyTarget, points, tier); // update snapshot on the lab
+
+        // The ledger row is period-specific, but the lab's live snapshot (which drives the loyalty page) must
+        // only reflect the CURRENT month — recalculating a past period would otherwise overwrite the lab's
+        // standing with stale numbers while MtdSamples stays current (finding CPN-7). Mirrors
+        // RecalculateAllLoyaltyHandler, which always targets the current Cairo month.
+        if (period == YearMonth.From(_clock.CairoToday))
+            lab.SetLoyalty(lab.MonthlyTarget, points, tier);
+
         return Unit.Value;
     }
 }
@@ -145,18 +151,22 @@ public sealed class RecalculateAllLoyaltyHandler : ICommandHandler<RecalculateAl
 
         // In-scope labs only (the summary query already applies the caller's OrgScope).
         var summary = await _queries.GetLoyaltySummaryAsync(_user.Scope, _user.Has(Privileges.ShowEncryptedLabs), ct);
+        var labIds = summary.Select(r => new LaboratoryId(r.LaboratoryId)).ToList();
+
+        // CPN-18: load the recalc inputs in bulk (3 constant queries) instead of 3 round-trips per lab.
+        var labs = (await _labs.GetByIdsAsync(labIds, ct)).ToDictionary(l => l.Id);
+        var achievedByLab = await _data.GetLabAchievedSamplesForPeriodAsync(period, ct);
+        var ledgers = (await _ledgers.GetForPeriodAsync(period, ct)).ToDictionary(l => l.LaboratoryId);
 
         var count = 0;
         foreach (var row in summary)
         {
-            var lab = await _labs.GetByIdAsync(new LaboratoryId(row.LaboratoryId), ct);
-            if (lab is null) continue;
+            if (!labs.TryGetValue(new LaboratoryId(row.LaboratoryId), out var lab)) continue;
 
-            var achieved = await _data.GetLabAchievedSamplesAsync(lab.Id, period, ct);
+            var achieved = achievedByLab.TryGetValue(lab.Id, out var a) ? a : 0;
             var (points, tier) = calculator.ComputeLoyalty(achieved, lab.MonthlyTarget);
 
-            var ledger = await _ledgers.GetAsync(lab.Id, period, ct);
-            if (ledger is null) { ledger = LabLoyaltyLedger.For(lab.Id, period); _ledgers.Add(ledger); }
+            if (!ledgers.TryGetValue(lab.Id, out var ledger)) { ledger = LabLoyaltyLedger.For(lab.Id, period); _ledgers.Add(ledger); }
             ledger.Record(lab.MonthlyTarget, achieved, points, tier, _clock.UtcNow);
             lab.SetLoyalty(lab.MonthlyTarget, points, tier);
             count++;
@@ -178,18 +188,20 @@ public sealed class SaveCommissionHandler : ICommandHandler<SaveCommissionComman
     private readonly IRepCommissionRepository _commissions;
     private readonly ICompensationConfigRepository _configs;
     private readonly ICompensationData _data;
+    private readonly ICurrentUser _user;
     private readonly IClock _clock;
 
     public SaveCommissionHandler(IRepresentativeRepository reps, IRepCommissionRepository commissions,
-        ICompensationConfigRepository configs, ICompensationData data, IClock clock)
+        ICompensationConfigRepository configs, ICompensationData data, ICurrentUser user, IClock clock)
     {
-        _reps = reps; _commissions = commissions; _configs = configs; _data = data; _clock = clock;
+        _reps = reps; _commissions = commissions; _configs = configs; _data = data; _user = user; _clock = clock;
     }
 
     public async Task<Unit> Handle(SaveCommissionCommand request, CancellationToken ct)
     {
         var rep = await _reps.GetByIdAsync(new RepresentativeId(request.RepresentativeId), ct)
             ?? throw new NotFoundException("Representative", request.RepresentativeId);
+        _user.EnsureInScope(rep); // finding CPN-3: resource-level org-scope check before the payroll write
         var config = await _configs.GetAsync(ct)
             ?? throw new ConflictException("Compensation configuration has not been set.");
 
@@ -208,6 +220,76 @@ public sealed class SaveCommissionHandler : ICommandHandler<SaveCommissionComman
         }
         record.Recompute(target, achieved, rep.Salary, commission, bonus, _clock.UtcNow);
         return Unit.Value;
+    }
+}
+
+// ---- Save commissions for every in-scope rep (one transaction, finding CPN-8) ----
+
+/// <summary>
+/// Recomputes and persists the commission for EVERY in-scope rep for a period in a single transaction, backing
+/// the "Save payouts" action. Replaces the client's per-rep fan-out (one POST per row, no rollback, silent
+/// abort on error) that could leave a payroll month half-saved in production (finding CPN-8). Server-computed
+/// throughout (BR-9); per-rep org-scope enforced (CPN-3). Returns the number of reps saved.
+/// </summary>
+public sealed record SaveAllCommissionsCommand(int Period) : ICommand<int>, IAuthorizedRequest
+{
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageCommissions };
+}
+
+public sealed class SaveAllCommissionsValidator : AbstractValidator<SaveAllCommissionsCommand>
+{
+    public SaveAllCommissionsValidator() =>
+        RuleFor(x => x.Period).GreaterThan(0).WithMessage("Period must be a positive YYYYMM code.");
+}
+
+public sealed class SaveAllCommissionsHandler : ICommandHandler<SaveAllCommissionsCommand, int>
+{
+    private readonly IRepresentativeRepository _reps;
+    private readonly IRepCommissionRepository _commissions;
+    private readonly ICompensationConfigRepository _configs;
+    private readonly ICompensationData _data;
+    private readonly ICompensationQueries _queries;
+    private readonly ICurrentUser _user;
+    private readonly IClock _clock;
+
+    public SaveAllCommissionsHandler(IRepresentativeRepository reps, IRepCommissionRepository commissions,
+        ICompensationConfigRepository configs, ICompensationData data, ICompensationQueries queries,
+        ICurrentUser user, IClock clock)
+    {
+        _reps = reps; _commissions = commissions; _configs = configs; _data = data; _queries = queries; _user = user; _clock = clock;
+    }
+
+    public async Task<int> Handle(SaveAllCommissionsCommand request, CancellationToken ct)
+    {
+        var config = await _configs.GetAsync(ct)
+            ?? throw new ConflictException("Compensation configuration has not been set.");
+        var period = YearMonth.FromCode(request.Period);
+        var calculator = new CompensationCalculator(config);
+
+        // In-scope, active reps only — the query already applies the caller's OrgScope (CPN-2).
+        var rows = await _queries.GetCommissionsAsync(request.Period, _user.Scope, ct);
+
+        var count = 0;
+        foreach (var row in rows)
+        {
+            var rep = await _reps.GetByIdAsync(new RepresentativeId(row.RepId), ct);
+            if (rep is null) continue;
+            _user.EnsureInScope(rep); // defense in depth (CPN-3)
+
+            var achieved = await _data.GetRepAchievedSamplesAsync(rep.Id, period, ct);
+            var target = rep.Target.Amount;
+            var (commission, bonus) = calculator.ComputeCommission(achieved, target, rep.Salary);
+
+            var record = await _commissions.GetAsync(rep.Id, period, ct);
+            if (record is null)
+            {
+                record = RepCommission.For(rep.Id, period);
+                _commissions.Add(record);
+            }
+            record.Recompute(target, achieved, rep.Salary, commission, bonus, _clock.UtcNow);
+            count++;
+        }
+        return count;
     }
 }
 
@@ -270,9 +352,10 @@ public sealed record GetLoyaltyLedgerQuery(Guid LabId) : IQuery<IReadOnlyList<Lo
 public sealed class GetLoyaltyLedgerHandler : IQueryHandler<GetLoyaltyLedgerQuery, IReadOnlyList<LoyaltyLedgerDto>>
 {
     private readonly ICompensationQueries _queries;
-    public GetLoyaltyLedgerHandler(ICompensationQueries queries) => _queries = queries;
+    private readonly ICurrentUser _user;
+    public GetLoyaltyLedgerHandler(ICompensationQueries queries, ICurrentUser user) { _queries = queries; _user = user; }
     public Task<IReadOnlyList<LoyaltyLedgerDto>> Handle(GetLoyaltyLedgerQuery request, CancellationToken ct) =>
-        _queries.GetLabLedgerAsync(request.LabId, ct);
+        _queries.GetLabLedgerAsync(request.LabId, _user.Scope, ct);
 }
 
 public sealed record GetCommissionsQuery(int Period) : IQuery<IReadOnlyList<CommissionDto>>, IAuthorizedRequest

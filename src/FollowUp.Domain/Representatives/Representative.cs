@@ -36,6 +36,8 @@ public sealed class Representative : AggregateRoot<RepresentativeId>, IVersioned
 
     public string FullName { get; private set; } = null!;
     public RepresentativeType Type { get; private set; } = null!;
+    // Profile + reporting attributes, NOT commission-formula inputs (ADR-0009 / CPN-10): GoalDuration selects the
+    // monthly/quarterly basis in the rep-performance pacing report; GoalType and Metric are display labels.
     public GoalDuration GoalDuration { get; private set; } = null!;
     public string? GoalType { get; private set; }
     public string? Metric { get; private set; }

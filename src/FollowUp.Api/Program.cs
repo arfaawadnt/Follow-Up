@@ -37,11 +37,26 @@ builder.Services.AddScoped<IRealtimeNotifier, FollowUp.Api.Realtime.SignalRRealt
 builder.Services.AddScoped<IIdempotencyKeyProvider, FollowUp.Api.Auth.HttpIdempotencyKeyProvider>();
 builder.Services.AddSignalR();
 
+// Binding failures must surface as RFC 7807 like every other error (SRS NFR-UX-4): throw so the
+// ExceptionHandlingMiddleware maps them to 400 in every environment, not only in Development.
+builder.Services.Configure<RouteHandlerOptions>(o => o.ThrowOnBadRequest = true);
+
 // Per-IP rate limiting on login (SRS NFR-SEC-4) — complements per-account lockout.
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.AddPolicy("login", http => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+        }));
+    // E-sign re-authenticates a password too (SRS FR-19), so throttle it like login — its own bucket so signing
+    // traffic never starves the login limiter for a shared IP, and a stolen token can't brute the password freely
+    // (finding SIG-9; pairs with the lockout enforced in SignRecordHandler, SIG-5).
+    options.AddPolicy("esign", http => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
         partitionKey: http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
         {
@@ -105,8 +120,13 @@ app.UseMiddleware<TokenAuthMiddleware>();
 app.Use(async (ctx, next) =>
 {
     var path = ctx.Request.Path;
+    // Honour explicit AllowAnonymous (e.g. the retired /complaints/{id}/stage tombstone, CMP-5) alongside the
+    // login endpoint, so an endpoint that opts out of auth is not still gated here.
+    var anonymous = ctx.GetEndpoint()?.Metadata
+        .GetMetadata<Microsoft.AspNetCore.Authorization.IAllowAnonymous>() is not null;
     if (path.StartsWithSegments("/api/v1")
         && !path.StartsWithSegments("/api/v1/auth/login")
+        && !anonymous
         && ctx.Items[FollowUp.Api.Auth.CurrentUser.ItemKey] is null)
     {
         ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;

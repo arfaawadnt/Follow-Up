@@ -33,6 +33,13 @@ public sealed class AuditEntry : AggregateRoot<AuditEntryId>
     }
 
     public DateTimeOffset OccurredAt { get; private set; }
+
+    /// <summary>
+    /// The username that performed the action, captured as a free-text snapshot on purpose (ST-8): the audit
+    /// trail is an immutable historical record, so it must preserve the actor exactly as it was at the time and
+    /// keep reading correctly even after that user is renamed or deleted. A foreign key to app_user would either
+    /// mutate history on a rename or block/cascade on a delete — both wrong for an append-only ledger.
+    /// </summary>
     public string Actor { get; private set; } = null!;
     public string Entity { get; private set; } = null!;
     public string EntityId { get; private set; } = null!;

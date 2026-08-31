@@ -11,8 +11,16 @@ namespace FollowUp.Infrastructure.Persistence.Queries;
 /// <summary>Computes the caller-visible display code (real code, or the deterministic ENC alias).</summary>
 internal static class DisplayCode
 {
-    public static string For(string realCode, bool canSeeEncrypted) =>
-        canSeeEncrypted ? realCode : LabCode.Create(realCode).ToEncryptedAlias();
+    /// <summary>
+    /// Per-lab confidentiality (CPN-4): a lab is masked with the deterministic ENC alias only when it is flagged
+    /// encrypted AND the caller lacks the privilege — plain labs always show their real code. The rule takes
+    /// <paramref name="isEncrypted"/> here (not a pre-combined boolean) so every projection applies the same
+    /// rule and none can half-copy it (the loyalty/board/complaint/marketing pages previously passed only
+    /// <paramref name="canSeeEncrypted"/>, masking plain labs for non-privileged callers). This is the single
+    /// source of the BR-7 branch policy; the aggregate's dead DisplayCode duplicate was removed (BRD-12).
+    /// </summary>
+    public static string For(string realCode, bool isEncrypted, bool canSeeEncrypted) =>
+        canSeeEncrypted || !isEncrypted ? realCode : LabCode.Create(realCode).ToEncryptedAlias();
 }
 
 internal sealed class LaboratoryQueries : ILaboratoryQueries
@@ -51,7 +59,7 @@ internal sealed class LaboratoryQueries : ILaboratoryQueries
 
         var items = labs.Select(l => new LabListItemDto(
             // Per-lab confidentiality: only labs flagged encrypted are masked for non-privileged users.
-            l.Id.Value, DisplayCode.For(l.Code.Value, canSeeEncrypted || !l.IsEncrypted), l.Name, l.Segment, l.Status.Name,
+            l.Id.Value, DisplayCode.For(l.Code.Value, l.IsEncrypted, canSeeEncrypted), l.Name, l.Segment, l.Status.Name,
             l.Branch, l.Governorate, l.City, l.Area, l.Category, l.AvgMonthlySamples,
             // Coordinates are privilege-gated (ViewLabLocation), mirroring the encrypted-code pattern.
             canSeeLocation ? l.Location?.Latitude : null, canSeeLocation ? l.Location?.Longitude : null,
@@ -68,7 +76,7 @@ internal sealed class LaboratoryQueries : ILaboratoryQueries
         if (lab is null) return null;
 
         return new LabDetailDto(
-            lab.Id.Value, DisplayCode.For(lab.Code.Value, canSeeEncrypted || !lab.IsEncrypted), lab.Name, lab.Segment, lab.Status.Name,
+            lab.Id.Value, DisplayCode.For(lab.Code.Value, lab.IsEncrypted, canSeeEncrypted), lab.Name, lab.Segment, lab.Status.Name,
             lab.Branch, lab.Governorate, lab.City, lab.Area, lab.Category, lab.Address,
             lab.MappingCode, lab.IsEncrypted, lab.ImagePaths.ToList(), lab.Payer, lab.ContractType,
             lab.LicenseNo, lab.LicenseDate, lab.AvgMonthlySamples, lab.PreferredChannel,

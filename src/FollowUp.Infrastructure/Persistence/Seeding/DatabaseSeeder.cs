@@ -63,6 +63,7 @@ public sealed class DatabaseSeeder
         {
             var admin = AppUser.Create("admin", _hasher.Hash(adminPassword), adminRole.Id);
             admin.SetProfile("admin@megalab.local", null);
+            admin.MarkAsBuiltIn(); // protected from deletion/demotion (IDN-6)
             _db.Users.Add(admin);
             createdAdmin = "admin";
         }

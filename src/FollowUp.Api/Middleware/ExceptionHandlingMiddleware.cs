@@ -55,7 +55,7 @@ public sealed class ExceptionHandlingMiddleware
         context.Response.Clear();
         context.Response.StatusCode = status;
         context.Response.ContentType = "application/problem+json";
-        await context.Response.WriteAsJsonAsync(problem, context.RequestAborted);
+        await context.Response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json", context.RequestAborted);
     }
 
     private static (int Status, string Title, string? Detail, IReadOnlyDictionary<string, string[]>? Errors) Map(Exception ex) => ex switch
@@ -67,6 +67,8 @@ public sealed class ExceptionHandlingMiddleware
         ConflictException => (StatusCodes.Status409Conflict, "Conflict", ex.Message, null),
         IllegalStateTransitionException => (StatusCodes.Status409Conflict, "Illegal state transition", ex.Message, null),
         DomainException => (StatusCodes.Status400BadRequest, "Invalid operation", ex.Message, null),
+        BadHttpRequestException bad => (bad.StatusCode, "Malformed request", "The request could not be parsed.", null),
+        System.Text.Json.JsonException => (StatusCodes.Status400BadRequest, "Malformed request", "The request body is not valid JSON.", null),
         _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred", null, null),
     };
 }

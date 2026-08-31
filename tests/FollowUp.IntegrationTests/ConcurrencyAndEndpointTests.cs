@@ -6,7 +6,12 @@ using FollowUp.Application.Features.Laboratories.GetLaboratoryById;
 using FollowUp.Application.Features.Laboratories.UpdateLaboratory;
 using FollowUp.Application.Features.Laboratories.UploadImage;
 using FollowUp.Application.Features.Setup;
+using FollowUp.Domain.Common;
+using FollowUp.Domain.Compensation;
+using FollowUp.Domain.Operations;
+using FollowUp.Infrastructure.Persistence;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace FollowUp.IntegrationTests;
@@ -44,6 +49,78 @@ public sealed class ConcurrencyAndEndpointTests
         v2.Should().NotBe(v1);
         await Send(new UpdateLaboratoryCommand { Id = id, RowVersion = v2, Name = "Renamed Fresh", Segment = "B", Governorate = "Cairo" });
         (await Send(new GetLaboratoryByIdQuery(id))).Name.Should().Be("Renamed Fresh");
+    }
+
+    [SkippableFact]
+    public async Task Concurrent_updates_to_a_newly_versioned_aggregate_are_rejected()
+    {
+        // Proves the xmin concurrency token added to the previously last-writer-wins aggregates is live
+        // (CompensationConfig here — CPN-9; the same mapping covers Complaint/AppUser/Role/DailyVisit).
+        Skip.IfNot(_fx.DatabaseAvailable, "FOLLOWUP_DB not set.");
+
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FollowUpDbContext>();
+            if (!await db.CompensationConfigs.AnyAsync())
+            {
+                db.CompensationConfigs.Add(CompensationConfig.Create(5m, 100m, new Money(500m),
+                    new[] { new LoyaltyTier("Gold", 100m, 500) }));
+                await db.SaveChangesAsync();
+            }
+        }
+
+        // Two independent contexts (separate connections) read the same row — hence the same xmin.
+        using var s1 = _fx.Services.CreateScope();
+        using var s2 = _fx.Services.CreateScope();
+        var db1 = s1.ServiceProvider.GetRequiredService<FollowUpDbContext>();
+        var db2 = s2.ServiceProvider.GetRequiredService<FollowUpDbContext>();
+        var c1 = await db1.CompensationConfigs.FirstAsync();
+        var c2 = await db2.CompensationConfigs.FirstAsync();
+
+        c1.SetCommission(6m, 100m, new Money(500m));
+        c2.SetCommission(7m, 100m, new Money(500m));
+
+        await db1.SaveChangesAsync(); // first writer wins and bumps xmin
+
+        var stale = async () => await db2.SaveChangesAsync(); // now-stale xmin -> concurrency conflict
+        await stale.Should().ThrowAsync<DbUpdateConcurrencyException>();
+    }
+
+    [SkippableFact]
+    public async Task Concurrent_sample_tracking_edits_are_rejected()
+    {
+        // ST-9: the sample-tracking pipeline is edited by several users; the xmin token makes a stale write conflict
+        // (409) instead of silently overwriting a peer's data-entry/review/sort or count.
+        Skip.IfNot(_fx.DatabaseAvailable, "FOLLOWUP_DB not set.");
+        await _fx.ResetAsync();
+
+        Guid id;
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FollowUpDbContext>();
+            // ResetAsync does not clear sample_tracking, and (area, date) is unique — clear this test's own row so
+            // the run is idempotent.
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM sample_tracking WHERE area = 'ST9-Concurrency'");
+            var st = SampleTracking.Open("ST9-Concurrency", new DateOnly(2026, 8, 20));
+            db.SampleTracking.Add(st);
+            await db.SaveChangesAsync();
+            id = st.Id.Value;
+        }
+
+        using var s1 = _fx.Services.CreateScope();
+        using var s2 = _fx.Services.CreateScope();
+        var db1 = s1.ServiceProvider.GetRequiredService<FollowUpDbContext>();
+        var db2 = s2.ServiceProvider.GetRequiredService<FollowUpDbContext>();
+        var t1 = await db1.SampleTracking.FirstAsync(x => x.Id == new SampleTrackingId(id));
+        var t2 = await db2.SampleTracking.FirstAsync(x => x.Id == new SampleTrackingId(id));
+
+        t1.SetCount(10);
+        t2.SetCount(20);
+
+        await db1.SaveChangesAsync(); // first writer wins and bumps xmin
+
+        var stale = async () => await db2.SaveChangesAsync(); // now-stale xmin -> concurrency conflict
+        await stale.Should().ThrowAsync<DbUpdateConcurrencyException>();
     }
 
     [SkippableFact]

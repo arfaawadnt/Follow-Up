@@ -49,6 +49,12 @@ public sealed class TransactionBehavior<TRequest, TResponse> : IPipelineBehavior
             // Optimistic-concurrency clash (xmin token) — surface as 409 (SRS FR-3/FR-4).
             throw new ConflictException("The record was modified by someone else. Reload and try again.");
         }
+        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException { SqlState: "23505" })
+        {
+            // A concurrent insert violated a unique constraint (a get-then-add race, the daily_visit slot index,
+            // BRD-9) — surface as 409 instead of an unmapped DbUpdateException → 500 (finding CPN-14).
+            throw new ConflictException("That record conflicts with an existing one. Reload and try again.");
+        }
 
         // Post-commit refetch hint to connected clients (Workflows §2.1). Best-effort — never fail the command.
         try { await _realtime.DataChangedAsync(typeof(TRequest).Name, ct); } catch { /* hints are best-effort */ }

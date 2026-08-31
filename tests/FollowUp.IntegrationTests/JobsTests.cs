@@ -49,6 +49,127 @@ public sealed class JobsTests
     }
 
     [SkippableFact]
+    public async Task Rollover_rolls_multiple_verified_visits_for_one_lab_into_a_single_monthly_row()
+    {
+        // Regression for BRD-1: a lab with more than one verified+received visit on the same day must roll
+        // all of them into ONE monthly_sample row. The previous RollToMonthlyAsync looked the row up in the
+        // database only, missed the row staged for the first visit, and staged a duplicate that violated the
+        // unique (laboratory_id, period) index — throwing on the roll-over commit and stopping board
+        // generation entirely. Without the fix this test throws DbUpdateException; with it, it passes.
+        Skip.IfNot(_fx.DatabaseAvailable, "FOLLOWUP_DB not set.");
+        await _fx.ResetAsync();
+
+        var everyDay = new[] { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
+        var labId = new Domain.Laboratories.LaboratoryId(await Send(new CreateLaboratoryCommand
+        {
+            Code = "MGL-ROLL",
+            Name = "Rollover Lab",
+            Segment = "A",
+            Governorate = "Cairo",
+            WorkDays = everyDay,
+            VisitTimes = new[] { "09:00", "12:00" },
+        }));
+
+        DateOnly yesterday;
+        Domain.Common.YearMonth period;
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var sp = scope.ServiceProvider;
+            var board = sp.GetRequiredService<BoardService>();
+            var clock = sp.GetRequiredService<FollowUp.Application.Common.Abstractions.IClock>();
+            var db = sp.GetRequiredService<FollowUpDbContext>();
+            yesterday = clock.CairoToday.AddDays(-1);
+            period = Domain.Common.YearMonth.From(yesterday);
+
+            // Two visits for the same lab on the same (past) day.
+            (await board.GenerateBoardAsync(yesterday)).Should().Be(2);
+
+            // Drive both to verified + received so each RollsToMonthly.
+            var visits = await db.DailyVisits
+                .Where(v => v.LaboratoryId == labId && v.VisitDate == yesterday).ToListAsync();
+            visits.Should().HaveCount(2);
+            visits[0].CheckIn(3, "tester", clock.UtcNow);
+            visits[1].CheckIn(5, "tester", clock.UtcNow);
+            foreach (var v in visits) { v.ReceiveAtLab(clock.UtcNow); v.SetVerified(true); }
+            await db.SaveChangesAsync();
+        }
+
+        // The roll-over (which internally targets yesterday) must not throw and must produce one summed row.
+        using (var scope = _fx.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<BoardService>().RunRolloverAsync();
+
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FollowUpDbContext>();
+            var monthly = await db.MonthlySamples
+                .Where(m => m.LaboratoryId == labId && m.Period == period).ToListAsync();
+            monthly.Should().ContainSingle("both verified visits roll into one monthly row");
+            monthly[0].SampleCount.Should().Be(8); // 3 + 5
+        }
+    }
+
+    [SkippableFact]
+    public async Task Rollover_archives_a_straggler_day_left_by_a_prior_failed_run_into_its_own_month()
+    {
+        // Regression for BRD-3: the roll-over selected only VisitDate == yesterday and rolled every visit into
+        // yesterday's period. A day a previously failed run left un-archived was orphaned once the window
+        // advanced — gone from visit_history and monthly_sample, yet still live in daily_visit and counted by
+        // the board/lifecycle queries. The fix archives every visit <= yesterday, each into its OWN month, in a
+        // single transaction. Without the fix the straggler is never archived and every assertion below fails.
+        Skip.IfNot(_fx.DatabaseAvailable, "FOLLOWUP_DB not set.");
+        await _fx.ResetAsync();
+
+        var everyDay = new[] { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
+        var labId = new Domain.Laboratories.LaboratoryId(await Send(new CreateLaboratoryCommand
+        {
+            Code = "MGL-STRAG", Name = "Straggler Lab", Segment = "A", Governorate = "Cairo",
+            WorkDays = everyDay, VisitTimes = new[] { "09:00" },
+        }));
+
+        DateOnly stragglerDate;
+        Domain.Common.YearMonth stragglerPeriod;
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var sp = scope.ServiceProvider;
+            var board = sp.GetRequiredService<BoardService>();
+            var clock = sp.GetRequiredService<FollowUp.Application.Common.Abstractions.IClock>();
+            var db = sp.GetRequiredService<FollowUpDbContext>();
+
+            // A visit from LAST MONTH: always <= yesterday, and always a different YearMonth than yesterday, so
+            // it also proves the roll uses the visit's own period rather than yesterday's.
+            stragglerDate = clock.CairoToday.AddDays(-1).AddMonths(-1);
+            stragglerPeriod = Domain.Common.YearMonth.From(stragglerDate);
+
+            (await board.GenerateBoardAsync(stragglerDate)).Should().Be(1);
+
+            // Drive it to verified + received so it RollsToMonthly with a known sample count.
+            var visit = await db.DailyVisits.SingleAsync(v => v.LaboratoryId == labId && v.VisitDate == stragglerDate);
+            visit.CheckIn(4, "tester", clock.UtcNow);
+            visit.ReceiveAtLab(clock.UtcNow);
+            visit.SetVerified(true);
+            await db.SaveChangesAsync();
+        }
+
+        // Tonight's roll-over targets yesterday/today, but must also pick up and archive the straggler day.
+        using (var scope = _fx.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<BoardService>().RunRolloverAsync();
+
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FollowUpDbContext>();
+
+            (await db.DailyVisits.AnyAsync(v => v.LaboratoryId == labId && v.VisitDate == stragglerDate))
+                .Should().BeFalse("the straggler day must not stay live in daily_visit");
+            (await db.VisitHistory.AnyAsync(h => h.LaboratoryId == labId && h.VisitDate == stragglerDate))
+                .Should().BeTrue("the straggler must be archived to visit_history");
+
+            var monthly = await db.MonthlySamples
+                .SingleAsync(m => m.LaboratoryId == labId && m.Period == stragglerPeriod);
+            monthly.SampleCount.Should().Be(4); // rolled into its own month, not yesterday's
+        }
+    }
+
+    [SkippableFact]
     public async Task Outbox_dispatcher_drains_pending_messages()
     {
         Skip.IfNot(_fx.DatabaseAvailable, "FOLLOWUP_DB not set.");

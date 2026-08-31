@@ -11,6 +11,9 @@ public interface ILaboratoryRepository
 {
     Task<Laboratory?> GetByIdAsync(LaboratoryId id, CancellationToken ct);
 
+    /// <summary>Loads several labs (tracked) in one round-trip — for the batch loyalty recalc (CPN-18).</summary>
+    Task<IReadOnlyList<Laboratory>> GetByIdsAsync(IReadOnlyCollection<LaboratoryId> ids, CancellationToken ct);
+
     /// <summary>Loads by business code (case-insensitive) — used for the uniqueness invariant (BR-1).</summary>
     Task<Laboratory?> GetByCodeAsync(LabCode code, CancellationToken ct);
 

@@ -61,6 +61,9 @@ export interface ComplaintListItem {
   resolvedAt: string | null; resolutionSummary: string | null; createdAt: string;
 }
 
+// CMP-16: server-side status breakdown for the filter pills (correct regardless of paging).
+export interface ComplaintCounts { total: number; open: number; inProgress: number; resolved: number; }
+
 export interface ComplaintDetail {
   id: string; reference: string; laboratoryId: string; labDisplayCode: string; lab: string;
   category: string; viaChannel: string; assignedTeam: string | null; details: string;
