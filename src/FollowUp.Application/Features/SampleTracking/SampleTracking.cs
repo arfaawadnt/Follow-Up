@@ -110,6 +110,35 @@ public sealed class GetSampleLifecycleHandler : IQueryHandler<GetSampleLifecycle
         _queries.LifecycleAsync(request.From, request.To, _user.Scope, _user.Has(Privileges.ShowEncryptedLabs), ct);
 }
 
+/// <summary>Shared bound for the sample date-range reads (ST-10): a valid window of at most a year, so an
+/// arbitrarily wide range cannot scan the whole history in one request.</summary>
+internal static class ReportRange
+{
+    public const int MaxDays = 366;
+    public static bool WithinBounds(DateOnly from, DateOnly to) => to >= from && (to.DayNumber - from.DayNumber) <= MaxDays;
+}
+
+public sealed class GetSampleTrackingValidator : AbstractValidator<GetSampleTrackingQuery>
+{
+    public GetSampleTrackingValidator() =>
+        RuleFor(x => x).Must(x => x.Start is not { } s || x.End is not { } e || ReportRange.WithinBounds(s, e))
+            .WithMessage($"The date range must be a valid window of at most {ReportRange.MaxDays} days.");
+}
+
+public sealed class GetSampleLifecycleReportValidator : AbstractValidator<GetSampleLifecycleReportQuery>
+{
+    public GetSampleLifecycleReportValidator() =>
+        RuleFor(x => x).Must(x => ReportRange.WithinBounds(x.From, x.To))
+            .WithMessage($"The report range must be a valid window of at most {ReportRange.MaxDays} days.");
+}
+
+public sealed class GetSampleLifecycleValidator : AbstractValidator<GetSampleLifecycleQuery>
+{
+    public GetSampleLifecycleValidator() =>
+        RuleFor(x => x).Must(x => ReportRange.WithinBounds(x.From, x.To))
+            .WithMessage($"The report range must be a valid window of at most {ReportRange.MaxDays} days.");
+}
+
 // ---- Record data entry (single/upsert) ----
 
 public sealed record RecordSampleDataEntryCommand(string Area, DateOnly Date, int Count) : ICommand<Guid>, IAuthorizedRequest
@@ -217,7 +246,8 @@ public sealed class AdvanceSampleTrackingHandler : ICommandHandler<AdvanceSample
         {
             case "Review": tracking.RecordReview(_user.Username, _clock.UtcNow); break;
             case "Sort": tracking.RecordSort(_user.Username, _clock.UtcNow); break;
-            default: throw new Common.Exceptions.ValidationException(
+            default:
+                throw new Common.Exceptions.ValidationException(
                 new Dictionary<string, string[]> { ["Step"] = new[] { "Step must be Review or Sort." } });
         }
         return Unit.Value;
