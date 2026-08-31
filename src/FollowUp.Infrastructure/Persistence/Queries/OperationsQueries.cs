@@ -46,7 +46,7 @@ internal sealed class DailyBoardQueries : IDailyBoardQueries
             .Select(r => new { r.Id, r.FullName }).ToListAsync(ct)).ToDictionary(r => r.Id, r => r.FullName);
 
         return rows.Select(r => new BoardItemDto(
-            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, r.IsEncrypted, canSeeEncrypted), r.Code.Value, r.Name,
+            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, r.IsEncrypted, canSeeEncrypted), r.Name,
             r.CollectorRepId != null ? r.CollectorRepId.Value.Value : (Guid?)null,
             r.CollectorRepId != null && repName.TryGetValue(r.CollectorRepId.Value, out var n) ? n : null,
             r.Branch, r.Governorate, r.City, r.Area,
@@ -96,7 +96,7 @@ internal sealed class TransferQueries : ITransferQueries
         string? Name(RepresentativeId? id) => id != null && repName.TryGetValue(id.Value, out var n) ? n : null;
 
         return rows.Select(r => new TransferItemDto(
-            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, r.IsEncrypted, canSeeEncrypted), r.Code.Value, r.Name,
+            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, r.IsEncrypted, canSeeEncrypted), r.Name,
             r.Branch, r.Governorate, r.City, r.Area,
             r.VisitDate, r.ScheduledTime.ToString("HH:mm"), Name(r.CollectorRepId), r.SampleCount,
             r.TransferConfirmedAt != null, r.Transfer?.DriverName, r.Transfer?.DriverMobile, r.Transfer?.CarPlate,
@@ -132,7 +132,7 @@ internal sealed class LabCheckInQueries : ILabCheckInQueries
         string? Name(RepresentativeId? id) => id != null && repName.TryGetValue(id.Value, out var n) ? n : null;
 
         return rows.Select(r => new ReceivingItemDto(
-            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, r.IsEncrypted, canSeeEncrypted), r.Code.Value, r.Name,
+            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, r.IsEncrypted, canSeeEncrypted), r.Name,
             r.Branch, r.Governorate, r.City, r.Area, r.VisitDate, r.ScheduledTime.ToString("HH:mm"),
             Name(r.CollectorRepId), r.SampleCount,
             // "Transferred" is a display-only status (no VisitStatus member); "Received" is bound to the enum (BRD-11).

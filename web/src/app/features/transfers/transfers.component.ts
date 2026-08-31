@@ -85,7 +85,7 @@ interface Draft { rep: string; name: string; mobile: string; car: string; when: 
                 @for (r of grp.rows; track r.visitId) {
                   <tr>
                     <td>@if (!r.transferDone) { <input type="checkbox" [checked]="selected.has(r.visitId)" (change)="toggleRow(r.visitId)"> }</td>
-                    <td><b style="color:var(--slate-900)">{{ r.labName }}</b><div class="small muted">{{ r.labCode }} · {{ r.branch ?? '—' }}</div></td>
+                    <td><b style="color:var(--slate-900)">{{ r.labName }}</b><div class="small muted">{{ r.labDisplayCode }} · {{ r.branch ?? '—' }}</div></td>
                     <td class="mono small">{{ r.visitDate }} · {{ r.visitTime }}</td>
                     <td>{{ r.collectorName ?? '—' }}</td>
                     <td class="mono" style="font-weight:700">{{ r.samples ?? 0 }}</td>
@@ -239,7 +239,7 @@ export class TransfersComponent {
   // ---- Exports ----
 
   private exportRows(): (string | number | null)[][] {
-    return this.filtered().map((r) => [r.labName, r.labCode, r.area, r.branch, `${r.visitDate} ${r.visitTime}`,
+    return this.filtered().map((r) => [r.labName, r.labDisplayCode, r.area, r.branch, `${r.visitDate} ${r.visitTime}`,
       r.collectorName, r.samples ?? 0, r.transferDone ? 'Transferred' : 'Collected',
       r.driverName, r.driverMobile, r.carPlate, r.transferRepName, r.transferTime]);
   }

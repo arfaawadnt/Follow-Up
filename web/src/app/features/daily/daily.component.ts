@@ -103,7 +103,7 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
       <div class="overlay" (click)="closeRecord()">
         <div class="dlg" (click)="$event.stopPropagation()">
           <h3 style="margin:0 0 4px">{{ 'record_visit' | t : 'Record visit' }}</h3>
-          <div class="small muted" style="margin-bottom:14px">{{ v.lab }} · {{ v.labCode }}</div>
+          <div class="small muted" style="margin-bottom:14px">{{ v.lab }} · {{ v.labDisplayCode }}</div>
           <div class="small muted" style="margin-bottom:12px">Scheduled {{ v.scheduledTime }} · {{ v.area ?? '—' }} · {{ v.rep ?? '—' }}</div>
           <div class="field">
             <label>{{ 'collector_rep' | t : 'Collector Rep' }}</label>
@@ -178,7 +178,7 @@ export class DailyComponent {
       (this.gov === 'All' || i.governorate === this.gov) &&
       (this.city === 'All' || i.city === this.city) &&
       (this.area === 'All' || i.area === this.area) &&
-      (!q || i.lab?.toLowerCase().includes(q) || i.labCode?.toLowerCase().includes(q)));
+      (!q || i.lab?.toLowerCase().includes(q) || i.labDisplayCode?.toLowerCase().includes(q)));
   });
 
   readonly k = computed(() => {
@@ -253,12 +253,12 @@ export class DailyComponent {
     (obs as { subscribe: Function }).subscribe({ next: () => { this.busy.set(false); this.load(); }, error: () => this.busy.set(false) });
   }
 
-  sub(v: BoardItem): string { return [v.labCode, v.branch, v.area, v.governorate].filter(Boolean).join(' · '); }
+  sub(v: BoardItem): string { return [v.labDisplayCode, v.branch, v.area, v.governorate].filter(Boolean).join(' · '); }
   marked(v: BoardItem): string { return localTime(v.markedAt); }
   statusLabel(s: string): string { return s === 'Visited' ? 'Collected' : s; }
 
   private exportRows(): (string | number | null)[][] {
-    return this.filtered().map((v) => [v.visitDate, v.scheduledTime, v.lab, v.labCode, v.branch, v.area, v.governorate,
+    return this.filtered().map((v) => [v.visitDate, v.scheduledTime, v.lab, v.labDisplayCode, v.branch, v.area, v.governorate,
       v.rep, this.statusLabel(v.status), v.samples, localDateTime(v.markedAt), v.adminChecked ? 'Yes' : 'No']);
   }
   exportExcel(): void {
