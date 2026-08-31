@@ -106,6 +106,7 @@ internal sealed class SampleTrackingConfiguration : IEntityTypeConfiguration<Sam
     {
         b.ToTable("sample_tracking");
         b.HasKey(x => x.Id);
+        b.Property(x => x.RowVersion).IsRowVersion().HasColumnName("xmin").HasColumnType("xid"); // xmin optimistic concurrency (ST-9)
         b.IgnoreDomainEvents();
         b.Ignore(x => x.IsComplete);
         b.Ignore(x => x.IsUntouched);
