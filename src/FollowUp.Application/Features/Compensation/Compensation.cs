@@ -151,18 +151,22 @@ public sealed class RecalculateAllLoyaltyHandler : ICommandHandler<RecalculateAl
 
         // In-scope labs only (the summary query already applies the caller's OrgScope).
         var summary = await _queries.GetLoyaltySummaryAsync(_user.Scope, _user.Has(Privileges.ShowEncryptedLabs), ct);
+        var labIds = summary.Select(r => new LaboratoryId(r.LaboratoryId)).ToList();
+
+        // CPN-18: load the recalc inputs in bulk (3 constant queries) instead of 3 round-trips per lab.
+        var labs = (await _labs.GetByIdsAsync(labIds, ct)).ToDictionary(l => l.Id);
+        var achievedByLab = await _data.GetLabAchievedSamplesForPeriodAsync(period, ct);
+        var ledgers = (await _ledgers.GetForPeriodAsync(period, ct)).ToDictionary(l => l.LaboratoryId);
 
         var count = 0;
         foreach (var row in summary)
         {
-            var lab = await _labs.GetByIdAsync(new LaboratoryId(row.LaboratoryId), ct);
-            if (lab is null) continue;
+            if (!labs.TryGetValue(new LaboratoryId(row.LaboratoryId), out var lab)) continue;
 
-            var achieved = await _data.GetLabAchievedSamplesAsync(lab.Id, period, ct);
+            var achieved = achievedByLab.TryGetValue(lab.Id, out var a) ? a : 0;
             var (points, tier) = calculator.ComputeLoyalty(achieved, lab.MonthlyTarget);
 
-            var ledger = await _ledgers.GetAsync(lab.Id, period, ct);
-            if (ledger is null) { ledger = LabLoyaltyLedger.For(lab.Id, period); _ledgers.Add(ledger); }
+            if (!ledgers.TryGetValue(lab.Id, out var ledger)) { ledger = LabLoyaltyLedger.For(lab.Id, period); _ledgers.Add(ledger); }
             ledger.Record(lab.MonthlyTarget, achieved, points, tier, _clock.UtcNow);
             lab.SetLoyalty(lab.MonthlyTarget, points, tier);
             count++;

@@ -19,6 +19,9 @@ public sealed class FakeLaboratoryRepository : ILaboratoryRepository
     public Task<Laboratory?> GetByIdAsync(LaboratoryId id, CancellationToken ct) =>
         Task.FromResult(Store.FirstOrDefault(l => l.Id == id));
 
+    public Task<IReadOnlyList<Laboratory>> GetByIdsAsync(IReadOnlyCollection<LaboratoryId> ids, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Laboratory>>(Store.Where(l => ids.Contains(l.Id)).ToList());
+
     public Task<Laboratory?> GetByCodeAsync(LabCode code, CancellationToken ct) =>
         Task.FromResult(Store.FirstOrDefault(l => l.Code == code));
 
@@ -202,6 +205,8 @@ public sealed class FakeCompensationData : ICompensationData
     public int RepAchieved { get; init; }
     public Task<int> GetLabAchievedSamplesAsync(LaboratoryId labId, Domain.Common.YearMonth period, CancellationToken ct) =>
         Task.FromResult(LabAchieved);
+    public Task<IReadOnlyDictionary<LaboratoryId, int>> GetLabAchievedSamplesForPeriodAsync(Domain.Common.YearMonth period, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyDictionary<LaboratoryId, int>>(new Dictionary<LaboratoryId, int>());
     public Task<int> GetRepAchievedSamplesAsync(RepresentativeId repId, Domain.Common.YearMonth period, CancellationToken ct) =>
         Task.FromResult(RepAchieved);
 }
@@ -211,6 +216,8 @@ public sealed class FakeLabLoyaltyLedgerRepository : ILabLoyaltyLedgerRepository
     public readonly List<Domain.Compensation.LabLoyaltyLedger> Store = new();
     public Task<Domain.Compensation.LabLoyaltyLedger?> GetAsync(LaboratoryId labId, Domain.Common.YearMonth period, CancellationToken ct) =>
         Task.FromResult(Store.FirstOrDefault(l => l.LaboratoryId == labId && l.Period == period));
+    public Task<IReadOnlyList<Domain.Compensation.LabLoyaltyLedger>> GetForPeriodAsync(Domain.Common.YearMonth period, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Domain.Compensation.LabLoyaltyLedger>>(Store.Where(l => l.Period == period).ToList());
     public void Add(Domain.Compensation.LabLoyaltyLedger ledger) => Store.Add(ledger);
 }
 

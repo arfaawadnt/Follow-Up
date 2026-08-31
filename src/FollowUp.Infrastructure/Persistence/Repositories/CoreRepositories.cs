@@ -13,6 +13,9 @@ internal sealed class LaboratoryRepository : ILaboratoryRepository
     public Task<Laboratory?> GetByIdAsync(LaboratoryId id, CancellationToken ct) =>
         _db.Laboratories.FirstOrDefaultAsync(x => x.Id == id, ct);
 
+    public async Task<IReadOnlyList<Laboratory>> GetByIdsAsync(IReadOnlyCollection<LaboratoryId> ids, CancellationToken ct) =>
+        await _db.Laboratories.Where(x => ids.Contains(x.Id)).ToListAsync(ct);
+
     public Task<Laboratory?> GetByCodeAsync(LabCode code, CancellationToken ct) =>
         _db.Laboratories.FirstOrDefaultAsync(x => x.Code == code, ct);
 
