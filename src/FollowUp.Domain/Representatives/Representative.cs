@@ -54,6 +54,10 @@ public sealed class Representative : AggregateRoot<RepresentativeId>, IVersioned
     /// <summary>Employment type (Full-time / Part-time / Contract), matching the reference platform.</summary>
     public string? EmploymentType { get; private set; }
 
+    /// <summary>Oracle REP_CODE for records mirrored from Oracle; null for manual entries.</summary>
+    public string? SourceCode { get; private set; }
+    public RecordSource Source { get; private set; }
+
     public uint RowVersion { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public string CreatedBy { get; private set; } = null!;
@@ -72,7 +76,23 @@ public sealed class Representative : AggregateRoot<RepresentativeId>, IVersioned
         if (salary < Money.Zero || target < Money.Zero)
             throw new DomainException("Salary and target cannot be negative.");
 
-        return new Representative(RepresentativeId.New(), fullName.Trim(), type, goalDuration, salary, target);
+        return new Representative(RepresentativeId.New(), fullName.Trim(), type, goalDuration, salary, target) { Source = RecordSource.Manual };
+    }
+
+    /// <summary>Creates an Oracle-sourced representative (mirrored by the sync), keyed by Oracle REP_CODE.</summary>
+    public static Representative FromOracle(string sourceCode, string fullName)
+    {
+        if (string.IsNullOrWhiteSpace(fullName)) throw new DomainException("Representative name is required.");
+        return new Representative(RepresentativeId.New(), fullName.Trim(),
+            RepresentativeType.Collector, GoalDuration.Monthly, Money.Zero, Money.Zero)
+            { SourceCode = sourceCode.Trim(), Source = RecordSource.Oracle };
+    }
+
+    /// <summary>Applies the latest Oracle name and marks the record Oracle-owned (mirror update; app keeps the rest).</summary>
+    public void ApplyOracle(string fullName)
+    {
+        if (!string.IsNullOrWhiteSpace(fullName)) FullName = fullName.Trim();
+        Source = RecordSource.Oracle;
     }
 
     public void UpdateProfile(string fullName, Money salary, Money target, string? goalType, string? metric)
