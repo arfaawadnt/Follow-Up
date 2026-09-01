@@ -37,6 +37,9 @@ internal sealed class LaboratoryRepository : ILaboratoryRepository
         return $"{prefix}{max + 1:0000}";
     }
 
+    public async Task<IReadOnlyList<Laboratory>> GetAllAsync(CancellationToken ct) =>
+        await _db.Laboratories.ToListAsync(ct);
+
     public void Add(Laboratory laboratory) => _db.Laboratories.Add(laboratory);
 }
 
@@ -50,6 +53,9 @@ internal sealed class RepresentativeRepository : IRepresentativeRepository
 
     public Task<bool> ExistsAsync(RepresentativeId id, CancellationToken ct) =>
         _db.Representatives.AnyAsync(x => x.Id == id, ct);
+
+    public async Task<IReadOnlyList<Representative>> GetAllAsync(CancellationToken ct) =>
+        await _db.Representatives.ToListAsync(ct);
 
     public void Add(Representative representative) => _db.Representatives.Add(representative);
 }

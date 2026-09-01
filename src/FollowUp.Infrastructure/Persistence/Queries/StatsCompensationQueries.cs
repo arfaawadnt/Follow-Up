@@ -28,13 +28,13 @@ internal sealed class LabStatsQueries : ILabStatsQueries
 
         // Enrich with lab profile (name/segment/location) by code — for the pivot rows.
         var labInfo = (await _db.Laboratories.AsNoTracking()
-            .Select(l => new { l.Code, l.Name, l.Category, l.Segment, l.Governorate, l.City, l.Area }).ToListAsync(ct))
+            .Select(l => new { l.Code, l.Name, l.Category, l.Segment, l.Governorate, l.City, l.Area, l.Status }).ToListAsync(ct))
             .GroupBy(l => l.Code.Value).ToDictionary(g => g.Key, g => g.First());
         return rows.Select(s =>
         {
             labInfo.TryGetValue(s.LabCode, out var l);
             return new LabStatDto(s.Date, s.LabCode, l?.Name, l?.Category, l?.Segment, l?.Governorate, l?.City, l?.Area,
-                s.Registrations, s.TestCount, s.Income.Amount);
+                l?.Status?.Name, s.Registrations, s.TestCount, s.Income.Amount);
         }).ToList();
     }
 
@@ -49,14 +49,25 @@ internal sealed class TestCatalogueQueries : ITestCatalogueQueries
     private readonly FollowUpDbContext _db;
     public TestCatalogueQueries(FollowUpDbContext db) => _db = db;
 
-    public async Task<IReadOnlyList<TestGroupDto>> GetGroupsAsync(CancellationToken ct) =>
-        await _db.TestGroups.AsNoTracking().OrderBy(g => g.NameEn)
-            .Select(g => new TestGroupDto(g.Id.Value, g.Code, g.NameEn, g.NameAr)).ToListAsync(ct);
+    public async Task<IReadOnlyList<TestGroupDto>> GetGroupsAsync(CancellationToken ct)
+    {
+        var rows = await _db.TestGroups.AsNoTracking().OrderBy(g => g.NameEn).ToListAsync(ct);
+        return rows.Select(g => new TestGroupDto(g.Id.Value, g.Code, g.NameEn, g.NameAr, g.Source.ToString())).ToList();
+    }
 
     public async Task<IReadOnlyList<TestSetupDto>> GetSetupsAsync(CancellationToken ct)
     {
+        var groups = (await _db.TestGroups.AsNoTracking().Select(g => new { g.Id, g.Code, g.NameEn }).ToListAsync(ct))
+            .ToDictionary(g => g.Id, g => (g.Code, g.NameEn));
         var rows = await _db.TestSetups.AsNoTracking().OrderBy(s => s.NameEn).ToListAsync(ct);
-        return rows.Select(s => new TestSetupDto(s.Id.Value, s.Code, s.NameEn, s.NameAr, s.GroupId != null ? s.GroupId.Value.Value : (Guid?)null)).ToList();
+        return rows.Select(s =>
+        {
+            string? groupCode = null, groupName = null;
+            if (s.GroupId is { } gid && groups.TryGetValue(gid, out var g)) { groupCode = g.Code; groupName = g.NameEn; }
+            return new TestSetupDto(s.Id.Value, s.Code, s.NameEn, s.NameAr,
+                s.GroupId != null ? s.GroupId.Value.Value : (Guid?)null,
+                s.TestType, s.Cost.Amount, groupCode, groupName, s.Source.ToString());
+        }).ToList();
     }
 
     public async Task<IReadOnlyList<TestStatDto>> GetTestStatsAsync(DateOnly from, DateOnly to, CancellationToken ct)

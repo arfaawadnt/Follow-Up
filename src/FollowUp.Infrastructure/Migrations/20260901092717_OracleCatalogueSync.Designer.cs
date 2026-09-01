@@ -3,6 +3,7 @@ using System;
 using FollowUp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace FollowUp.Infrastructure.Migrations
 {
     [DbContext(typeof(FollowUpDbContext))]
-    partial class FollowUpDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260901092717_OracleCatalogueSync")]
+    partial class OracleCatalogueSync
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -762,12 +765,6 @@ namespace FollowUp.Infrastructure.Migrations
                         .HasColumnType("character varying(32)")
                         .HasColumnName("segment");
 
-                    b.Property<int>("Source")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("source");
-
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -1506,17 +1503,6 @@ namespace FollowUp.Infrastructure.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("name");
 
-                    b.Property<int>("Source")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("source");
-
-                    b.Property<string>("SourceCode")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("source_code");
-
                     b.Property<string>("TransferReps")
                         .IsRequired()
                         .HasColumnType("jsonb")
@@ -1540,9 +1526,6 @@ namespace FollowUp.Infrastructure.Migrations
 
                     b.HasIndex("CityId")
                         .HasDatabaseName("ix_area_city_id");
-
-                    b.HasIndex("SourceCode")
-                        .HasDatabaseName("ix_area_source_code");
 
                     b.ToTable("area", (string)null);
                 });
@@ -1577,17 +1560,6 @@ namespace FollowUp.Infrastructure.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("name");
 
-                    b.Property<int>("Source")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("source");
-
-                    b.Property<string>("SourceCode")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("source_code");
-
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
@@ -1599,9 +1571,6 @@ namespace FollowUp.Infrastructure.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_city");
-
-                    b.HasIndex("SourceCode")
-                        .HasDatabaseName("ix_city_source_code");
 
                     b.HasIndex("Governorate", "Name")
                         .HasDatabaseName("ix_city_governorate_name");
@@ -1647,12 +1616,6 @@ namespace FollowUp.Infrastructure.Migrations
                     b.Property<int>("SortOrder")
                         .HasColumnType("integer")
                         .HasColumnName("sort_order");
-
-                    b.Property<int>("Source")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("source");
 
                     b.Property<string>("Type")
                         .IsRequired()
@@ -1770,17 +1733,6 @@ namespace FollowUp.Infrastructure.Migrations
                         .HasColumnType("numeric(18,2)")
                         .HasColumnName("salary");
 
-                    b.Property<int>("Source")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("source");
-
-                    b.Property<string>("SourceCode")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("source_code");
-
                     b.Property<decimal>("Target")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)")
@@ -1803,9 +1755,6 @@ namespace FollowUp.Infrastructure.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_representative");
-
-                    b.HasIndex("SourceCode")
-                        .HasDatabaseName("ix_representative_source_code");
 
                     b.ToTable("representative", (string)null);
                 });

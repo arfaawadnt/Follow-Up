@@ -48,6 +48,7 @@ public sealed class RefItem : AggregateRoot<RefItemId>, IAuditable
     public string NameEn { get; private set; } = null!;
     public string? NameAr { get; private set; }
     public int SortOrder { get; private set; }
+    public RecordSource Source { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
     public string CreatedBy { get; private set; } = null!;
@@ -58,7 +59,15 @@ public sealed class RefItem : AggregateRoot<RefItemId>, IAuditable
     {
         if (string.IsNullOrWhiteSpace(code)) throw new DomainException("Reference code is required.");
         if (string.IsNullOrWhiteSpace(nameEn)) throw new DomainException("Reference name is required.");
-        return new RefItem(RefItemId.New(), type, code.Trim(), nameEn.Trim(), nameAr?.Trim(), sortOrder);
+        return new RefItem(RefItemId.New(), type, code.Trim(), nameEn.Trim(), nameAr?.Trim(), sortOrder) { Source = RecordSource.Manual };
+    }
+
+    /// <summary>Creates an Oracle-sourced reference item (mirrored by the sync).</summary>
+    public static RefItem FromOracle(RefType type, string code, string? nameEn)
+    {
+        if (string.IsNullOrWhiteSpace(code)) throw new DomainException("Reference code is required.");
+        var name = string.IsNullOrWhiteSpace(nameEn) ? code.Trim() : nameEn.Trim();
+        return new RefItem(RefItemId.New(), type, code.Trim(), name, null, 0) { Source = RecordSource.Oracle };
     }
 
     public void Rename(string nameEn, string? nameAr)
@@ -66,6 +75,13 @@ public sealed class RefItem : AggregateRoot<RefItemId>, IAuditable
         if (string.IsNullOrWhiteSpace(nameEn)) throw new DomainException("Reference name is required.");
         NameEn = nameEn.Trim();
         NameAr = nameAr?.Trim();
+    }
+
+    /// <summary>Applies the latest Oracle name and marks the record Oracle-owned (mirror update).</summary>
+    public void ApplyOracle(string? nameEn)
+    {
+        if (!string.IsNullOrWhiteSpace(nameEn)) NameEn = nameEn.Trim();
+        Source = RecordSource.Oracle;
     }
 
     public void Reorder(int sortOrder) => SortOrder = sortOrder;
@@ -90,6 +106,9 @@ public sealed class City : AggregateRoot<CityId>, IAuditable
 
     public string Name { get; private set; } = null!;
     public string Governorate { get; private set; } = null!;
+    /// <summary>Oracle CITY_CODE for records mirrored from Oracle; null for manual entries.</summary>
+    public string? SourceCode { get; private set; }
+    public RecordSource Source { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
     public string CreatedBy { get; private set; } = null!;
@@ -100,7 +119,22 @@ public sealed class City : AggregateRoot<CityId>, IAuditable
     {
         if (string.IsNullOrWhiteSpace(name)) throw new DomainException("City name is required.");
         if (string.IsNullOrWhiteSpace(governorate)) throw new DomainException("Governorate is required.");
-        return new City(CityId.New(), name.Trim(), governorate.Trim());
+        return new City(CityId.New(), name.Trim(), governorate.Trim()) { Source = RecordSource.Manual };
+    }
+
+    /// <summary>Creates an Oracle-sourced city (mirrored by the sync), keyed by Oracle CITY_CODE.</summary>
+    public static City FromOracle(string sourceCode, string name, string governorate)
+    {
+        if (string.IsNullOrWhiteSpace(name)) throw new DomainException("City name is required.");
+        return new City(CityId.New(), name.Trim(), string.IsNullOrWhiteSpace(governorate) ? "-" : governorate.Trim())
+            { SourceCode = sourceCode.Trim(), Source = RecordSource.Oracle };
+    }
+
+    public void ApplyOracle(string name, string governorate)
+    {
+        if (!string.IsNullOrWhiteSpace(name)) Name = name.Trim();
+        if (!string.IsNullOrWhiteSpace(governorate)) Governorate = governorate.Trim();
+        Source = RecordSource.Oracle;
     }
 
     public void Rename(string name) => Name = string.IsNullOrWhiteSpace(name)
@@ -137,6 +171,9 @@ public sealed class Area : AggregateRoot<AreaId>, IAuditable
     public CityId CityId { get; private set; }
     public bool TransportationRequired { get; private set; }
     public IReadOnlyCollection<RepresentativeId> TransferReps => _transferReps.AsReadOnly();
+    /// <summary>Oracle AREA_CODE for records mirrored from Oracle; null for manual entries.</summary>
+    public string? SourceCode { get; private set; }
+    public RecordSource Source { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
     public string CreatedBy { get; private set; } = null!;
@@ -146,7 +183,21 @@ public sealed class Area : AggregateRoot<AreaId>, IAuditable
     public static Area Create(string name, CityId cityId, bool transportationRequired)
     {
         if (string.IsNullOrWhiteSpace(name)) throw new DomainException("Area name is required.");
-        return new Area(AreaId.New(), name.Trim(), cityId, transportationRequired);
+        return new Area(AreaId.New(), name.Trim(), cityId, transportationRequired) { Source = RecordSource.Manual };
+    }
+
+    /// <summary>Creates an Oracle-sourced area (mirrored by the sync), keyed by Oracle AREA_CODE.</summary>
+    public static Area FromOracle(string sourceCode, string name, CityId cityId)
+    {
+        if (string.IsNullOrWhiteSpace(name)) throw new DomainException("Area name is required.");
+        return new Area(AreaId.New(), name.Trim(), cityId, false) { SourceCode = sourceCode.Trim(), Source = RecordSource.Oracle };
+    }
+
+    public void ApplyOracle(string name, CityId cityId)
+    {
+        if (!string.IsNullOrWhiteSpace(name)) Name = name.Trim();
+        CityId = cityId;
+        Source = RecordSource.Oracle;
     }
 
     public void Rename(string name) => Name = string.IsNullOrWhiteSpace(name)

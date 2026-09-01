@@ -57,7 +57,7 @@ internal sealed class LaboratoryQueries : ILaboratoryQueries
             canSeeLocation ? l.Location?.Latitude : null, canSeeLocation ? l.Location?.Longitude : null,
             l.CollectorRepIds.Select(c => repNames.GetValueOrDefault(c, "—")).ToList(),
             l.MarketingRepId is { } m ? repNames.GetValueOrDefault(m) : null,
-            l.IsEncrypted && !canSeeEncrypted)).ToList();
+            l.IsEncrypted && !canSeeEncrypted, l.Source.ToString())).ToList();
 
         return PagedResult<LabListItemDto>.Create(items, total, criteria.Page, criteria.PageSize);
     }
@@ -112,7 +112,7 @@ internal sealed class RepresentativeQueries : IRepresentativeQueries
         var rows = await query
             .OrderBy(r => r.FullName)
             .Skip(criteria.Skip).Take(criteria.PageSize)
-            .Select(r => new { r.Id, r.FullName, r.Type, r.GoalDuration, r.GoalType, r.Metric, r.Target, r.Salary, r.Phone, r.IsActive, r.Branch, r.Governorate, r.City, r.Area, r.EmploymentType, r.AppointedOn })
+            .Select(r => new { r.Id, r.FullName, r.Type, r.GoalDuration, r.GoalType, r.Metric, r.Target, r.Salary, r.Phone, r.IsActive, r.Branch, r.Governorate, r.City, r.Area, r.EmploymentType, r.AppointedOn, r.Source })
             .ToListAsync(ct);
 
         // Assigned-lab counts (collector across the jsonb list, or marketing rep) — materialize and count in memory.
@@ -127,7 +127,7 @@ internal sealed class RepresentativeQueries : IRepresentativeQueries
         var items = rows.Select(r => new Application.Features.Representatives.Contracts.RepListItemDto(
             r.Id.Value, r.FullName, r.Type.Name, r.GoalDuration.Name, r.GoalType, r.Metric,
             r.Target.Amount, r.Salary.Amount, r.Phone, counts.GetValueOrDefault(r.Id), r.IsActive,
-            r.Branch, r.Governorate, r.City, r.Area, r.EmploymentType, r.AppointedOn)).ToList();
+            r.Branch, r.Governorate, r.City, r.Area, r.EmploymentType, r.AppointedOn, r.Source.ToString())).ToList();
 
         return PagedResult<Application.Features.Representatives.Contracts.RepListItemDto>
             .Create(items, total, criteria.Page, criteria.PageSize);

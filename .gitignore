@@ -37,3 +37,9 @@ appsettings.*.local.json
 
 # Angular build output served by the API
 src/FollowUp.Api/wwwroot/
+
+# Local deploy artifacts, packages, and snapshots (not part of the app source)
+*.zip
+/FollowUp-deploy/
+/old/
+active_labs_schedule_before.csv

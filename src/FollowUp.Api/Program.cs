@@ -4,6 +4,8 @@ using FollowUp.Api.Middleware;
 using FollowUp.Api.Realtime;
 using FollowUp.Application;
 using FollowUp.Application.Common.Abstractions;
+using FollowUp.Application.Common.Abstractions.Persistence;
+using FollowUp.Domain.Integration;
 using FollowUp.Infrastructure;
 using FollowUp.Infrastructure.Jobs;
 using FollowUp.Infrastructure.Persistence;
@@ -16,6 +18,9 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Run as a Windows Service when launched by the SCM (no-op under console/dev hosting).
+builder.Host.UseWindowsService();
+
 // Serve on 5088 (5080 is busy on this host).
 builder.WebHost.UseUrls(Environment.GetEnvironmentVariable("ASPNETCORE_URLS") ?? "http://localhost:5088");
 
@@ -23,7 +28,7 @@ builder.Host.UseSerilog((ctx, cfg) => cfg
     .ReadFrom.Configuration(ctx.Configuration)
     .Enrich.FromLogContext()
     .WriteTo.Console()
-    .WriteTo.File("logs/followup-.log", rollingInterval: Serilog.RollingInterval.Day, retainedFileCountLimit: 14));
+    .WriteTo.File(System.IO.Path.Combine(AppContext.BaseDirectory, "logs", "followup-.log"), rollingInterval: Serilog.RollingInterval.Day, retainedFileCountLimit: 14));
 
 // Layers.
 builder.Services.AddApplication();
@@ -76,6 +81,49 @@ await using (var scope = app.Services.CreateAsyncScope())
     var created = await seeder.SeedAsync(adminPassword);
     if (created is not null)
         Log.Warning("Seeded built-in admin '{Admin}' — change its password immediately.", created);
+
+    // Oracle integration (SRS FR-17): config-managed connection + allow-listed SELECTs, provisioned from the
+    // service environment. The connection string and SQL are never writable via the API. Enable/interval are
+    // API-managed, so we only seed those on first creation and never overwrite an operator's later choice.
+    var oracleConn = Environment.GetEnvironmentVariable("FOLLOWUP_ORACLE");
+    if (!string.IsNullOrWhiteSpace(oracleConn))
+    {
+        var cfgRepo = scope.ServiceProvider.GetRequiredService<IOracleConfigRepository>();
+        var cfg = await cfgRepo.GetAsync(CancellationToken.None);
+        var testStatsSql = Environment.GetEnvironmentVariable("FOLLOWUP_ORACLE_TESTSTATS_SQL")
+            ?? OracleDefaultQueries.TestStats;
+        var labStatsSql = Environment.GetEnvironmentVariable("FOLLOWUP_ORACLE_LABSTATS_SQL")
+            ?? OracleDefaultQueries.LabStats;
+        var groupsSql = Environment.GetEnvironmentVariable("FOLLOWUP_ORACLE_GROUPS_SQL")
+            ?? OracleDefaultQueries.Groups;
+        var testsSql = Environment.GetEnvironmentVariable("FOLLOWUP_ORACLE_TESTS_SQL")
+            ?? OracleDefaultQueries.Tests;
+        string Sql(string envVar, string dflt) => Environment.GetEnvironmentVariable(envVar) ?? dflt;
+        var queries = new[]
+        {
+            AllowListedQuery.Create("Governorates", Sql("FOLLOWUP_ORACLE_GOVERNORATES_SQL", OracleDefaultQueries.Governorates)),
+            AllowListedQuery.Create("LabCategories", Sql("FOLLOWUP_ORACLE_LABCATEGORIES_SQL", OracleDefaultQueries.LabCategories)),
+            AllowListedQuery.Create("Branches", Sql("FOLLOWUP_ORACLE_BRANCHES_SQL", OracleDefaultQueries.Branches)),
+            AllowListedQuery.Create("Cities", Sql("FOLLOWUP_ORACLE_CITIES_SQL", OracleDefaultQueries.Cities)),
+            AllowListedQuery.Create("Areas", Sql("FOLLOWUP_ORACLE_AREAS_SQL", OracleDefaultQueries.Areas)),
+            AllowListedQuery.Create("Reps", Sql("FOLLOWUP_ORACLE_REPS_SQL", OracleDefaultQueries.Reps)),
+            AllowListedQuery.Create("Labs", Sql("FOLLOWUP_ORACLE_LABS_SQL", OracleDefaultQueries.Labs)),
+            AllowListedQuery.Create("Groups", groupsSql),
+            AllowListedQuery.Create("Tests", testsSql),
+            AllowListedQuery.Create("TestStats", testStatsSql),
+            AllowListedQuery.Create("LabStats", labStatsSql),
+        };
+        if (cfg is null)
+        {
+            var interval = int.TryParse(Environment.GetEnvironmentVariable("FOLLOWUP_ORACLE_INTERVAL_HOURS"), out var h) ? h : 24;
+            cfg = OracleConfig.Create(enabled: true, intervalHours: interval);
+            cfgRepo.Add(cfg);
+        }
+        cfg.ApplyManagedConfig(oracleConn, queries);
+        await db.SaveChangesAsync();
+        Log.Information("Oracle integration provisioned (enabled={Enabled}, interval={Interval}h, feeds={Feeds}).",
+            cfg.Enabled, cfg.IntervalHours, string.Join(",", queries.Select(q => q.Name)));
+    }
 }
 
 // Pipeline (order matters — architect request-pipeline).

@@ -18,6 +18,7 @@ const STATUSES = ['All', 'Scanned', 'Interactive', 'Active', 'Inactive', 'Stoppe
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'lab_mgmt' | t : 'Laboratories' }}</div><h1>{{ 'lab_mgmt' | t : 'Laboratories' }}</h1></div>
       <div class="pagehead-actions" style="display:flex;gap:8px">
+        @if (auth.has('OracleIntegration')) { <button class="btn btn-s" [disabled]="syncing()" (click)="sync()">{{ syncing() ? 'Syncing…' : 'Sync from Oracle' }}</button> }
         @if (auth.has('AddLabs')) { <a class="btn btn-p" routerLink="/labs/new">{{ 'new_lab_btn' | t : '+ New laboratory' }}</a> }
         <button class="btn btn-s" (click)="exportCsv()" [disabled]="!filtered().length">{{ 'export_excel' | t : 'Export Excel' }}</button>
         <button class="btn btn-s" (click)="exportPdf()" [disabled]="!filtered().length">{{ 'export_pdf' | t : 'Export PDF' }}</button>
@@ -38,12 +39,12 @@ const STATUSES = ['All', 'Scanned', 'Interactive', 'Active', 'Inactive', 'Stoppe
         <div class="field"><label>{{ 'search' | t : 'Search' }}</label><input class="input" [(ngModel)]="search" (keyup.enter)="load()" [placeholder]="'search_lab_name_or_code' | t : 'Name or code'"></div>
         <div class="field"><label>{{ 'status' | t }}</label><select class="select" [(ngModel)]="status" (ngModelChange)="load()"><option value="All">{{ 'all' | t }}</option>@for (s of statuses.slice(1); track s) { <option [value]="s">{{ s }}</option> }</select></div>
         <div class="field"><label>{{ 'segment' | t }}</label><select class="select" [(ngModel)]="segment" (ngModelChange)="load()"><option value="All">{{ 'all' | t }}</option>@for (s of segments.slice(1); track s) { <option [value]="s">{{ s }}</option> }</select></div>
-        <div class="field"><label>{{ 'governorate_2' | t }}</label><select class="select" [ngModel]="gov()" (ngModelChange)="gov.set($event)"><option value="All">{{ 'all_2' | t }}</option>@for (g of govs(); track g) { <option [value]="g">{{ g }}</option> }</select></div>
-        <div class="field"><label>{{ 'city' | t : 'City' }}</label><select class="select" [ngModel]="city()" (ngModelChange)="city.set($event)"><option value="All">{{ 'all_2' | t }}</option>@for (c of cities(); track c) { <option [value]="c">{{ c }}</option> }</select></div>
-        <div class="field"><label>{{ 'area' | t : 'Area' }}</label><select class="select" [ngModel]="area()" (ngModelChange)="area.set($event)"><option value="All">{{ 'all_2' | t }}</option>@for (a of areas(); track a) { <option [value]="a">{{ a }}</option> }</select></div>
-        <div class="field"><label>{{ 'serving_branch' | t : 'Serving branch' }}</label><select class="select" [ngModel]="branch()" (ngModelChange)="branch.set($event)"><option value="All">{{ 'all_2' | t }}</option>@for (b of branches(); track b) { <option [value]="b">{{ b }}</option> }</select></div>
-        <div class="field"><label>{{ 'collection_rep' | t : 'Collection rep' }}</label><select class="select" [ngModel]="collectorRep()" (ngModelChange)="collectorRep.set($event)"><option value="All">{{ 'all_2' | t }}</option>@for (r of collectorReps(); track r) { <option [value]="r">{{ r }}</option> }</select></div>
-        <div class="field"><label>{{ 'marketing_rep' | t : 'Marketing rep' }}</label><select class="select" [ngModel]="marketingRep()" (ngModelChange)="marketingRep.set($event)"><option value="All">{{ 'all_2' | t }}</option>@for (r of marketingReps(); track r) { <option [value]="r">{{ r }}</option> }</select></div>
+        <div class="field"><label>{{ 'governorate_2' | t }}</label><select class="select" [ngModel]="gov()" (ngModelChange)="gov.set($event); page.set(1)"><option value="All">{{ 'all_2' | t }}</option>@for (g of govs(); track g) { <option [value]="g">{{ g }}</option> }</select></div>
+        <div class="field"><label>{{ 'city' | t : 'City' }}</label><select class="select" [ngModel]="city()" (ngModelChange)="city.set($event); page.set(1)"><option value="All">{{ 'all_2' | t }}</option>@for (c of cities(); track c) { <option [value]="c">{{ c }}</option> }</select></div>
+        <div class="field"><label>{{ 'area' | t : 'Area' }}</label><select class="select" [ngModel]="area()" (ngModelChange)="area.set($event); page.set(1)"><option value="All">{{ 'all_2' | t }}</option>@for (a of areas(); track a) { <option [value]="a">{{ a }}</option> }</select></div>
+        <div class="field"><label>{{ 'serving_branch' | t : 'Serving branch' }}</label><select class="select" [ngModel]="branch()" (ngModelChange)="branch.set($event); page.set(1)"><option value="All">{{ 'all_2' | t }}</option>@for (b of branches(); track b) { <option [value]="b">{{ b }}</option> }</select></div>
+        <div class="field"><label>{{ 'collection_rep' | t : 'Collection rep' }}</label><select class="select" [ngModel]="collectorRep()" (ngModelChange)="collectorRep.set($event); page.set(1)"><option value="All">{{ 'all_2' | t }}</option>@for (r of collectorReps(); track r) { <option [value]="r">{{ r }}</option> }</select></div>
+        <div class="field"><label>{{ 'marketing_rep' | t : 'Marketing rep' }}</label><select class="select" [ngModel]="marketingRep()" (ngModelChange)="marketingRep.set($event); page.set(1)"><option value="All">{{ 'all_2' | t }}</option>@for (r of marketingReps(); track r) { <option [value]="r">{{ r }}</option> }</select></div>
       </div>
     </div>
 
@@ -51,9 +52,9 @@ const STATUSES = ['All', 'Scanned', 'Interactive', 'Active', 'Inactive', 'Stoppe
       @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
       @else {
         <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
-          <thead><tr><th>{{ 'laboratory_3' | t : 'Laboratory' }}</th><th>{{ 'code_2' | t : 'Code' }}</th><th>{{ 'segment' | t }}</th><th>{{ 'status' | t }}</th><th>{{ 'address' | t : 'Address' }}</th>@if (canViewLocation()) { <th>{{ 'map' | t : 'Map' }}</th> }<th>{{ 'collector' | t : 'Collector' }}</th><th>{{ 'marketing' | t : 'Marketing' }}</th><th class="r">{{ 'avg_mo' | t : 'Avg/mo' }}</th><th></th></tr></thead>
+          <thead><tr><th>{{ 'laboratory_3' | t : 'Laboratory' }}</th><th>{{ 'code_2' | t : 'Code' }}</th><th>{{ 'segment' | t }}</th><th>{{ 'status' | t }}</th><th>{{ 'address' | t : 'Address' }}</th>@if (canViewLocation()) { <th>{{ 'map' | t : 'Map' }}</th> }<th>{{ 'collector' | t : 'Collector' }}</th><th>{{ 'marketing' | t : 'Marketing' }}</th><th style="width:80px">{{ 'source' | t : 'Source' }}</th><th class="r">{{ 'avg_mo' | t : 'Avg/mo' }}</th><th></th></tr></thead>
           <tbody>
-            @for (l of filtered(); track l.id) {
+            @for (l of paged(); track l.id) {
               <tr class="clickable" (click)="open(l.id)">
                 <td><b style="color:var(--slate-900)">{{ l.name }}</b>@if (l.branch) { <div class="small muted">{{ l.branch }}</div> }</td>
                 <td class="mono">{{ l.displayCode }}@if (l.encrypted) { <span class="badge b-neu" style="margin-inline-start:6px">enc</span> }</td>
@@ -63,22 +64,31 @@ const STATUSES = ['All', 'Scanned', 'Interactive', 'Active', 'Inactive', 'Stoppe
                 @if (canViewLocation()) { <td>@if (l.latitude != null && l.longitude != null) { <a [href]="mapUrl(l)" target="_blank" rel="noopener" (click)="$event.stopPropagation()">📍 {{ 'map' | t : 'Map' }}</a> } @else { — }</td> }
                 <td>{{ l.collectors.length ? l.collectors.join(', ') : '—' }}</td>
                 <td>{{ l.marketing ?? '—' }}</td>
+                <td>@if (l.source === 'Oracle') { <span class="src-b src-o">Oracle</span> } @else { <span class="src-b src-m">Manual</span> }</td>
                 <td class="r mono">{{ l.avgMonthlySamples ?? '—' }}</td>
                 <td class="r" style="white-space:nowrap">
                   <button class="btn-ghost" (click)="$event.stopPropagation(); open(l.id)">{{ 'images' | t : 'Images' }}</button>
                   <button class="btn-ghost" (click)="$event.stopPropagation(); open(l.id)">{{ 'edit' | t : 'Edit' }}</button>
                 </td>
               </tr>
-            } @empty { <tr><td [attr.colspan]="canViewLocation() ? 10 : 9" class="empty" style="text-align:center;padding:24px">{{ 'no_labs_match' | t : 'No labs match.' }}</td></tr> }
+            } @empty { <tr><td [attr.colspan]="canViewLocation() ? 11 : 10" class="empty" style="text-align:center;padding:24px">{{ 'no_labs_match' | t : 'No labs match.' }}</td></tr> }
           </tbody>
         </table></div>
-        <div class="foot" style="padding:10px 14px;font-size:12px;color:var(--slate-500);border-top:1px solid var(--slate-150)">
-          {{ filtered().length }} {{ 'of' | t }} {{ result()?.total ?? 0 }} {{ 'total' | t }}
+        <div class="fu-pager">
+          <button class="btn-ghost" [disabled]="page() <= 1" (click)="page.set(page() - 1)">‹ Prev</button>
+          <span>Page {{ page() }} / {{ pageCount() }} · {{ filtered().length }} shown@if ((result()?.total ?? 0) > items().length) { <span class="muted"> (of {{ result()?.total }} total — refine search to load more)</span> }</span>
+          <button class="btn-ghost" [disabled]="page() >= pageCount()" (click)="page.set(page() + 1)">Next ›</button>
+          <select class="select" [ngModel]="pageSize()" (ngModelChange)="pageSize.set(+$event); page.set(1)" style="max-width:90px;margin-inline-start:auto">
+            <option [ngValue]="25">25</option><option [ngValue]="50">50</option><option [ngValue]="100">100</option>
+          </select>
         </div>
       }
     </div>
   `,
-  styles: [`tr.clickable{cursor:pointer}tr.clickable:hover{background:var(--slate-100)}`],
+  styles: [`tr.clickable{cursor:pointer}tr.clickable:hover{background:var(--slate-100)}
+    .src-b{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600}
+    .src-o{background:#eaf2fa;color:#2f7bd2}.src-m{background:#eceff2;color:#6b7480}
+    .fu-pager{display:flex;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid var(--slate-150);font-size:12.5px;color:var(--slate-600)}`],
 })
 export class LabsComponent {
   private readonly api = inject(ApiService);
@@ -91,6 +101,23 @@ export class LabsComponent {
   search = ''; segment = 'All'; status = 'All';
   readonly gov = signal('All'); readonly city = signal('All'); readonly area = signal('All');
   readonly branch = signal('All'); readonly collectorRep = signal('All'); readonly marketingRep = signal('All');
+  readonly syncing = signal(false);
+  readonly page = signal(1);
+  readonly pageSize = signal(25);
+  readonly pageCount = computed(() => Math.max(1, Math.ceil(this.filtered().length / this.pageSize())));
+  readonly paged = computed(() => {
+    const p = Math.min(this.page(), this.pageCount());
+    const start = (p - 1) * this.pageSize();
+    return this.filtered().slice(start, start + this.pageSize());
+  });
+
+  sync(): void {
+    this.syncing.set(true);
+    this.api.post('/integration/sync-now').subscribe({
+      next: () => { this.syncing.set(false); this.load(); },
+      error: () => { this.syncing.set(false); },
+    });
+  }
 
   readonly filtered = computed(() => this.items().filter((l) =>
     (this.gov() === 'All' || l.governorate === this.gov())
@@ -150,6 +177,7 @@ export class LabsComponent {
 
   load(): void {
     this.loading.set(true);
+    this.page.set(1);
     const params: Record<string, string | number> = { pageSize: 500 };
     if (this.search.trim()) params['search'] = this.search.trim();
     if (this.segment !== 'All') params['segment'] = this.segment;

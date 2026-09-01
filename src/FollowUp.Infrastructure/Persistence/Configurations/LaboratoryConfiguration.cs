@@ -60,6 +60,7 @@ internal sealed class LaboratoryConfiguration : IEntityTypeConfiguration<Laborat
 
         b.Property(x => x.MappingCode).HasMaxLength(64);
         b.Property(x => x.IsEncrypted);
+        b.Property(x => x.Source).HasDefaultValue(FollowUp.Domain.Common.RecordSource.Manual);
         b.Property(x => x.ImagePaths)
             .HasColumnName("image_paths")
             .HasColumnType("jsonb")
@@ -109,6 +110,9 @@ internal sealed class RepresentativeConfiguration : IEntityTypeConfiguration<Rep
         b.Property(x => x.EmploymentType).HasMaxLength(40);
         b.Property(x => x.AppointedOn);
         b.Property(x => x.IsActive).HasDefaultValue(true);
+        b.Property(x => x.SourceCode).HasMaxLength(64);
+        b.Property(x => x.Source).HasDefaultValue(FollowUp.Domain.Common.RecordSource.Manual);
+        b.HasIndex(x => x.SourceCode);
 
         b.Property(x => x.RowVersion).IsRowVersion();
     }

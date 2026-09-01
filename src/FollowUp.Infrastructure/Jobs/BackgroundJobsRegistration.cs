@@ -34,6 +34,8 @@ public static class BackgroundJobsRegistration
         services.AddScoped<MissedSweepJob>();
         services.AddScoped<NotificationDispatchJob>();
         services.AddScoped<OracleSyncJob>();
+        services.AddScoped<TestStatsSyncJob>();
+        services.AddScoped<LabStatsSyncJob>();
         services.AddScoped<RetentionJob>();
 
         services.AddHostedService<RecurringJobsInitializer>();
@@ -64,6 +66,10 @@ public sealed class RecurringJobsInitializer : IHostedService
         // Notification dispatcher (outbox drain) — frequent; retention nightly; oracle hourly (runner gates on interval).
         _jobs.AddOrUpdate<NotificationDispatchJob>("notification-dispatcher", j => j.RunAsync(CancellationToken.None), "*/1 * * * *");
         _jobs.AddOrUpdate<OracleSyncJob>("oracle-sync", j => j.RunAsync(CancellationToken.None), "0 * * * *");
+        // Statistics: each pulls just the previous day from Oracle around midnight Cairo (full history is
+        // seeded on demand via the page buttons). Staggered a few minutes apart to spread the Oracle load.
+        _jobs.AddOrUpdate<TestStatsSyncJob>("teststats-sync", j => j.RunAsync(CancellationToken.None), "0 0 * * *", cairoOptions);
+        _jobs.AddOrUpdate<LabStatsSyncJob>("labstats-sync", j => j.RunAsync(CancellationToken.None), "5 0 * * *", cairoOptions);
         _jobs.AddOrUpdate<RetentionJob>("retention-purge", j => j.RunAsync(CancellationToken.None), "0 3 * * *", cairoOptions);
 
         _logger.LogInformation("Recurring jobs registered (Cairo timezone).");

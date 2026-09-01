@@ -4,9 +4,9 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { ToastService } from '../../core/toast.service';
 
-interface RefItem { id: string; type: string; code: string; nameEn: string; nameAr: string | null; sortOrder: number; }
-interface City { id: string; name: string; governorate: string; }
-interface Area { id: string; name: string; cityId: string; transportationRequired: boolean; transferReps: string[]; }
+interface RefItem { id: string; type: string; code: string; nameEn: string; nameAr: string | null; sortOrder: number; source: string; }
+interface City { id: string; name: string; governorate: string; source: string; }
+interface Area { id: string; name: string; cityId: string; transportationRequired: boolean; transferReps: string[]; source: string; }
 interface Tier { name: string; minAchievementPercent: number; points: number; }
 interface CompConfig { commissionRatePercent: number; bonusThresholdPercent: number; bonusAmount: number; tiers: Tier[]; }
 
@@ -37,7 +37,15 @@ const TABS: { key: Tab; label: string }[] = [
   standalone: true,
   imports: [FormsModule],
   template: `
-    <div class="pagehead"><div><div class="breadcrumbs">Home / Setup & Configuration</div><h1>Setup &amp; Configuration</h1></div></div>
+    <div class="pagehead" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+      <div><div class="breadcrumbs">Home / Setup & Configuration</div><h1>Setup &amp; Configuration</h1></div>
+      @if (auth.has('OracleIntegration') && oracleTab()) {
+        <button class="btn btn-s" [disabled]="syncing()" (click)="sync()" title="Pull the latest reference data from Oracle">
+          {{ syncing() ? 'Syncing…' : 'Sync from Oracle' }}
+        </button>
+      }
+    </div>
+    @if (notice()) { <div class="inline-banner" style="background:var(--ok-bg,#dff6dd);color:var(--ok-ink,#107c41)">{{ notice() }}</div> }
 
     <div class="tabbar">
       @for (t of tabs; track t.key) {
@@ -55,16 +63,17 @@ const TABS: { key: Tab; label: string }[] = [
           <button class="btn btn-p" style="margin-top:14px" [disabled]="!newName.trim() || busy() || !canEdit()" (click)="addRef()">Add</button>
         </div>
         <div class="card panel">
-          <h3>Current Items</h3>
+          <div class="setup-toolbar"><h3 style="margin:0">Current Items</h3><input class="input srch" [ngModel]="q()" (ngModelChange)="q.set($event)" placeholder="Search…"><span class="cnt">{{ refsF().length }}/{{ refs().length }}</span></div>
           <table class="items">
-            <thead><tr><th>{{ singular() }}</th><th class="ar">Actions</th></tr></thead>
+            <thead><tr><th>{{ singular() }}</th><th style="width:80px">Source</th><th class="ar">Actions</th></tr></thead>
             <tbody>
-              @for (r of refs(); track r.id) {
+              @for (r of refsF(); track r.id) {
                 <tr>
                   <td>
                     @if (editId() === r.id) { <input class="input" [(ngModel)]="editName"> }
                     @else { <b>{{ r.nameEn }}</b> }
                   </td>
+                  <td>@if (r.source === 'Oracle') { <span class="src-b src-o">Oracle</span> } @else { <span class="src-b src-m">Manual</span> }</td>
                   <td class="ar actions">
                     @if (canEdit()) {
                       @if (editId() === r.id) {
@@ -77,7 +86,7 @@ const TABS: { key: Tab; label: string }[] = [
                     }
                   </td>
                 </tr>
-              } @empty { <tr><td colspan="2" class="empty">No items yet.</td></tr> }
+              } @empty { <tr><td colspan="3" class="empty">No items yet.</td></tr> }
             </tbody>
           </table>
         </div>
@@ -99,11 +108,11 @@ const TABS: { key: Tab; label: string }[] = [
           <button class="btn btn-p" style="margin-top:14px" [disabled]="!cityName.trim() || !cityGov || busy() || !canEdit()" (click)="addCity()">Add</button>
         </div>
         <div class="card panel">
-          <h3>Current Items</h3>
+          <div class="setup-toolbar"><h3 style="margin:0">Current Items</h3><input class="input srch" [ngModel]="q()" (ngModelChange)="q.set($event)" placeholder="Search…"><span class="cnt">{{ citiesF().length }}/{{ cities().length }}</span></div>
           <table class="items">
-            <thead><tr><th>City</th><th>Governorate</th><th class="ar">Actions</th></tr></thead>
+            <thead><tr><th>City</th><th>Governorate</th><th style="width:80px">Source</th><th class="ar">Actions</th></tr></thead>
             <tbody>
-              @for (c of cities(); track c.id) {
+              @for (c of citiesF(); track c.id) {
                 <tr>
                   <td>@if (editId() === c.id) { <input class="input" [(ngModel)]="editName"> } @else { <b>{{ c.name }}</b> }</td>
                   <td>
@@ -111,6 +120,7 @@ const TABS: { key: Tab; label: string }[] = [
                       <select class="select" [(ngModel)]="editGov"><option value="">—</option>@for (g of govOptions(); track g) { <option [value]="g">{{ g }}</option> }</select>
                     } @else { {{ c.governorate }} }
                   </td>
+                  <td>@if (c.source === 'Oracle') { <span class="src-b src-o">Oracle</span> } @else { <span class="src-b src-m">Manual</span> }</td>
                   <td class="ar actions">
                     @if (canEdit()) {
                       @if (editId() === c.id) {
@@ -123,7 +133,7 @@ const TABS: { key: Tab; label: string }[] = [
                     }
                   </td>
                 </tr>
-              } @empty { <tr><td colspan="3" class="empty">No items yet.</td></tr> }
+              } @empty { <tr><td colspan="4" class="empty">No items yet.</td></tr> }
             </tbody>
           </table>
         </div>
@@ -145,11 +155,11 @@ const TABS: { key: Tab; label: string }[] = [
           <button class="btn btn-p" style="margin-top:14px" [disabled]="!areaName.trim() || !areaCity || busy() || !canEdit()" (click)="addArea()">Add</button>
         </div>
         <div class="card panel">
-          <h3>Current Items</h3>
+          <div class="setup-toolbar"><h3 style="margin:0">Current Items</h3><input class="input srch" [ngModel]="q()" (ngModelChange)="q.set($event)" placeholder="Search…"><span class="cnt">{{ areasF().length }}/{{ areas().length }}</span></div>
           <table class="items">
-            <thead><tr><th>Area</th><th>City</th><th>Transport</th><th class="ar">Actions</th></tr></thead>
+            <thead><tr><th>Area</th><th>City</th><th>Transport</th><th style="width:80px">Source</th><th class="ar">Actions</th></tr></thead>
             <tbody>
-              @for (a of areas(); track a.id) {
+              @for (a of areasF(); track a.id) {
                 <tr>
                   <td>@if (editId() === a.id) { <input class="input" [(ngModel)]="editName"> } @else { <b>{{ a.name }}</b> }</td>
                   <td>
@@ -161,6 +171,7 @@ const TABS: { key: Tab; label: string }[] = [
                     @if (editId() === a.id) { <input type="checkbox" [(ngModel)]="editTransport"> }
                     @else { {{ a.transportationRequired ? 'Yes' : 'No' }} }
                   </td>
+                  <td>@if (a.source === 'Oracle') { <span class="src-b src-o">Oracle</span> } @else { <span class="src-b src-m">Manual</span> }</td>
                   <td class="ar actions">
                     @if (canEdit()) {
                       @if (editId() === a.id) {
@@ -173,7 +184,7 @@ const TABS: { key: Tab; label: string }[] = [
                     }
                   </td>
                 </tr>
-              } @empty { <tr><td colspan="4" class="empty">No items yet.</td></tr> }
+              } @empty { <tr><td colspan="5" class="empty">No items yet.</td></tr> }
             </tbody>
           </table>
         </div>
@@ -230,6 +241,12 @@ const TABS: { key: Tab; label: string }[] = [
     .icon-btn { background:var(--white); border:1px solid var(--slate-300); border-radius:8px; width:32px; height:32px; cursor:pointer; font-size:14px }
     .icon-btn.del { color:#b91c1c; border-color:#fecaca; background:#fee2e2 }
     .empty { text-align:center; padding:24px; color:var(--slate-400) }
+    .setup-toolbar { display:flex; align-items:center; gap:10px; margin-bottom:12px }
+    .setup-toolbar .srch { flex:1; max-width:260px }
+    .setup-toolbar .cnt { font-size:12px; color:var(--slate-500); margin-inline-start:auto }
+    .src-b { font-size:11px; padding:2px 8px; border-radius:10px; font-weight:600 }
+    .src-o { background:#eaf2fa; color:#2f7bd2 } .src-m { background:#eceff2; color:#6b7480 }
+    .inline-banner { padding:10px 14px; border-radius:8px; margin-bottom:12px; font-size:13px }
   `],
 })
 export class SetupComponent {
@@ -244,7 +261,27 @@ export class SetupComponent {
   readonly cities = signal<City[]>([]);
   readonly areas = signal<Area[]>([]);
   readonly govOptions = signal<string[]>([]);
+  readonly q = signal('');
+  readonly syncing = signal(false);
+  readonly notice = signal<string | null>(null);
+  readonly oracleTab = computed(() => ['governorates', 'labcategories', 'branches', 'cities', 'areas'].includes(this.tab()));
+  readonly refsF = computed(() => this.filter(this.refs(), (r) => [r.nameEn, r.code]));
+  readonly citiesF = computed(() => this.filter(this.cities(), (c) => [c.name, c.governorate]));
+  readonly areasF = computed(() => this.filter(this.areas(), (a) => [a.name, this.cityName2(a.cityId)]));
   comp: CompConfig = { commissionRatePercent: 0, bonusThresholdPercent: 0, bonusAmount: 0, tiers: [] };
+
+  private filter<T>(list: T[], fields: (x: T) => (string | undefined)[]): T[] {
+    const term = this.q().trim().toLowerCase();
+    if (!term) return list;
+    return list.filter((x) => fields(x).some((f) => (f ?? '').toLowerCase().includes(term)));
+  }
+  sync(): void {
+    this.syncing.set(true); this.notice.set(null);
+    this.api.post('/integration/sync-now').subscribe({
+      next: () => { this.syncing.set(false); this.notice.set('Synced from Oracle.'); this.select(this.tab()); },
+      error: () => { this.syncing.set(false); this.notice.set('Oracle sync failed.'); },
+    });
+  }
 
   readonly editId = signal<string | null>(null);
   editName = ''; editGov = ''; editCityId = ''; editTransport = false;
@@ -273,6 +310,7 @@ export class SetupComponent {
 
   select(t: Tab): void {
     this.tab.set(t);
+    this.q.set('');
     this.cancelEdit();
     if (t in REF_MAP) { this.reloadRefs(); return; }
     if (t === 'cities') { this.loadGovOptions(); this.reloadCities(); }

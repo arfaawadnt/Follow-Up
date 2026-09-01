@@ -19,7 +19,7 @@ interface NavGroup { titleKey: string; items: NavItem[]; }
     <div id="app">
       <div class="app-header">
         <div class="header-brand">
-          <button class="header-icon-btn btn-collapse-sidebar" (click)="collapsed.set(!collapsed())" title="Toggle Sidebar">
+          <button class="header-icon-btn btn-collapse-sidebar" (click)="toggleCollapse()" title="Toggle Sidebar">
             <i data-lucide="menu"></i>
           </button>
           <div class="header-logo-container"><img src="logo.png" alt="Logo"></div>
@@ -82,8 +82,19 @@ export class ShellComponent implements AfterViewChecked, OnDestroy {
   private readonly icons = inject(IconsService);
   private readonly router = inject(Router);
 
-  readonly collapsed = signal(false);
+  private static readonly COLLAPSE_KEY = 'fu.sidebarCollapsed';
+  readonly collapsed = signal(ShellComponent.readCollapsed());
   private readonly collapsedGroups = signal<Record<number, boolean>>({ 3: true, 4: true });
+
+  private static readCollapsed(): boolean {
+    try { return localStorage.getItem(ShellComponent.COLLAPSE_KEY) === '1'; } catch { return false; }
+  }
+  /** Toggle the sidebar and remember the choice so it stays collapsed across reloads. */
+  toggleCollapse(): void {
+    const next = !this.collapsed();
+    this.collapsed.set(next);
+    try { localStorage.setItem(ShellComponent.COLLAPSE_KEY, next ? '1' : '0'); } catch { /* storage unavailable */ }
+  }
 
   readonly groups: NavGroup[] = [
     { titleKey: 'core_operations', items: [

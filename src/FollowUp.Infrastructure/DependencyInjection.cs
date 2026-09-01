@@ -83,7 +83,7 @@ public static class DependencyInjection
         services.AddSingleton<ISpreadsheetReader, Gateways.XlsxSpreadsheetReader>();
         services.AddScoped<IRecordHasher, Gateways.RecordHasher>();
         services.AddScoped<IElectronicSignatureGate, Gateways.ElectronicSignatureGate>();
-        services.AddScoped<IOracleReader, Jobs.ConfiguredOracleReader>();
+        services.AddScoped<IOracleReader, Jobs.OracleDbReader>();
         services.AddScoped<IOracleSyncRunner, Jobs.OracleSyncRunner>();
 
         services.AddSingleton<IFileStorage, Gateways.LocalFileStorage>();

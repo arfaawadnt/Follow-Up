@@ -7,6 +7,7 @@ public interface IRefItemRepository
 {
     Task<RefItem?> GetByIdAsync(RefItemId id, CancellationToken ct);
     Task<bool> ExistsAsync(RefType type, string code, CancellationToken ct);
+    Task<IReadOnlyList<RefItem>> GetByTypeAsync(RefType type, CancellationToken ct);
     void Add(RefItem item);
     void Remove(RefItem item);
 }
@@ -15,6 +16,7 @@ public interface IRefItemRepository
 public interface ICityRepository
 {
     Task<City?> GetByIdAsync(CityId id, CancellationToken ct);
+    Task<IReadOnlyList<City>> GetAllAsync(CancellationToken ct);
     void Add(City city);
     void Remove(City city);
 }
@@ -23,6 +25,7 @@ public interface ICityRepository
 public interface IAreaRepository
 {
     Task<Area?> GetByIdAsync(AreaId id, CancellationToken ct);
+    Task<IReadOnlyList<Area>> GetAllAsync(CancellationToken ct);
     void Add(Area area);
     void Remove(Area area);
 }

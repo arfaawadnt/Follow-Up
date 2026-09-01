@@ -6,7 +6,8 @@ namespace FollowUp.Application.Features.Representatives.Contracts;
 public sealed record RepListItemDto(
     Guid Id, string FullName, string Type, string GoalDuration, string? GoalType, string? Metric,
     decimal Target, decimal Salary, string? Phone, int AssignedCount, bool IsActive,
-    string? Branch, string? Governorate, string? City, string? Area, string? EmploymentType, DateOnly? AppointedOn);
+    string? Branch, string? Governorate, string? City, string? Area, string? EmploymentType, DateOnly? AppointedOn,
+    string Source = "Manual");
 
 public sealed record RepDetailDto(
     Guid Id, string FullName, string Type, string GoalDuration, string? GoalType, string? Metric,

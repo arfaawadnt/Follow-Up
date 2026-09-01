@@ -20,6 +20,8 @@ internal sealed class DailyLabStatisticRepository : IDailyLabStatisticRepository
     public DailyLabStatisticRepository(FollowUpDbContext db) => _db = db;
     public Task<DailyLabStatistic?> GetAsync(DateOnly date, string labCode, CancellationToken ct) =>
         _db.DailyLabStatistics.FirstOrDefaultAsync(x => x.Date == date && x.LabCode == labCode, ct);
+    public async Task<IReadOnlyList<DailyLabStatistic>> GetRangeAsync(DateOnly from, DateOnly to, CancellationToken ct) =>
+        await _db.DailyLabStatistics.Where(x => x.Date >= from && x.Date <= to).ToListAsync(ct);
     public void Add(DailyLabStatistic stat) => _db.DailyLabStatistics.Add(stat);
 }
 
@@ -29,6 +31,8 @@ internal sealed class TestStatisticRepository : ITestStatisticRepository
     public TestStatisticRepository(FollowUpDbContext db) => _db = db;
     public Task<TestStatistic?> GetAsync(DateOnly date, string testCode, CancellationToken ct) =>
         _db.TestStatistics.FirstOrDefaultAsync(x => x.Date == date && x.TestCode == testCode, ct);
+    public async Task<IReadOnlyList<TestStatistic>> GetRangeAsync(DateOnly from, DateOnly to, CancellationToken ct) =>
+        await _db.TestStatistics.Where(x => x.Date >= from && x.Date <= to).ToListAsync(ct);
     public void Add(TestStatistic stat) => _db.TestStatistics.Add(stat);
 }
 
@@ -38,6 +42,10 @@ internal sealed class TestGroupRepository : ITestGroupRepository
     public TestGroupRepository(FollowUpDbContext db) => _db = db;
     public Task<TestGroup?> GetByIdAsync(TestGroupId id, CancellationToken ct) =>
         _db.TestGroups.FirstOrDefaultAsync(x => x.Id == id, ct);
+    public Task<TestGroup?> GetByCodeAsync(string code, CancellationToken ct) =>
+        _db.TestGroups.FirstOrDefaultAsync(x => x.Code == code, ct);
+    public async Task<IReadOnlyList<TestGroup>> GetAllAsync(CancellationToken ct) =>
+        await _db.TestGroups.ToListAsync(ct);
     public void Add(TestGroup group) => _db.TestGroups.Add(group);
     public void Remove(TestGroup group) => _db.TestGroups.Remove(group);
 }
@@ -48,8 +56,12 @@ internal sealed class TestSetupRepository : ITestSetupRepository
     public TestSetupRepository(FollowUpDbContext db) => _db = db;
     public Task<TestSetup?> GetByIdAsync(TestSetupId id, CancellationToken ct) =>
         _db.TestSetups.FirstOrDefaultAsync(x => x.Id == id, ct);
+    public Task<TestSetup?> GetByCodeAsync(string code, int testType, CancellationToken ct) =>
+        _db.TestSetups.FirstOrDefaultAsync(x => x.Code == code && x.TestType == testType, ct);
     public async Task<IReadOnlyList<TestSetup>> GetByGroupAsync(TestGroupId groupId, CancellationToken ct) =>
         await _db.TestSetups.Where(x => x.GroupId == groupId).ToListAsync(ct);
+    public async Task<IReadOnlyList<TestSetup>> GetAllAsync(CancellationToken ct) =>
+        await _db.TestSetups.ToListAsync(ct);
     public void Add(TestSetup setup) => _db.TestSetups.Add(setup);
     public void Remove(TestSetup setup) => _db.TestSetups.Remove(setup);
 }
@@ -93,6 +105,8 @@ internal sealed class RefItemRepository : IRefItemRepository
         _db.RefItems.FirstOrDefaultAsync(x => x.Id == id, ct);
     public Task<bool> ExistsAsync(RefType type, string code, CancellationToken ct) =>
         _db.RefItems.AnyAsync(x => x.Type == type && x.Code.ToLower() == code.ToLower(), ct);
+    public async Task<IReadOnlyList<RefItem>> GetByTypeAsync(RefType type, CancellationToken ct) =>
+        await _db.RefItems.Where(x => x.Type == type).ToListAsync(ct);
     public void Add(RefItem item) => _db.RefItems.Add(item);
     public void Remove(RefItem item) => _db.RefItems.Remove(item);
 }
@@ -103,6 +117,8 @@ internal sealed class CityRepository : ICityRepository
     public CityRepository(FollowUpDbContext db) => _db = db;
     public Task<City?> GetByIdAsync(CityId id, CancellationToken ct) =>
         _db.Cities.FirstOrDefaultAsync(x => x.Id == id, ct);
+    public async Task<IReadOnlyList<City>> GetAllAsync(CancellationToken ct) =>
+        await _db.Cities.ToListAsync(ct);
     public void Add(City city) => _db.Cities.Add(city);
     public void Remove(City city) => _db.Cities.Remove(city);
 }
@@ -113,6 +129,8 @@ internal sealed class AreaRepository : IAreaRepository
     public AreaRepository(FollowUpDbContext db) => _db = db;
     public Task<Area?> GetByIdAsync(AreaId id, CancellationToken ct) =>
         _db.Areas.FirstOrDefaultAsync(x => x.Id == id, ct);
+    public async Task<IReadOnlyList<Area>> GetAllAsync(CancellationToken ct) =>
+        await _db.Areas.ToListAsync(ct);
     public void Add(Area area) => _db.Areas.Add(area);
     public void Remove(Area area) => _db.Areas.Remove(area);
 }

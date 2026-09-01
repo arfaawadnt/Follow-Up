@@ -68,6 +68,7 @@ internal sealed class TestGroupConfiguration : IEntityTypeConfiguration<TestGrou
         b.HasIndex(x => x.Code).IsUnique();
         b.Property(x => x.NameEn).HasMaxLength(200).IsRequired();
         b.Property(x => x.NameAr).HasMaxLength(200);
+        b.Property(x => x.Source).HasDefaultValue(CatalogueSource.Manual);
     }
 }
 
@@ -81,9 +82,13 @@ internal sealed class TestSetupConfiguration : IEntityTypeConfiguration<TestSetu
         b.MapAuditable();
 
         b.Property(x => x.Code).HasMaxLength(64).IsRequired();
-        b.HasIndex(x => x.Code).IsUnique();
+        b.Property(x => x.TestType).HasDefaultValue(0);
+        // Natural key is (code, type): Oracle's GLOBAL_TESTS2 allows the same test_code across test_types.
+        b.HasIndex(x => new { x.Code, x.TestType }).IsUnique();
         b.Property(x => x.NameEn).HasMaxLength(200).IsRequired();
         b.Property(x => x.NameAr).HasMaxLength(200);
+        b.Property(x => x.Cost); // Money -> numeric(18,2) via convention
+        b.Property(x => x.Source).HasDefaultValue(CatalogueSource.Manual);
 
         // test_setup -> test_group is SET NULL on delete (SRS FR-14).
         b.HasOne<TestGroup>().WithMany().HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.SetNull);

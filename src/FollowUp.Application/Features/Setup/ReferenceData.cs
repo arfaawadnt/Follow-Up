@@ -12,9 +12,9 @@ namespace FollowUp.Application.Features.Setup;
 
 // ---- Read side ----
 
-public sealed record RefItemDto(Guid Id, string Type, string Code, string NameEn, string? NameAr, int SortOrder);
-public sealed record CityDto(Guid Id, string Name, string Governorate);
-public sealed record AreaDto(Guid Id, string Name, Guid CityId, bool TransportationRequired, IReadOnlyList<Guid> TransferReps);
+public sealed record RefItemDto(Guid Id, string Type, string Code, string NameEn, string? NameAr, int SortOrder, string Source);
+public sealed record CityDto(Guid Id, string Name, string Governorate, string Source);
+public sealed record AreaDto(Guid Id, string Name, Guid CityId, bool TransportationRequired, IReadOnlyList<Guid> TransferReps, string Source);
 
 public interface ISetupQueries
 {

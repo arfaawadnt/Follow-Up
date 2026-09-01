@@ -7,5 +7,6 @@ public interface IRepresentativeRepository
 {
     Task<Representative?> GetByIdAsync(RepresentativeId id, CancellationToken ct);
     Task<bool> ExistsAsync(RepresentativeId id, CancellationToken ct);
+    Task<IReadOnlyList<Representative>> GetAllAsync(CancellationToken ct);
     void Add(Representative representative);
 }

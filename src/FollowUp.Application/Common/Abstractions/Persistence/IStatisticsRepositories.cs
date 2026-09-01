@@ -6,6 +6,9 @@ namespace FollowUp.Application.Common.Abstractions.Persistence;
 public interface IDailyLabStatisticRepository
 {
     Task<DailyLabStatistic?> GetAsync(DateOnly date, string labCode, CancellationToken ct);
+    /// <summary>Loads every statistic whose date falls in the inclusive range — used to bulk-upsert an Oracle sync
+    /// without a per-row lookup.</summary>
+    Task<IReadOnlyList<DailyLabStatistic>> GetRangeAsync(DateOnly from, DateOnly to, CancellationToken ct);
     void Add(DailyLabStatistic stat);
 }
 
@@ -13,6 +16,9 @@ public interface IDailyLabStatisticRepository
 public interface ITestStatisticRepository
 {
     Task<TestStatistic?> GetAsync(DateOnly date, string testCode, CancellationToken ct);
+    /// <summary>Loads every statistic whose date falls in the inclusive range — used to bulk-upsert an Oracle sync
+    /// without a per-row lookup.</summary>
+    Task<IReadOnlyList<TestStatistic>> GetRangeAsync(DateOnly from, DateOnly to, CancellationToken ct);
     void Add(TestStatistic stat);
 }
 
@@ -20,6 +26,8 @@ public interface ITestStatisticRepository
 public interface ITestGroupRepository
 {
     Task<TestGroup?> GetByIdAsync(TestGroupId id, CancellationToken ct);
+    Task<TestGroup?> GetByCodeAsync(string code, CancellationToken ct);
+    Task<IReadOnlyList<TestGroup>> GetAllAsync(CancellationToken ct);
     void Add(TestGroup group);
     void Remove(TestGroup group);
 }
@@ -28,7 +36,9 @@ public interface ITestGroupRepository
 public interface ITestSetupRepository
 {
     Task<TestSetup?> GetByIdAsync(TestSetupId id, CancellationToken ct);
+    Task<TestSetup?> GetByCodeAsync(string code, int testType, CancellationToken ct);
     Task<IReadOnlyList<TestSetup>> GetByGroupAsync(TestGroupId groupId, CancellationToken ct);
+    Task<IReadOnlyList<TestSetup>> GetAllAsync(CancellationToken ct);
     void Add(TestSetup setup);
     void Remove(TestSetup setup);
 }

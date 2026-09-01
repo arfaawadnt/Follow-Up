@@ -69,19 +69,21 @@ internal sealed class SetupQueries : ISetupQueries
             q = q.Where(x => x.Type == refType);
         }
         var rows = await q.OrderBy(x => x.SortOrder).ThenBy(x => x.NameEn).ToListAsync(ct);
-        return rows.Select(x => new RefItemDto(x.Id.Value, x.Type.Name, x.Code, x.NameEn, x.NameAr, x.SortOrder)).ToList();
+        return rows.Select(x => new RefItemDto(x.Id.Value, x.Type.Name, x.Code, x.NameEn, x.NameAr, x.SortOrder, x.Source.ToString())).ToList();
     }
 
-    public async Task<IReadOnlyList<CityDto>> GetCitiesAsync(CancellationToken ct) =>
-        await _db.Cities.AsNoTracking().OrderBy(c => c.Name)
-            .Select(c => new CityDto(c.Id.Value, c.Name, c.Governorate)).ToListAsync(ct);
+    public async Task<IReadOnlyList<CityDto>> GetCitiesAsync(CancellationToken ct)
+    {
+        var rows = await _db.Cities.AsNoTracking().OrderBy(c => c.Name).ToListAsync(ct);
+        return rows.Select(c => new CityDto(c.Id.Value, c.Name, c.Governorate, c.Source.ToString())).ToList();
+    }
 
     public async Task<IReadOnlyList<AreaDto>> GetAreasAsync(CancellationToken ct)
     {
         var rows = await _db.Areas.AsNoTracking().OrderBy(a => a.Name).ToListAsync(ct);
         return rows.Select(a => new AreaDto(
             a.Id.Value, a.Name, a.CityId.Value, a.TransportationRequired,
-            a.TransferReps.Select(r => r.Value).ToList())).ToList();
+            a.TransferReps.Select(r => r.Value).ToList(), a.Source.ToString())).ToList();
     }
 }
 

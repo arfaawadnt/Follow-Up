@@ -1,4 +1,5 @@
 using System.Globalization;
+using FluentValidation;
 using FollowUp.Application.Common.Abstractions;
 using FollowUp.Application.Common.Abstractions.Persistence;
 using FollowUp.Application.Common.Messaging;
@@ -9,7 +10,7 @@ using FollowUp.Domain.Statistics;
 namespace FollowUp.Application.Features.LabStats;
 
 public sealed record LabStatDto(DateOnly Date, string LabCode, string? Name, string? Category, string? Segment,
-    string? Governorate, string? City, string? Area, int Registrations, int TestCount, decimal Income);
+    string? Governorate, string? City, string? Area, string? Status, int Registrations, int TestCount, decimal Income);
 public sealed record ImportSummary(int Processed, int Upserted, int Skipped, IReadOnlyList<string> Warnings);
 
 public interface ILabStatsQueries
@@ -86,6 +87,35 @@ public sealed class ImportLabStatsHandler : ICommandHandler<ImportLabStatsComman
 
         return new ImportSummary(processed, upserted, skipped, warnings);
     }
+}
+
+// ---- Lab stats Oracle sync (date-scoped) ----
+
+/// <summary>
+/// Pulls per-lab daily statistics from Oracle for an inclusive date range and upserts them into existing data
+/// (SRS FR-17). Triggered manually from the Lab Statistics page (operator-chosen range, default yesterday→today);
+/// the nightly job re-uses the same runner for "yesterday".
+/// </summary>
+public sealed record SyncLabStatsCommand(DateOnly From, DateOnly To) : ICommand<OracleSyncResult>, IAuthorizedRequest
+{
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ViewLabStats };
+}
+
+public sealed class SyncLabStatsValidator : AbstractValidator<SyncLabStatsCommand>
+{
+    public SyncLabStatsValidator()
+    {
+        RuleFor(x => x.From).LessThanOrEqualTo(x => x.To)
+            .WithMessage("The start date must be on or before the end date.");
+    }
+}
+
+public sealed class SyncLabStatsHandler : ICommandHandler<SyncLabStatsCommand, OracleSyncResult>
+{
+    private readonly IOracleSyncRunner _runner;
+    public SyncLabStatsHandler(IOracleSyncRunner runner) => _runner = runner;
+    public Task<OracleSyncResult> Handle(SyncLabStatsCommand r, CancellationToken ct) =>
+        _runner.RunLabStatsAsync(r.From, r.To, manual: true, ct);
 }
 
 /// <summary>Shared, culture-invariant cell parsing for imports.</summary>

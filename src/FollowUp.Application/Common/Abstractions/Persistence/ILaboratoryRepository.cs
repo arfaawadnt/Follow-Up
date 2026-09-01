@@ -19,5 +19,8 @@ public interface ILaboratoryRepository
     /// <summary>The next unused sequential lab code (SRS FR-3 next-code helper).</summary>
     Task<string> NextCodeAsync(CancellationToken ct);
 
+    /// <summary>All labs (tracked) — used by the Oracle mirror to upsert/deactivate by code.</summary>
+    Task<IReadOnlyList<Laboratory>> GetAllAsync(CancellationToken ct);
+
     void Add(Laboratory laboratory);
 }

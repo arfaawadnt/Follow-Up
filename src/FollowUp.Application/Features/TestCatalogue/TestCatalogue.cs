@@ -12,8 +12,9 @@ namespace FollowUp.Application.Features.TestCatalogue;
 
 // ---- Read side ----
 
-public sealed record TestGroupDto(Guid Id, string Code, string NameEn, string? NameAr);
-public sealed record TestSetupDto(Guid Id, string Code, string NameEn, string? NameAr, Guid? GroupId);
+public sealed record TestGroupDto(Guid Id, string Code, string NameEn, string? NameAr, string Source);
+public sealed record TestSetupDto(Guid Id, string Code, string NameEn, string? NameAr, Guid? GroupId,
+    int TestType, decimal Cost, string? GroupCode, string? GroupName, string Source);
 public sealed record TestStatDto(DateOnly Date, string TestCode, string? TestName, string? GroupName, int Count, decimal Income);
 
 public interface ITestCatalogueQueries
@@ -66,11 +67,15 @@ public sealed class CreateTestGroupHandler : ICommandHandler<CreateTestGroupComm
 {
     private readonly ITestGroupRepository _repo;
     public CreateTestGroupHandler(ITestGroupRepository repo) => _repo = repo;
-    public Task<Guid> Handle(CreateTestGroupCommand r, CancellationToken ct)
+    public async Task<Guid> Handle(CreateTestGroupCommand r, CancellationToken ct)
     {
-        var g = TestGroup.Create(r.Code, r.NameEn, r.NameAr);
+        var code = r.Code?.Trim() ?? string.Empty;
+        if (await _repo.GetByCodeAsync(code, ct) is not null)
+            throw new Common.Exceptions.ValidationException(new Dictionary<string, string[]>
+            { ["code"] = new[] { $"A group with code '{r.Code}' already exists." } });
+        var g = TestGroup.Create(code, r.NameEn, r.NameAr);
         _repo.Add(g);
-        return Task.FromResult(g.Id.Value);
+        return g.Id.Value;
     }
 }
 
@@ -113,7 +118,8 @@ public sealed class DeleteTestGroupHandler : ICommandHandler<DeleteTestGroupComm
 
 // ---- Test setup CRUD ----
 
-public sealed record CreateTestSetupCommand(string Code, string NameEn, string? NameAr, Guid? GroupId) : ICommand<Guid>, IAuthorizedRequest
+public sealed record CreateTestSetupCommand(string Code, string NameEn, string? NameAr, Guid? GroupId,
+    int TestType = 0, decimal Cost = 0m) : ICommand<Guid>, IAuthorizedRequest
 {
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.AddTestsetup };
 }
@@ -121,15 +127,21 @@ public sealed class CreateTestSetupHandler : ICommandHandler<CreateTestSetupComm
 {
     private readonly ITestSetupRepository _repo;
     public CreateTestSetupHandler(ITestSetupRepository repo) => _repo = repo;
-    public Task<Guid> Handle(CreateTestSetupCommand r, CancellationToken ct)
+    public async Task<Guid> Handle(CreateTestSetupCommand r, CancellationToken ct)
     {
-        var s = TestSetup.Create(r.Code, r.NameEn, r.NameAr, r.GroupId is { } g ? new TestGroupId(g) : null);
+        var code = r.Code?.Trim().ToUpperInvariant() ?? string.Empty;
+        if (await _repo.GetByCodeAsync(code, r.TestType, ct) is not null)
+            throw new Common.Exceptions.ValidationException(new Dictionary<string, string[]>
+            { ["code"] = new[] { $"A test with code '{r.Code}' and type {r.TestType} already exists." } });
+        var s = TestSetup.Create(code, r.NameEn, r.NameAr, r.GroupId is { } g ? new TestGroupId(g) : null,
+            r.TestType, new Domain.Common.Money(r.Cost));
         _repo.Add(s);
-        return Task.FromResult(s.Id.Value);
+        return s.Id.Value;
     }
 }
 
-public sealed record UpdateTestSetupCommand(Guid Id, string NameEn, string? NameAr, Guid? GroupId) : ICommand, IAuthorizedRequest
+public sealed record UpdateTestSetupCommand(Guid Id, string NameEn, string? NameAr, Guid? GroupId,
+    int TestType = 0, decimal Cost = 0m) : ICommand, IAuthorizedRequest
 {
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.UpdateTestsetup };
 }
@@ -140,7 +152,7 @@ public sealed class UpdateTestSetupHandler : ICommandHandler<UpdateTestSetupComm
     public async Task<Unit> Handle(UpdateTestSetupCommand r, CancellationToken ct)
     {
         var s = await _repo.GetByIdAsync(new TestSetupId(r.Id), ct) ?? throw new NotFoundException("Test setup", r.Id);
-        s.Update(r.NameEn, r.NameAr, r.GroupId is { } g ? new TestGroupId(g) : null);
+        s.Update(r.NameEn, r.NameAr, r.GroupId is { } g ? new TestGroupId(g) : null, r.TestType, new Domain.Common.Money(r.Cost));
         return Unit.Value;
     }
 }
@@ -213,4 +225,33 @@ public sealed class ImportTestStatsHandler : ICommandHandler<ImportTestStatsComm
 
         return new ImportSummary(processed, upserted, skipped, warnings);
     }
+}
+
+// ---- Test stats Oracle sync (date-scoped) ----
+
+/// <summary>
+/// Pulls per-test daily statistics from Oracle for an inclusive date range and upserts them into existing data
+/// (SRS FR-17). Triggered manually from the Test Statistics page (operator-chosen range, default yesterday→today);
+/// the nightly job re-uses the same runner for "yesterday".
+/// </summary>
+public sealed record SyncTestStatsCommand(DateOnly From, DateOnly To) : ICommand<OracleSyncResult>, IAuthorizedRequest
+{
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.AddTeststats };
+}
+
+public sealed class SyncTestStatsValidator : AbstractValidator<SyncTestStatsCommand>
+{
+    public SyncTestStatsValidator()
+    {
+        RuleFor(x => x.From).LessThanOrEqualTo(x => x.To)
+            .WithMessage("The start date must be on or before the end date.");
+    }
+}
+
+public sealed class SyncTestStatsHandler : ICommandHandler<SyncTestStatsCommand, OracleSyncResult>
+{
+    private readonly IOracleSyncRunner _runner;
+    public SyncTestStatsHandler(IOracleSyncRunner runner) => _runner = runner;
+    public Task<OracleSyncResult> Handle(SyncTestStatsCommand r, CancellationToken ct) =>
+        _runner.RunTestStatsAsync(r.From, r.To, manual: true, ct);
 }

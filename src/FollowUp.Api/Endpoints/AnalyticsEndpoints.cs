@@ -12,6 +12,7 @@ public static class AnalyticsEndpoints
     public sealed record SaveCommissionBody(Guid RepresentativeId, int Period);
     public sealed record ImportBody(byte[] Content);
     public sealed record IntegrationConfigBody(bool Enabled, int IntervalHours);
+    public sealed record SyncStatsBody(DateOnly From, DateOnly To);
 
     public static void MapCompensationEndpoints(this RouteGroupBuilder api)
     {
@@ -41,6 +42,8 @@ public static class AnalyticsEndpoints
             Results.Ok(await m.Send(new GetLabStatsQuery(from, to), ct))).WithTags("LabStats");
         api.MapPost("/labstats/import", async (ImportBody b, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new ImportLabStatsCommand(b.Content), ct))).WithTags("LabStats");
+        api.MapPost("/labstats/sync", async (SyncStatsBody b, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new SyncLabStatsCommand(b.From, b.To), ct))).WithTags("LabStats");
 
         api.MapGet("/test-groups", async (IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetTestGroupsQuery(), ct))).WithTags("TestCatalogue");
@@ -64,6 +67,8 @@ public static class AnalyticsEndpoints
             Results.Ok(await m.Send(new GetTestStatsQuery(from, to), ct))).WithTags("TestCatalogue");
         api.MapPost("/test-statistics/import", async (ImportBody b, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new ImportTestStatsCommand(b.Content), ct))).WithTags("TestCatalogue");
+        api.MapPost("/test-statistics/sync", async (SyncStatsBody b, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new SyncTestStatsCommand(b.From, b.To), ct))).WithTags("TestCatalogue");
     }
 
     public static void MapIntegrationEndpoints(this RouteGroupBuilder api)

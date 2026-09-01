@@ -25,7 +25,7 @@ export interface LabListItem {
   branch: string | null; governorate: string | null; city: string | null; area: string | null;
   category: string | null; avgMonthlySamples: number | null;
   latitude: number | null; longitude: number | null;
-  collectors: string[]; marketing: string | null; encrypted: boolean;
+  collectors: string[]; marketing: string | null; encrypted: boolean; source: string;
 }
 
 export interface ContactDto { id: string; name: string; role: string; phone: string | null; birthday: string | null; }
@@ -83,7 +83,7 @@ export interface RepListItem {
   id: string; fullName: string; type: string; goalDuration: string; goalType: string | null; metric: string | null;
   target: number; salary: number; phone: string | null; assignedCount: number;
   isActive: boolean; branch: string | null; governorate: string | null; city: string | null; area: string | null;
-  employmentType: string | null; appointedOn: string | null;
+  employmentType: string | null; appointedOn: string | null; source: string;
 }
 
 export interface RepDetail {
@@ -157,7 +157,7 @@ export interface LoyaltyLedger { laboratoryId: string; code: string; name: strin
 export interface Commission { repId: string; name: string; type: string; goalType: string; period: number; targetAmount: number; achievedAmount: number; baseSalary: number; commissionEarned: number; bonusEarned: number; totalPayout: number; isLocked: boolean; }
 export interface LabStat {
   date: string; labCode: string; name: string | null; category: string | null; segment: string | null;
-  governorate: string | null; city: string | null; area: string | null;
+  governorate: string | null; city: string | null; area: string | null; status: string | null;
   registrations: number; testCount: number; income: number;
 }
 export interface RepPerformanceRow {

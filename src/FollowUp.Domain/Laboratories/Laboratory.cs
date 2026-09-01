@@ -51,6 +51,8 @@ public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAudit
     public string? MappingCode { get; private set; }
     /// <summary>Confidential lab: code is masked for users without ShowEncryptedLabs (BR-7).</summary>
     public bool IsEncrypted { get; private set; }
+    /// <summary>Origin (Manual vs Oracle). Oracle-mirrored labs are updated/deactivated by the sync; manual labs are left alone.</summary>
+    public RecordSource Source { get; private set; }
 
     // Commercial.
     public string? Payer { get; private set; }
@@ -90,6 +92,38 @@ public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAudit
         var lab = new Laboratory(LaboratoryId.New(), code, name.Trim(), segment.Trim());
         if (status is not null) lab.Status = status;
         return lab;
+    }
+
+    /// <summary>Default segment for Oracle-mirrored labs (Oracle has no segment; app owns it thereafter).
+    /// Must satisfy ck_laboratory_segment (A/B/C); C is the neutral default tier.</summary>
+    public const string OracleDefaultSegment = "C";
+
+    /// <summary>Creates an Oracle-sourced lab shell (mirrored by the sync). Master fields are then applied via <see cref="ApplyOracleMaster"/>.</summary>
+    public static Laboratory FromOracle(LabCode code, string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) throw new DomainException("Laboratory name is required.");
+        var lab = new Laboratory(LaboratoryId.New(), code, name.Trim(), OracleDefaultSegment) { Source = RecordSource.Oracle };
+        return lab;
+    }
+
+    /// <summary>
+    /// Mirror-update from Oracle: sets ONLY the master fields Oracle owns (name, geography, category, address,
+    /// the assigned COLLECTOR rep from LAB_REP, mapping code) and marks the record Oracle-owned. Never touches
+    /// app-managed lifecycle (status, schedule, loyalty, targets, segment, contacts, marketing rep).
+    /// </summary>
+    public void ApplyOracleMaster(string name, string? category, string? branch, string? governorate,
+        string? city, string? area, string? address, RepresentativeId? collectorRepId)
+    {
+        if (!string.IsNullOrWhiteSpace(name)) Name = name.Trim();
+        Category = string.IsNullOrWhiteSpace(category) ? null : category.Trim();
+        Branch = branch;
+        Governorate = governorate;
+        City = city;
+        Area = area;
+        Address = string.IsNullOrWhiteSpace(address) ? null : address.Trim();
+        AssignCollectors(collectorRepId is { } c ? new[] { c } : Array.Empty<RepresentativeId>());
+        MappingCode = Code.Value;
+        Source = RecordSource.Oracle;
     }
 
     public void UpdateProfile(string name, string segment, string? payer, string? contractType, string? category,

@@ -17,7 +17,8 @@ public sealed record LabListItemDto(
     double? Longitude,
     IReadOnlyList<string> Collectors,
     string? Marketing,
-    bool Encrypted);
+    bool Encrypted,
+    string Source = "Manual");
 
 /// <summary>Contact-person projection.</summary>
 public sealed record ContactDto(Guid Id, string Name, string Role, string? Phone, DateOnly? Birthday);

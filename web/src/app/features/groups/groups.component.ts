@@ -1,18 +1,26 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { TranslatePipe } from '../../core/i18n';
 
-interface TestGroup { id: string; code: string; nameEn: string; nameAr: string | null; }
+interface TestGroup { id: string; code: string; nameEn: string; nameAr: string | null; source: string; }
 
 @Component({
   selector: 'app-groups',
   standalone: true,
   imports: [FormsModule, TranslatePipe],
   template: `
-    <div class="pagehead"><div><div class="breadcrumbs">Home / {{ 'groups_2' | t : 'Test groups' }}</div><h1>{{ 'groups_2' | t : 'Test groups' }}</h1></div></div>
+    <div class="pagehead" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+      <div><div class="breadcrumbs">Home / {{ 'groups_2' | t : 'Test groups' }}</div><h1>{{ 'groups_2' | t : 'Test groups' }}</h1></div>
+      @if (auth.has('OracleIntegration')) {
+        <button class="btn btn-s" [disabled]="syncing()" (click)="sync()" title="{{ 'sync_oracle_hint' | t : 'Pull the latest groups (add/edit/delete) from Oracle' }}">
+          {{ syncing() ? ('syncing' | t : 'Syncing…') : ('sync_oracle' | t : 'Sync from Oracle') }}
+        </button>
+      }
+    </div>
     @if (banner()) { <div class="inline-banner inline-banner-error">{{ banner() }}</div> }
+    @if (notice()) { <div class="inline-banner" style="background:var(--ok-bg,#dff6dd);color:var(--ok-ink,#107c41)">{{ notice() }}</div> }
 
     <div class="grid" style="grid-template-columns:1fr 2fr;gap:16px;align-items:start">
       @if (auth.has('AddGroups') || editId()) {
@@ -27,34 +35,59 @@ interface TestGroup { id: string; code: string; nameEn: string; nameAr: string |
         </div>
       }
       <div class="card" style="padding:0;overflow:hidden">
+        <div class="fu-toolbar">
+          <div class="fu-search">
+            <i data-lucide="search" class="fu-search-ico"></i>
+            <input class="input" [ngModel]="query()" (ngModelChange)="query.set($event)" placeholder="{{ 'search_groups' | t : 'Search by code or name…' }}">
+            @if (query()) { <button class="fu-search-clear" (click)="query.set('')" title="Clear">×</button> }
+          </div>
+          <span class="fu-count">{{ filtered().length }} / {{ groups().length }}</span>
+        </div>
         @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
         @else {
           <table class="grid-table" style="margin:0;border:none">
-            <thead><tr><th>{{ 'group_code_2' | t : 'Code' }}</th><th>{{ 'group_name_2' | t : 'Name' }}</th><th style="width:130px"></th></tr></thead>
+            <thead><tr><th>{{ 'group_code_2' | t : 'Code' }}</th><th>{{ 'group_name_2' | t : 'Name' }}</th><th style="width:90px">{{ 'source' | t : 'Source' }}</th><th style="width:130px"></th></tr></thead>
             <tbody>
-              @for (g of groups(); track g.id) {
+              @for (g of filtered(); track g.id) {
                 <tr><td class="mono">{{ g.code }}</td><td>{{ g.nameEn }}</td>
+                  <td>@if (g.source === 'Oracle') { <span class="src-badge src-oracle">Oracle</span> } @else { <span class="src-badge src-manual">Manual</span> }</td>
                   <td class="actions">
                     @if (auth.has('UpdateGroups')) { <button class="btn-ghost" (click)="edit(g)">{{ 'edit_2' | t : 'Edit' }}</button> }
                     @if (auth.has('DeleteGroups')) { <button class="btn-ghost red" (click)="del(g)" [disabled]="busy()">{{ 'delete' | t : 'Delete' }}</button> }
                   </td></tr>
-              } @empty { <tr><td colspan="3" class="empty" style="text-align:center;padding:24px">—</td></tr> }
+              } @empty { <tr><td colspan="4" class="empty" style="text-align:center;padding:24px">—</td></tr> }
             </tbody>
           </table>
         }
       </div>
     </div>
   `,
-  styles: [`.actions{display:flex;gap:6px}.btn-d{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}`],
+  styles: [`.actions{display:flex;gap:6px}.btn-d{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
+    .src-badge{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600}
+    .src-oracle{background:#eaf2fa;color:#2f7bd2}.src-manual{background:#eceff2;color:#6b7480}
+    .fu-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid var(--slate-150)}
+    .fu-search{position:relative;flex:1;max-width:360px;display:flex;align-items:center}
+    .fu-search .input{padding-inline-start:32px;width:100%}
+    .fu-search-ico{position:absolute;inset-inline-start:9px;width:15px;height:15px;color:var(--slate-500);pointer-events:none}
+    .fu-search-clear{position:absolute;inset-inline-end:8px;border:none;background:none;font-size:18px;line-height:1;color:var(--slate-500);cursor:pointer}
+    .fu-count{font-size:12px;color:var(--slate-500);white-space:nowrap}`],
 })
 export class GroupsComponent {
   private readonly api = inject(ApiService);
   readonly auth = inject(AuthService);
   readonly loading = signal(true);
   readonly busy = signal(false);
+  readonly syncing = signal(false);
   readonly groups = signal<TestGroup[]>([]);
+  readonly query = signal('');
+  readonly filtered = computed(() => {
+    const q = this.query().trim().toLowerCase();
+    if (!q) return this.groups();
+    return this.groups().filter((g) => g.code.toLowerCase().includes(q) || (g.nameEn ?? '').toLowerCase().includes(q));
+  });
   readonly editId = signal<string | null>(null);
   readonly banner = signal<string | null>(null);
+  readonly notice = signal<string | null>(null);
   code = ''; name = '';
 
   constructor() { this.load(); }
@@ -62,6 +95,13 @@ export class GroupsComponent {
   load(): void {
     this.loading.set(true);
     this.api.get<TestGroup[]>('/test-groups').subscribe({ next: (g) => { this.groups.set(g); this.loading.set(false); }, error: () => this.loading.set(false) });
+  }
+  sync(): void {
+    this.syncing.set(true); this.banner.set(null); this.notice.set(null);
+    this.api.post<{ groupsUpserted: number; groupsDeleted: number }>('/integration/sync-now').subscribe({
+      next: (r) => { this.syncing.set(false); this.notice.set(`Synced from Oracle: ${r.groupsUpserted} groups (${r.groupsDeleted} removed).`); this.load(); },
+      error: (e) => { this.syncing.set(false); this.banner.set(e?.error?.detail ?? 'Oracle sync failed.'); },
+    });
   }
   edit(g: TestGroup): void { this.editId.set(g.id); this.code = g.code; this.name = g.nameEn; }
   reset(): void { this.editId.set(null); this.code = ''; this.name = ''; this.banner.set(null); }

@@ -74,7 +74,7 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
         <table id="daily-table">
           <tr><th>{{ 'date' | t }} &amp; {{ 'time' | t }}</th><th>{{ 'laboratory' | t }}</th><th>{{ 'collector' | t }}</th>
             <th>{{ 'status' | t }}</th><th>{{ 'samples' | t }}</th><th>{{ 'marked_at' | t : 'Marked At' }}</th><th>Verified</th><th></th></tr>
-          @for (v of filtered(); track v.visitId) {
+          @for (v of paged(); track v.visitId) {
             <tr>
               <td class="mono">{{ v.visitDate }}<div class="small muted">{{ v.scheduledTime }}</div></td>
               <td><b style="color:var(--slate-900)">{{ v.lab }}</b><div class="small muted">{{ sub(v) }}</div></td>
@@ -95,6 +95,16 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
             </tr>
           } @empty { <tr><td colspan="8" class="empty">{{ 'no_visits_today' | t }}</td></tr> }
         </table>
+        @if (filtered().length) {
+          <div class="fu-pager">
+            <button class="btn-ghost" [disabled]="curPage() <= 1" (click)="page.set(curPage() - 1)">‹ {{ 'prev' | t : 'Prev' }}</button>
+            <span>{{ 'page' | t : 'Page' }} {{ curPage() }} / {{ pageCount() }} · {{ filtered().length }} {{ 'visits_lc' | t : 'visits' }}</span>
+            <button class="btn-ghost" [disabled]="curPage() >= pageCount()" (click)="page.set(curPage() + 1)">{{ 'next' | t : 'Next' }} ›</button>
+            <select class="select" [ngModel]="pageSize()" (ngModelChange)="pageSize.set(+$event); page.set(1)" style="max-width:90px;margin-inline-start:auto">
+              <option [ngValue]="25">25</option><option [ngValue]="50">50</option><option [ngValue]="100">100</option>
+            </select>
+          </div>
+        }
       }
     </div>
 
@@ -144,6 +154,7 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
     .dlg{background:var(--white);border-radius:12px;padding:22px;width:min(92vw,420px);box-shadow:0 16px 48px rgba(0,0,0,.25)}
     .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .field label{display:block;font:600 11px var(--ui);color:var(--slate-600);margin-bottom:4px}
+    .fu-pager{display:flex;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid var(--slate-150,#edebe9);font-size:12.5px;color:var(--slate-700,#605e5c)}
   `],
 })
 export class DailyComponent {
@@ -156,6 +167,8 @@ export class DailyComponent {
   readonly reps = signal<RepListItem[]>([]);
   readonly status = signal('All');
   readonly statuses = STATUSES;
+  readonly page = signal(1);
+  readonly pageSize = signal(25);
   readonly recording = signal<BoardItem | null>(null);
   readonly suggested = signal<number | null>(null);
   recordCount: number | null = null;
@@ -181,6 +194,13 @@ export class DailyComponent {
       (!q || i.lab?.toLowerCase().includes(q) || i.labCode?.toLowerCase().includes(q)));
   });
 
+  readonly pageCount = computed(() => Math.max(1, Math.ceil(this.filtered().length / this.pageSize())));
+  readonly curPage = computed(() => Math.min(this.page(), this.pageCount()));
+  readonly paged = computed(() => {
+    const start = (this.curPage() - 1) * this.pageSize();
+    return this.filtered().slice(start, start + this.pageSize());
+  });
+
   readonly k = computed(() => {
     const f = this.filtered();
     const done = f.filter((r) => r.status === 'Visited' || r.status === 'Received');
@@ -198,7 +218,7 @@ export class DailyComponent {
   }
 
   load(): void {
-    this.loading.set(true);
+    this.loading.set(true); this.page.set(1);
     const params: Record<string, string> = { start: this.start, end: this.end, status: this.status() };
     if (this.rep !== 'All') params['rep'] = this.rep;
     this.api.get<BoardItem[]>('/daily', params).subscribe({
