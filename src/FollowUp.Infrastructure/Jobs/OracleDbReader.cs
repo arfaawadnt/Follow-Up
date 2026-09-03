@@ -67,6 +67,29 @@ public static class OracleDefaultQueries
         "AND r.reg_date >= :from_date AND r.reg_date < :to_date " +
         "GROUP BY TRUNC(r.reg_date), dl.lab_code";
 
+    /// <summary>
+    /// Per-test detail of the tests counted by <see cref="TestStats"/> whose registration does NOT resolve to any
+    /// lab (reg.doctor → doctors.doctor_name → lab.doctor_code fails) — i.e. exactly the tests that appear in Test
+    /// Statistics but never in Lab Statistics. Same "test" definition as TestStats/LabStats (service_type &lt;&gt; 7,
+    /// not cancelled, visible catalogue match). Returns accession (lab_no), patient name and test name for a report.
+    /// Not synced to Postgres — read live for the Test Statistics "No-Lab Tests" report.
+    /// </summary>
+    public const string NoLabTests =
+        "SELECT TRUNC(r.reg_date) AS the_date, " +
+        "r.lab_no AS acc_no, " +
+        "r.patient_name AS patient_name, " +
+        "rss.service_code AS test_code, " +
+        "rss.service_type AS test_type, " +
+        "gt.test_name AS test_name " +
+        "FROM reg r " +
+        "JOIN reg_selected_services rss ON rss.reg_key = r.reg_key " +
+        "AND rss.service_type <> 7 AND NVL(rss.iscancelled,0) <> 1 " +
+        "JOIN global_tests2 gt ON gt.test_code = rss.service_code AND gt.test_type = rss.service_type AND gt.visible = 1 " +
+        "WHERE r.reg_date >= :from_date AND r.reg_date < :to_date " +
+        "AND NOT EXISTS (SELECT 1 FROM doctors d JOIN lab l ON l.doctor_code = d.doctor_code " +
+        "WHERE UPPER(TRIM(d.doctor_name)) = UPPER(TRIM(r.doctor))) " +
+        "ORDER BY r.reg_date, r.lab_no";
+
     /// <summary>Active test-group master (maps to <c>TestGroup</c>: code, name). Only VISIBLE=1; mirrored by the sync.</summary>
     public const string Groups =
         "SELECT group_code, group_name FROM groups WHERE visible = 1";
@@ -104,7 +127,7 @@ public sealed class OracleDbReader : IOracleReader
 {
     private static readonly string[] AllowList =
     {
-        "LabStats", "TestStats", "Groups", "Tests",
+        "LabStats", "TestStats", "NoLabTests", "Groups", "Tests",
         "Governorates", "Cities", "Areas", "LabCategories", "Branches", "Reps", "Labs",
     };
 

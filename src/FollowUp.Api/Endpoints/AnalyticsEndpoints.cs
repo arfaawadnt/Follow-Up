@@ -69,6 +69,8 @@ public static class AnalyticsEndpoints
             Results.Ok(await m.Send(new ImportTestStatsCommand(b.Content), ct))).WithTags("TestCatalogue");
         api.MapPost("/test-statistics/sync", async (SyncStatsBody b, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new SyncTestStatsCommand(b.From, b.To), ct))).WithTags("TestCatalogue");
+        api.MapGet("/test-statistics/no-lab-report", async (DateOnly from, DateOnly to, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetNoLabTestsReportQuery(from, to), ct))).WithTags("TestCatalogue");
     }
 
     public static void MapIntegrationEndpoints(this RouteGroupBuilder api)
