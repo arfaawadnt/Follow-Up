@@ -1,6 +1,6 @@
 import { exportCsv, localToday, printTable } from '../../shared/export.util';
 import { Component, computed, inject, signal } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DateInputComponent } from '../../shared/date-input.component';
 import { ApiService } from '../../core/api.service';
@@ -11,13 +11,14 @@ interface TestStat { date: string; testCode: string; testType: number; testName:
 interface Cell { count: number; income: number; }
 interface PivotRow { key: string; testCode: string; testName: string; groupName: string; cells: Record<string, Cell>; totalCount: number; totalIncome: number; }
 interface Group { id: string; code: string; nameEn: string; }
+interface NoLabRow { regDate: string; accNo: string; patientName: string; doctor: string; registeredBy: string; testName: string; testCode: string; testType: number; }
 type View = 'daily' | 'monthly' | 'yearly';
 const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 @Component({
   selector: 'app-teststats',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, TranslatePipe, DateInputComponent],
+  imports: [FormsModule, DecimalPipe, DatePipe, TranslatePipe, DateInputComponent],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'teststats' | t : 'Test statistics' }}</div><h1>{{ 'teststats' | t : 'Test statistics' }}</h1></div>
@@ -31,6 +32,9 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
             <i data-lucide="database" style="width:14px;height:14px;margin-inline-end:6px"></i>{{ syncing() ? ('syncing' | t : 'Syncing…') : ('sync_oracle' | t : 'Sync from Oracle') }}
           </button>
         }
+        <button class="btn btn-s" (click)="openNoLab()" title="{{ 'no_lab_report_hint' | t : 'Tests counted in Test Statistics whose registration has no matching lab' }}">
+          <i data-lucide="file-search" style="width:14px;height:14px;margin-inline-end:6px"></i>{{ 'no_lab_report' | t : 'No-Lab Tests' }}
+        </button>
         <button class="btn btn-s" (click)="exportExcel()">{{ 'export_excel' | t : 'Export Excel' }}</button>
         <button class="btn btn-s" (click)="exportPdf()">{{ 'export_pdf' | t : 'Export PDF' }}</button>
       </div>
@@ -110,6 +114,42 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
         </div>
       </div>
     }
+
+    @if (noLabOpen()) {
+      <div class="ts-overlay" (click)="noLabOpen.set(false)">
+        <div class="ts-dlg ts-dlg-wide" (click)="$event.stopPropagation()">
+          <div class="ts-dlg-head">
+            <h2>{{ 'no_lab_report' | t : 'No-Lab Tests' }} <span class="small muted" style="font-weight:400">({{ from }} → {{ to }})</span></h2>
+            <button class="btn btn-mini btn-s" (click)="noLabOpen.set(false)">✕</button>
+          </div>
+          <div style="padding:12px 16px">
+            <div class="small muted" style="margin-bottom:10px">{{ 'no_lab_report_desc' | t : 'Tests present in Test Statistics but not in Lab Statistics (their registration resolves to no lab), for the selected date range.' }}</div>
+            @if (noLabErr()) { <div class="inline-banner inline-banner-error" style="margin-bottom:10px">{{ noLabErr() }}</div> }
+            <div style="max-height:60vh;overflow:auto">
+              @if (noLabLoading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
+              @else {
+                <table class="grid-table" style="margin:0">
+                  <thead><tr>
+                    <th>{{ 'date_time' | t : 'Date/Time' }}</th><th>{{ 'acc_no' | t : 'Acc No' }}</th><th>{{ 'patient_name' | t : 'Patient Name' }}</th><th>{{ 'doctor' | t : 'Doctor' }}</th><th>{{ 'registered_by' | t : 'Registered By' }}</th><th>{{ 'test_name_2' | t : 'Test Name' }}</th>
+                  </tr></thead>
+                  <tbody>
+                    @for (r of noLabRows(); track $index) {
+                      <tr><td class="mono">{{ r.regDate | date:'yyyy-MM-dd HH:mm' }}</td><td class="mono">{{ r.accNo }}</td><td>{{ r.patientName }}</td><td>{{ r.doctor }}</td><td>{{ r.registeredBy }}</td><td>{{ r.testName }}</td></tr>
+                    } @empty { <tr><td colspan="6" class="empty" style="text-align:center;padding:24px">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
+                  </tbody>
+                </table>
+              }
+            </div>
+          </div>
+          <div class="ts-dlg-foot">
+            <span class="small muted" style="margin-inline-end:auto">{{ noLabRows().length }} {{ 'rows_2' | t : 'row(s)' }}</span>
+            <button class="btn btn-s" [disabled]="!noLabRows().length" (click)="exportNoLabExcel()">{{ 'export_excel' | t : 'Export Excel' }}</button>
+            <button class="btn btn-s" [disabled]="!noLabRows().length" (click)="exportNoLabPdf()">{{ 'export_pdf' | t : 'Export PDF' }}</button>
+            <button class="btn btn-p" (click)="noLabOpen.set(false)">{{ 'close' | t : 'Close' }}</button>
+          </div>
+        </div>
+      </div>
+    }
   `,
   styles: [`
     th.r,td.r{text-align:right}
@@ -119,7 +159,8 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
     .ts-dlg{background:var(--white,#fff);border-radius:12px;box-shadow:0 16px 48px rgba(0,0,0,.25);width:min(94vw,460px)}
     .ts-dlg-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--slate-150,#edebe9)}
     .ts-dlg-head h2{font-size:15px;margin:0}
-    .ts-dlg-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--slate-150,#edebe9)}
+    .ts-dlg-foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--slate-150,#edebe9)}
+    .ts-dlg-wide{width:min(96vw,860px)}
   `],
 })
 export class TestStatsComponent {
@@ -138,6 +179,10 @@ export class TestStatsComponent {
   readonly syncOpen = signal(false);
   readonly syncing = signal(false);
   readonly syncErr = signal<string | null>(null);
+  readonly noLabOpen = signal(false);
+  readonly noLabLoading = signal(false);
+  readonly noLabErr = signal<string | null>(null);
+  readonly noLabRows = signal<NoLabRow[]>([]);
   syncFrom = ''; syncTo = '';
   private readonly today = localToday();
   from = this.today.slice(0, 7) + '-01'; to = this.today; // first of the current month → today
@@ -217,6 +262,20 @@ export class TestStatsComponent {
       error: (e) => { this.syncing.set(false); this.syncErr.set(e?.error?.detail ?? 'Oracle sync failed.'); },
     });
   }
+
+  openNoLab(): void {
+    this.noLabErr.set(null); this.noLabRows.set([]); this.noLabLoading.set(true); this.noLabOpen.set(true);
+    this.api.get<NoLabRow[]>('/test-statistics/no-lab-report', { from: this.from, to: this.to }).subscribe({
+      next: (r) => { this.noLabRows.set(r); this.noLabLoading.set(false); },
+      error: (e) => { this.noLabLoading.set(false); this.noLabErr.set(e?.error?.detail ?? 'Failed to load the report.'); },
+    });
+  }
+  private fmtDt(s: string): string { return s ? s.replace('T', ' ').slice(0, 16) : ''; }
+  private noLabExport(): { h: string[]; rows: (string | number)[][] } {
+    return { h: ['Date/Time', 'Acc No', 'Patient Name', 'Doctor', 'Registered By', 'Test Name'], rows: this.noLabRows().map((r) => [this.fmtDt(r.regDate), r.accNo, r.patientName, r.doctor, r.registeredBy, r.testName]) };
+  }
+  exportNoLabExcel(): void { const e = this.noLabExport(); exportCsv(`no-lab-tests-${this.today}.csv`, e.h, e.rows); }
+  exportNoLabPdf(): void { const e = this.noLabExport(); printTable('No-Lab Tests', e.h, e.rows); }
 
   private exportHeaders(): string[] { return ['Test code', 'Test name', 'Parent group', ...this.periods().map((p) => this.colLabel(p)), 'Total count', 'Total income']; }
   private exportRows(): (string | number)[][] {

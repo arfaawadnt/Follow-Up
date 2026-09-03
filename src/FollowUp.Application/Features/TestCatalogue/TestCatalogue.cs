@@ -57,6 +57,49 @@ public sealed class GetTestStatsHandler : IQueryHandler<GetTestStatsQuery, IRead
     public Task<IReadOnlyList<TestStatDto>> Handle(GetTestStatsQuery r, CancellationToken ct) => _q.GetTestStatsAsync(r.From, r.To, ct);
 }
 
+/// <summary>One test that is counted in Test Statistics but not in Lab Statistics (its registration resolves to no lab).</summary>
+public sealed record NoLabTestRowDto(DateTime RegDate, string AccNo, string PatientName, string Doctor, string RegisteredBy, string TestName, string TestCode, int TestType);
+
+/// <summary>
+/// Live Oracle report (not synced): the per-test detail of tests present on Test Statistics but absent from Lab
+/// Statistics for the selected range — same "test" definition as the stats, restricted to regs with no resolvable
+/// lab. Returns accession (lab_no), patient name and test name.
+/// </summary>
+public sealed record GetNoLabTestsReportQuery(DateOnly From, DateOnly To) : IQuery<IReadOnlyList<NoLabTestRowDto>>, IAuthorizedRequest
+{
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ViewTeststats };
+}
+
+public sealed class GetNoLabTestsReportHandler : IQueryHandler<GetNoLabTestsReportQuery, IReadOnlyList<NoLabTestRowDto>>
+{
+    private readonly IOracleReader _reader;
+    public GetNoLabTestsReportHandler(IOracleReader reader) => _reader = reader;
+
+    public async Task<IReadOnlyList<NoLabTestRowDto>> Handle(GetNoLabTestsReportQuery r, CancellationToken ct)
+    {
+        var from = r.From; var to = r.To;
+        if (to < from) (from, to) = (to, from);
+        // Half-open window [from 00:00, (to + 1 day) 00:00) — matches the stats syncs (To is inclusive).
+        var window = new OracleDateWindow(from.ToDateTime(TimeOnly.MinValue), to.AddDays(1).ToDateTime(TimeOnly.MinValue));
+        var rows = await _reader.ExecuteAsync("NoLabTests", window, ct);
+        var list = new List<NoLabTestRowDto>(rows.Count);
+        foreach (var row in rows)
+        {
+            var v = row.Values;
+            var regDt = v.TryGetValue("REG_DT", out var d) && d is not null ? Convert.ToDateTime(d) : default;
+            var acc = v.TryGetValue("ACC_NO", out var a) && a is not null ? Convert.ToString(a)!.Trim() : string.Empty;
+            var patient = v.TryGetValue("PATIENT_NAME", out var p) && p is not null ? Convert.ToString(p)!.Trim() : string.Empty;
+            var doctor = v.TryGetValue("DOCTOR", out var dr) && dr is not null ? Convert.ToString(dr)!.Trim() : string.Empty;
+            var regBy = v.TryGetValue("REGISTERED_BY", out var rb) && rb is not null ? Convert.ToString(rb)!.Trim() : string.Empty;
+            var tname = v.TryGetValue("TEST_NAME", out var tn) && tn is not null ? Convert.ToString(tn)!.Trim() : string.Empty;
+            var tcode = v.TryGetValue("TEST_CODE", out var tc) && tc is not null ? Convert.ToString(tc)!.Trim() : string.Empty;
+            var ttype = v.TryGetValue("TEST_TYPE", out var tt) && tt is not null ? Convert.ToInt32(tt) : 0;
+            list.Add(new NoLabTestRowDto(regDt, acc, patient, doctor, regBy, tname, tcode, ttype));
+        }
+        return list;
+    }
+}
+
 // ---- Test group CRUD ----
 
 public sealed record CreateTestGroupCommand(string Code, string NameEn, string? NameAr) : ICommand<Guid>, IAuthorizedRequest

@@ -127,6 +127,7 @@ await using (var scope = app.Services.CreateAsyncScope())
             AllowListedQuery.Create("Tests", testsSql),
             AllowListedQuery.Create("TestStats", testStatsSql),
             AllowListedQuery.Create("LabStats", labStatsSql),
+            AllowListedQuery.Create("NoLabTests", Sql("FOLLOWUP_ORACLE_NOLABTESTS_SQL", OracleDefaultQueries.NoLabTests)),
         };
         if (cfg is null)
         {
