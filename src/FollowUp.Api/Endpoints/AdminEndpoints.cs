@@ -46,7 +46,7 @@ public static class AdminEndpoints
         api.MapPost("/setup/refs", async (CreateRefItemCommand cmd, IMediator m, CancellationToken ct) =>
         { var id = await m.Send(cmd, ct); return Results.Created($"/api/v1/setup/refs/{id}", new { id }); }).WithTags("Setup");
         api.MapPut("/setup/refs/{id:guid}", async (Guid id, RefNameBody b, IMediator m, CancellationToken ct) =>
-        { await m.Send(new UpdateRefItemCommand(id, b.Name), ct); return Results.NoContent(); }).WithTags("Setup");
+        { await m.Send(new UpdateRefItemCommand(id, b.Name, b.RealName), ct); return Results.NoContent(); }).WithTags("Setup");
         api.MapDelete("/setup/refs/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>
         { await m.Send(new DeleteRefItemCommand(id), ct); return Results.NoContent(); }).WithTags("Setup");
 
@@ -55,7 +55,7 @@ public static class AdminEndpoints
         api.MapPost("/setup/cities", async (CreateCityCommand cmd, IMediator m, CancellationToken ct) =>
         { var id = await m.Send(cmd, ct); return Results.Created($"/api/v1/setup/cities/{id}", new { id }); }).WithTags("Setup");
         api.MapPut("/setup/cities/{id:guid}", async (Guid id, CityBody b, IMediator m, CancellationToken ct) =>
-        { await m.Send(new UpdateCityCommand(id, b.Name, b.Governorate), ct); return Results.NoContent(); }).WithTags("Setup");
+        { await m.Send(new UpdateCityCommand(id, b.Name, b.Governorate, b.RealName), ct); return Results.NoContent(); }).WithTags("Setup");
         api.MapDelete("/setup/cities/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>
         { await m.Send(new DeleteCityCommand(id), ct); return Results.NoContent(); }).WithTags("Setup");
 
@@ -64,7 +64,7 @@ public static class AdminEndpoints
         api.MapPost("/setup/areas", async (CreateAreaCommand cmd, IMediator m, CancellationToken ct) =>
         { var id = await m.Send(cmd, ct); return Results.Created($"/api/v1/setup/areas/{id}", new { id }); }).WithTags("Setup");
         api.MapPut("/setup/areas/{id:guid}", async (Guid id, AreaBody b, IMediator m, CancellationToken ct) =>
-        { await m.Send(new UpdateAreaCommand(id, b.Name, b.CityId, b.TransportationRequired), ct); return Results.NoContent(); }).WithTags("Setup");
+        { await m.Send(new UpdateAreaCommand(id, b.Name, b.CityId, b.TransportationRequired, b.RealName), ct); return Results.NoContent(); }).WithTags("Setup");
         api.MapDelete("/setup/areas/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>
         { await m.Send(new DeleteAreaCommand(id), ct); return Results.NoContent(); }).WithTags("Setup");
     }
@@ -72,9 +72,9 @@ public static class AdminEndpoints
     public sealed record SettingBody(string? Value, bool IsSecret);
     public sealed record RetentionBody(int Days);
     public sealed record ChangeRoleBody(Guid RoleId);
-    public sealed record RefNameBody(string Name);
-    public sealed record CityBody(string Name, string Governorate);
-    public sealed record AreaBody(string Name, Guid CityId, bool TransportationRequired);
+    public sealed record RefNameBody(string Name, string? RealName = null);
+    public sealed record CityBody(string Name, string Governorate, string? RealName = null);
+    public sealed record AreaBody(string Name, Guid CityId, bool TransportationRequired, string? RealName = null);
 
     public static void MapSettingsAndRetentionEndpoints(this RouteGroupBuilder api)
     {

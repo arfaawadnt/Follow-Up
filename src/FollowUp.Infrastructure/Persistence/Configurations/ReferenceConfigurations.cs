@@ -16,6 +16,7 @@ internal sealed class RefItemConfiguration : IEntityTypeConfiguration<RefItem>
         b.Property(x => x.Code).HasMaxLength(64).IsRequired();
         b.Property(x => x.NameEn).HasMaxLength(200).IsRequired();
         b.Property(x => x.NameAr).HasMaxLength(200);
+        b.Property(x => x.RealName).HasMaxLength(200);
         b.Property(x => x.SortOrder);
         b.Property(x => x.Source).HasDefaultValue(FollowUp.Domain.Common.RecordSource.Manual);
         b.HasIndex(x => new { x.Type, x.Code }).IsUnique();
@@ -33,6 +34,7 @@ internal sealed class CityConfiguration : IEntityTypeConfiguration<City>
 
         b.Property(x => x.Name).HasMaxLength(100).IsRequired();
         b.Property(x => x.Governorate).HasMaxLength(100).IsRequired();
+        b.Property(x => x.RealName).HasMaxLength(200);
         b.Property(x => x.SourceCode).HasMaxLength(64);
         b.Property(x => x.Source).HasDefaultValue(FollowUp.Domain.Common.RecordSource.Manual);
         b.HasIndex(x => new { x.Governorate, x.Name });
@@ -51,6 +53,7 @@ internal sealed class AreaConfiguration : IEntityTypeConfiguration<Area>
 
         b.Property(x => x.Name).HasMaxLength(100).IsRequired();
         b.Property(x => x.TransportationRequired);
+        b.Property(x => x.RealName).HasMaxLength(200);
         b.Property(x => x.SourceCode).HasMaxLength(64);
         b.Property(x => x.Source).HasDefaultValue(FollowUp.Domain.Common.RecordSource.Manual);
         b.HasIndex(x => x.SourceCode);

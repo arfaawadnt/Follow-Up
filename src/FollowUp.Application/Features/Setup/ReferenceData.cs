@@ -12,9 +12,9 @@ namespace FollowUp.Application.Features.Setup;
 
 // ---- Read side ----
 
-public sealed record RefItemDto(Guid Id, string Type, string Code, string NameEn, string? NameAr, int SortOrder, string Source);
-public sealed record CityDto(Guid Id, string Name, string Governorate, string Source);
-public sealed record AreaDto(Guid Id, string Name, Guid CityId, bool TransportationRequired, IReadOnlyList<Guid> TransferReps, string Source);
+public sealed record RefItemDto(Guid Id, string Type, string Code, string NameEn, string? NameAr, string? RealName, int SortOrder, string Source);
+public sealed record CityDto(Guid Id, string Name, string Governorate, string? RealName, string Source);
+public sealed record AreaDto(Guid Id, string Name, Guid CityId, bool TransportationRequired, IReadOnlyList<Guid> TransferReps, string? RealName, string Source);
 
 public interface ISetupQueries
 {
@@ -63,7 +63,7 @@ public sealed class GetAreasHandler : IQueryHandler<GetAreasQuery, IReadOnlyList
 
 // ---- Ref item write ----
 
-public sealed record CreateRefItemCommand(string Type, string Code, string NameEn, string? NameAr, int SortOrder = 0)
+public sealed record CreateRefItemCommand(string Type, string Code, string NameEn, string? NameAr, int SortOrder = 0, string? RealName = null)
     : ICommand<Guid>, IAuthorizedRequest
 {
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.SetupRefs };
@@ -91,6 +91,7 @@ public sealed class CreateRefItemHandler : ICommandHandler<CreateRefItemCommand,
             throw new ConflictException($"A {type.Name} reference with code '{request.Code}' already exists.");
 
         var item = RefItem.Create(type, request.Code, request.NameEn, request.NameAr, request.SortOrder);
+        item.SetRealName(request.RealName);
         _repository.Add(item);
         return item.Id.Value;
     }
@@ -115,7 +116,7 @@ public sealed class DeleteRefItemHandler : ICommandHandler<DeleteRefItemCommand>
     }
 }
 
-public sealed record UpdateRefItemCommand(Guid Id, string Name) : ICommand, IAuthorizedRequest
+public sealed record UpdateRefItemCommand(Guid Id, string Name, string? RealName = null) : ICommand, IAuthorizedRequest
 {
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.SetupRefs };
 }
@@ -139,13 +140,14 @@ public sealed class UpdateRefItemHandler : ICommandHandler<UpdateRefItemCommand>
         var item = await _repository.GetByIdAsync(new RefItemId(request.Id), ct)
             ?? throw new NotFoundException("Reference item", request.Id);
         item.Rename(request.Name, null); // single-name model: NameEn only
+        item.SetRealName(request.RealName);
         return Unit.Value;
     }
 }
 
 // ---- City write ----
 
-public sealed record CreateCityCommand(string Name, string Governorate) : ICommand<Guid>, IAuthorizedRequest
+public sealed record CreateCityCommand(string Name, string Governorate, string? RealName = null) : ICommand<Guid>, IAuthorizedRequest
 {
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.SetupCities };
 }
@@ -158,6 +160,7 @@ public sealed class CreateCityHandler : ICommandHandler<CreateCityCommand, Guid>
     public Task<Guid> Handle(CreateCityCommand request, CancellationToken ct)
     {
         var city = City.Create(request.Name, request.Governorate);
+        city.SetRealName(request.RealName);
         _repository.Add(city);
         return Task.FromResult(city.Id.Value);
     }
@@ -182,7 +185,7 @@ public sealed class DeleteCityHandler : ICommandHandler<DeleteCityCommand>
     }
 }
 
-public sealed record UpdateCityCommand(Guid Id, string Name, string Governorate) : ICommand, IAuthorizedRequest
+public sealed record UpdateCityCommand(Guid Id, string Name, string Governorate, string? RealName = null) : ICommand, IAuthorizedRequest
 {
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.SetupCities };
 }
@@ -208,13 +211,14 @@ public sealed class UpdateCityHandler : ICommandHandler<UpdateCityCommand>
             ?? throw new NotFoundException("City", request.Id);
         city.Rename(request.Name);
         city.SetGovernorate(request.Governorate);
+        city.SetRealName(request.RealName);
         return Unit.Value;
     }
 }
 
 // ---- Area write ----
 
-public sealed record CreateAreaCommand(string Name, Guid CityId, bool TransportationRequired, IReadOnlyList<Guid> TransferReps)
+public sealed record CreateAreaCommand(string Name, Guid CityId, bool TransportationRequired, IReadOnlyList<Guid> TransferReps, string? RealName = null)
     : ICommand<Guid>, IAuthorizedRequest
 {
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.SetupAreas };
@@ -229,6 +233,7 @@ public sealed class CreateAreaHandler : ICommandHandler<CreateAreaCommand, Guid>
     {
         var area = Area.Create(request.Name, new CityId(request.CityId), request.TransportationRequired);
         area.SetTransferReps(request.TransferReps.Select(r => new RepresentativeId(r)));
+        area.SetRealName(request.RealName);
         _repository.Add(area);
         return Task.FromResult(area.Id.Value);
     }
@@ -253,7 +258,7 @@ public sealed class DeleteAreaHandler : ICommandHandler<DeleteAreaCommand>
     }
 }
 
-public sealed record UpdateAreaCommand(Guid Id, string Name, Guid CityId, bool TransportationRequired)
+public sealed record UpdateAreaCommand(Guid Id, string Name, Guid CityId, bool TransportationRequired, string? RealName = null)
     : ICommand, IAuthorizedRequest
 {
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.SetupAreas };
@@ -281,6 +286,7 @@ public sealed class UpdateAreaHandler : ICommandHandler<UpdateAreaCommand>
         area.Rename(request.Name);
         area.SetCity(new CityId(request.CityId));
         area.SetTransportation(request.TransportationRequired);
+        area.SetRealName(request.RealName);
         return Unit.Value;
     }
 }

@@ -47,6 +47,8 @@ public sealed class RefItem : AggregateRoot<RefItemId>, IAuditable
     public string Code { get; private set; } = null!;
     public string NameEn { get; private set; } = null!;
     public string? NameAr { get; private set; }
+    /// <summary>An operator-maintained "real" display name, never touched by the Oracle sync (SRS FR-18).</summary>
+    public string? RealName { get; private set; }
     public int SortOrder { get; private set; }
     public RecordSource Source { get; private set; }
 
@@ -85,6 +87,9 @@ public sealed class RefItem : AggregateRoot<RefItemId>, IAuditable
     }
 
     public void Reorder(int sortOrder) => SortOrder = sortOrder;
+
+    /// <summary>Sets the operator-maintained real name. Independent of Oracle sync (never overwritten by ApplyOracle).</summary>
+    public void SetRealName(string? realName) => RealName = string.IsNullOrWhiteSpace(realName) ? null : realName.Trim();
 }
 
 public readonly record struct CityId(Guid Value)
@@ -106,6 +111,8 @@ public sealed class City : AggregateRoot<CityId>, IAuditable
 
     public string Name { get; private set; } = null!;
     public string Governorate { get; private set; } = null!;
+    /// <summary>An operator-maintained "real" display name, never touched by the Oracle sync (SRS FR-18).</summary>
+    public string? RealName { get; private set; }
     /// <summary>Oracle CITY_CODE for records mirrored from Oracle; null for manual entries.</summary>
     public string? SourceCode { get; private set; }
     public RecordSource Source { get; private set; }
@@ -142,6 +149,9 @@ public sealed class City : AggregateRoot<CityId>, IAuditable
 
     public void SetGovernorate(string governorate) => Governorate = string.IsNullOrWhiteSpace(governorate)
         ? throw new DomainException("Governorate is required.") : governorate.Trim();
+
+    /// <summary>Sets the operator-maintained real name. Independent of Oracle sync (never overwritten by ApplyOracle).</summary>
+    public void SetRealName(string? realName) => RealName = string.IsNullOrWhiteSpace(realName) ? null : realName.Trim();
 }
 
 public readonly record struct AreaId(Guid Value)
@@ -171,6 +181,8 @@ public sealed class Area : AggregateRoot<AreaId>, IAuditable
     public CityId CityId { get; private set; }
     public bool TransportationRequired { get; private set; }
     public IReadOnlyCollection<RepresentativeId> TransferReps => _transferReps.AsReadOnly();
+    /// <summary>An operator-maintained "real" display name, never touched by the Oracle sync (SRS FR-18).</summary>
+    public string? RealName { get; private set; }
     /// <summary>Oracle AREA_CODE for records mirrored from Oracle; null for manual entries.</summary>
     public string? SourceCode { get; private set; }
     public RecordSource Source { get; private set; }
@@ -212,4 +224,7 @@ public sealed class Area : AggregateRoot<AreaId>, IAuditable
         _transferReps.Clear();
         _transferReps.AddRange(reps.Distinct());
     }
+
+    /// <summary>Sets the operator-maintained real name. Independent of Oracle sync (never overwritten by ApplyOracle).</summary>
+    public void SetRealName(string? realName) => RealName = string.IsNullOrWhiteSpace(realName) ? null : realName.Trim();
 }

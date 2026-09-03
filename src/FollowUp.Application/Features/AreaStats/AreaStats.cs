@@ -11,7 +11,8 @@ namespace FollowUp.Application.Features.AreaStats;
 /// table or Oracle feed; the nightly lab-stats sync keeps the underlying rows current. City is carried for
 /// filtering; the page groups by governorate → area.
 /// </summary>
-public sealed record AreaStatDto(DateOnly Date, string? Governorate, string? City, string? Area, int TestCount, decimal Income);
+public sealed record AreaStatDto(DateOnly Date, string? Governorate, string? City, string? Area,
+    string? GovernorateRealName, string? AreaRealName, int TestCount, decimal Income);
 
 public interface IAreaStatsQueries
 {

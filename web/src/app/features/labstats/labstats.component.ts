@@ -136,7 +136,8 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
   `,
   styles: [`
     th.r,td.r{text-align:right}
-    .stick{position:sticky;inset-inline-start:0;z-index:1;background:var(--white,#fff)}
+    .stick{position:sticky;inset-inline-start:0;z-index:1}
+    td.stick{background:var(--white,#fff)}
     thead .stick{z-index:2}
     td.tot,th.tot{border-inline-start:2px solid var(--slate-150,#edebe9)}
     tfoot td{border-top:2px solid var(--slate-150,#edebe9);background:var(--white,#fff)}

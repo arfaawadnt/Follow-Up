@@ -4,9 +4,9 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { ToastService } from '../../core/toast.service';
 
-interface RefItem { id: string; type: string; code: string; nameEn: string; nameAr: string | null; sortOrder: number; source: string; }
-interface City { id: string; name: string; governorate: string; source: string; }
-interface Area { id: string; name: string; cityId: string; transportationRequired: boolean; transferReps: string[]; source: string; }
+interface RefItem { id: string; type: string; code: string; nameEn: string; nameAr: string | null; realName: string | null; sortOrder: number; source: string; }
+interface City { id: string; name: string; governorate: string; realName: string | null; source: string; }
+interface Area { id: string; name: string; cityId: string; transportationRequired: boolean; transferReps: string[]; realName: string | null; source: string; }
 interface Tier { name: string; minAchievementPercent: number; points: number; }
 interface CompConfig { commissionRatePercent: number; bonusThresholdPercent: number; bonusAmount: number; tiers: Tier[]; }
 
@@ -65,7 +65,7 @@ const TABS: { key: Tab; label: string }[] = [
         <div class="card panel">
           <div class="setup-toolbar"><h3 style="margin:0">Current Items</h3><input class="input srch" [ngModel]="q()" (ngModelChange)="q.set($event)" placeholder="Search…"><span class="cnt">{{ refsF().length }}/{{ refs().length }}</span></div>
           <table class="items">
-            <thead><tr><th>{{ singular() }}</th><th style="width:80px">Source</th><th class="ar">Actions</th></tr></thead>
+            <thead><tr><th>{{ singular() }}</th>@if (tab() === 'governorates') { <th>Real Name</th> }<th style="width:80px">Source</th><th class="ar">Actions</th></tr></thead>
             <tbody>
               @for (r of refsF(); track r.id) {
                 <tr>
@@ -73,6 +73,9 @@ const TABS: { key: Tab; label: string }[] = [
                     @if (editId() === r.id) { <input class="input" [(ngModel)]="editName"> }
                     @else { <b>{{ r.nameEn }}</b> }
                   </td>
+                  @if (tab() === 'governorates') {
+                    <td>@if (editId() === r.id) { <input class="input" [(ngModel)]="editRealName" placeholder="optional real name"> } @else { {{ r.realName || '—' }} }</td>
+                  }
                   <td>@if (r.source === 'Oracle') { <span class="src-b src-o">Oracle</span> } @else { <span class="src-b src-m">Manual</span> }</td>
                   <td class="ar actions">
                     @if (canEdit()) {
@@ -80,7 +83,7 @@ const TABS: { key: Tab; label: string }[] = [
                         <button class="btn btn-mini btn-p" [disabled]="!editName.trim() || busy()" (click)="saveRef(r)">Save</button>
                         <button class="btn btn-mini btn-s" (click)="cancelEdit()">Cancel</button>
                       } @else {
-                        <button class="icon-btn" title="Edit" (click)="startEdit(r.id, r.nameEn)">✎</button>
+                        <button class="icon-btn" title="Edit" (click)="startEdit(r.id, r.nameEn, r.realName)">✎</button>
                         <button class="icon-btn del" title="Delete" (click)="delRef(r)">🗑</button>
                       }
                     }
@@ -110,7 +113,7 @@ const TABS: { key: Tab; label: string }[] = [
         <div class="card panel">
           <div class="setup-toolbar"><h3 style="margin:0">Current Items</h3><input class="input srch" [ngModel]="q()" (ngModelChange)="q.set($event)" placeholder="Search…"><span class="cnt">{{ citiesF().length }}/{{ cities().length }}</span></div>
           <table class="items">
-            <thead><tr><th>City</th><th>Governorate</th><th style="width:80px">Source</th><th class="ar">Actions</th></tr></thead>
+            <thead><tr><th>City</th><th>Governorate</th><th>Real Name</th><th style="width:80px">Source</th><th class="ar">Actions</th></tr></thead>
             <tbody>
               @for (c of citiesF(); track c.id) {
                 <tr>
@@ -120,6 +123,7 @@ const TABS: { key: Tab; label: string }[] = [
                       <select class="select" [(ngModel)]="editGov"><option value="">—</option>@for (g of govOptions(); track g) { <option [value]="g">{{ g }}</option> }</select>
                     } @else { {{ c.governorate }} }
                   </td>
+                  <td>@if (editId() === c.id) { <input class="input" [(ngModel)]="editRealName" placeholder="optional real name"> } @else { {{ c.realName || '—' }} }</td>
                   <td>@if (c.source === 'Oracle') { <span class="src-b src-o">Oracle</span> } @else { <span class="src-b src-m">Manual</span> }</td>
                   <td class="ar actions">
                     @if (canEdit()) {
@@ -133,7 +137,7 @@ const TABS: { key: Tab; label: string }[] = [
                     }
                   </td>
                 </tr>
-              } @empty { <tr><td colspan="4" class="empty">No items yet.</td></tr> }
+              } @empty { <tr><td colspan="5" class="empty">No items yet.</td></tr> }
             </tbody>
           </table>
         </div>
@@ -157,7 +161,7 @@ const TABS: { key: Tab; label: string }[] = [
         <div class="card panel">
           <div class="setup-toolbar"><h3 style="margin:0">Current Items</h3><input class="input srch" [ngModel]="q()" (ngModelChange)="q.set($event)" placeholder="Search…"><span class="cnt">{{ areasF().length }}/{{ areas().length }}</span></div>
           <table class="items">
-            <thead><tr><th>Area</th><th>City</th><th>Transport</th><th style="width:80px">Source</th><th class="ar">Actions</th></tr></thead>
+            <thead><tr><th>Area</th><th>City</th><th>Real Name</th><th>Transport</th><th style="width:80px">Source</th><th class="ar">Actions</th></tr></thead>
             <tbody>
               @for (a of areasF(); track a.id) {
                 <tr>
@@ -167,6 +171,7 @@ const TABS: { key: Tab; label: string }[] = [
                       <select class="select" [(ngModel)]="editCityId"><option value="">—</option>@for (c of cities(); track c.id) { <option [value]="c.id">{{ c.name }}</option> }</select>
                     } @else { {{ cityName2(a.cityId) }} }
                   </td>
+                  <td>@if (editId() === a.id) { <input class="input" [(ngModel)]="editRealName" placeholder="optional real name"> } @else { {{ a.realName || '—' }} }</td>
                   <td>
                     @if (editId() === a.id) { <input type="checkbox" [(ngModel)]="editTransport"> }
                     @else { {{ a.transportationRequired ? 'Yes' : 'No' }} }
@@ -184,7 +189,7 @@ const TABS: { key: Tab; label: string }[] = [
                     }
                   </td>
                 </tr>
-              } @empty { <tr><td colspan="5" class="empty">No items yet.</td></tr> }
+              } @empty { <tr><td colspan="6" class="empty">No items yet.</td></tr> }
             </tbody>
           </table>
         </div>
@@ -284,7 +289,7 @@ export class SetupComponent {
   }
 
   readonly editId = signal<string | null>(null);
-  editName = ''; editGov = ''; editCityId = ''; editTransport = false;
+  editName = ''; editGov = ''; editCityId = ''; editTransport = false; editRealName = '';
 
   newName = '';
   cityName = ''; cityGov = '';
@@ -331,10 +336,10 @@ export class SetupComponent {
     (obs as { subscribe: Function }).subscribe({ next: () => { this.busy.set(false); onOk(); }, error: () => this.busy.set(false) });
   }
 
-  startEdit(id: string, name: string): void { this.editId.set(id); this.editName = name; }
-  startEditCity(c: City): void { this.editId.set(c.id); this.editName = c.name; this.editGov = c.governorate; }
-  startEditArea(a: Area): void { this.editId.set(a.id); this.editName = a.name; this.editCityId = a.cityId; this.editTransport = a.transportationRequired; }
-  cancelEdit(): void { this.editId.set(null); this.editName = ''; this.editGov = ''; this.editCityId = ''; this.editTransport = false; }
+  startEdit(id: string, name: string, realName: string | null = null): void { this.editId.set(id); this.editName = name; this.editRealName = realName ?? ''; }
+  startEditCity(c: City): void { this.editId.set(c.id); this.editName = c.name; this.editGov = c.governorate; this.editRealName = c.realName ?? ''; }
+  startEditArea(a: Area): void { this.editId.set(a.id); this.editName = a.name; this.editCityId = a.cityId; this.editTransport = a.transportationRequired; this.editRealName = a.realName ?? ''; }
+  cancelEdit(): void { this.editId.set(null); this.editName = ''; this.editGov = ''; this.editCityId = ''; this.editTransport = false; this.editRealName = ''; }
 
   // Reference items (single Name → code + nameEn)
   addRef(): void {
@@ -342,17 +347,17 @@ export class SetupComponent {
     this.run(this.api.post('/setup/refs', { type: this.type(), code: name, nameEn: name, nameAr: null, sortOrder: 0 }),
       () => { this.newName = ''; this.reloadRefs(); });
   }
-  saveRef(r: RefItem): void { this.run(this.api.put(`/setup/refs/${r.id}`, { name: this.editName.trim() }), () => { this.cancelEdit(); this.reloadRefs(); }); }
+  saveRef(r: RefItem): void { this.run(this.api.put(`/setup/refs/${r.id}`, { name: this.editName.trim(), realName: this.editRealName.trim() || null }), () => { this.cancelEdit(); this.reloadRefs(); }); }
   delRef(r: RefItem): void { if (confirm(`Delete "${r.nameEn}"?`)) this.run(this.api.delete(`/setup/refs/${r.id}`), () => this.reloadRefs()); }
 
   // Cities
   addCity(): void { this.run(this.api.post('/setup/cities', { name: this.cityName.trim(), governorate: this.cityGov }), () => { this.cityName = ''; this.cityGov = ''; this.reloadCities(); }); }
-  saveCity(c: City): void { this.run(this.api.put(`/setup/cities/${c.id}`, { name: this.editName.trim(), governorate: this.editGov }), () => { this.cancelEdit(); this.reloadCities(); }); }
+  saveCity(c: City): void { this.run(this.api.put(`/setup/cities/${c.id}`, { name: this.editName.trim(), governorate: this.editGov, realName: this.editRealName.trim() || null }), () => { this.cancelEdit(); this.reloadCities(); }); }
   delCity(c: City): void { if (confirm(`Delete "${c.name}"?`)) this.run(this.api.delete(`/setup/cities/${c.id}`), () => this.reloadCities()); }
 
   // Areas
   addArea(): void { this.run(this.api.post('/setup/areas', { name: this.areaName.trim(), cityId: this.areaCity, transportationRequired: this.areaTransport, transferReps: [] }), () => { this.areaName = ''; this.areaCity = ''; this.areaTransport = false; this.reloadAreas(); }); }
-  saveArea(a: Area): void { this.run(this.api.put(`/setup/areas/${a.id}`, { name: this.editName.trim(), cityId: this.editCityId, transportationRequired: this.editTransport }), () => { this.cancelEdit(); this.reloadAreas(); }); }
+  saveArea(a: Area): void { this.run(this.api.put(`/setup/areas/${a.id}`, { name: this.editName.trim(), cityId: this.editCityId, transportationRequired: this.editTransport, realName: this.editRealName.trim() || null }), () => { this.cancelEdit(); this.reloadAreas(); }); }
   delArea(a: Area): void { if (confirm(`Delete "${a.name}"?`)) this.run(this.api.delete(`/setup/areas/${a.id}`), () => this.reloadAreas()); }
 
   // Compensation

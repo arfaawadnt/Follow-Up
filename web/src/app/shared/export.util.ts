@@ -23,6 +23,27 @@ export function escHtml(v: Cell): string {
   return String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] ?? c));
 }
 
+/**
+ * Prints a caller-built HTML table so cell styling (e.g. the Area Statistics green/red flags) is preserved
+ * in the PDF. `print-color-adjust: exact` forces the background fills to render when saved/printed.
+ */
+export function printDoc(title: string, tableHtml: string): void {
+  const html = `<!doctype html><html><head><title>${escHtml(title)}</title><style>
+    body{font:12px system-ui,sans-serif;padding:16px}h1{font-size:15px}
+    table{border-collapse:collapse;width:100%}
+    th,td{border:1px solid #ccc;padding:5px 7px;text-align:left;white-space:nowrap}
+    th{background:#004578;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    td.r{text-align:right}
+    tr.gov td{background:#eef2f7;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    td.pos{background:#dcfce7;color:#15803d;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    td.neg{background:#fee2e2;color:#b91c1c;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .rn{color:#0078D4;margin-inline-start:6px}
+  </style></head><body><h1>${escHtml(title)}</h1>${tableHtml}</body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) return;
+  w.document.write(html); w.document.close(); w.focus(); w.print();
+}
+
 export function printTable(title: string, header: string[], rows: Cell[][]): void {
   const head = header.map((h) => `<th>${escHtml(h)}</th>`).join('');
   const body = rows.map((r) => `<tr>${r.map((c) => `<td>${escHtml(c)}</td>`).join('')}</tr>`).join('');

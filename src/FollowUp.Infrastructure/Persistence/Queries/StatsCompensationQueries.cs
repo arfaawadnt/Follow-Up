@@ -4,6 +4,7 @@ using FollowUp.Application.Features.LabStats;
 using FollowUp.Application.Features.TestCatalogue;
 using FollowUp.Domain.Common;
 using FollowUp.Domain.Identity;
+using FollowUp.Domain.Reference;
 using Microsoft.EntityFrameworkCore;
 
 namespace FollowUp.Infrastructure.Persistence.Queries;
@@ -78,6 +79,16 @@ internal sealed class AreaStatsQueries : IAreaStatsQueries
                 .Select(l => new { l.Code, l.Governorate, l.City, l.Area }).ToListAsync(ct))
             .GroupBy(l => l.Code.Value).ToDictionary(g => g.Key, g => g.First());
 
+        // Operator-maintained real names (independent of Oracle sync): governorate by RefItem name, area by name.
+        var govRealName = (await _db.RefItems.AsNoTracking()
+                .Where(r => r.Type == RefType.Governorate && r.RealName != null)
+                .Select(r => new { r.NameEn, r.RealName }).ToListAsync(ct))
+            .GroupBy(r => r.NameEn).ToDictionary(g => g.Key, g => g.First().RealName, StringComparer.OrdinalIgnoreCase);
+        var areaRealName = (await _db.Areas.AsNoTracking()
+                .Where(a => a.RealName != null)
+                .Select(a => new { a.Name, a.RealName }).ToListAsync(ct))
+            .GroupBy(a => a.Name).ToDictionary(g => g.Key, g => g.First().RealName, StringComparer.OrdinalIgnoreCase);
+
         // Aggregate to (date, governorate, city, area). Unmapped labs fall into a null bucket the page renders as "—".
         var agg = new Dictionary<(DateOnly, string?, string?, string?), (int test, decimal income)>();
         foreach (var s in rows)
@@ -88,8 +99,11 @@ internal sealed class AreaStatsQueries : IAreaStatsQueries
             agg[key] = (cur.test + s.TestCount, cur.income + s.Income.Amount);
         }
 
+        string? GovReal(string? name) => name != null && govRealName.TryGetValue(name, out var v) ? v : null;
+        string? AreaReal(string? name) => name != null && areaRealName.TryGetValue(name, out var v) ? v : null;
         return agg
-            .Select(kv => new AreaStatDto(kv.Key.Item1, kv.Key.Item2, kv.Key.Item3, kv.Key.Item4, kv.Value.test, kv.Value.income))
+            .Select(kv => new AreaStatDto(kv.Key.Item1, kv.Key.Item2, kv.Key.Item3, kv.Key.Item4,
+                GovReal(kv.Key.Item2), AreaReal(kv.Key.Item4), kv.Value.test, kv.Value.income))
             .OrderBy(d => d.Date).ThenBy(d => d.Governorate).ThenBy(d => d.Area)
             .ToList();
     }

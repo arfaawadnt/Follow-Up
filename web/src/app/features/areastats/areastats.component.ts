@@ -1,4 +1,4 @@
-import { exportCsv, localToday, printTable } from '../../shared/export.util';
+import { escHtml, exportCsv, localToday, printDoc } from '../../shared/export.util';
 import { Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -7,9 +7,9 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { TranslatePipe } from '../../core/i18n';
 
-interface AreaStat { date: string; governorate: string | null; city: string | null; area: string | null; testCount: number; income: number; }
-interface AreaRow { area: string; cells: Record<string, number>; total: number; income: number; refMonth: number; }
-interface GovGroup { gov: string; areas: AreaRow[]; cells: Record<string, number>; total: number; income: number; refMonth: number; }
+interface AreaStat { date: string; governorate: string | null; city: string | null; area: string | null; governorateRealName: string | null; areaRealName: string | null; testCount: number; income: number; }
+interface AreaRow { area: string; realName: string | null; cells: Record<string, number>; total: number; income: number; refMonth: number; }
+interface GovGroup { gov: string; realName: string | null; areas: AreaRow[]; cells: Record<string, number>; total: number; income: number; refMonth: number; }
 type View = 'daily' | 'monthly' | 'yearly';
 const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DASH = '—';
@@ -68,7 +68,7 @@ const DASH = '—';
           <tbody>
             @for (g of groups(); track g.gov) {
               <tr class="gov-row">
-                <td class="stick" style="font-weight:700">{{ g.gov }}</td>
+                <td class="stick" style="font-weight:700">{{ g.gov }}@if (g.realName) { <span class="rn">{{ g.realName }}</span> }</td>
                 <td class="r mono ref">{{ g.refMonth | number:'1.0-0' }}</td>
                 <td class="r mono ref">{{ refDay(g.refMonth) | number:'1.0-0' }}</td>
                 <td class="r mono tot" style="font-weight:700">{{ g.total | number:'1.0-0' }}</td>
@@ -77,7 +77,7 @@ const DASH = '—';
               </tr>
               @for (a of g.areas; track a.area) {
                 <tr>
-                  <td class="stick area-cell">{{ a.area }}</td>
+                  <td class="stick area-cell">{{ a.area }}@if (a.realName) { <span class="rn">{{ a.realName }}</span> }</td>
                   <td class="r mono ref">{{ a.refMonth | number:'1.0-0' }}</td>
                   <td class="r mono ref">{{ refDay(a.refMonth) | number:'1.0-0' }}</td>
                   <td class="r mono tot" style="font-weight:600">{{ a.total | number:'1.0-0' }}</td>
@@ -132,6 +132,8 @@ const DASH = '—';
     td.tot,th.tot{border-inline-start:2px solid var(--slate-150,#edebe9)}
     td.ref{background:var(--slate-50,#f8fafc)}
     .area-cell{padding-inline-start:22px;color:var(--slate-700,#605e5c)}
+    .rn{display:inline-block;margin-inline-start:6px;font-weight:400;color:var(--primary-blue,#0078D4)}
+    .gov-row .rn{color:#004578}
     .gov-row td{background:var(--slate-100,#f1f5f9)}
     .gov-row .stick{background:var(--slate-100,#f1f5f9)}
     td.pos{background:rgba(22,163,74,.14);color:#15803d;font-weight:700}
@@ -218,10 +220,10 @@ export class AreaStatsComponent {
       const govName = s.governorate ?? DASH;
       const areaName = s.area ?? DASH;
       let g = govMap.get(govName);
-      if (!g) { g = { gov: govName, areas: [], cells: {}, total: 0, income: 0, refMonth: refG[govName] ?? 0 }; govMap.set(govName, g); }
+      if (!g) { g = { gov: govName, realName: s.governorateRealName ?? null, areas: [], cells: {}, total: 0, income: 0, refMonth: refG[govName] ?? 0 }; govMap.set(govName, g); }
       g.cells[p] = (g.cells[p] ?? 0) + s.testCount; g.total += s.testCount; g.income += s.income;
       let a = g.areas.find((x) => x.area === areaName);
-      if (!a) { a = { area: areaName, cells: {}, total: 0, income: 0, refMonth: refA[govName + '|' + areaName] ?? 0 }; g.areas.push(a); }
+      if (!a) { a = { area: areaName, realName: s.areaRealName ?? null, cells: {}, total: 0, income: 0, refMonth: refA[govName + '|' + areaName] ?? 0 }; g.areas.push(a); }
       a.cells[p] = (a.cells[p] ?? 0) + s.testCount; a.total += s.testCount; a.income += s.income;
     }
     const dir = this.sortDir() === 'asc' ? 1 : -1;
@@ -305,18 +307,40 @@ export class AreaStatsComponent {
   }
 
   private exportHeaders(): string[] {
-    return ['Governorate', 'Area', 'Ref by Month', 'Ref by Day', 'Total Test Count', 'Total Income', ...this.periods().map((p) => this.colLabel(p))];
+    return ['Governorate', 'Area', 'Real Name', 'Ref by Month', 'Ref by Day', 'Total Test Count', 'Total Income', ...this.periods().map((p) => this.colLabel(p))];
   }
   private exportRows(): (string | number)[][] {
     const periods = this.periods();
     const out: (string | number)[][] = [];
     for (const g of this.groups()) {
-      out.push([g.gov, '', g.refMonth, Math.round(this.refDay(g.refMonth)), g.total, Math.round(g.income * 10) / 10, ...periods.map((p) => this.gcell(g, p))]);
+      out.push([g.gov, '', g.realName ?? '', g.refMonth, Math.round(this.refDay(g.refMonth)), g.total, Math.round(g.income * 10) / 10, ...periods.map((p) => this.gcell(g, p))]);
       for (const a of g.areas)
-        out.push(['', a.area, a.refMonth, Math.round(this.refDay(a.refMonth)), a.total, Math.round(a.income * 10) / 10, ...periods.map((p) => this.acell(a, p))]);
+        out.push(['', a.area, a.realName ?? '', a.refMonth, Math.round(this.refDay(a.refMonth)), a.total, Math.round(a.income * 10) / 10, ...periods.map((p) => this.acell(a, p))]);
     }
     return out;
   }
   exportExcel(): void { exportCsv(`area-statistics-${this.today}.csv`, this.exportHeaders(), this.exportRows()); }
-  exportPdf(): void { printTable('Area statistics', this.exportHeaders(), this.exportRows()); }
+
+  /** PDF report: renders the grouped grid with the real name beside each name and the same green/red flags. */
+  exportPdf(): void {
+    const periods = this.periods();
+    const head = ['Governorate / Area', 'Ref by Month', 'Ref by Day', 'Total Test Count', 'Total Income', ...periods.map((p) => this.colLabel(p))];
+    const thead = '<thead><tr>' + head.map((h, i) => `<th class="${i >= 1 ? 'r' : ''}">${escHtml(h)}</th>`).join('') + '</tr></thead>';
+    const rn = (v: string | null) => (v ? `<span class="rn">${escHtml(v)}</span>` : '');
+    const dec = (v: number) => Math.round(v * 10) / 10;
+    let body = '';
+    for (const g of this.groups()) {
+      body += `<tr class="gov"><td>${escHtml(g.gov)}${rn(g.realName)}</td>`
+        + `<td class="r">${g.refMonth}</td><td class="r">${Math.round(this.refDay(g.refMonth))}</td>`
+        + `<td class="r">${g.total}</td><td class="r">${dec(g.income)}</td>`
+        + periods.map((p) => { const v = this.gcell(g, p); return `<td class="r ${this.flag(v, g.refMonth)}">${v}</td>`; }).join('') + '</tr>';
+      for (const a of g.areas) {
+        body += `<tr><td style="padding-inline-start:22px">${escHtml(a.area)}${rn(a.realName)}</td>`
+          + `<td class="r">${a.refMonth}</td><td class="r">${Math.round(this.refDay(a.refMonth))}</td>`
+          + `<td class="r">${a.total}</td><td class="r">${dec(a.income)}</td>`
+          + periods.map((p) => { const v = this.acell(a, p); return `<td class="r ${this.flag(v, a.refMonth)}">${v}</td>`; }).join('') + '</tr>';
+      }
+    }
+    printDoc(`Area statistics (${this.from} → ${this.to})`, `<table>${thead}<tbody>${body}</tbody></table>`);
+  }
 }
