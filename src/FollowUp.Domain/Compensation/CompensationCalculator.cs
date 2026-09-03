@@ -24,7 +24,12 @@ public sealed class CompensationCalculator
         return (tier?.Points ?? 0, tier?.Name);
     }
 
-    /// <summary>Commission result for a rep: commission on achieved volume, plus a flat bonus past the threshold.</summary>
+    /// <summary>
+    /// Commission result for a rep: commission on achieved volume, plus a flat bonus past the threshold.
+    /// Deliberately a single sample-count formula for every rep type (BR-9): the rep's GoalType/GoalDuration/
+    /// Metric are profile + reporting attributes, NOT commission inputs, so this method does not branch on them.
+    /// This is a confirmed decision, not an omission — see docs/adr/0009-single-commission-formula.md (CPN-10).
+    /// </summary>
     public (Money Commission, Money Bonus) ComputeCommission(decimal achieved, decimal target, Money baseSalary)
     {
         var commission = new Money(achieved * (_config.CommissionRatePercent / 100m));

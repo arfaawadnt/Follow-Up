@@ -23,8 +23,12 @@ public static class LaboratoryEndpoints
             string? governorate, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetLaboratoriesQuery
             {
-                Page = page ?? 1, PageSize = pageSize ?? 50, Search = search,
-                Status = status, Segment = segment, Governorate = governorate,
+                Page = page ?? 1,
+                PageSize = pageSize ?? 50,
+                Search = search,
+                Status = status,
+                Segment = segment,
+                Governorate = governorate,
             }, ct))).WithTags("Laboratories");
 
         api.MapGet("/labs/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>
@@ -64,7 +68,11 @@ public static class LaboratoryEndpoints
             IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetRepresentativesQuery
             {
-                Page = page ?? 1, PageSize = pageSize ?? 50, Search = search, Type = type, ActiveOnly = activeOnly,
+                Page = page ?? 1,
+                PageSize = pageSize ?? 50,
+                Search = search,
+                Type = type,
+                ActiveOnly = activeOnly,
             }, ct))).WithTags("Representatives");
 
         api.MapGet("/reps/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>

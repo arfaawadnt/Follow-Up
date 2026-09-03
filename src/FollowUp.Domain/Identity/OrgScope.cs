@@ -70,6 +70,20 @@ public sealed class OrgScope : ValueObject
         DimensionAllows(Segments, segment);
 
     /// <summary>
+    /// Whether a record scoped by the geographic dimensions ONLY (Branch/Governorate/City/Area) is visible.
+    /// For entities that carry no Category/Segment attribution — a <c>Representative</c> — those two dimensions
+    /// must not restrict visibility: passing <see cref="Wildcard"/> as the value would instead deny any caller
+    /// who is themselves Category/Segment-scoped (a value of "*" is not in a restricted caller's set), hiding
+    /// every rep from a legitimately-scoped commission manager. A null geographic value is still allowed only
+    /// when that dimension is wildcarded (same fail-closed rule as the six-dimension overload).
+    /// </summary>
+    public bool Allows(string? branch, string? governorate, string? city, string? area) =>
+        DimensionAllows(Branches, branch) &&
+        DimensionAllows(Governorates, governorate) &&
+        DimensionAllows(Cities, city) &&
+        DimensionAllows(Areas, area);
+
+    /// <summary>
     /// True when this scope is entirely contained by <paramref name="other"/> — used by the
     /// anti-amplification guard (BR-12): nobody may grant scope breadth they do not themselves hold.
     /// </summary>

@@ -28,7 +28,7 @@ internal sealed class DailyBoardQueries : IDailyBoardQueries
         if (status is { Length: > 0 })
         {
             // "Visited" spans the collected + received states; other pills match exactly (converted equality translates).
-            if (status == "Visited")
+            if (status == VisitStatus.Visited.Name) // BRD-11: bound to the enumeration, not a raw literal
                 q = q.Where(v => v.Status == VisitStatus.Visited || v.Status == VisitStatus.Received);
             else
                 q = q.Where(v => v.Status == Enumeration.FromName<VisitStatus>(status));
@@ -37,7 +37,7 @@ internal sealed class DailyBoardQueries : IDailyBoardQueries
         var rows = await (from v in q
                           join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
                           orderby v.VisitDate, v.ScheduledTime
-                          select new { v.Id, v.LaboratoryId, l.Code, l.Name, l.Branch, l.Governorate, l.City, l.Area,
+                          select new { v.Id, v.LaboratoryId, l.Code, l.IsEncrypted, l.Name, l.Branch, l.Governorate, l.City, l.Area,
                               v.CollectorRepId, v.VisitDate, v.ScheduledTime, v.Status, v.SampleCount, v.CheckedInAt, v.AdminChecked, v.TransferConfirmedAt })
                          .ToListAsync(ct);
 
@@ -46,7 +46,7 @@ internal sealed class DailyBoardQueries : IDailyBoardQueries
             .Select(r => new { r.Id, r.FullName }).ToListAsync(ct)).ToDictionary(r => r.Id, r => r.FullName);
 
         return rows.Select(r => new BoardItemDto(
-            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Code.Value, r.Name,
+            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, r.IsEncrypted, canSeeEncrypted), r.Name,
             r.CollectorRepId != null ? r.CollectorRepId.Value.Value : (Guid?)null,
             r.CollectorRepId != null && repName.TryGetValue(r.CollectorRepId.Value, out var n) ? n : null,
             r.Branch, r.Governorate, r.City, r.Area,
@@ -55,10 +55,14 @@ internal sealed class DailyBoardQueries : IDailyBoardQueries
             r.TransferConfirmedAt != null)).ToList();
     }
 
-    public async Task<int?> GetSuggestedSampleCountAsync(Guid visitId, CancellationToken ct)
+    public async Task<int?> GetSuggestedSampleCountAsync(Guid visitId, OrgScope scope, CancellationToken ct)
     {
-        // Suggested value = the lab's most recent recorded sample count (SRS FR-5 helper).
-        var visit = await _db.DailyVisits.AsNoTracking().FirstOrDefaultAsync(v => v.Id == new DailyVisitId(visitId), ct);
+        // Suggested value = the lab's most recent recorded sample count (SRS FR-5 helper). Scope the lookup:
+        // a visit whose lab is outside the caller's org scope is not resolvable here (SRS SCOPE-READ).
+        var visit = await (from v in _db.DailyVisits.AsNoTracking()
+                           join l in _db.Laboratories.ApplyScope(scope) on v.LaboratoryId equals l.Id
+                           where v.Id == new DailyVisitId(visitId)
+                           select v).FirstOrDefaultAsync(ct);
         if (visit is null) return null;
         return await _db.DailyVisits.AsNoTracking()
             .Where(v => v.LaboratoryId == visit.LaboratoryId && v.SampleCount != null)
@@ -81,7 +85,7 @@ internal sealed class TransferQueries : ITransferQueries
                           where v.Status == visited && v.VisitDate >= start && v.VisitDate <= end && scopedLabs.Contains(v.LaboratoryId)
                           join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
                           orderby v.VisitDate, v.ScheduledTime
-                          select new { v.Id, v.LaboratoryId, l.Code, l.Name, l.Branch, l.Governorate, l.City, l.Area,
+                          select new { v.Id, v.LaboratoryId, l.Code, l.IsEncrypted, l.Name, l.Branch, l.Governorate, l.City, l.Area,
                               v.VisitDate, v.ScheduledTime, v.CollectorRepId, v.SampleCount, v.TransferConfirmedAt,
                               v.TransferRepId, v.Transfer })
                          .ToListAsync(ct);
@@ -92,7 +96,7 @@ internal sealed class TransferQueries : ITransferQueries
         string? Name(RepresentativeId? id) => id != null && repName.TryGetValue(id.Value, out var n) ? n : null;
 
         return rows.Select(r => new TransferItemDto(
-            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Code.Value, r.Name,
+            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, r.IsEncrypted, canSeeEncrypted), r.Name,
             r.Branch, r.Governorate, r.City, r.Area,
             r.VisitDate, r.ScheduledTime.ToString("HH:mm"), Name(r.CollectorRepId), r.SampleCount,
             r.TransferConfirmedAt != null, r.Transfer?.DriverName, r.Transfer?.DriverMobile, r.Transfer?.CarPlate,
@@ -116,7 +120,7 @@ internal sealed class LabCheckInQueries : ILabCheckInQueries
                                 && v.VisitDate >= start && v.VisitDate <= end && scopedLabs.Contains(v.LaboratoryId)
                           join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
                           orderby v.VisitDate, v.ScheduledTime
-                          select new { v.Id, v.LaboratoryId, l.Code, l.Name, l.Branch, l.Governorate, l.City, l.Area,
+                          select new { v.Id, v.LaboratoryId, l.Code, l.IsEncrypted, l.Name, l.Branch, l.Governorate, l.City, l.Area,
                               v.VisitDate, v.ScheduledTime, v.CollectorRepId, v.SampleCount, v.Status, v.TransferRepId,
                               v.TransferConfirmedAt, v.ReceivedAt })
                          .ToListAsync(ct);
@@ -128,10 +132,11 @@ internal sealed class LabCheckInQueries : ILabCheckInQueries
         string? Name(RepresentativeId? id) => id != null && repName.TryGetValue(id.Value, out var n) ? n : null;
 
         return rows.Select(r => new ReceivingItemDto(
-            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Code.Value, r.Name,
+            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, r.IsEncrypted, canSeeEncrypted), r.Name,
             r.Branch, r.Governorate, r.City, r.Area, r.VisitDate, r.ScheduledTime.ToString("HH:mm"),
             Name(r.CollectorRepId), r.SampleCount,
-            r.Status == received ? "Received" : "Transferred",
+            // "Transferred" is a display-only status (no VisitStatus member); "Received" is bound to the enum (BRD-11).
+            r.Status == received ? VisitStatus.Received.Name : "Transferred",
             Name(r.TransferRepId),
             r.TransferConfirmedAt?.ToString("o"),
             r.ReceivedAt?.ToString("o"))).ToList();
@@ -150,10 +155,10 @@ internal sealed class OutsourceQueries : IOutsourceQueries
                 where scopedLabs.Contains(o.LaboratoryId) && o.VisitDate >= start && o.VisitDate <= end
                 join l in _db.Laboratories.AsNoTracking() on o.LaboratoryId equals l.Id
                 orderby o.VisitDate descending
-                select new { o.Id, o.LaboratoryId, l.Code, l.Name, o.VisitDate, o.DestinationLab, o.Quantity, o.Status, o.Notes };
+                select new { o.Id, o.LaboratoryId, l.Code, l.IsEncrypted, l.Name, o.VisitDate, o.DestinationLab, o.Quantity, o.Status, o.Notes };
         var rows = await q.ToListAsync(ct);
         return rows.Select(r => new OutsourceSampleDto(
-            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Name, r.VisitDate,
+            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, r.IsEncrypted, canSeeEncrypted), r.Name, r.VisitDate,
             r.DestinationLab, r.Quantity, r.Status.Name, r.Notes)).ToList();
     }
 }
@@ -205,18 +210,18 @@ internal sealed class SampleTrackingQueries : ISampleTrackingQueries
         var live = (await (from v in _db.DailyVisits.AsNoTracking()
                            where v.VisitDate >= start && v.VisitDate <= end && v.SampleCount != null
                            join l in _db.Laboratories.ApplyScope(scope).AsNoTracking() on v.LaboratoryId equals l.Id
-                           select new { l.Code, l.Name, l.Area, v.VisitDate, Time = (TimeOnly?)v.ScheduledTime,
+                           select new { l.Code, l.IsEncrypted, l.Name, l.Area, v.VisitDate, Time = (TimeOnly?)v.ScheduledTime,
                                v.SampleCount, v.CheckedInAt, v.TransferConfirmedAt, v.ReceivedAt,
                                v.CollectorRepId, v.TransferRepId, v.Transfer })
                           .ToListAsync(ct))
-            .Select(v => new { v.Code, v.Name, v.Area, v.VisitDate, v.Time, v.SampleCount, v.CheckedInAt,
+            .Select(v => new { v.Code, v.IsEncrypted, v.Name, v.Area, v.VisitDate, v.Time, v.SampleCount, v.CheckedInAt,
                 v.TransferConfirmedAt, v.ReceivedAt, v.CollectorRepId, v.TransferRepId,
                 DriverName = v.Transfer?.DriverName, DriverMobile = v.Transfer?.DriverMobile, CarPlate = v.Transfer?.CarPlate });
 
         var archived = await (from h in _db.VisitHistory.AsNoTracking()
                               where h.VisitDate >= start && h.VisitDate <= end && h.SampleCount != null
                               join l in _db.Laboratories.ApplyScope(scope).AsNoTracking() on h.LaboratoryId equals l.Id
-                              select new { l.Code, l.Name, l.Area, h.VisitDate, Time = h.ScheduledTime,
+                              select new { l.Code, l.IsEncrypted, l.Name, l.Area, h.VisitDate, Time = h.ScheduledTime,
                                   h.SampleCount, h.CheckedInAt, h.TransferConfirmedAt, h.ReceivedAt,
                                   h.CollectorRepId, h.TransferRepId, h.DriverName, h.DriverMobile, h.CarPlate })
                              .ToListAsync(ct);
@@ -242,7 +247,7 @@ internal sealed class SampleTrackingQueries : ISampleTrackingQueries
             {
                 var t = r.Area != null && tracking.TryGetValue((r.Area, r.VisitDate), out var found) ? found : null;
                 return new SampleLifecycleRowDto(
-                    r.Name, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Area,
+                    r.Name, DisplayCode.For(r.Code.Value, r.IsEncrypted, canSeeEncrypted), r.Area,
                     r.VisitDate, r.Time?.ToString("HH:mm") ?? "—", r.SampleCount,
                     NameOf(r.CollectorRepId), r.CheckedInAt,
                     NameOf(r.TransferRepId), r.DriverName, r.DriverMobile, r.CarPlate, r.TransferConfirmedAt,
@@ -263,10 +268,23 @@ internal sealed class SampleTrackingQueries : ISampleTrackingQueries
                           where l.Area == area
                           select v.SampleCount!.Value).SumAsync(ct);
         var archived = await (from h in _db.VisitHistory.AsNoTracking()
-                              where h.VisitDate == date && h.Status == "Received" && h.SampleCount != null
+                              where h.VisitDate == date && h.Status == received.Name && h.SampleCount != null
                               join l in _db.Laboratories.AsNoTracking() on h.LaboratoryId equals l.Id
                               where l.Area == area
                               select h.SampleCount!.Value).SumAsync(ct);
         return live + archived;
+    }
+
+    public async Task<IReadOnlyList<DateOnly>> GetReceivedVisitDatesAsync(
+        FollowUp.Domain.Laboratories.LaboratoryId laboratoryId, CancellationToken ct)
+    {
+        var received = VisitStatus.Received;
+        var live = await _db.DailyVisits.AsNoTracking()
+            .Where(v => v.LaboratoryId == laboratoryId && v.Status == received && v.SampleCount != null)
+            .Select(v => v.VisitDate).Distinct().ToListAsync(ct);
+        var archived = await _db.VisitHistory.AsNoTracking()
+            .Where(h => h.LaboratoryId == laboratoryId && h.Status == received.Name && h.SampleCount != null)
+            .Select(h => h.VisitDate).Distinct().ToListAsync(ct);
+        return live.Union(archived).OrderBy(d => d).ToList();
     }
 }

@@ -34,13 +34,13 @@ internal sealed class ComplaintQueries : IComplaintQueries
         var rows = await (from cp in q
                           join l in _db.Laboratories.AsNoTracking() on cp.LaboratoryId equals l.Id
                           orderby cp.Number descending
-                          select new { cp.Id, cp.Number, cp.LaboratoryId, l.Code, l.Name, LabCategory = l.Category, cp.Category, cp.ViaChannel,
+                          select new { cp.Id, cp.Number, cp.LaboratoryId, l.Code, l.IsEncrypted, l.Name, LabCategory = l.Category, cp.Category, cp.ViaChannel,
                               cp.AssignedTeam, cp.Details, cp.Status, cp.Stage, cp.ResolvedBy, cp.ResolvedAt, cp.ResolutionSummary, cp.CreatedAt })
                          .Skip(criteria.Skip).Take(criteria.PageSize).ToListAsync(ct);
 
         var todayNum = DateOnly.FromDateTime(DateTime.UtcNow).DayNumber;
         var items = rows.Select(r => new ComplaintListItemDto(
-            r.Id.Value, $"CMP-{r.Number}", r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Name,
+            r.Id.Value, $"CMP-{r.Number}", r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, r.IsEncrypted, canSeeEncrypted), r.Name,
             r.LabCategory, r.Category, r.ViaChannel, r.AssignedTeam, r.Details, r.Status.Name, r.Stage.Name,
             Math.Max(0, todayNum - DateOnly.FromDateTime(r.CreatedAt.UtcDateTime).DayNumber),
             r.ResolvedBy, r.ResolvedAt, r.ResolutionSummary, r.CreatedAt)).ToList();
@@ -48,12 +48,31 @@ internal sealed class ComplaintQueries : IComplaintQueries
         return PagedResult<ComplaintListItemDto>.Create(items, total, criteria.Page, criteria.PageSize);
     }
 
-    public async Task<ComplaintDetailDto?> GetByIdAsync(Guid id, bool canSeeEncrypted, CancellationToken ct)
+    public async Task<ComplaintCountsDto> CountsAsync(OrgScope scope, string? category, Guid? laboratoryId, CancellationToken ct)
     {
+        // Status breakdown over the whole in-scope set (CMP-16), honouring category/lab but not status, so the
+        // filter pills stay accurate no matter which status page is loaded. Converted-type equality translates.
+        var scopedLabs = _db.Laboratories.ApplyScope(scope).Select(l => l.Id);
+        var q = _db.Complaints.AsNoTracking().Where(c => scopedLabs.Contains(c.LaboratoryId));
+        if (!string.IsNullOrWhiteSpace(category))
+            q = q.Where(c => c.Category == category);
+        if (laboratoryId is { } labId)
+            q = q.Where(c => c.LaboratoryId == new Domain.Laboratories.LaboratoryId(labId));
+
+        var open = await q.CountAsync(c => c.Status == Domain.Complaints.ComplaintStatus.Open, ct);
+        var inProgress = await q.CountAsync(c => c.Status == Domain.Complaints.ComplaintStatus.InProgress, ct);
+        var resolved = await q.CountAsync(c => c.Status == Domain.Complaints.ComplaintStatus.Resolved, ct);
+        return new ComplaintCountsDto(open + inProgress + resolved, open, inProgress, resolved);
+    }
+
+    public async Task<ComplaintDetailDto?> GetByIdAsync(Guid id, OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
+    {
+        // Scope the join to the caller's org scope: an out-of-scope complaint yields no row → null → 404,
+        // matching the list read (SearchAsync) and the SRS SCOPE-READ requirement.
         var row = await (from c in _db.Complaints.AsNoTracking()
                          where c.Id == new Domain.Complaints.ComplaintId(id)
-                         join l in _db.Laboratories.AsNoTracking() on c.LaboratoryId equals l.Id
-                         select new { c, l.Code, l.Name }).FirstOrDefaultAsync(ct);
+                         join l in _db.Laboratories.ApplyScope(scope).AsNoTracking() on c.LaboratoryId equals l.Id
+                         select new { c, l.Code, l.IsEncrypted, l.Name }).FirstOrDefaultAsync(ct);
         if (row is null) return null;
         var complaint = row.c;
 
@@ -64,7 +83,7 @@ internal sealed class ComplaintQueries : IComplaintQueries
                 .Select(r => r.FullName).FirstOrDefaultAsync(ct);
 
         return new ComplaintDetailDto(
-            complaint.Id.Value, complaint.Reference, complaint.LaboratoryId.Value, DisplayCode.For(row.Code.Value, canSeeEncrypted),
+            complaint.Id.Value, complaint.Reference, complaint.LaboratoryId.Value, DisplayCode.For(row.Code.Value, row.IsEncrypted, canSeeEncrypted),
             row.Name, complaint.Category, complaint.ViaChannel, complaint.AssignedTeam, complaint.Details,
             complaint.Status.Name, complaint.Stage.Name, complaint.ResolvedAt, complaint.ResolvedBy,
             complaint.RepresentativeId, repName, complaint.ReceivedAt,
@@ -72,8 +91,16 @@ internal sealed class ComplaintQueries : IComplaintQueries
             complaint.OutcomeType, complaint.OutcomeSummary, complaint.ResolutionSummary, complaint.CreatedAt);
     }
 
-    public async Task<IReadOnlyList<ComplaintAuditRowDto>> GetAuditAsync(Guid id, CancellationToken ct)
+    public async Task<IReadOnlyList<ComplaintAuditRowDto>> GetAuditAsync(Guid id, OrgScope scope, CancellationToken ct)
     {
+        // Confirm the complaint's lab is within the caller's org scope before exposing its audit trail
+        // (the trail includes before/after snapshots). Out of scope → empty, never a cross-scope disclosure.
+        var inScope = await (from c in _db.Complaints.AsNoTracking()
+                             join l in _db.Laboratories.ApplyScope(scope) on c.LaboratoryId equals l.Id
+                             where c.Id == new Domain.Complaints.ComplaintId(id)
+                             select c.Id).AnyAsync(ct);
+        if (!inScope) return Array.Empty<ComplaintAuditRowDto>();
+
         var idStr = id.ToString();
         return await _db.AuditEntries.AsNoTracking()
             .Where(a => a.Entity == "Complaint" && a.EntityId == idStr)
@@ -109,7 +136,7 @@ internal sealed class MarketingQueries : IMarketingQueries
         var rows = await (from mv in q
                           join l in _db.Laboratories.AsNoTracking() on mv.LaboratoryId equals l.Id
                           orderby (mv.Status == scheduled ? 0 : 1), mv.ScheduledDate descending, mv.Number descending // BR-10: scheduled first
-                          select new { mv.Id, mv.Number, mv.LaboratoryId, l.Code, l.Name, l.Area, l.Governorate, mv.RepresentativeId, mv.Purpose, mv.ScheduledDate, mv.ScheduledTime, mv.Plan, mv.Status, mv.Outcome })
+                          select new { mv.Id, mv.Number, mv.LaboratoryId, l.Code, l.IsEncrypted, l.Name, l.Area, l.Governorate, mv.RepresentativeId, mv.Purpose, mv.ScheduledDate, mv.ScheduledTime, mv.Plan, mv.Status, mv.Outcome })
                          .Skip(criteria.Skip).Take(criteria.PageSize).ToListAsync(ct);
 
         var repIds = rows.Select(r => r.RepresentativeId).Distinct().ToList();
@@ -117,7 +144,7 @@ internal sealed class MarketingQueries : IMarketingQueries
             .Select(r => new { r.Id, r.FullName }).ToListAsync(ct)).ToDictionary(r => r.Id, r => r.FullName);
 
         var items = rows.Select(r => new MarketingVisitDto(
-            r.Id.Value, $"MV{r.Number}", r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, canSeeEncrypted), r.Name, r.Area, r.Governorate,
+            r.Id.Value, $"MV{r.Number}", r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, r.IsEncrypted, canSeeEncrypted), r.Name, r.Area, r.Governorate,
             r.RepresentativeId.Value, repName.TryGetValue(r.RepresentativeId, out var n) ? n : null,
             r.Purpose.Name, r.ScheduledDate, r.ScheduledTime.HasValue ? r.ScheduledTime.Value.ToString("HH:mm") : null, r.Plan,
             r.Status.Name, r.Outcome)).ToList();

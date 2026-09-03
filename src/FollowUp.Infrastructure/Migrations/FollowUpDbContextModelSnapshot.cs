@@ -120,6 +120,12 @@ namespace FollowUp.Infrastructure.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("loyalty_tiers");
 
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
@@ -250,6 +256,10 @@ namespace FollowUp.Infrastructure.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("category");
 
+                    b.Property<long>("ContentVersion")
+                        .HasColumnType("bigint")
+                        .HasColumnName("content_version");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -314,6 +324,12 @@ namespace FollowUp.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("resolved_by");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
 
                     b.Property<string>("Stage")
                         .IsRequired()
@@ -401,6 +417,12 @@ namespace FollowUp.Infrastructure.Migrations
                         .HasDefaultValue(true)
                         .HasColumnName("is_active");
 
+                    b.Property<bool>("IsBuiltIn")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_built_in");
+
                     b.Property<string>("Language")
                         .IsRequired()
                         .HasMaxLength(8)
@@ -423,6 +445,12 @@ namespace FollowUp.Infrastructure.Migrations
                     b.Property<Guid>("RoleId")
                         .HasColumnType("uuid")
                         .HasColumnName("role_id");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -449,10 +477,6 @@ namespace FollowUp.Infrastructure.Migrations
 
                     b.HasIndex("RoleId")
                         .HasDatabaseName("ix_app_user_role_id");
-
-                    b.HasIndex("Username")
-                        .IsUnique()
-                        .HasDatabaseName("ix_app_user_username");
 
                     b.ToTable("app_user", (string)null);
                 });
@@ -501,6 +525,12 @@ namespace FollowUp.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("jsonb")
                         .HasColumnName("privileges");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
 
                     b.Property<string>("Scope")
                         .IsRequired()
@@ -1157,6 +1187,12 @@ namespace FollowUp.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("request_count");
 
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.Property<int?>("SampleCount")
                         .HasColumnType("integer")
                         .HasColumnName("sample_count");
@@ -1213,6 +1249,10 @@ namespace FollowUp.Infrastructure.Migrations
 
                     b.HasIndex("LaboratoryId", "VisitDate")
                         .HasDatabaseName("ix_daily_visit_laboratory_id_visit_date");
+
+                    b.HasIndex("LaboratoryId", "VisitDate", "ScheduledTime")
+                        .IsUnique()
+                        .HasDatabaseName("ix_daily_visit_laboratory_id_visit_date_scheduled_time");
 
                     b.ToTable("daily_visit", (string)null);
                 });
@@ -1329,6 +1369,12 @@ namespace FollowUp.Infrastructure.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)")
                         .HasColumnName("notes");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")

@@ -90,9 +90,8 @@ export class EsignPanelComponent implements OnInit {
     if (!this.password) return;
     this.busy.set(true);
     this.error.set(null);
-    this.api.post('/esign/sign', {
-      module: this.module, recordId: this.recordId, meaning: this.meaning,
-      reason: this.reason || null, password: this.password,
+    this.api.post(`/esign/${this.module}/${this.recordId}/sign`, {
+      meaning: this.meaning, reason: this.reason || null, password: this.password,
     }).subscribe({
       next: () => { this.busy.set(false); this.cancel(); this.verify(); },
       error: (err) => { this.busy.set(false); this.error.set(err?.error?.detail ?? 'Signature rejected (check your password).'); },

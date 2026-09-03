@@ -15,7 +15,7 @@ namespace FollowUp.Application.Features.Transfers;
 
 // Mirrors the reference platform's transfer row: collected visits in a date range, transferred or pending.
 public sealed record TransferItemDto(
-    Guid VisitId, Guid LaboratoryId, string LabDisplayCode, string LabCode, string LabName,
+    Guid VisitId, Guid LaboratoryId, string LabDisplayCode, string LabName,
     string? Branch, string? Governorate, string? City, string? Area,
     DateOnly VisitDate, string VisitTime, string? CollectorName, int? Samples,
     bool TransferDone, string? DriverName, string? DriverMobile, string? CarPlate,

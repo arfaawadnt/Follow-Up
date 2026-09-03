@@ -24,4 +24,5 @@ public interface ISampleTrackingRepository
     Task<SampleTracking?> GetByIdAsync(SampleTrackingId id, CancellationToken ct);
     Task<SampleTracking?> GetByAreaDateAsync(string area, DateOnly date, CancellationToken ct);
     void Add(SampleTracking tracking);
+    void Remove(SampleTracking tracking);
 }

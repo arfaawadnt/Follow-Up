@@ -30,8 +30,11 @@ public static class OperationsEndpoints
         {
             await m.Send(new CheckInVisitCommand(id, b.SampleCount)
             {
-                CollectorRepId = b.CollectorRepId, TotalRequired = b.TotalRequired,
-                RequestCount = b.RequestCount, OutsourceCount = b.OutsourceCount, Notes = b.Notes,
+                CollectorRepId = b.CollectorRepId,
+                TotalRequired = b.TotalRequired,
+                RequestCount = b.RequestCount,
+                OutsourceCount = b.OutsourceCount,
+                Notes = b.Notes,
             }, ct);
             return Results.NoContent();
         }).WithTags("DailyBoard");

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using FollowUp.Application.Common.Abstractions;
 using FollowUp.Application.Common.Abstractions.Persistence;
 using FollowUp.Domain.Complaints;
@@ -27,15 +28,38 @@ public sealed class RecordHasher : IRecordHasher
         var c = await _db.Complaints.AsNoTracking().FirstOrDefaultAsync(x => x.Id == new ComplaintId(id), ct);
         if (c is null) return null;
 
-        // Canonical content: a change to any of these should invalidate an existing signature.
-        var canonical = string.Join("|",
-            c.Number, c.Category, c.ViaChannel, c.AssignedTeam ?? "", c.Details, c.Status.Name, c.Stage.Name);
+        // Canonical content: EVERY material field whose change must invalidate a bound signature (SRS FR-19).
+        // Serialized as JSON so field boundaries are unambiguous — the previous "|"-joined string both omitted
+        // the investigation/outcome/resolution fields (SIG-1) and could collide across free-text values (SIG-7,
+        // e.g. AssignedTeam="Ops",Details="x|y" vs AssignedTeam="Ops|x",Details="y"). Changing this formula
+        // invalidates signatures made under the old one (hard-cutover decision 2026-08-27): they verify as
+        // "record changed" and must be re-signed. See docs/adr/0008-esign-hash-hard-cutover.md.
+        var canonical = JsonSerializer.Serialize(new
+        {
+            c.Number,
+            LaboratoryId = c.LaboratoryId.Value,
+            c.Category,
+            c.ViaChannel,
+            c.AssignedTeam,
+            c.Details,
+            Status = c.Status.Name,
+            Stage = c.Stage.Name,
+            c.IsValid,
+            c.ValidityNotes,
+            c.InvestigationNotes,
+            c.OutcomeType,
+            c.OutcomeSummary,
+            c.ResolutionSummary,
+            c.RepresentativeId,
+            c.ReceivedAt,
+        });
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
 
-        // No dedicated row-version column on complaint; a deterministic version derived from the content lets
-        // ElectronicSignature.StillValidFor bind to a specific state.
-        var version = BitConverter.ToUInt32(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)), 0);
-        return (hash, version);
+        // The complaint's monotonic ContentVersion (bumped by every material mutator) is the real version — a
+        // strictly increasing counter, so an edit-and-revert (A→B→A) cannot resurrect an earlier signature the
+        // way the previous hash-derived "version" did (SIG-4). The hash stays the change discriminator; the
+        // version adds continuity. StillValidFor requires BOTH to match.
+        return (hash, c.ContentVersion);
     }
 }
 

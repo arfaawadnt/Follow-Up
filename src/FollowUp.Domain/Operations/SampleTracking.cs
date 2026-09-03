@@ -33,7 +33,7 @@ public sealed class TrackingStep : ValueObject
 /// <c>Data entry → Review → Sort</c>, each step capturing acting user + timestamp. A later step cannot be
 /// recorded before its predecessor.
 /// </summary>
-public sealed class SampleTracking : AggregateRoot<SampleTrackingId>, IAuditable
+public sealed class SampleTracking : AggregateRoot<SampleTrackingId>, IVersioned, IAuditable
 {
     private SampleTracking() { } // EF
 
@@ -43,6 +43,10 @@ public sealed class SampleTracking : AggregateRoot<SampleTrackingId>, IAuditable
         Area = area;
         Date = date;
     }
+
+    /// <summary>Optimistic-concurrency token (Postgres xmin): the pipeline is edited by several users, so a stale
+    /// data-entry/review/sort or count update conflicts (409) instead of silently overwriting. Finding ST-9.</summary>
+    public uint RowVersion { get; private set; }
 
     public string Area { get; private set; } = null!;
     public DateOnly Date { get; private set; }
@@ -54,6 +58,9 @@ public sealed class SampleTracking : AggregateRoot<SampleTrackingId>, IAuditable
 
     /// <summary>Free-text notes on the area/day assignment (reference parity).</summary>
     public string? Notes { get; private set; }
+
+    /// <summary>True while no pipeline step or note exists — such rows may be dropped when a recompute lands on zero.</summary>
+    public bool IsUntouched => DataEntry is null && Review is null && Sort is null && Notes is null;
 
     public DateTimeOffset CreatedAt { get; private set; }
     public string CreatedBy { get; private set; } = null!;

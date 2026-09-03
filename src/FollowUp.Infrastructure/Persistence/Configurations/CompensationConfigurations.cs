@@ -61,6 +61,7 @@ internal sealed class CompensationConfigConfiguration : IEntityTypeConfiguration
         b.ToTable("compensation_config");
         b.HasKey(x => x.Id);
         b.Property(x => x.Id).HasMaxLength(50);
+        b.Property(x => x.RowVersion).IsRowVersion().HasColumnName("xmin").HasColumnType("xid"); // xmin optimistic concurrency (CPN-9)
         b.IgnoreDomainEvents();
         b.MapAuditable();
 

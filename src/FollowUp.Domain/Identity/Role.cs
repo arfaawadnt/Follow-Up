@@ -12,7 +12,7 @@ public readonly record struct RoleId(Guid Value)
 /// A dynamic, data-defined role (SRS FR-2). Bundles a privilege set, default language/theme, and the
 /// six-dimension org scope. The built-in <c>admin</c> role and in-use roles are protected from deletion.
 /// </summary>
-public sealed class Role : AggregateRoot<RoleId>, IAuditable
+public sealed class Role : AggregateRoot<RoleId>, IVersioned, IAuditable
 {
     private readonly HashSet<string> _privileges = new(StringComparer.OrdinalIgnoreCase);
 
@@ -29,6 +29,9 @@ public sealed class Role : AggregateRoot<RoleId>, IAuditable
     }
 
     public string Name { get; private set; } = null!;
+
+    /// <summary>Optimistic-concurrency token (Postgres xmin); concurrent edits conflict (409). Finding IDN-4.</summary>
+    public uint RowVersion { get; private set; }
     public string DefaultLanguage { get; private set; } = "en";
     public string DefaultTheme { get; private set; } = "light";
     public OrgScope Scope { get; private set; } = null!;

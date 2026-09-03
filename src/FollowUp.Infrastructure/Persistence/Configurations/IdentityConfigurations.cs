@@ -10,17 +10,21 @@ internal sealed class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
     {
         b.ToTable("app_user");
         b.HasKey(x => x.Id);
+        b.Property(x => x.RowVersion).IsRowVersion().HasColumnName("xmin").HasColumnType("xid"); // xmin optimistic concurrency (IDN-4)
         b.IgnoreDomainEvents();
         b.MapAuditable();
 
         b.Property(x => x.Username).HasMaxLength(100).IsRequired();
         b.Property(x => x.DisplayName).HasMaxLength(150);
-        b.HasIndex(x => x.Username).IsUnique();
+        // Username uniqueness is case-insensitive to match the ToLower lookup (IDN-7); the unique index is
+        // functional (lower(username)), added by raw SQL in the AddCaseInsensitiveUsernameIndex migration since
+        // EF cannot express an expression index here.
 
         b.Property(x => x.Email).HasMaxLength(200);
         b.Property(x => x.Phone).HasMaxLength(40);
         b.Property(x => x.Language).HasMaxLength(8).IsRequired();
         b.Property(x => x.IsActive).HasDefaultValue(true);
+        b.Property(x => x.IsBuiltIn).HasDefaultValue(false); // protected built-in admin (IDN-6)
         b.Property(x => x.FailedLoginCount);
         b.Property(x => x.LockedUntil);
 
@@ -46,6 +50,7 @@ internal sealed class RoleConfiguration : IEntityTypeConfiguration<Role>
     {
         b.ToTable("role");
         b.HasKey(x => x.Id);
+        b.Property(x => x.RowVersion).IsRowVersion().HasColumnName("xmin").HasColumnType("xid"); // xmin optimistic concurrency (IDN-4)
         b.IgnoreDomainEvents();
         b.Ignore(x => x.EffectivePrivileges);
         b.MapAuditable();

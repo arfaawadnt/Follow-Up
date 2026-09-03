@@ -45,7 +45,7 @@ public sealed class CreateUserValidator : AbstractValidator<CreateUserCommand>
     public CreateUserValidator()
     {
         RuleFor(x => x.Username).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.Password).NotEmpty().MinimumLength(8);
+        RuleFor(x => x.Password).StrongPassword(); // length + complexity + deny-list (IDN-10)
         RuleFor(x => x.RoleId).NotEmpty();
     }
 }
@@ -184,8 +184,8 @@ public sealed class DeleteUserHandler : ICommandHandler<DeleteUserCommand>
 
         if (_caller.UserId == user.Id)
             throw new ConflictException("You cannot delete your own account.");
-        if (string.Equals(user.Username, "admin", StringComparison.OrdinalIgnoreCase))
-            throw new ConflictException("The built-in admin account cannot be deleted.");
+        if (user.IsBuiltIn)
+            throw new ConflictException("The built-in administrator account cannot be deleted.");
 
         _users.Remove(user);
         return Unit.Value;
@@ -223,18 +223,21 @@ public sealed record ChangeOwnPasswordCommand(string OldPassword, string NewPass
 
 public sealed class ChangeOwnPasswordValidator : AbstractValidator<ChangeOwnPasswordCommand>
 {
-    public ChangeOwnPasswordValidator() => RuleFor(x => x.NewPassword).NotEmpty().MinimumLength(8);
+    public ChangeOwnPasswordValidator() => RuleFor(x => x.NewPassword).StrongPassword(); // IDN-10
 }
 
 public sealed class ChangeOwnPasswordHandler : ICommandHandler<ChangeOwnPasswordCommand>
 {
     private readonly IAppUserRepository _users;
+    private readonly IUserSessionRepository _sessions;
     private readonly ICurrentUser _caller;
     private readonly IPasswordHasher _hasher;
+    private readonly IClock _clock;
 
-    public ChangeOwnPasswordHandler(IAppUserRepository users, ICurrentUser caller, IPasswordHasher hasher)
+    public ChangeOwnPasswordHandler(IAppUserRepository users, IUserSessionRepository sessions,
+        ICurrentUser caller, IPasswordHasher hasher, IClock clock)
     {
-        _users = users; _caller = caller; _hasher = hasher;
+        _users = users; _sessions = sessions; _caller = caller; _hasher = hasher; _clock = clock;
     }
 
     public async Task<Unit> Handle(ChangeOwnPasswordCommand request, CancellationToken ct)
@@ -246,6 +249,14 @@ public sealed class ChangeOwnPasswordHandler : ICommandHandler<ChangeOwnPassword
             throw new ForbiddenException("The current password is incorrect.");
 
         user.SetPassword(_hasher.Hash(request.NewPassword));
+
+        // Evict the user's other sessions so a stolen bearer token cannot outlive the password change
+        // (finding IDN-5); keep the caller's current session so they are not logged out mid-change.
+        var now = _clock.UtcNow;
+        foreach (var session in await _sessions.GetActiveByUserAsync(_caller.UserId, ct))
+            if (session.Id != _caller.SessionId)
+                session.Revoke(now);
+
         return Unit.Value;
     }
 }

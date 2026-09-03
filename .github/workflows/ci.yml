@@ -1,0 +1,140 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend build + tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: followup
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      FOLLOWUP_DB: "Host=localhost;Port=5432;Database=followup;Username=postgres;Password=postgres"
+      FOLLOWUP_AUTH_SECRET: "ci-signing-secret-0123456789abcdef0123456789"
+      FOLLOWUP_ADMIN_PASSWORD: "Seed_Admin_2026!"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore
+        run: dotnet restore FollowUp.sln
+      - name: Build
+        run: dotnet build FollowUp.sln -c Debug --no-restore
+      - name: Provision database (migrate + seed)
+        # The API self-migrates and seeds on startup; run it until healthy, then stop it. This guarantees the
+        # schema + seed exist before the integration/contract suites run, regardless of test ordering.
+        run: |
+          dotnet src/FollowUp.Api/bin/Debug/net8.0/FollowUp.Api.dll &
+          API_PID=$!
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:5088/healthz/ready >/dev/null; then echo "database provisioned"; break; fi
+            sleep 2
+          done
+          kill "$API_PID" 2>/dev/null || true
+      - name: Test
+        # Run the suites sequentially, not via `dotnet test <sln>`: IntegrationTests and ApiTests share the one
+        # Postgres, and the solution runner parallelises across projects on the CI runner — so IntegrationTests'
+        # ResetAsync deletes would race the ApiTests' create/fetch (labs deleted mid-test -> 404). The suites are
+        # designed for exclusive DB access; run them one at a time.
+        run: |
+          dotnet test tests/FollowUp.Domain.Tests/FollowUp.Domain.Tests.csproj -c Debug --no-build --verbosity normal
+          dotnet test tests/FollowUp.Application.Tests/FollowUp.Application.Tests.csproj -c Debug --no-build --verbosity normal
+          dotnet test tests/FollowUp.ArchitectureTests/FollowUp.ArchitectureTests.csproj -c Debug --no-build --verbosity normal
+          dotnet test tests/FollowUp.IntegrationTests/FollowUp.IntegrationTests.csproj -c Debug --no-build --verbosity normal
+          dotnet test tests/FollowUp.ApiTests/FollowUp.ApiTests.csproj -c Debug --no-build --verbosity normal
+
+  frontend:
+    name: Frontend build + unit tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Unit tests
+        run: npx ng test --watch=false --karma-config=karma.conf.js --browsers=ChromeHeadlessCI
+        env:
+          CHROME_BIN: /usr/bin/google-chrome
+
+  e2e:
+    name: End-to-end (Playwright)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: followup
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      FOLLOWUP_DB: "Host=localhost;Port=5432;Database=followup;Username=postgres;Password=postgres"
+      FOLLOWUP_AUTH_SECRET: "ci-signing-secret-0123456789abcdef0123456789"
+      FOLLOWUP_ADMIN_PASSWORD: "Seed_Admin_2026!"
+      E2E_ADMIN_PASSWORD: "Seed_Admin_2026!"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Build API
+        run: dotnet build src/FollowUp.Api/FollowUp.Api.csproj -c Debug
+      - name: Install web deps
+        working-directory: web
+        run: npm ci
+      - name: Build SPA (served by the API)
+        working-directory: web
+        run: npm run build
+      - name: Install Playwright browser
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+      - name: Run e2e
+        working-directory: web
+        run: npm run e2e
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: web/playwright-report/
+          retention-days: 7

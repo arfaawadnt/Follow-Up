@@ -16,6 +16,9 @@ namespace FollowUp.Infrastructure.Persistence.Seeding;
 /// </summary>
 public sealed class DatabaseSeeder
 {
+    // App-specific key for the seed advisory lock — arbitrary but stable ("F0110 5EED").
+    private const long SeedAdvisoryLockKey = 0xF0110_5EED;
+
     private readonly FollowUpDbContext _db;
     private readonly IPasswordHasher _hasher;
 
@@ -28,6 +31,13 @@ public sealed class DatabaseSeeder
     /// <summary>Seeds baseline data. Returns the admin username if a new admin account was created.</summary>
     public async Task<string?> SeedAsync(string adminPassword, CancellationToken ct = default)
     {
+        // Serialize concurrent seeders (multiple app instances starting against a fresh DB, or parallel test
+        // hosts sharing one DB) so the check-then-insert of the uniquely-named baseline rows below can't race
+        // into a unique-index violation (e.g. ix_role_name). The transaction-scoped advisory lock releases on
+        // commit/rollback; the loser then re-reads and sees the baseline present, so it inserts nothing.
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        await _db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({SeedAdvisoryLockKey})", ct);
+
         string? createdAdmin = null;
 
         Role adminRole;
@@ -53,6 +63,7 @@ public sealed class DatabaseSeeder
         {
             var admin = AppUser.Create("admin", _hasher.Hash(adminPassword), adminRole.Id);
             admin.SetProfile("admin@megalab.local", null);
+            admin.MarkAsBuiltIn(); // protected from deletion/demotion (IDN-6)
             _db.Users.Add(admin);
             createdAdmin = "admin";
         }
@@ -82,6 +93,7 @@ public sealed class DatabaseSeeder
         }
 
         await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         return createdAdmin;
     }
 

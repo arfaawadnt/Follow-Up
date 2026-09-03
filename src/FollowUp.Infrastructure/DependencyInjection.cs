@@ -56,6 +56,8 @@ public static class DependencyInjection
         services.AddSingleton<IClock, SystemClock>();
         services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
         services.AddSingleton<IAuthPolicy, AuthPolicy>();
+        // Persists failed-login attempts outside the (rolled-back) login command transaction so lockout works.
+        services.AddSingleton<IFailedLoginRecorder, FailedLoginRecorder>();
         services.AddSingleton<ITokenService, HmacTokenService>();
 
         // System principal for jobs/seeding; the API overrides ICurrentUser with an HttpContext-backed one.

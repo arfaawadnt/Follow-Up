@@ -19,6 +19,12 @@ internal sealed class CompensationData : ICompensationData
         await _db.MonthlySamples.Where(m => m.LaboratoryId == labId && m.Period == period)
             .SumAsync(m => (int?)m.SampleCount, ct) ?? 0;
 
+    public async Task<IReadOnlyDictionary<LaboratoryId, int>> GetLabAchievedSamplesForPeriodAsync(YearMonth period, CancellationToken ct) =>
+        (await _db.MonthlySamples.AsNoTracking().Where(m => m.Period == period)
+            .Select(m => new { m.LaboratoryId, m.SampleCount }).ToListAsync(ct))
+        .GroupBy(x => x.LaboratoryId)
+        .ToDictionary(g => g.Key, g => g.Sum(x => x.SampleCount));
+
     public async Task<int> GetRepAchievedSamplesAsync(RepresentativeId repId, YearMonth period, CancellationToken ct) =>
         await _db.MonthlySamples.Where(m => m.CollectorRepId == repId && m.Period == period)
             .SumAsync(m => (int?)m.SampleCount, ct) ?? 0;

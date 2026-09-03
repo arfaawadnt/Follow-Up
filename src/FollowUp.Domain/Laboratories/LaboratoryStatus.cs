@@ -1,3 +1,4 @@
+using System.Linq;
 using FollowUp.Domain.Common;
 
 namespace FollowUp.Domain.Laboratories;
@@ -36,6 +37,12 @@ public sealed class LaboratoryStatus : Enumeration
 
     private LaboratoryStatus(int id, string name) : base(id, name) { }
 
+    /// <summary>
+    /// The single source of truth for which statuses put a lab on the daily board — shared by midnight
+    /// generation and intra-day reconcile so the rule cannot be half-copied and diverge (finding BRD-4).
+    /// </summary>
+    public static readonly IReadOnlyList<LaboratoryStatus> Schedulable = new[] { Active, Pending, Interactive };
+
     /// <summary>Statuses in which a lab is scheduled onto the daily board.</summary>
-    public bool IsSchedulable => this == Active || this == Pending || this == Interactive;
+    public bool IsSchedulable => Schedulable.Contains(this);
 }

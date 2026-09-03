@@ -21,6 +21,20 @@ public static class ScopeGuard
             throw new ForbiddenException("This laboratory is outside your organizational scope.");
     }
 
+    /// <summary>
+    /// Ensures a representative is within the caller's org scope (finding CPN-3). Reps carry only
+    /// Branch/Governorate/City/Area, so scope is checked on those geographic dimensions alone — never the
+    /// lab-only Category/Segment — matching the read-side rule in GetCommissionsAsync (CPN-2). Unattributed reps
+    /// are in scope only for a geographically-global caller.
+    /// </summary>
+    public static void EnsureInScope(this ICurrentUser user, Representative rep)
+    {
+        // Reps carry only geographic attribution — check those four dimensions, never Category/Segment (which
+        // would deny a Category/Segment-scoped manager every rep). Matches GetCommissionsAsync's read filter.
+        if (!user.Scope.Allows(rep.Branch, rep.Governorate, rep.City, rep.Area))
+            throw new ForbiddenException("This representative is outside your organizational scope.");
+    }
+
     /// <summary>Ensures the caller's scope permits the given hierarchy (used before creating a record).</summary>
     public static void EnsureHierarchyInScope(this ICurrentUser user,
         string? branch, string? governorate, string? city, string? area, string? category, string? segment)

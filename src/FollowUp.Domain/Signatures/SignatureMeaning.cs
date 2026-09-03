@@ -3,7 +3,9 @@ using FollowUp.Domain.Common;
 namespace FollowUp.Domain.Signatures;
 
 /// <summary>
-/// The declared intent bound into an electronic signature (SRS FR-19, signature meaning CHECK = 5).
+/// The declared meaning of an electronic signature (SRS FR-19, signature meaning CHECK = 5). This value also
+/// carries the standard's separate "Intent" element (314): intent is realized through Meaning selection plus the
+/// re-authentication signing ceremony rather than a distinct stored field — see docs/adr/0010 (finding SIG-14).
 /// </summary>
 public sealed class SignatureMeaning : Enumeration
 {

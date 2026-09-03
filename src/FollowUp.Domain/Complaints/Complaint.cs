@@ -17,7 +17,7 @@ public sealed record ComplaintResolved(ComplaintId ComplaintId, LaboratoryId Lab
 /// restricted status machine (BR-11 — illegal transitions → 409) and a staged-investigation narrative.
 /// All status changes go through the state machine; resolution honours the optional e-signature gate.
 /// </summary>
-public sealed class Complaint : AggregateRoot<ComplaintId>, IAuditable
+public sealed class Complaint : AggregateRoot<ComplaintId>, IVersioned, IAuditable
 {
     private Complaint() { } // EF
 
@@ -37,6 +37,20 @@ public sealed class Complaint : AggregateRoot<ComplaintId>, IAuditable
     }
 
     // Optional intake metadata (reference parity).
+    /// <summary>Optimistic-concurrency token (Postgres xmin); concurrent workflow edits conflict (409). Finding CMP-6.</summary>
+    public uint RowVersion { get; private set; }
+
+    /// <summary>
+    /// Monotonic content version (SIG-4): incremented on every change to a field covered by the signature
+    /// content hash, so a material edit — even one later reverted (A→B→A) — always yields a strictly higher
+    /// version and can never resurrect a signature bound to an earlier state (SRS line 322: a material change
+    /// creates a new version). Distinct from <see cref="RowVersion"/> (xmin), which bumps on ANY update
+    /// including audit-only saves and so would over-invalidate. Starts at 1 when the complaint is logged.
+    /// </summary>
+    public uint ContentVersion { get; private set; } = 1;
+
+    private void BumpContentVersion() => ContentVersion++;
+
     public Guid? RepresentativeId { get; private set; }
     public DateTimeOffset? ReceivedAt { get; private set; }
 
@@ -90,38 +104,62 @@ public sealed class Complaint : AggregateRoot<ComplaintId>, IAuditable
     {
         RepresentativeId = representativeId;
         ReceivedAt = receivedAt;
+        BumpContentVersion();
     }
 
-    /// <summary>Validity check: valid continues the flow; invalid short-circuits to RejectedInvalid.</summary>
-    public void CheckValidity(bool isValid, string? notes)
+    /// <summary>Validity check: valid continues the flow; invalid closes the complaint immediately (CMP-21).</summary>
+    public void CheckValidity(bool isValid, string? notes, string actor, DateTimeOffset when)
     {
+        EnsureNotResolved();
         IsValid = isValid;
         ValidityNotes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
-        Stage = isValid ? ComplaintStage.ValidityChecked : ComplaintStage.RejectedInvalid;
+        if (isValid)
+        {
+            Stage = ComplaintStage.ValidityChecked;
+        }
+        else
+        {
+            // CMP-21: an invalid complaint is closed on the spot — it needs no resolution e-signature and must not
+            // keep inflating the Open KPIs. Modeled explicitly as a resolution into the RejectedInvalid stage.
+            Status.EnsureCanTransitionTo(ComplaintStatus.Resolved);
+            Stage = ComplaintStage.RejectedInvalid;
+            Status = ComplaintStatus.Resolved;
+            ResolvedAt = when;
+            ResolvedBy = actor;
+            Raise(new ComplaintResolved(Id, LaboratoryId, Reference));
+        }
+        BumpContentVersion();
     }
 
     /// <summary>Investigation notes / root-cause analysis (stage → Investigation).</summary>
     public void RecordInvestigation(string notes)
     {
+        EnsureNotResolved();
         if (string.IsNullOrWhiteSpace(notes))
             throw new DomainException("Investigation notes are required.");
         InvestigationNotes = notes.Trim();
         Stage = ComplaintStage.Investigation;
+        BumpContentVersion();
     }
 
     /// <summary>Business outcome (communication type + summary; stage → BusinessOutcome).</summary>
     public void RecordOutcome(string outcomeType, string? summary)
     {
+        EnsureNotResolved();
         if (string.IsNullOrWhiteSpace(outcomeType))
             throw new DomainException("An outcome type is required.");
         OutcomeType = outcomeType.Trim();
         OutcomeSummary = string.IsNullOrWhiteSpace(summary) ? null : summary.Trim();
         Stage = ComplaintStage.BusinessOutcome;
+        BumpContentVersion();
     }
 
     /// <summary>Resolution summary text shown on the closed complaint.</summary>
-    public void SetResolutionSummary(string? summary) =>
+    public void SetResolutionSummary(string? summary)
+    {
         ResolutionSummary = string.IsNullOrWhiteSpace(summary) ? null : summary.Trim();
+        BumpContentVersion();
+    }
 
     /// <summary>Open → InProgress (start investigation).</summary>
     public void Start()
@@ -129,6 +167,7 @@ public sealed class Complaint : AggregateRoot<ComplaintId>, IAuditable
         Status.EnsureCanTransitionTo(ComplaintStatus.InProgress);
         Status = ComplaintStatus.InProgress;
         // Stage stays Logged: acknowledging is an explicit workflow step (reference parity).
+        BumpContentVersion();
     }
 
     /// <summary>
@@ -145,6 +184,7 @@ public sealed class Complaint : AggregateRoot<ComplaintId>, IAuditable
         Stage = ComplaintStage.Resolution;
         ResolvedAt = when;
         ResolvedBy = actor;
+        BumpContentVersion();
         Raise(new ComplaintResolved(Id, LaboratoryId, Reference));
     }
 
@@ -155,8 +195,33 @@ public sealed class Complaint : AggregateRoot<ComplaintId>, IAuditable
         Status = ComplaintStatus.Open;
         ResolvedAt = null;
         ResolvedBy = null;
+        // CMP-20: return to Investigation so the reopened complaint can flow forward again instead of dead-ending
+        // at Resolution; the resolution summary is deliberately kept as an audit-trail record of the prior close.
+        Stage = ComplaintStage.Investigation;
+        BumpContentVersion();
     }
 
-    /// <summary>Advances the investigation narrative (metadata only — never changes status).</summary>
-    public void MoveToStage(ComplaintStage stage) => Stage = stage;
+    /// <summary>
+    /// Advances the investigation-narrative stage (metadata only — never changes status). The two terminal
+    /// stages are reached solely through their gated operations: <see cref="Resolution"/> via
+    /// <see cref="Resolve"/> (status machine + optional e-signature gate + ResolveComplaints privilege) and
+    /// <see cref="RejectedInvalid"/> via <see cref="CheckValidity"/>. A bare stage move to either — and any
+    /// stage edit after resolution — is refused with a 409-mapped exception, so the resolve/e-signature gate
+    /// cannot be bypassed through the stage field (finding CMP-2, SRS FR-11 CMP-STAGE consistency rule).
+    /// </summary>
+    public void MoveToStage(ComplaintStage stage)
+    {
+        EnsureNotResolved();
+        if (stage == ComplaintStage.Resolution || stage == ComplaintStage.RejectedInvalid)
+            throw new IllegalStateTransitionException(nameof(ComplaintStage), Stage.Name, stage.Name);
+        Stage = stage;
+        BumpContentVersion();
+    }
+
+    /// <summary>A resolved complaint is closed: its investigation narrative is frozen (finding CMP-2).</summary>
+    private void EnsureNotResolved()
+    {
+        if (Status == ComplaintStatus.Resolved)
+            throw new IllegalStateTransitionException(nameof(Complaint), ComplaintStatus.Resolved.Name, "edit stage");
+    }
 }

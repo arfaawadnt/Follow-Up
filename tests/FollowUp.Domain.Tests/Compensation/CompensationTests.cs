@@ -1,0 +1,183 @@
+using FluentAssertions;
+using FollowUp.Domain.Common;
+using FollowUp.Domain.Compensation;
+using FollowUp.Domain.Integration;
+using FollowUp.Domain.Notifications;
+using FollowUp.Domain.Identity;
+using FollowUp.Domain.Representatives;
+
+namespace FollowUp.Domain.Tests.Compensation;
+
+public class RepCommissionTests
+{
+    private static readonly DateTimeOffset Now = new(2026, 8, 1, 0, 0, 0, TimeSpan.FromHours(2));
+
+    [Fact]
+    public void Total_is_base_plus_commission_plus_bonus()
+    {
+        var c = RepCommission.For(RepresentativeId.New(), new YearMonth(2026, 8));
+        c.Recompute(1000m, 1200m, new Money(5000m), new Money(600m), new Money(250m), Now);
+
+        c.Total.Should().Be(new Money(5850m));
+    }
+
+    [Fact]
+    public void Negative_components_are_rejected()
+    {
+        var c = RepCommission.For(RepresentativeId.New(), new YearMonth(2026, 8));
+        var act = () => c.Recompute(1000m, 1200m, new Money(-1m), Money.Zero, Money.Zero, Now);
+        act.Should().Throw<DomainException>();
+    }
+}
+
+public class CompensationConfigTests
+{
+    [Fact]
+    public void TierFor_selects_highest_qualifying_tier()
+    {
+        var cfg = CompensationConfig.Create(5m, 100m, new Money(500m), new[]
+        {
+            new LoyaltyTier("Bronze", 50m, 100),
+            new LoyaltyTier("Silver", 80m, 250),
+            new LoyaltyTier("Gold", 100m, 500),
+        });
+
+        cfg.TierFor(90m)!.Name.Should().Be("Silver");
+        cfg.TierFor(100m)!.Name.Should().Be("Gold");
+        cfg.TierFor(10m).Should().BeNull();
+    }
+
+    [Fact]
+    public void Create_rejects_a_negative_commission_rate()
+    {
+        // CPN-5: Create routed around SetCommission's guard, so a negative rate persisted and then hard-failed
+        // every rep's commission recompute until the config was repaired.
+        var act = () => CompensationConfig.Create(-1m, 100m, new Money(500m),
+            new[] { new LoyaltyTier("Gold", 100m, 500) });
+
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void Create_rejects_a_negative_bonus_amount()
+    {
+        // CPN-5: Money accepts negatives and the old ctor path never checked the bonus.
+        var act = () => CompensationConfig.Create(5m, 100m, new Money(-500m),
+            new[] { new LoyaltyTier("Gold", 100m, 500) });
+
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void Create_rejects_a_commission_rate_above_100()
+    {
+        // CPN-17: a commission rate is a fraction of a base and cannot exceed 100% (rate = 5000 was accepted).
+        var act = () => CompensationConfig.Create(5000m, 100m, new Money(500m),
+            new[] { new LoyaltyTier("Gold", 100m, 500) });
+
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void Create_rejects_an_absurd_bonus_threshold()
+    {
+        // CPN-17: over-achievement above target is allowed, but a threshold beyond the sanity ceiling is a typo.
+        var act = () => CompensationConfig.Create(5m, 5000m, new Money(500m),
+            new[] { new LoyaltyTier("Gold", 100m, 500) });
+
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void A_loyalty_tier_rejects_an_absurd_threshold()
+    {
+        // CPN-17: tier thresholds are achievement percents; a 5000% tier is an unreachable data-entry error.
+        var act = () => new LoyaltyTier("Gold", 5000m, 500);
+
+        act.Should().Throw<DomainException>();
+    }
+
+    private static CompensationConfig ValidConfig() =>
+        CompensationConfig.Create(5m, 100m, new Money(500m), new[] { new LoyaltyTier("Gold", 100m, 500) });
+
+    [Fact]
+    public void SetTiers_rejects_an_empty_set()
+    {
+        // CPN-6: an empty set zeroes points/nulls the tier for every lab on the next recalc.
+        var act = () => ValidConfig().SetTiers(Array.Empty<LoyaltyTier>());
+
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void SetTiers_rejects_duplicate_names_case_insensitively()
+    {
+        var act = () => ValidConfig().SetTiers(new[]
+        {
+            new LoyaltyTier("Gold", 50m, 100),
+            new LoyaltyTier("gold", 80m, 250),
+        });
+
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void SetTiers_rejects_duplicate_thresholds()
+    {
+        // CPN-6: duplicate MinAchievementPercent makes TierFor order-dependent/nondeterministic.
+        var act = () => ValidConfig().SetTiers(new[]
+        {
+            new LoyaltyTier("Bronze", 50m, 100),
+            new LoyaltyTier("Silver", 50m, 250),
+        });
+
+        act.Should().Throw<DomainException>();
+    }
+}
+
+public class OracleConfigTests
+{
+    private static readonly DateTimeOffset Now = new(2026, 8, 15, 12, 0, 0, TimeSpan.FromHours(2));
+
+    [Fact]
+    public void Rejects_non_select_queries()
+    {
+        var act = () => AllowListedQuery.Create("Bad", "DELETE FROM labs");
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void Fingerprint_detects_tampering()
+    {
+        var q = AllowListedQuery.Create("Labs", "SELECT code, name FROM labs");
+        q.Matches("SELECT code, name FROM labs").Should().BeTrue();
+        q.Matches("SELECT code, name FROM labs WHERE 1=1").Should().BeFalse();
+    }
+
+    [Fact]
+    public void Is_due_only_when_enabled_and_interval_elapsed()
+    {
+        var cfg = OracleConfig.Create(enabled: true, intervalHours: 24);
+        cfg.IsDue(Now).Should().BeTrue();                       // never synced
+
+        cfg.RecordSyncResult("ok", Now);
+        cfg.IsDue(Now.AddHours(1)).Should().BeFalse();
+        cfg.IsDue(Now.AddHours(25)).Should().BeTrue();
+
+        cfg.Configure(enabled: false, intervalHours: 24);
+        cfg.IsDue(Now.AddDays(2)).Should().BeFalse();           // disabled
+    }
+}
+
+public class NotificationPreferenceTests
+{
+    [Fact]
+    public void Default_is_system_on_others_off()
+    {
+        var pref = NotificationPreference.Default(AppUserId.New(), "complaint.logged");
+
+        pref.Allows(NotificationChannel.System).Should().BeTrue();
+        pref.Allows(NotificationChannel.Mail).Should().BeFalse();
+        pref.Allows(NotificationChannel.WhatsApp).Should().BeFalse();
+    }
+}

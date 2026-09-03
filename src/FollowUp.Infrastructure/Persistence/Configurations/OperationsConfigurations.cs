@@ -12,6 +12,7 @@ internal sealed class DailyVisitConfiguration : IEntityTypeConfiguration<DailyVi
     {
         b.ToTable("daily_visit");
         b.HasKey(x => x.Id);
+        b.Property(x => x.RowVersion).IsRowVersion().HasColumnName("xmin").HasColumnType("xid"); // xmin optimistic concurrency (BRD-2)
         b.IgnoreDomainEvents();
         b.Ignore(x => x.RollsToMonthly);
         b.MapAuditable();
@@ -40,6 +41,9 @@ internal sealed class DailyVisitConfiguration : IEntityTypeConfiguration<DailyVi
         b.HasIndex(x => x.VisitDate);
         b.HasIndex(x => new { x.LaboratoryId, x.VisitDate });
         b.HasIndex(x => x.Status);
+        // A lab has at most one visit per scheduled time per day: a DB-level second line of defense (BRD-9)
+        // against the two-Hangfire-job race (rollover vs intra-day reconcile) that app-level skip checks miss.
+        b.HasIndex(x => new { x.LaboratoryId, x.VisitDate, x.ScheduledTime }).IsUnique();
     }
 }
 
@@ -102,8 +106,10 @@ internal sealed class SampleTrackingConfiguration : IEntityTypeConfiguration<Sam
     {
         b.ToTable("sample_tracking");
         b.HasKey(x => x.Id);
+        b.Property(x => x.RowVersion).IsRowVersion().HasColumnName("xmin").HasColumnType("xid"); // xmin optimistic concurrency (ST-9)
         b.IgnoreDomainEvents();
         b.Ignore(x => x.IsComplete);
+        b.Ignore(x => x.IsUntouched);
         b.MapAuditable();
 
         b.Property(x => x.Area).HasMaxLength(100).IsRequired();

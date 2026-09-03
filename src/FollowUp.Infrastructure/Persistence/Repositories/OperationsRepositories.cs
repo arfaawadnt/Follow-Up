@@ -34,9 +34,20 @@ internal sealed class SampleTrackingRepository : ISampleTrackingRepository
     public SampleTrackingRepository(FollowUpDbContext db) => _db = db;
     public Task<SampleTracking?> GetByIdAsync(SampleTrackingId id, CancellationToken ct) =>
         _db.SampleTracking.FirstOrDefaultAsync(x => x.Id == id, ct);
-    public Task<SampleTracking?> GetByAreaDateAsync(string area, DateOnly date, CancellationToken ct) =>
-        _db.SampleTracking.FirstOrDefaultAsync(x => x.Area == area && x.Date == date, ct);
+    public Task<SampleTracking?> GetByAreaDateAsync(string area, DateOnly date, CancellationToken ct)
+    {
+        // Outbox handlers in one dispatch batch share this scoped context and only save at the end, so a
+        // row added by an earlier message is invisible to a SQL query — returning it from the change
+        // tracker prevents a duplicate Add that would break the unique (Area, Date) index and wedge the
+        // batch. A row deleted earlier in the batch counts as absent; EF orders the delete before any
+        // re-insert of the same key (unique-index dependency ordering).
+        var local = _db.SampleTracking.Local.FirstOrDefault(x => x.Area == area && x.Date == date);
+        if (local is not null)
+            return Task.FromResult<SampleTracking?>(_db.Entry(local).State == EntityState.Deleted ? null : local);
+        return _db.SampleTracking.FirstOrDefaultAsync(x => x.Area == area && x.Date == date, ct);
+    }
     public void Add(SampleTracking tracking) => _db.SampleTracking.Add(tracking);
+    public void Remove(SampleTracking tracking) => _db.SampleTracking.Remove(tracking);
 }
 
 internal sealed class MarketingVisitRepository : IMarketingVisitRepository

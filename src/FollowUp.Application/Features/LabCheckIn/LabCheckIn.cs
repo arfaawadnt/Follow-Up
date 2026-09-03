@@ -14,7 +14,7 @@ namespace FollowUp.Application.Features.LabCheckIn;
 
 // Mirrors the reference platform's lab check-in row: transferred visits (awaiting receipt or received).
 public sealed record ReceivingItemDto(
-    Guid VisitId, Guid LaboratoryId, string LabDisplayCode, string LabCode, string LabName,
+    Guid VisitId, Guid LaboratoryId, string LabDisplayCode, string LabName,
     string? Branch, string? Governorate, string? City, string? Area,
     DateOnly VisitDate, string VisitTime, string? CollectorName, int? Samples, string Status,
     string? TransferRepName, string? TransferTime, string? ReceivedTime);

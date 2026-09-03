@@ -44,6 +44,9 @@ internal sealed class UserSessionRepository : IUserSessionRepository
 
     public Task<UserSession?> GetByIdAsync(UserSessionId id, CancellationToken ct) =>
         _db.Sessions.FirstOrDefaultAsync(x => x.Id == id, ct);
+
+    public async Task<IReadOnlyList<UserSession>> GetActiveByUserAsync(AppUserId userId, CancellationToken ct) =>
+        await _db.Sessions.Where(x => x.UserId == userId && x.RevokedAt == null).ToListAsync(ct);
     public Task<UserSession?> GetActiveByTokenHashAsync(string tokenHash, CancellationToken ct) =>
         _db.Sessions.FirstOrDefaultAsync(x => x.TokenHash == tokenHash && x.RevokedAt == null, ct);
     public void Add(UserSession session) => _db.Sessions.Add(session);

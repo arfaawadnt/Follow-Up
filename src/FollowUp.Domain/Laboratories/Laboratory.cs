@@ -148,10 +148,15 @@ public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAudit
 
     public void PlaceInHierarchy(string? branch, string? governorate, string? city, string? area)
     {
-        Branch = branch;
-        Governorate = governorate;
-        City = city;
-        Area = area;
+        // Normalized like Name/Segment — sample-tracking rows key on the exact Area string.
+        static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        var oldArea = Area;
+        Branch = Clean(branch);
+        Governorate = Clean(governorate);
+        City = Clean(city);
+        Area = Clean(area);
+        if (!string.Equals(oldArea, Area, StringComparison.Ordinal))
+            Raise(new LaboratoryAreaChanged(Id, oldArea, Area));
     }
 
     public void SetLocation(GeoLocation? location) => Location = location;
@@ -244,8 +249,4 @@ public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAudit
 
     public void RemoveContact(ContactPersonId contactId) =>
         _contacts.RemoveAll(c => c.Id == contactId);
-
-    /// <summary>The display code a caller sees: real code when permitted, else the ENC alias (BR-7).</summary>
-    public string DisplayCode(bool canSeeEncrypted) =>
-        canSeeEncrypted ? Code.Value : Code.ToEncryptedAlias();
 }

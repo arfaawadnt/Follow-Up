@@ -10,7 +10,8 @@ namespace FollowUp.Application.Features.Auth;
 
 // ---- Login (anonymous) ----
 
-public sealed record LoginCommand(string Username, string Password, string? Ip, string? UserAgent) : ICommand<LoginResult>;
+public sealed record LoginCommand(string Username, string Password, string? Ip, string? UserAgent)
+    : ICommand<LoginResult>, IExcludeFromIdempotency;
 
 public sealed record LoginResult(
     string Token,
@@ -47,12 +48,15 @@ public sealed class LoginHandler : ICommandHandler<LoginCommand, LoginResult>
     private readonly ITokenService _tokens;
     private readonly IAuthPolicy _policy;
     private readonly IClock _clock;
+    private readonly IFailedLoginRecorder _failedLogins;
 
     public LoginHandler(IAppUserRepository users, IRoleRepository roles, IUserSessionRepository sessions,
-        IPasswordHasher hasher, ITokenService tokens, IAuthPolicy policy, IClock clock)
+        IPasswordHasher hasher, ITokenService tokens, IAuthPolicy policy, IClock clock,
+        IFailedLoginRecorder failedLogins)
     {
         _users = users; _roles = roles; _sessions = sessions;
         _hasher = hasher; _tokens = tokens; _policy = policy; _clock = clock;
+        _failedLogins = failedLogins;
     }
 
     public async Task<LoginResult> Handle(LoginCommand request, CancellationToken ct)
@@ -69,7 +73,10 @@ public sealed class LoginHandler : ICommandHandler<LoginCommand, LoginResult>
 
         if (!_hasher.Verify(request.Password, user.Password))
         {
+            // The throw below rolls back this command's transaction, so persist the attempt durably in its
+            // own unit of work — otherwise the lockout counter never advances in production (finding IDN-1).
             user.RegisterFailedLogin(_policy.MaxFailedAttempts, _policy.LockoutWindow, now);
+            await _failedLogins.RecordAsync(user.Id, ct);
             throw new UnauthorizedException("Invalid username or password.");
         }
 

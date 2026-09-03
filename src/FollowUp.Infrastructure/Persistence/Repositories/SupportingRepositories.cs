@@ -76,6 +76,8 @@ internal sealed class LabLoyaltyLedgerRepository : ILabLoyaltyLedgerRepository
     public LabLoyaltyLedgerRepository(FollowUpDbContext db) => _db = db;
     public Task<LabLoyaltyLedger?> GetAsync(LaboratoryId labId, YearMonth period, CancellationToken ct) =>
         _db.LoyaltyLedgers.FirstOrDefaultAsync(x => x.LaboratoryId == labId && x.Period == period, ct);
+    public async Task<IReadOnlyList<LabLoyaltyLedger>> GetForPeriodAsync(YearMonth period, CancellationToken ct) =>
+        await _db.LoyaltyLedgers.Where(x => x.Period == period).ToListAsync(ct);
     public void Add(LabLoyaltyLedger ledger) => _db.LoyaltyLedgers.Add(ledger);
 }
 

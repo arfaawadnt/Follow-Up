@@ -8,7 +8,6 @@ public sealed record BoardItemDto(
     Guid VisitId,
     Guid LaboratoryId,
     string LabDisplayCode,
-    string LabCode,
     string Lab,
     Guid? CollectorRepId,
     string? Rep,
@@ -53,5 +52,5 @@ public interface IDailyBoardQueries
         DateOnly start, DateOnly end, Guid? repId, string? status, OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
 
     /// <summary>Suggested sample count for a visit (SRS FR-5 suggested-value helper) — e.g. the lab's recent average.</summary>
-    Task<int?> GetSuggestedSampleCountAsync(Guid visitId, CancellationToken ct);
+    Task<int?> GetSuggestedSampleCountAsync(Guid visitId, OrgScope scope, CancellationToken ct);
 }

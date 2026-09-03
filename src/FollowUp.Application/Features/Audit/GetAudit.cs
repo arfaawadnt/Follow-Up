@@ -47,8 +47,13 @@ public sealed class GetAuditHandler : IQueryHandler<GetAuditQuery, PagedResult<A
     {
         var criteria = new AuditSearchCriteria
         {
-            Page = request.Page, PageSize = request.PageSize, Entity = request.Entity,
-            Actor = request.Actor, Action = request.Action, From = request.From, To = request.To,
+            Page = request.Page,
+            PageSize = request.PageSize,
+            Entity = request.Entity,
+            Actor = request.Actor,
+            Action = request.Action,
+            From = request.From,
+            To = request.To,
         };
         return _queries.SearchAsync(criteria, ct);
     }
