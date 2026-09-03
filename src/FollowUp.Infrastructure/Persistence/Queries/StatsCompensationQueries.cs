@@ -73,22 +73,23 @@ internal sealed class TestCatalogueQueries : ITestCatalogueQueries
     public async Task<IReadOnlyList<TestStatDto>> GetTestStatsAsync(DateOnly from, DateOnly to, CancellationToken ct)
     {
         var rows = await _db.TestStatistics.AsNoTracking().Where(t => t.Date >= from && t.Date <= to)
-            .OrderBy(t => t.Date).ThenBy(t => t.TestCode).ToListAsync(ct);
+            .OrderBy(t => t.Date).ThenBy(t => t.TestCode).ThenBy(t => t.TestType).ToListAsync(ct);
 
-        // Enrich with test setup names and parent group names by code (in memory — small catalogue).
+        // Enrich with test setup names and parent group names by (code, type) — the catalogue's natural key,
+        // since the same code names different tests across types (e.g. 2542 = "T3 - TOTAL" / "Brucella (Latex)").
         var setups = (await _db.TestSetups.AsNoTracking()
-            .Select(s => new { s.Code, s.NameEn, s.GroupId }).ToListAsync(ct))
-            .GroupBy(s => s.Code).ToDictionary(g => g.Key, g => g.First());
+            .Select(s => new { s.Code, s.TestType, s.NameEn, s.GroupId }).ToListAsync(ct))
+            .ToDictionary(s => (s.Code, s.TestType));
         var groups = (await _db.TestGroups.AsNoTracking()
             .Select(g => new { g.Id, g.NameEn }).ToListAsync(ct))
             .ToDictionary(g => g.Id, g => g.NameEn);
 
         return rows.Select(t =>
         {
-            setups.TryGetValue(t.TestCode, out var s);
+            setups.TryGetValue((t.TestCode, t.TestType), out var s);
             string? groupName = null;
             if (s?.GroupId is { } gid) groups.TryGetValue(gid, out groupName);
-            return new TestStatDto(t.Date, t.TestCode, s?.NameEn, groupName, t.Count, t.Income.Amount);
+            return new TestStatDto(t.Date, t.TestCode, t.TestType, s?.NameEn, groupName, t.Count, t.Income.Amount);
         }).ToList();
     }
 }

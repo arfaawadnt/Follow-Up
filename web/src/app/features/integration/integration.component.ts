@@ -29,7 +29,7 @@ interface OracleConfig {
     @if (banner()) { <div class="inline-banner" [class.inline-banner-error]="bannerError()">{{ banner() }}</div> }
 
     @if (c(); as c) {
-      <div style="display:grid;grid-template-columns:3fr 2fr;gap:24px">
+      <div style="display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:24px">
         <div class="card" style="padding:20px;display:flex;flex-direction:column;gap:16px">
           <h3 style="font-size:14px;font-weight:600;color:var(--slate-800);margin:0 0 8px;border-bottom:1px solid var(--slate-100);padding-bottom:8px">{{ 'integration_configuration' | t : 'Integration configuration' }}</h3>
 
@@ -83,7 +83,7 @@ interface OracleConfig {
           <div class="card" style="padding:20px">
             <h3 style="font-size:14px;font-weight:600;color:var(--slate-800);margin:0 0 12px">{{ 'sync_status' | t : 'Sync status' }}</h3>
             <div class="hrow"><span class="muted small">{{ 'last_sync' | t : 'Last sync' }}</span><span class="mono" style="flex:1;text-align:end">{{ c.lastSyncAt ? (c.lastSyncAt | date:'short') : ('never_executed' | t : 'Never executed') }}</span></div>
-            <div class="hrow"><span class="muted small">{{ 'status' | t }}</span><span style="flex:1;text-align:end"><span class="badge" [class]="statusClass(c.lastStatus)">{{ c.lastStatus ?? '—' }}</span></span></div>
+            <div class="hrow" style="align-items:flex-start"><span class="muted small">{{ 'status' | t }}</span><span style="flex:1;text-align:end;min-width:0"><span class="badge" [class]="statusClass(c.lastStatus)" style="white-space:normal;word-break:break-word;text-align:start;display:inline-block;max-width:100%">{{ c.lastStatus ?? '—' }}</span></span></div>
             @if (auth.has('OracleIntegration')) {
               <button class="btn btn-s" style="margin-top:12px;width:100%" [disabled]="busy()" (click)="syncNow()"><i data-lucide="refresh-cw" style="width:14px;height:14px;margin-inline-end:6px"></i>{{ 'sync_now' | t : 'Sync now' }}</button>
             }

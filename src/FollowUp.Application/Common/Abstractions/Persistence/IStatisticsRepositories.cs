@@ -10,16 +10,18 @@ public interface IDailyLabStatisticRepository
     /// without a per-row lookup.</summary>
     Task<IReadOnlyList<DailyLabStatistic>> GetRangeAsync(DateOnly from, DateOnly to, CancellationToken ct);
     void Add(DailyLabStatistic stat);
+    void Remove(DailyLabStatistic stat);
 }
 
-/// <summary>Aggregate repository for <see cref="TestStatistic"/> (upsert by date + test code).</summary>
+/// <summary>Aggregate repository for <see cref="TestStatistic"/> (upsert by date + test code + test type).</summary>
 public interface ITestStatisticRepository
 {
-    Task<TestStatistic?> GetAsync(DateOnly date, string testCode, CancellationToken ct);
+    Task<TestStatistic?> GetAsync(DateOnly date, string testCode, int testType, CancellationToken ct);
     /// <summary>Loads every statistic whose date falls in the inclusive range — used to bulk-upsert an Oracle sync
     /// without a per-row lookup.</summary>
     Task<IReadOnlyList<TestStatistic>> GetRangeAsync(DateOnly from, DateOnly to, CancellationToken ct);
     void Add(TestStatistic stat);
+    void Remove(TestStatistic stat);
 }
 
 /// <summary>Aggregate repository for <see cref="TestGroup"/>.</summary>

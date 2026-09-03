@@ -13,10 +13,18 @@ namespace FollowUp.Infrastructure.Jobs;
 /// </summary>
 public static class OracleDefaultQueries
 {
-    /// <summary>Per-test daily counts and income (maps to <c>TestStatistic</c>: date, test code, count, income).</summary>
+    /// <summary>
+    /// Per-test daily counts and income (maps to <c>TestStatistic</c>: date, test code, test type, count, income).
+    /// Grouped by (date, service_code, service_type): in GLOBAL_TESTS2 the same test_code is reused across
+    /// test_types for entirely different tests (e.g. code 2542 is "T3 - TOTAL" at type 1 and "Brucella (Latex)"
+    /// at type 2), so the type MUST be part of the grain or the two collapse into one mislabeled row.
+    /// Only VISIBLE=1 catalogue tests are counted — matching the GLOBAL_TESTS2→TestSetup mirror — so non-visible
+    /// tests never appear in the stats grid (and never as an un-named "—" row).
+    /// </summary>
     public const string TestStats =
         "SELECT TRUNC(r.reg_date) AS the_date, " +
         "rss.service_code AS test_code, " +
+        "rss.service_type AS test_type, " +
         "COUNT(rss.service_code) AS test_count, " +
         "SUM(NVL(rss.patient_fee,0)+NVL(rss.insurance_fee,0)) AS test_income " +
         "FROM reg r " +
@@ -24,27 +32,40 @@ public static class OracleDefaultQueries
         "JOIN global_tests2 gt ON gt.test_code = rss.service_code AND gt.test_type = rss.service_type " +
         "WHERE r.reg_date >= :from_date AND r.reg_date < :to_date " +
         "AND rss.service_type <> 7 AND NVL(rss.iscancelled,0) <> 1 " +
-        "GROUP BY TRUNC(r.reg_date), rss.service_code";
+        "AND gt.visible = 1 " +
+        "GROUP BY TRUNC(r.reg_date), rss.service_code, rss.service_type";
 
     /// <summary>
     /// Per-lab daily volumes (maps to <c>DailyLabStatistic</c>: date, lab code, registrations, test count, income).
-    /// Attributes each registration to a lab via its referring doctor (reg.doctor → doctors.doctor_name →
-    /// lab.doctor_code), aggregated to the lab grain. Cancelled services are excluded in the join so they never
-    /// count toward tests/income; rows whose doctor resolves to no lab are dropped.
+    /// Attributes each registration to a single lab via its referring doctor (reg.doctor → doctors.doctor_name →
+    /// lab.doctor_code): the doctor→lab resolution is pre-collapsed to one lab per name (<c>MIN(lab_code)</c>) so that
+    /// duplicate master rows (the same doctor under two doctor_codes, or the same lab under two lab_codes) cannot
+    /// fan out and double-count a registration's tests. Rows whose doctor resolves to no lab are dropped.
+    /// <para>
+    /// A "test" here is counted under the same definition as <see cref="TestStats"/>: a selected service that is
+    /// not cancelled, not service_type 7, and matches a visible <c>global_tests2</c> catalogue entry (test_code + test_type).
+    /// The <c>global_tests2</c> join and the service-type/cancelled filters live in the (LEFT) JOIN clauses so
+    /// non-test services are excluded from test_count/income without dropping the registration from reg_count.
+    /// </para>
     /// </summary>
     public const string LabStats =
         "SELECT TRUNC(r.reg_date) AS the_date, " +
-        "l.lab_code AS lab_code, " +
+        "dl.lab_code AS lab_code, " +
         "COUNT(DISTINCT r.reg_key) AS reg_count, " +
-        "COUNT(rss.service_code) AS test_count, " +
-        "SUM(NVL(rss.patient_fee,0)+NVL(rss.insurance_fee,0)) AS income " +
+        "COUNT(gt.test_code) AS test_count, " +
+        "SUM(CASE WHEN gt.test_code IS NOT NULL THEN NVL(rss.patient_fee,0)+NVL(rss.insurance_fee,0) ELSE 0 END) AS income " +
         "FROM reg r " +
-        "LEFT JOIN doctors d ON UPPER(TRIM(d.doctor_name)) = UPPER(TRIM(r.doctor)) " +
-        "LEFT JOIN lab l ON l.doctor_code = d.doctor_code " +
-        "LEFT JOIN reg_selected_services rss ON rss.reg_key = r.reg_key AND NVL(rss.iscancelled,0) <> 1 " +
-        "WHERE r.doctor IS NOT NULL AND l.lab_code IS NOT NULL " +
+        "LEFT JOIN (" +
+        "SELECT UPPER(TRIM(d.doctor_name)) AS dname, MIN(l.lab_code) AS lab_code " +
+        "FROM doctors d JOIN lab l ON l.doctor_code = d.doctor_code " +
+        "GROUP BY UPPER(TRIM(d.doctor_name))" +
+        ") dl ON dl.dname = UPPER(TRIM(r.doctor)) " +
+        "LEFT JOIN reg_selected_services rss ON rss.reg_key = r.reg_key " +
+        "AND rss.service_type <> 7 AND NVL(rss.iscancelled,0) <> 1 " +
+        "LEFT JOIN global_tests2 gt ON gt.test_code = rss.service_code AND gt.test_type = rss.service_type AND gt.visible = 1 " +
+        "WHERE r.doctor IS NOT NULL AND dl.lab_code IS NOT NULL " +
         "AND r.reg_date >= :from_date AND r.reg_date < :to_date " +
-        "GROUP BY TRUNC(r.reg_date), l.lab_code";
+        "GROUP BY TRUNC(r.reg_date), dl.lab_code";
 
     /// <summary>Active test-group master (maps to <c>TestGroup</c>: code, name). Only VISIBLE=1; mirrored by the sync.</summary>
     public const string Groups =

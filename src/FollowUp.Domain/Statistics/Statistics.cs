@@ -49,27 +49,34 @@ public readonly record struct TestStatisticId(Guid Value)
     public static TestStatisticId New() => new(Guid.NewGuid());
 }
 
-/// <summary>Per-test daily statistics keyed by (date, test code) (SRS FR-14). Upserted by key.</summary>
+/// <summary>
+/// Per-test daily statistics keyed by (date, test code, test type) (SRS FR-14). Upserted by key.
+/// The type is part of the natural key because Oracle's GLOBAL_TESTS2 reuses the same test_code across
+/// test_types for different tests; keying by code alone merges those into one mislabeled row. Manual xlsx
+/// imports (which have no Oracle type) use type 0.
+/// </summary>
 public sealed class TestStatistic : AggregateRoot<TestStatisticId>
 {
     private TestStatistic() { } // EF
 
-    private TestStatistic(TestStatisticId id, DateOnly date, string testCode)
+    private TestStatistic(TestStatisticId id, DateOnly date, string testCode, int testType)
         : base(id)
     {
         Date = date;
         TestCode = testCode;
+        TestType = testType;
     }
 
     public DateOnly Date { get; private set; }
     public string TestCode { get; private set; } = null!;
+    public int TestType { get; private set; }
     public int Count { get; private set; }
     public Money Income { get; private set; }
 
-    public static TestStatistic For(DateOnly date, string testCode)
+    public static TestStatistic For(DateOnly date, string testCode, int testType = 0)
     {
         if (string.IsNullOrWhiteSpace(testCode)) throw new DomainException("Test code is required.");
-        return new TestStatistic(TestStatisticId.New(), date, testCode.Trim().ToUpperInvariant());
+        return new TestStatistic(TestStatisticId.New(), date, testCode.Trim().ToUpperInvariant(), testType);
     }
 
     public void SetCount(int count)

@@ -15,7 +15,7 @@ namespace FollowUp.Application.Features.TestCatalogue;
 public sealed record TestGroupDto(Guid Id, string Code, string NameEn, string? NameAr, string Source);
 public sealed record TestSetupDto(Guid Id, string Code, string NameEn, string? NameAr, Guid? GroupId,
     int TestType, decimal Cost, string? GroupCode, string? GroupName, string Source);
-public sealed record TestStatDto(DateOnly Date, string TestCode, string? TestName, string? GroupName, int Count, decimal Income);
+public sealed record TestStatDto(DateOnly Date, string TestCode, int TestType, string? TestName, string? GroupName, int Count, decimal Income);
 
 public interface ITestCatalogueQueries
 {
@@ -212,10 +212,11 @@ public sealed class ImportTestStatsHandler : ICommandHandler<ImportTestStatsComm
 
             var count = ImportParsing.Int(row, "Count");
             var income = ImportParsing.Decimal(row, "Income");
-            var stat = await _repository.GetAsync(date, testCode, ct);
+            // Manual xlsx imports carry no Oracle test_type — they use type 0.
+            var stat = await _repository.GetAsync(date, testCode, 0, ct);
             if (stat is null)
             {
-                stat = TestStatistic.For(date, testCode);
+                stat = TestStatistic.For(date, testCode, 0);
                 _repository.Add(stat);
             }
             stat.SetCount(count);

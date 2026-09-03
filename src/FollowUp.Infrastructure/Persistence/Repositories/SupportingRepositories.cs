@@ -23,17 +23,19 @@ internal sealed class DailyLabStatisticRepository : IDailyLabStatisticRepository
     public async Task<IReadOnlyList<DailyLabStatistic>> GetRangeAsync(DateOnly from, DateOnly to, CancellationToken ct) =>
         await _db.DailyLabStatistics.Where(x => x.Date >= from && x.Date <= to).ToListAsync(ct);
     public void Add(DailyLabStatistic stat) => _db.DailyLabStatistics.Add(stat);
+    public void Remove(DailyLabStatistic stat) => _db.DailyLabStatistics.Remove(stat);
 }
 
 internal sealed class TestStatisticRepository : ITestStatisticRepository
 {
     private readonly FollowUpDbContext _db;
     public TestStatisticRepository(FollowUpDbContext db) => _db = db;
-    public Task<TestStatistic?> GetAsync(DateOnly date, string testCode, CancellationToken ct) =>
-        _db.TestStatistics.FirstOrDefaultAsync(x => x.Date == date && x.TestCode == testCode, ct);
+    public Task<TestStatistic?> GetAsync(DateOnly date, string testCode, int testType, CancellationToken ct) =>
+        _db.TestStatistics.FirstOrDefaultAsync(x => x.Date == date && x.TestCode == testCode && x.TestType == testType, ct);
     public async Task<IReadOnlyList<TestStatistic>> GetRangeAsync(DateOnly from, DateOnly to, CancellationToken ct) =>
         await _db.TestStatistics.Where(x => x.Date >= from && x.Date <= to).ToListAsync(ct);
     public void Add(TestStatistic stat) => _db.TestStatistics.Add(stat);
+    public void Remove(TestStatistic stat) => _db.TestStatistics.Remove(stat);
 }
 
 internal sealed class TestGroupRepository : ITestGroupRepository

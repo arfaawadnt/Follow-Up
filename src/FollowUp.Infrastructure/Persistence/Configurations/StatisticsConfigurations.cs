@@ -49,9 +49,11 @@ internal sealed class TestStatisticConfiguration : IEntityTypeConfiguration<Test
 
         b.Property(x => x.Date);
         b.Property(x => x.TestCode).HasMaxLength(64).IsRequired();
+        b.Property(x => x.TestType).HasDefaultValue(0);
         b.Property(x => x.Count);
         b.Property(x => x.Income); // Money -> numeric(18,2) via convention
-        b.HasIndex(x => new { x.Date, x.TestCode }).IsUnique();
+        // Natural key is (date, code, type): GLOBAL_TESTS2 reuses a test_code across test_types.
+        b.HasIndex(x => new { x.Date, x.TestCode, x.TestType }).IsUnique();
     }
 }
 

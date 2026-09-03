@@ -134,7 +134,19 @@ app.UseSerilogRequestLogging();
 app.UseCors();
 app.UseRateLimiter();
 app.UseDefaultFiles();
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    // SPA cache policy: index.html must always be revalidated so a new deploy is picked up immediately
+    // (its hashed bundle references change); the content-hashed bundles/assets are immutable and cache long.
+    OnPrepareResponse = ctx =>
+    {
+        var headers = ctx.Context.Response.Headers;
+        if (ctx.File.Name.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
+            headers.CacheControl = "no-cache, no-store, must-revalidate";
+        else
+            headers.CacheControl = "public, max-age=31536000, immutable";
+    }
+});
 
 // Serve uploaded images from the uploads volume at /uploads.
 var uploadsPath = builder.Configuration["Uploads:Path"] ?? Path.Combine(AppContext.BaseDirectory, "uploads");
@@ -212,6 +224,8 @@ app.MapFallback(async ctx =>
     if (File.Exists(index))
     {
         ctx.Response.ContentType = "text/html";
+        // SPA shell must always revalidate so clients pick up new hashed bundles after a deploy.
+        ctx.Response.Headers.CacheControl = "no-cache, no-store, must-revalidate";
         await ctx.Response.SendFileAsync(index);
     }
     else

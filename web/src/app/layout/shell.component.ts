@@ -19,7 +19,7 @@ interface NavGroup { titleKey: string; items: NavItem[]; }
     <div id="app">
       <div class="app-header">
         <div class="header-brand">
-          <button class="header-icon-btn btn-collapse-sidebar" (click)="toggleCollapse()" title="Toggle Sidebar">
+          <button class="header-icon-btn btn-collapse-sidebar" (mousedown)="toggleCollapse()" (keydown.enter)="toggleCollapse()" (keydown.space)="toggleCollapse()" title="Toggle Sidebar">
             <i data-lucide="menu"></i>
           </button>
           <div class="header-logo-container"><img src="logo.png" alt="Logo"></div>
@@ -51,7 +51,7 @@ interface NavGroup { titleKey: string; items: NavItem[]; }
           <div id="nav">
             @for (g of groups; track g.titleKey; let gi = $index) {
               @if (visibleItems(g).length) {
-                <div class="sidebar-group-header" [class.collapsed]="isGroupCollapsed(gi)" (click)="toggleGroup(gi)">
+                <div class="sidebar-group-header" [class.collapsed]="isGroupCollapsed(gi)" (mousedown)="toggleGroup(gi)">
                   <span>{{ g.titleKey | t }}</span>
                   <i data-lucide="chevron-down"></i>
                 </div>

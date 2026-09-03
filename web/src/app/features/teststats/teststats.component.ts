@@ -6,9 +6,9 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { TranslatePipe } from '../../core/i18n';
 
-interface TestStat { date: string; testCode: string; testName: string | null; groupName: string | null; count: number; income: number; }
+interface TestStat { date: string; testCode: string; testType: number; testName: string | null; groupName: string | null; count: number; income: number; }
 interface Cell { count: number; income: number; }
-interface PivotRow { testCode: string; testName: string; groupName: string; cells: Record<string, Cell>; totalCount: number; totalIncome: number; }
+interface PivotRow { key: string; testCode: string; testName: string; groupName: string; cells: Record<string, Cell>; totalCount: number; totalIncome: number; }
 interface Group { id: string; code: string; nameEn: string; }
 type View = 'daily' | 'monthly' | 'yearly';
 const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -64,7 +64,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
             <th class="r tot">{{ 'total_count' | t : 'Total Count' }}</th><th class="r">{{ 'total_income' | t : 'Total Income' }}</th>
           </tr></thead>
           <tbody>
-            @for (r of pivot(); track r.testCode) {
+            @for (r of pivot(); track r.key) {
               <tr>
                 <td class="mono" style="font-weight:600">{{ r.testCode }}</td>
                 <td>{{ r.testName }}</td>
@@ -159,8 +159,9 @@ export class TestStatsComponent {
     const map = new Map<string, PivotRow>();
     for (const s of this.filtered()) {
       const period = this.periodKey(s.date);
-      let r = map.get(s.testCode);
-      if (!r) { r = { testCode: s.testCode, testName: s.testName ?? '—', groupName: s.groupName ?? '—', cells: {}, totalCount: 0, totalIncome: 0 }; map.set(s.testCode, r); }
+      const key = `${s.testCode}|${s.testType}`;
+      let r = map.get(key);
+      if (!r) { r = { key, testCode: s.testCode, testName: s.testName ?? '—', groupName: s.groupName ?? '—', cells: {}, totalCount: 0, totalIncome: 0 }; map.set(key, r); }
       const c = r.cells[period] ?? (r.cells[period] = { count: 0, income: 0 });
       c.count += s.count; c.income += s.income;
       r.totalCount += s.count; r.totalIncome += s.income;
@@ -181,7 +182,7 @@ export class TestStatsComponent {
   colTotal(p: string): number { return this.columnTotals()[p]?.count ?? 0; }
   readonly totals = computed(() => {
     const f = this.filtered();
-    return { count: f.reduce((a, s) => a + s.count, 0), income: f.reduce((a, s) => a + s.income, 0), distinct: new Set(f.map((s) => s.testCode)).size };
+    return { count: f.reduce((a, s) => a + s.count, 0), income: f.reduce((a, s) => a + s.income, 0), distinct: new Set(f.map((s) => `${s.testCode}|${s.testType}`)).size };
   });
 
   constructor() {

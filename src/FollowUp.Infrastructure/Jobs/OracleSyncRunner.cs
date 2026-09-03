@@ -442,7 +442,8 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
     {
         if (rows.Count == 0) return 0;
         var existing = (await _testStats.GetRangeAsync(from, to, ct))
-            .ToDictionary(s => (s.Date, s.TestCode));
+            .ToDictionary(s => (s.Date, s.TestCode, s.TestType));
+        var seen = new HashSet<(DateOnly, string, int)>();
         var upserted = 0;
         foreach (var row in rows)
         {
@@ -454,26 +455,36 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
                 continue;
 
             var date = DateOnly.FromDateTime(Convert.ToDateTime(dateObj));
+            var testType = v.TryGetValue("TEST_TYPE", out var typeObj) && typeObj is not null ? Convert.ToInt32(typeObj) : 0;
             var count = v.TryGetValue("TEST_COUNT", out var cntObj) && cntObj is not null ? Convert.ToInt32(cntObj) : 0;
             var incomeAmount = v.TryGetValue("TEST_INCOME", out var incObj) && incObj is not null ? Convert.ToDecimal(incObj) : 0m;
             var income = new Money(incomeAmount < 0m ? 0m : incomeAmount);
             var testCode = code.ToUpperInvariant();
 
-            if (existing.TryGetValue((date, testCode), out var stat))
+            var key = (date, testCode, testType);
+            if (existing.TryGetValue(key, out var stat))
             {
                 stat.SetCount(count);
                 stat.SetIncome(income);
             }
             else
             {
-                stat = TestStatistic.For(date, testCode);
+                stat = TestStatistic.For(date, testCode, testType);
                 stat.SetCount(count);
                 stat.SetIncome(income);
                 _testStats.Add(stat);
-                existing[(date, testCode)] = stat; // guard against duplicate keys in one batch
+                existing[key] = stat; // guard against duplicate keys in one batch
             }
+            seen.Add(key);
             upserted++;
         }
+
+        // Clear any rows in the window Oracle no longer reports — crucially the legacy pre-type rows keyed by
+        // (date, code, type=0) that merged two tests under one code. Re-syncing a window replaces it wholesale,
+        // so a collided code splits into its per-type rows with no double-counting or stale leftovers.
+        foreach (var stale in existing.Values.Where(s => !seen.Contains((s.Date, s.TestCode, s.TestType))))
+            _testStats.Remove(stale);
+
         return upserted;
     }
 
@@ -605,6 +616,14 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
             }
             upserted++;
         }
+
+        // Clear any (date, lab code) rows Oracle no longer reports for this window. After the doctor→lab resolution
+        // collapses duplicate lab codes onto one (MIN), the dropped codes' prior rows would otherwise linger and
+        // inflate totals; likewise a lab that stops appearing on a day should not keep a stale row. Re-syncing a
+        // window replaces it wholesale (mirrors the TestStats upsert).
+        foreach (var stale in existing.Values.Where(s => !agg.ContainsKey((s.Date, s.LabCode))))
+            _labStats.Remove(stale);
+
         return upserted;
     }
 }
