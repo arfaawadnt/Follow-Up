@@ -2,6 +2,7 @@ import { exportCsv, localToday, printTable } from '../../shared/export.util';
 import { Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DateInputComponent } from '../../shared/date-input.component';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { LabStat } from '../../core/models';
@@ -14,7 +15,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
 @Component({
   selector: 'app-labstats',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, TranslatePipe],
+  imports: [FormsModule, DecimalPipe, TranslatePipe, DateInputComponent],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'labstats' | t : 'Lab statistics' }}</div><h1>{{ 'labstats' | t : 'Lab statistics' }}</h1></div>
@@ -44,8 +45,8 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
 
     <div class="card" style="padding:16px;margin-bottom:16px">
       <div class="frm-grid" style="grid-template-columns:repeat(4,1fr);gap:12px;align-items:end">
-        <div class="field"><label>{{ 'start_date' | t }}</label><input type="date" class="input" [(ngModel)]="from"></div>
-        <div class="field"><label>{{ 'end_date' | t }}</label><input type="date" class="input" [(ngModel)]="to"></div>
+        <div class="field"><label>{{ 'start_date' | t }}</label><app-date-input [(ngModel)]="from"></app-date-input></div>
+        <div class="field"><label>{{ 'end_date' | t }}</label><app-date-input [(ngModel)]="to"></app-date-input></div>
         <div class="field"><label>{{ 'view_type' | t : 'View Type' }}</label><select class="select" [ngModel]="view()" (ngModelChange)="view.set($event)"><option value="daily">{{ 'daily_2' | t : 'Daily' }}</option><option value="monthly">{{ 'monthly' | t : 'Monthly' }}</option><option value="yearly">{{ 'yearly' | t : 'Yearly' }}</option></select></div>
         <div class="field"><button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply_filters' | t : 'Apply Filters' }}</button></div>
         <div class="field"><label>{{ 'search_lab' | t : 'Search Lab' }}</label><input class="input" [ngModel]="q()" (ngModelChange)="q.set($event)" placeholder="name or code"></div>
@@ -121,8 +122,8 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
             <div class="small muted" style="margin-bottom:12px">{{ 'sync_range_hint_labs' | t : 'Pull per-lab daily statistics from Oracle for this date range and merge them into the existing data.' }}</div>
             @if (syncErr()) { <div class="inline-banner inline-banner-error" style="margin-bottom:12px">{{ syncErr() }}</div> }
             <div class="frm-grid" style="grid-template-columns:1fr 1fr;gap:12px">
-              <div class="field"><label>{{ 'start_date' | t }}</label><input type="date" class="input" [(ngModel)]="syncFrom"></div>
-              <div class="field"><label>{{ 'end_date' | t }}</label><input type="date" class="input" [(ngModel)]="syncTo"></div>
+              <div class="field"><label>{{ 'start_date' | t }}</label><app-date-input [(ngModel)]="syncFrom"></app-date-input></div>
+              <div class="field"><label>{{ 'end_date' | t }}</label><app-date-input [(ngModel)]="syncTo"></app-date-input></div>
             </div>
           </div>
           <div class="ls-dlg-foot">

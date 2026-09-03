@@ -1,5 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { DateInputComponent } from '../../shared/date-input.component';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
@@ -29,7 +30,7 @@ function parseGeo(text: string): { lat: number; lng: number } | null {
 @Component({
   selector: 'app-lab-detail',
   standalone: true,
-  imports: [FormsModule, RouterLink, TranslatePipe, MapComponent],
+  imports: [FormsModule, RouterLink, TranslatePipe, MapComponent, DateInputComponent],
   template: `
     @if (loading()) { <div class="card sect">{{ 'loading' | t : 'Loading…' }}</div> }
     @if (error()) { <div class="inline-banner inline-banner-error" style="margin-bottom:12px">{{ error() }}</div> }
@@ -50,7 +51,7 @@ function parseGeo(text: string): { lat: number; lng: number } | null {
           <div class="field"><label>{{ 'encrypted' | t : 'Encrypted' }}</label><label class="chip"><input type="checkbox" [(ngModel)]="f.isEncrypted"> {{ 'encrypted' | t : 'Encrypted' }}</label></div>
           <div class="field"><label>{{ 'serving_branch' | t : 'Serving branch' }}</label><select class="select" [(ngModel)]="f.branch"><option value="">—</option>@for (b of branches(); track b) { <option [value]="b">{{ b }}</option> }</select></div>
           <div class="field"><label>{{ 'license_no' | t : 'License no.' }}</label><input class="input" [(ngModel)]="f.licenseNo"></div>
-          <div class="field"><label>{{ 'license_date' | t : 'License date' }}</label><input type="date" class="input" [(ngModel)]="f.licenseDate"></div>
+          <div class="field"><label>{{ 'license_date' | t : 'License date' }}</label><app-date-input [(ngModel)]="f.licenseDate"></app-date-input></div>
           <div class="field"><label>{{ 'avg_monthly_samples' | t : 'Avg monthly samples' }}</label><input type="number" min="0" class="input" [(ngModel)]="f.avgMonthlySamples"></div>
         </div>
       </section>
@@ -110,14 +111,14 @@ function parseGeo(text: string): { lat: number; lng: number } | null {
 
       <section class="card sect"><h3>{{ 'contacts_managers' | t : 'Contacts — Managers' }}</h3>
         @for (c of managers; track $index) {
-          <div class="grid4 crow"><input class="input" [placeholder]="'name' | t : 'Name'" [(ngModel)]="c.name"><input class="input" [placeholder]="'phone' | t : 'Phone'" [(ngModel)]="c.phone"><input type="date" class="input" [(ngModel)]="c.birthday"><button type="button" class="btn btn-s btn-mini" (click)="managers.splice($index, 1)">{{ 'remove' | t : 'Remove' }}</button></div>
+          <div class="grid4 crow"><input class="input" [placeholder]="'name' | t : 'Name'" [(ngModel)]="c.name"><input class="input" [placeholder]="'phone' | t : 'Phone'" [(ngModel)]="c.phone"><app-date-input [(ngModel)]="c.birthday"></app-date-input><button type="button" class="btn btn-s btn-mini" (click)="managers.splice($index, 1)">{{ 'remove' | t : 'Remove' }}</button></div>
         }
         <button type="button" class="btn btn-s btn-mini" (click)="managers.push({ name: '', phone: '', birthday: null })">{{ 'add_manager' | t : '+ Add manager' }}</button>
       </section>
 
       <section class="card sect"><h3>{{ 'contacts_receptionists' | t : 'Contacts — Receptionists' }}</h3>
         @for (c of receptionists; track $index) {
-          <div class="grid4 crow"><input class="input" [placeholder]="'name' | t : 'Name'" [(ngModel)]="c.name"><input class="input" [placeholder]="'phone' | t : 'Phone'" [(ngModel)]="c.phone"><input type="date" class="input" [(ngModel)]="c.birthday"><button type="button" class="btn btn-s btn-mini" (click)="receptionists.splice($index, 1)">{{ 'remove' | t : 'Remove' }}</button></div>
+          <div class="grid4 crow"><input class="input" [placeholder]="'name' | t : 'Name'" [(ngModel)]="c.name"><input class="input" [placeholder]="'phone' | t : 'Phone'" [(ngModel)]="c.phone"><app-date-input [(ngModel)]="c.birthday"></app-date-input><button type="button" class="btn btn-s btn-mini" (click)="receptionists.splice($index, 1)">{{ 'remove' | t : 'Remove' }}</button></div>
         }
         <button type="button" class="btn btn-s btn-mini" (click)="receptionists.push({ name: '', phone: '', birthday: null })">{{ 'add_receptionist' | t : '+ Add receptionist' }}</button>
       </section>

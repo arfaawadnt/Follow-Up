@@ -29,6 +29,7 @@ export const routes: Routes = [
       // Statistics
       { path: 'labstats', loadComponent: () => import('./features/labstats/labstats.component').then((m) => m.LabStatsComponent) },
       { path: 'test-statistics', loadComponent: () => import('./features/teststats/teststats.component').then((m) => m.TestStatsComponent) },
+      { path: 'area-statistics', loadComponent: () => import('./features/areastats/areastats.component').then((m) => m.AreaStatsComponent) },
       { path: 'reports', loadComponent: () => import('./features/reports/reports.component').then((m) => m.ReportsComponent) },
       { path: 'rep-intervals', loadComponent: () => import('./features/repintervals/repintervals.component').then((m) => m.RepIntervalsComponent) },
 

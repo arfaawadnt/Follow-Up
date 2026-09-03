@@ -52,11 +52,26 @@ export function localTime(iso: string | null | undefined): string {
   return isNaN(d.getTime()) ? '—' : d.toTimeString().slice(0, 5);
 }
 
-/** Formats an ISO timestamp as local yyyy-MM-dd HH:mm. */
+/**
+ * Formats a date value as dd/MM/yyyy (or dd/MM/yyyy HH:mm with `withTime`).
+ * A plain yyyy-MM-dd string (the API's DateOnly wire format) is rearranged
+ * textually — never parsed as UTC — so the day never shifts across timezones.
+ * ISO timestamps are rendered in the browser's local time.
+ */
+export function ddmy(value: string | Date | null | undefined, withTime = false): string {
+  if (value == null || value === '') return '—';
+  if (typeof value === 'string' && !withTime) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+    if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  }
+  const d = value instanceof Date ? value : new Date(value);
+  if (isNaN(d.getTime())) return typeof value === 'string' ? value : '—';
+  const date = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+  if (!withTime) return date;
+  return `${date} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/** Formats an ISO timestamp as local dd/MM/yyyy HH:mm. */
 export function localDateTime(iso: string | null | undefined): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return '—';
-  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-  return d.toISOString().slice(0, 16).replace('T', ' ');
+  return ddmy(iso, true);
 }

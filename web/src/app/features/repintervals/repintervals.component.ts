@@ -1,7 +1,9 @@
-import { exportCsv, localToday, printTable } from '../../shared/export.util';
+import { exportCsv, localToday, printTable, ddmy } from '../../shared/export.util';
+import { AppDatePipe } from '../../shared/app-date.pipe';
 import { Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DateInputComponent } from '../../shared/date-input.component';
 import { ApiService } from '../../core/api.service';
 import { TranslatePipe } from '../../core/i18n';
 
@@ -22,7 +24,7 @@ type AvgField = 'plannedToCollect' | 'collectToTransfer' | 'transferToCheckin' |
 @Component({
   selector: 'app-repintervals',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, TranslatePipe],
+  imports: [FormsModule, DecimalPipe, TranslatePipe, AppDatePipe, DateInputComponent],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'rep_intervals' | t }}</div><h1>{{ 'rep_intervals' | t }}</h1></div>
@@ -41,8 +43,8 @@ type AvgField = 'plannedToCollect' | 'collectToTransfer' | 'transferToCheckin' |
 
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div class="frm-grid" style="grid-template-columns:repeat(5,1fr);gap:12px;align-items:end">
-        <div class="field"><label>{{ 'start_date' | t }}</label><input type="date" class="input" [(ngModel)]="start"></div>
-        <div class="field"><label>{{ 'end_date' | t }}</label><input type="date" class="input" [(ngModel)]="end"></div>
+        <div class="field"><label>{{ 'start_date' | t }}</label><app-date-input [(ngModel)]="start"></app-date-input></div>
+        <div class="field"><label>{{ 'end_date' | t }}</label><app-date-input [(ngModel)]="end"></app-date-input></div>
         <div class="field" style="display:flex;gap:8px"><button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply' | t : 'Apply' }}</button><button class="btn btn-s" (click)="reset()" style="height:36px">{{ 'reset' | t : 'Reset' }}</button></div>
         <div class="field"><label>{{ 'collector' | t : 'Collector' }}</label><select class="select" [ngModel]="fCollector()" (ngModelChange)="fCollector.set($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (v of collectors(); track v) { <option [value]="v">{{ v }}</option> }</select></div>
         <div class="field"><label>{{ 'laboratory' | t : 'Laboratory' }}</label><select class="select" [ngModel]="fLab()" (ngModelChange)="fLab.set($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (v of labNames(); track v) { <option [value]="v">{{ v }}</option> }</select></div>
@@ -87,7 +89,7 @@ type AvgField = 'plannedToCollect' | 'collectToTransfer' | 'transferToCheckin' |
           <tbody>
             @for (r of filtered(); track $index) {
               <tr>
-                <td class="mono small">{{ r.visitDate }} · {{ r.visitTime }}</td>
+                <td class="mono small">{{ r.visitDate | appDate }} · {{ r.visitTime }}</td>
                 <td><b style="color:var(--slate-900)">{{ r.labName }}</b><div class="small muted">{{ r.labCode }}@if (r.area) { · {{ r.area }} }</div></td>
                 <td>{{ r.collectorName }}</td><td class="mono">{{ r.samples ?? '—' }}</td>
                 <td class="mono">{{ dur(r.plannedToCollect) }}</td><td class="mono">{{ dur(r.collectToTransfer) }}</td>
@@ -187,7 +189,7 @@ export class RepIntervalsComponent {
     }
     return {
       header: ['Date', 'Time', 'Laboratory', 'Code', 'Collector', 'Samples', 'Planned→Collect', 'Collect→Transfer', 'Transfer→Check-in', 'Total cycle'],
-      rows: this.filtered().map((r) => [r.visitDate, r.visitTime, r.labName, r.labCode, r.collectorName, r.samples ?? '—', this.dur(r.plannedToCollect), this.dur(r.collectToTransfer), this.dur(r.transferToCheckin), this.dur(r.totalCycle)]),
+      rows: this.filtered().map((r) => [ddmy(r.visitDate), r.visitTime, r.labName, r.labCode, r.collectorName, r.samples ?? '—', this.dur(r.plannedToCollect), this.dur(r.collectToTransfer), this.dur(r.transferToCheckin), this.dur(r.totalCycle)]),
     };
   }
   exportExcel(): void { const { header, rows } = this.exportData(); exportCsv(`rep-performance-${this.today}.csv`, header, rows); }

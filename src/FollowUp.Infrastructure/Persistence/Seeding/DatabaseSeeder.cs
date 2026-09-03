@@ -59,6 +59,12 @@ public sealed class DatabaseSeeder
             adminRole = await _db.Roles.FirstAsync(r => r.Name == "Admin", ct);
         }
 
+        // Keep the built-in superuser role complete across upgrades: grant any privilege added to the catalogue
+        // since the role was first seeded (e.g. ViewAreaStats) so new pages are visible to Admin out of the box.
+        // Only the built-in Admin is backfilled — operator-defined roles keep exactly what was granted to them.
+        if (adminRole.IsBuiltIn && !adminRole.Privileges.SetEquals(Privileges.All))
+            adminRole.SetPrivileges(Privileges.All);
+
         if (!await _db.Users.AnyAsync(ct))
         {
             var admin = AppUser.Create("admin", _hasher.Hash(adminPassword), adminRole.Id);

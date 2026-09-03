@@ -1,6 +1,7 @@
-import { exportCsv, localToday, printTable } from '../../shared/export.util';
+import { exportCsv, localToday, printTable, ddmy } from '../../shared/export.util';
+import { AppDatePipe } from '../../shared/app-date.pipe';
 import { Component, inject, signal } from '@angular/core';
-import { DatePipe, DecimalPipe } from '@angular/common';
+import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
@@ -27,7 +28,7 @@ interface LabHistory {
 @Component({
   selector: 'app-reports',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, DatePipe, RouterLink, TranslatePipe],
+  imports: [FormsModule, DecimalPipe, AppDatePipe, RouterLink, TranslatePipe],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'stats_reports' | t : 'Reports' }}</div><h1>{{ 'stats_reports' | t : 'Reports' }}</h1></div>
@@ -108,13 +109,13 @@ interface LabHistory {
               <dt>{{ 'branch' | t : 'Branch' }}</dt><dd>{{ x.branch ?? '—' }}</dd>
               <dt>{{ 'payer' | t : 'Payer' }}</dt><dd>{{ x.payer ?? '—' }}</dd>
               <dt>{{ 'contract' | t : 'Contract' }}</dt><dd>{{ x.contractType ?? '—' }}</dd>
-              <dt>{{ 'license' | t : 'License' }}</dt><dd>{{ x.licenseNo ?? '—' }}@if (x.licenseDate) { <span class="muted small"> · {{ x.licenseDate | date:'mediumDate' }}</span> }</dd>
+              <dt>{{ 'license' | t : 'License' }}</dt><dd>{{ x.licenseNo ?? '—' }}@if (x.licenseDate) { <span class="muted small"> · {{ x.licenseDate | appDate }}</span> }</dd>
               <dt>{{ 'preferred_channel' | t : 'Channel' }}</dt><dd>{{ x.preferredChannel ?? '—' }}</dd>
               <dt>{{ 'visit_times' | t : 'Visit times' }}</dt><dd class="mono">{{ x.visitTimes.length ? x.visitTimes.join(' · ') : '—' }}</dd>
               <dt>{{ 'work_days' | t : 'Work days' }}</dt><dd>{{ x.workDays.length ? x.workDays.join(', ') : '—' }}</dd>
               <dt>{{ 'collectors' | t : 'Collectors' }}</dt><dd>{{ x.collectors.length ? x.collectors.join(', ') : '—' }}</dd>
               <dt>{{ 'marketing_rep' | t : 'Marketing' }}</dt><dd>{{ x.marketing ?? '—' }}</dd>
-              <dt>{{ 'joined' | t : 'Joined' }}</dt><dd>{{ x.joined | date:'mediumDate' }}</dd>
+              <dt>{{ 'joined' | t : 'Joined' }}</dt><dd>{{ x.joined | appDate }}</dd>
               <dt>{{ 'address' | t : 'Address' }}</dt><dd>{{ x.address ?? '—' }}</dd>
               <dt>{{ 'contacts' | t : 'Contacts' }}</dt><dd>{{ x.contacts.length ? x.contacts.join(' / ') : '—' }}</dd>
             </dl>
@@ -137,7 +138,7 @@ interface LabHistory {
               <thead><tr><th>{{ 'date' | t }}</th><th>{{ 'time' | t : 'Time' }}</th><th>{{ 'collector' | t }}</th><th>{{ 'status' | t }}</th><th class="r">{{ 'samples_2' | t : 'Samples' }}</th></tr></thead>
               <tbody>
                 @for (v of x.visits; track $index) {
-                  <tr><td class="mono small">{{ v.date }}</td><td class="mono small">{{ v.time }}</td><td>{{ v.collector ?? '—' }}</td>
+                  <tr><td class="mono small">{{ v.date | appDate }}</td><td class="mono small">{{ v.time }}</td><td>{{ v.collector ?? '—' }}</td>
                     <td><span class="badge" [class]="vbadge(v.status)">{{ v.status }}</span></td><td class="r mono">{{ v.samples ?? '—' }}</td></tr>
                 } @empty { <tr><td colspan="5" class="empty" style="text-align:center;padding:18px">—</td></tr> }
               </tbody>
@@ -148,7 +149,7 @@ interface LabHistory {
               <thead><tr><th>{{ 'ref' | t : 'Ref' }}</th><th>{{ 'description_lbl' | t : 'Description' }}</th><th>{{ 'date' | t }}</th><th>{{ 'status' | t }}</th></tr></thead>
               <tbody>
                 @for (c of x.complaintRows; track c.reference) {
-                  <tr><td class="mono">{{ c.reference }}</td><td class="small">{{ c.description }}</td><td class="mono small">{{ c.date }}</td>
+                  <tr><td class="mono">{{ c.reference }}</td><td class="small">{{ c.description }}</td><td class="mono small">{{ c.date | appDate }}</td>
                     <td><span class="badge" [class]="c.status === 'Resolved' ? 'b-ok' : c.status === 'InProgress' ? 'b-warn' : 'b-bad'">{{ c.status }}</span></td></tr>
                 } @empty { <tr><td colspan="4" class="empty" style="text-align:center;padding:18px">{{ 'no_complaints' | t : 'No complaints.' }}</td></tr> }
               </tbody>
@@ -210,7 +211,7 @@ export class ReportsComponent {
       const x = this.hist();
       return {
         title: `Lab history — ${x?.name ?? ''}`, header: ['Date', 'Time', 'Collector', 'Status', 'Samples'],
-        rows: (x?.visits ?? []).map((v) => [v.date, v.time, v.collector ?? '—', v.status, v.samples ?? '—']),
+        rows: (x?.visits ?? []).map((v) => [ddmy(v.date), v.time, v.collector ?? '—', v.status, v.samples ?? '—']),
       };
     }
     const d = this.ov();

@@ -1,5 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { DateInputComponent } from '../../shared/date-input.component';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
@@ -19,7 +20,7 @@ const DURATIONS = ['Monthly', 'Quarterly'];
 @Component({
   selector: 'app-rep-form',
   standalone: true,
-  imports: [FormsModule, RouterLink, TranslatePipe],
+  imports: [FormsModule, RouterLink, TranslatePipe, DateInputComponent],
   template: `
     @if (loading()) { <div class="card sect">{{ 'loading' | t : 'Loading…' }}</div> }
     @else {
@@ -37,7 +38,7 @@ const DURATIONS = ['Monthly', 'Quarterly'];
           <div class="field"><label>{{ 'phone' | t : 'Phone' }}</label><input class="input" [(ngModel)]="f.phone"></div>
           <div class="field"><label>{{ 'employment' | t : 'Employment' }}</label><select class="select" [(ngModel)]="f.employmentType">@for (e of employment; track e) { <option [value]="e">{{ e }}</option> }</select></div>
           <div class="field"><label>{{ 'salary_egp' | t : 'Salary (EGP)' }}</label><input type="number" min="0" class="input" [(ngModel)]="f.salary"></div>
-          <div class="field"><label>{{ 'appointed' | t : 'Appointed' }}</label><input type="date" class="input" [(ngModel)]="f.appointedOn"></div>
+          <div class="field"><label>{{ 'appointed' | t : 'Appointed' }}</label><app-date-input [(ngModel)]="f.appointedOn"></app-date-input></div>
           <div class="field"><label>{{ 'governorate_lbl' | t : 'Governorate *' }}</label><select class="select" [ngModel]="f.governorate" (ngModelChange)="onGovChange($event)"><option value="">—</option>@for (g of governorates(); track g) { <option [value]="g">{{ g }}</option> }</select></div>
           <div class="field"><label>{{ 'city' | t : 'City' }}</label><select class="select" [ngModel]="f.city" (ngModelChange)="onCityChange($event)"><option value="">—</option>@for (c of filteredCities(); track c.id) { <option [value]="c.name">{{ c.name }}</option> }</select></div>
           <div class="field"><label>{{ 'area' | t : 'Area' }}</label><select class="select" [(ngModel)]="f.area"><option value="">—</option>@for (a of filteredAreas(); track a.id) { <option [value]="a.name">{{ a.name }}</option> }</select></div>

@@ -27,7 +27,7 @@ const MEANINGS = ['Authorship', 'Review', 'Approval', 'Verification', 'Execution
           <div class="status" [class.invalid]="!s.stillValid">
             <span class="ico">{{ s.stillValid ? '✓' : '⚠' }}</span>
             <span>
-              <strong>{{ s.meaning }}</strong> by {{ s.signerUsername }} · {{ s.signedAt | date:'short' }}
+              <strong>{{ s.meaning }}</strong> by {{ s.signerUsername }} · {{ s.signedAt | date:'dd/MM/yyyy HH:mm' }}
               @if (!s.stillValid) { <em class="warn"> — record changed since signing (v{{ s.signedVersion }})</em> }
             </span>
           </div>

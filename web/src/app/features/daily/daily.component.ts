@@ -1,19 +1,21 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DateInputComponent } from '../../shared/date-input.component';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { IconsService } from '../../core/icons.service';
 import { BoardItem, PagedResult, RepListItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
-import { exportCsv, printTable, localToday, localTime, localDateTime } from '../../shared/export.util';
+import { exportCsv, printTable, localToday, localTime, localDateTime, ddmy } from '../../shared/export.util';
+import { AppDatePipe } from '../../shared/app-date.pipe';
 
 const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
 
 @Component({
   selector: 'app-daily',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, TranslatePipe],
+  imports: [FormsModule, DecimalPipe, TranslatePipe, AppDatePipe, DateInputComponent],
   template: `
     <div class="pagehead" style="display:flex;justify-content:space-between;align-items:center">
       <div><div class="breadcrumbs">Home / {{ 'daily' | t }}</div><h1>{{ 'daily_followup_board' | t : 'Daily Follow-up Board' }}</h1></div>
@@ -33,8 +35,8 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
 
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div class="frm-grid" style="grid-template-columns:repeat(4,1fr);gap:12px">
-        <div class="field"><label>{{ 'start_date' | t }}</label><input type="date" class="input" [(ngModel)]="start"></div>
-        <div class="field"><label>{{ 'end_date' | t }}</label><input type="date" class="input" [(ngModel)]="end"></div>
+        <div class="field"><label>{{ 'start_date' | t }}</label><app-date-input [(ngModel)]="start"></app-date-input></div>
+        <div class="field"><label>{{ 'end_date' | t }}</label><app-date-input [(ngModel)]="end"></app-date-input></div>
         <div class="field"><label>{{ 'branch_2' | t }}</label>
           <select class="select" [(ngModel)]="branch"><option value="All">{{ 'all_2' | t }}</option>
             @for (b of opts('branch'); track b) { <option [value]="b">{{ b }}</option> }</select></div>
@@ -76,7 +78,7 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
             <th>{{ 'status' | t }}</th><th>{{ 'samples' | t }}</th><th>{{ 'marked_at' | t : 'Marked At' }}</th><th>Verified</th><th></th></tr>
           @for (v of paged(); track v.visitId) {
             <tr>
-              <td class="mono">{{ v.visitDate }}<div class="small muted">{{ v.scheduledTime }}</div></td>
+              <td class="mono">{{ v.visitDate | appDate }}<div class="small muted">{{ v.scheduledTime }}</div></td>
               <td><b style="color:var(--slate-900)">{{ v.lab }}</b><div class="small muted">{{ sub(v) }}</div></td>
               <td>{{ v.rep ?? '—' }}</td>
               <td><span class="badge" [class]="badgeClass(v.status)">{{ statusLabel(v.status) }}</span>@if (v.transferDone) { <span class="badge b-info">{{ 'transferred' | t : 'Transferred' }}</span> }</td>
@@ -278,7 +280,7 @@ export class DailyComponent {
   statusLabel(s: string): string { return s === 'Visited' ? 'Collected' : s; }
 
   private exportRows(): (string | number | null)[][] {
-    return this.filtered().map((v) => [v.visitDate, v.scheduledTime, v.lab, v.labDisplayCode, v.branch, v.area, v.governorate,
+    return this.filtered().map((v) => [ddmy(v.visitDate), v.scheduledTime, v.lab, v.labDisplayCode, v.branch, v.area, v.governorate,
       v.rep, this.statusLabel(v.status), v.samples, localDateTime(v.markedAt), v.adminChecked ? 'Yes' : 'No']);
   }
   exportExcel(): void {

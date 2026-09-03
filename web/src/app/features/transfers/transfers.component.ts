@@ -1,18 +1,20 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DateInputComponent } from '../../shared/date-input.component';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { PagedResult, RepListItem, TransferItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
-import { exportCsv, printTable, localToday, localDateTime } from '../../shared/export.util';
+import { exportCsv, printTable, localToday, localDateTime, ddmy } from '../../shared/export.util';
+import { AppDatePipe } from '../../shared/app-date.pipe';
 
 interface Draft { rep: string; name: string; mobile: string; car: string; when: string; done: boolean; }
 
 @Component({
   selector: 'app-transfers',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, TranslatePipe],
+  imports: [FormsModule, DecimalPipe, TranslatePipe, AppDatePipe, DateInputComponent],
   template: `
     <div class="pagehead" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <div><div class="breadcrumbs">Home / {{ 'transfers' | t }}</div><h1>{{ 'transfers' | t }}</h1></div>
@@ -34,8 +36,8 @@ interface Draft { rep: string; name: string; mobile: string; car: string; when: 
 
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div class="frm-grid" style="grid-template-columns:repeat(4,1fr);gap:12px">
-        <div class="field"><label>{{ 'start_date' | t }}</label><input type="date" class="input" [(ngModel)]="start"></div>
-        <div class="field"><label>{{ 'end_date' | t }}</label><input type="date" class="input" [(ngModel)]="end"></div>
+        <div class="field"><label>{{ 'start_date' | t }}</label><app-date-input [(ngModel)]="start"></app-date-input></div>
+        <div class="field"><label>{{ 'end_date' | t }}</label><app-date-input [(ngModel)]="end"></app-date-input></div>
         <div class="field"><label>{{ 'branch_2' | t }}</label>
           <select class="select" [(ngModel)]="branch"><option value="All">{{ 'all_2' | t }}</option>@for (b of opts('branch'); track b) { <option [value]="b">{{ b }}</option> }</select></div>
         <div class="field"><label>{{ 'governorate_2' | t }}</label>
@@ -86,7 +88,7 @@ interface Draft { rep: string; name: string; mobile: string; car: string; when: 
                   <tr>
                     <td>@if (!r.transferDone) { <input type="checkbox" [checked]="selected.has(r.visitId)" (change)="toggleRow(r.visitId)"> }</td>
                     <td><b style="color:var(--slate-900)">{{ r.labName }}</b><div class="small muted">{{ r.labDisplayCode }} · {{ r.branch ?? '—' }}</div></td>
-                    <td class="mono small">{{ r.visitDate }} · {{ r.visitTime }}</td>
+                    <td class="mono small">{{ r.visitDate | appDate }} · {{ r.visitTime }}</td>
                     <td>{{ r.collectorName ?? '—' }}</td>
                     <td class="mono" style="font-weight:700">{{ r.samples ?? 0 }}</td>
                     <td><span class="badge" [class]="r.transferDone ? 'b-ok' : 'b-warn'">{{ (r.transferDone ? 'transferred' : 'collected') | t : (r.transferDone ? 'Transferred' : 'Collected') }}</span></td>
@@ -239,7 +241,7 @@ export class TransfersComponent {
   // ---- Exports ----
 
   private exportRows(): (string | number | null)[][] {
-    return this.filtered().map((r) => [r.labName, r.labDisplayCode, r.area, r.branch, `${r.visitDate} ${r.visitTime}`,
+    return this.filtered().map((r) => [r.labName, r.labDisplayCode, r.area, r.branch, `${ddmy(r.visitDate)} ${r.visitTime}`,
       r.collectorName, r.samples ?? 0, r.transferDone ? 'Transferred' : 'Collected',
       r.driverName, r.driverMobile, r.carPlate, r.transferRepName, r.transferTime]);
   }

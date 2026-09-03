@@ -45,7 +45,7 @@ interface AuditRow { id: string; occurredAt: string; actor: string; entity: stri
           <tbody>
             @for (a of r.items; track a.id) {
               <tr>
-                <td class="mono small">{{ a.occurredAt | date:'short' }}</td>
+                <td class="mono small">{{ a.occurredAt | date:'dd/MM/yyyy HH:mm' }}</td>
                 <td>{{ a.actor }}</td>
                 <td>{{ a.entity }}<div class="small muted mono">{{ a.entityId | slice:0:8 }}</div></td>
                 <td><span class="badge b-neu">{{ a.action }}</span></td>

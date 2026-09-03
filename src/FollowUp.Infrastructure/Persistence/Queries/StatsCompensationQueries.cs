@@ -1,3 +1,4 @@
+using FollowUp.Application.Features.AreaStats;
 using FollowUp.Application.Features.Compensation;
 using FollowUp.Application.Features.LabStats;
 using FollowUp.Application.Features.TestCatalogue;
@@ -36,6 +37,61 @@ internal sealed class LabStatsQueries : ILabStatsQueries
             return new LabStatDto(s.Date, s.LabCode, l?.Name, l?.Category, l?.Segment, l?.Governorate, l?.City, l?.Area,
                 l?.Status?.Name, s.Registrations, s.TestCount, s.Income.Amount);
         }).ToList();
+    }
+
+    private static bool IsGlobal(OrgScope s) =>
+        s.Branches.Contains(OrgScope.Wildcard) && s.Governorates.Contains(OrgScope.Wildcard) &&
+        s.Cities.Contains(OrgScope.Wildcard) && s.Areas.Contains(OrgScope.Wildcard) &&
+        s.Categories.Contains(OrgScope.Wildcard) && s.Segments.Contains(OrgScope.Wildcard);
+}
+
+/// <summary>
+/// Reads daily lab statistics over a range and rolls them up to the geography grain (date, governorate, city,
+/// area) by joining each lab's stamped location. Mirrors <see cref="LabStatsQueries"/>'s scope filtering and
+/// code→lab enrichment, then aggregates in memory so the page receives one row per (date, gov, city, area)
+/// instead of one per (date, lab). No dedicated area-statistics table exists — the rollup is derived from the
+/// same <c>daily_lab_statistic</c> rows the nightly lab-stats sync maintains.
+/// </summary>
+internal sealed class AreaStatsQueries : IAreaStatsQueries
+{
+    private readonly FollowUpDbContext _db;
+    public AreaStatsQueries(FollowUpDbContext db) => _db = db;
+
+    public async Task<IReadOnlyList<AreaStatDto>> ListAsync(DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct)
+    {
+        var q = _db.DailyLabStatistics.AsNoTracking().Where(s => s.Date >= from && s.Date <= to);
+
+        // Scope by lab code (stats key on code). Skip when scope is global.
+        if (!IsGlobal(scope))
+        {
+            var allowedCodes = (await _db.Laboratories.ApplyScope(scope).Select(l => l.Code).ToListAsync(ct))
+                .Select(c => c.Value).ToList();
+            q = q.Where(s => allowedCodes.Contains(s.LabCode));
+        }
+
+        // Materialize the stat rows before touching Income.Amount — Money is a converted scalar, so .Amount is
+        // only reachable in memory (mirrors LabStatsQueries).
+        var rows = await q.ToListAsync(ct);
+
+        // Resolve each lab's stamped geography by code (the geography lives on the lab, not the stats row).
+        var geoByCode = (await _db.Laboratories.AsNoTracking()
+                .Select(l => new { l.Code, l.Governorate, l.City, l.Area }).ToListAsync(ct))
+            .GroupBy(l => l.Code.Value).ToDictionary(g => g.Key, g => g.First());
+
+        // Aggregate to (date, governorate, city, area). Unmapped labs fall into a null bucket the page renders as "—".
+        var agg = new Dictionary<(DateOnly, string?, string?, string?), (int test, decimal income)>();
+        foreach (var s in rows)
+        {
+            geoByCode.TryGetValue(s.LabCode, out var g);
+            var key = (s.Date, g?.Governorate, g?.City, g?.Area);
+            var cur = agg.TryGetValue(key, out var x) ? x : default;
+            agg[key] = (cur.test + s.TestCount, cur.income + s.Income.Amount);
+        }
+
+        return agg
+            .Select(kv => new AreaStatDto(kv.Key.Item1, kv.Key.Item2, kv.Key.Item3, kv.Key.Item4, kv.Value.test, kv.Value.income))
+            .OrderBy(d => d.Date).ThenBy(d => d.Governorate).ThenBy(d => d.Area)
+            .ToList();
     }
 
     private static bool IsGlobal(OrgScope s) =>

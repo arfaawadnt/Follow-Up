@@ -1,10 +1,12 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { DateInputComponent } from '../../shared/date-input.component';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { SampleLifecycleRow, SampleTracking, UserLookup } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
-import { exportCsv, printTable, localToday, localDateTime } from '../../shared/export.util';
+import { exportCsv, printTable, localToday, localDateTime, ddmy } from '../../shared/export.util';
+import { AppDatePipe } from '../../shared/app-date.pipe';
 
 interface City { id: string; name: string; governorate: string; }
 interface AreaRef { id: string; name: string; cityId: string; }
@@ -13,7 +15,7 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
 @Component({
   selector: 'app-sampletracking',
   standalone: true,
-  imports: [FormsModule, TranslatePipe],
+  imports: [FormsModule, TranslatePipe, AppDatePipe, DateInputComponent],
   template: `
     <div class="pagehead">
       <div>
@@ -33,8 +35,8 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
       <div class="card" style="padding:20px;margin-bottom:16px">
         <h3 style="margin:0 0 12px;font-size:14px">{{ 'area_assignment_filtration' | t : 'Area Assignment Filtration' }}</h3>
         <div class="frm-grid" style="grid-template-columns:repeat(4,1fr);gap:12px">
-          <div class="field"><label>{{ 'start_date' | t : 'Start Date' }}</label><input type="date" class="input" [(ngModel)]="start"></div>
-          <div class="field"><label>{{ 'end_date' | t : 'End Date' }}</label><input type="date" class="input" [(ngModel)]="end"></div>
+          <div class="field"><label>{{ 'start_date' | t : 'Start Date' }}</label><app-date-input [(ngModel)]="start"></app-date-input></div>
+          <div class="field"><label>{{ 'end_date' | t : 'End Date' }}</label><app-date-input [(ngModel)]="end"></app-date-input></div>
           <div class="field"><label>{{ 'governorate_2' | t : 'Governorate' }}</label>
             <select class="select" [(ngModel)]="gov"><option value="All">{{ 'all_2' | t : 'All' }}</option>@for (g of govOptions(); track g) { <option [value]="g">{{ g }}</option> }</select></div>
           <div class="field"><label>{{ 'city_2' | t : 'City' }}</label>
@@ -73,7 +75,7 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
             <tbody>
               @for (r of filtered(); track r.id) {
                 <tr>
-                  <td class="mono small">{{ r.date }}</td>
+                  <td class="mono small">{{ r.date | appDate }}</td>
                   <td><b>{{ r.area }}</b></td>
                   <td class="mono" style="font-weight:700">{{ r.count }}</td>
                   <td><select class="select sel" [ngModel]="draft(r).dataEntryUser" (ngModelChange)="setD(r, 'dataEntryUser', $event)" [disabled]="!auth.has('SampleTracking')">
@@ -100,8 +102,8 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
       <div class="card" style="padding:20px;margin-bottom:16px">
         <h3 style="margin:0 0 12px;font-size:14px">{{ 'report_filtration' | t : 'Report Filtration' }}</h3>
         <div class="frm-grid" style="grid-template-columns:repeat(4,1fr);gap:12px">
-          <div class="field"><label>{{ 'start_date' | t : 'Start Date' }}</label><input type="date" class="input" [(ngModel)]="rStart"></div>
-          <div class="field"><label>{{ 'end_date' | t : 'End Date' }}</label><input type="date" class="input" [(ngModel)]="rEnd"></div>
+          <div class="field"><label>{{ 'start_date' | t : 'Start Date' }}</label><app-date-input [(ngModel)]="rStart"></app-date-input></div>
+          <div class="field"><label>{{ 'end_date' | t : 'End Date' }}</label><app-date-input [(ngModel)]="rEnd"></app-date-input></div>
           <div class="field"><label>{{ 'area_2' | t : 'Area' }}</label>
             <select class="select" [(ngModel)]="rArea"><option value="All">{{ 'all_2' | t : 'All' }}</option>@for (a of reportAreas(); track a) { <option [value]="a">{{ a }}</option> }</select></div>
           <div class="field"><label>{{ 'group_by' | t : 'Group By' }}</label>
@@ -132,7 +134,7 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
                 @for (r of grp.rows; track $index) {
                   <tr>
                     <td><b>{{ r.lab }}</b><div class="small muted">{{ r.labDisplayCode }}</div></td>
-                    <td class="mono small">{{ r.visitDate }} {{ r.visitTime }}</td>
+                    <td class="mono small">{{ r.visitDate | appDate }} {{ r.visitTime }}</td>
                     <td class="mono" style="font-weight:700">{{ r.samples ?? '—' }}</td>
                     <td class="small">{{ r.collectorName ?? '—' }}<div class="mono small muted">{{ fmt(r.collectedAt) }}</div></td>
                     <td class="small">{{ r.transferRepName ?? '—' }}<div class="mono small muted">{{ fmt(r.transferredAt) }}</div>
@@ -296,7 +298,7 @@ export class SampleTrackingComponent {
     return r.driverName ? `${r.driverName} (${r.carPlate ?? '—'} · ${r.driverMobile ?? '—'})` : '—';
   }
   private reportRows(): (string | number | null)[][] {
-    return this.reportFiltered().map((r) => [r.lab, r.labDisplayCode, r.area, `${r.visitDate} ${r.visitTime}`, r.samples,
+    return this.reportFiltered().map((r) => [r.lab, r.labDisplayCode, r.area, `${ddmy(r.visitDate)} ${r.visitTime}`, r.samples,
       this.stage(r.collectorName, r.collectedAt),
       `${this.stage(r.transferRepName, r.transferredAt)}${r.driverName ? ' — ' + this.driver(r) : ''}`,
       this.fmt(r.receivedAt),
@@ -309,7 +311,7 @@ export class SampleTrackingComponent {
     // Motion tracking mirrors the reference: who moved the samples at each leg, incl. the driver details.
     printTable('Sample Motion Tracking',
       ['Laboratory', 'Area', 'Visit', 'Collector', 'Transfer rep', 'Driver (car · mobile)', 'Stage timeline'],
-      this.reportFiltered().map((r) => [r.lab, r.area, `${r.visitDate} ${r.visitTime}`,
+      this.reportFiltered().map((r) => [r.lab, r.area, `${ddmy(r.visitDate)} ${r.visitTime}`,
         r.collectorName ?? '—', r.transferRepName ?? '—', this.driver(r),
         ['Collected ' + this.fmt(r.collectedAt), 'Transferred ' + this.fmt(r.transferredAt), 'Received ' + this.fmt(r.receivedAt),
          'Data entry ' + this.fmt(r.dataEntryAt), 'Revised ' + this.fmt(r.reviewAt), 'Sorted ' + this.fmt(r.sortAt)].join(' → ')]));

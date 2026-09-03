@@ -1,11 +1,13 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { DateInputComponent } from '../../shared/date-input.component';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { LabListItem, OutsourceSample, PagedResult } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
-import { exportCsv, localToday } from '../../shared/export.util';
+import { exportCsv, localToday, ddmy } from '../../shared/export.util';
+import { AppDatePipe } from '../../shared/app-date.pipe';
 
 const STATUSES = ['All', 'Collected', 'Sent', 'Received'];
 const NEXT: Record<string, string> = { Collected: 'Sent', Sent: 'Received' };
@@ -13,7 +15,7 @@ const NEXT: Record<string, string> = { Collected: 'Sent', Sent: 'Received' };
 @Component({
   selector: 'app-outsource',
   standalone: true,
-  imports: [FormsModule, ReactiveFormsModule, DecimalPipe, TranslatePipe],
+  imports: [FormsModule, ReactiveFormsModule, DecimalPipe, TranslatePipe, AppDatePipe, DateInputComponent],
   template: `
     <div class="pagehead" style="display:flex;justify-content:space-between;align-items:center">
       <div><div class="breadcrumbs">Home / {{ 'outsource_samples' | t }}</div><h1>{{ 'outsource_tracking_title' | t : 'Outsource Samples Tracking' }}</h1></div>
@@ -29,8 +31,8 @@ const NEXT: Record<string, string> = { Collected: 'Sent', Sent: 'Received' };
 
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div class="frm-grid" style="grid-template-columns:repeat(3,1fr);gap:12px;align-items:end">
-        <div class="field"><label>{{ 'start_date' | t }}</label><input type="date" class="input" [(ngModel)]="start"></div>
-        <div class="field"><label>{{ 'end_date' | t }}</label><input type="date" class="input" [(ngModel)]="end"></div>
+        <div class="field"><label>{{ 'start_date' | t }}</label><app-date-input [(ngModel)]="start"></app-date-input></div>
+        <div class="field"><label>{{ 'end_date' | t }}</label><app-date-input [(ngModel)]="end"></app-date-input></div>
         <div class="field"><button class="btn btn-p" (click)="load()" style="height:38px">{{ 'apply_filters_2' | t : 'Apply' }}</button></div>
       </div>
       <div style="display:flex;gap:4px;margin-top:12px;padding-top:12px;border-top:1px solid var(--slate-150)">
@@ -42,7 +44,7 @@ const NEXT: Record<string, string> = { Collected: 'Sent', Sent: 'Received' };
       <div class="card" style="padding:20px;margin-bottom:20px">
         <h3 style="margin:0 0 12px;font-size:14px;font-weight:600;color:var(--slate-800)">{{ 'add_outsource_sample_manually' | t : 'Add outsource sample' }}</h3>
         <form class="frm-grid" [formGroup]="form" (ngSubmit)="add()" style="grid-template-columns:repeat(3,1fr);gap:12px;align-items:end">
-          <div class="field"><label>{{ 'date' | t : 'Date' }}</label><input type="date" class="input" formControlName="visitDate"></div>
+          <div class="field"><label>{{ 'date' | t : 'Date' }}</label><app-date-input formControlName="visitDate"></app-date-input></div>
           <div class="field"><label>{{ 'laboratory' | t }}</label>
             <select class="select" formControlName="laboratoryId"><option value="">—</option>@for (l of labs(); track l.id) { <option [value]="l.id">{{ l.displayCode }} · {{ l.name }}</option> }</select></div>
           <div class="field"><label>{{ 'quantity' | t : 'Samples Count' }}</label><input class="input" type="number" min="1" formControlName="quantity"></div>
@@ -64,7 +66,7 @@ const NEXT: Record<string, string> = { Collected: 'Sent', Sent: 'Received' };
           <tbody>
             @for (o of filtered(); track o.id) {
               <tr>
-                <td class="mono small">{{ o.visitDate }}</td>
+                <td class="mono small">{{ o.visitDate | appDate }}</td>
                 <td><b style="color:var(--slate-900)">{{ o.labName }}</b><div class="small muted">{{ o.labDisplayCode }}</div></td>
                 <td>
                   @if (auth.has('OutsourceSamples')) { <input type="number" min="1" class="input" style="width:76px;padding:4px 8px" [ngModel]="draft(o).quantity" (ngModelChange)="setD(o, 'quantity', $event)"> }
@@ -177,7 +179,7 @@ export class OutsourceComponent {
   exportExcel(): void {
     exportCsv('outsource-samples.csv',
       ['Date', 'Source lab', 'Code', 'Samples', 'Status', 'Destination lab', 'Notes'],
-      this.filtered().map((o) => [o.visitDate, o.labName, o.labDisplayCode, o.quantity, o.status, o.destinationLab, o.notes]));
+      this.filtered().map((o) => [ddmy(o.visitDate), o.labName, o.labDisplayCode, o.quantity, o.status, o.destinationLab, o.notes]));
   }
   advance(o: OutsourceSample): void {
     const status = this.next(o.status); if (!status) return;

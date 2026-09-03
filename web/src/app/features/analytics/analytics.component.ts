@@ -1,7 +1,9 @@
 import { localToday } from '../../shared/export.util';
+import { AppDatePipe } from '../../shared/app-date.pipe';
 import { Component, computed, inject, signal } from '@angular/core';
-import { DatePipe, DecimalPipe } from '@angular/common';
+import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DateInputComponent } from '../../shared/date-input.component';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { Commission, LabListItem, LabStat, LoyaltyLedger, PagedResult, RepListItem } from '../../core/models';
@@ -11,7 +13,7 @@ type Tab = 'loyalty' | 'commissions' | 'labstats';
 @Component({
   selector: 'app-analytics',
   standalone: true,
-  imports: [FormsModule, DatePipe, DecimalPipe],
+  imports: [FormsModule, AppDatePipe, DecimalPipe, DateInputComponent],
   template: `
     <h1 class="display page-title">Analytics</h1>
 
@@ -23,8 +25,8 @@ type Tab = 'loyalty' | 'commissions' | 'labstats';
 
     <div class="filters">
       @if (tab() === 'labstats') {
-        <label>From <input type="date" [(ngModel)]="from"></label>
-        <label>To <input type="date" [(ngModel)]="to"></label>
+        <label>From <app-date-input [(ngModel)]="from"></app-date-input></label>
+        <label>To <app-date-input [(ngModel)]="to"></app-date-input></label>
       } @else {
         <label>Period <input type="month" [(ngModel)]="month"></label>
       }
@@ -66,7 +68,7 @@ type Tab = 'loyalty' | 'commissions' | 'labstats';
           <thead><tr><th>Date</th><th>Lab</th><th class="r">Registrations</th><th class="r">Tests</th><th class="r">Income</th></tr></thead>
           <tbody>
             @for (s of labstats(); track $index) {
-              <tr><td>{{ s.date | date:'mediumDate' }}</td><td class="client-code mono">{{ s.labCode }}</td>
+              <tr><td>{{ s.date | appDate }}</td><td class="client-code mono">{{ s.labCode }}</td>
                 <td class="r mono">{{ s.registrations }}</td><td class="r mono">{{ s.testCount }}</td>
                 <td class="r mono">{{ s.income | number:'1.0-2' }}</td></tr>
             } @empty { <tr><td colspan="5" class="empty">No statistics in this range.</td></tr> }

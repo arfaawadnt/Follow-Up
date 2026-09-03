@@ -48,8 +48,8 @@ interface Sess { id: string; username: string; ipAddress: string | null; termina
                 <td><b style="color:var(--slate-900)">{{ s.username }}</b></td>
                 <td class="mono small">{{ s.ipAddress ?? '—' }}</td>
                 <td class="small muted">{{ (s.terminal ?? '—') | slice:0:40 }}</td>
-                <td class="mono small">{{ s.loginAt | date:'short' }}</td>
-                <td class="mono small">{{ s.logoutAt ? (s.logoutAt | date:'short') : '—' }}</td>
+                <td class="mono small">{{ s.loginAt | date:'dd/MM/yyyy HH:mm' }}</td>
+                <td class="mono small">{{ s.logoutAt ? (s.logoutAt | date:'dd/MM/yyyy HH:mm') : '—' }}</td>
                 <td class="mono">{{ dur(s.durationSec) }}</td>
               </tr>
             } @empty { <tr><td colspan="6" class="empty" style="text-align:center;padding:24px">—</td></tr> }

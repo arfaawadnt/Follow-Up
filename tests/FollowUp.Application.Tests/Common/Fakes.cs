@@ -31,6 +31,9 @@ public sealed class FakeLaboratoryRepository : ILaboratoryRepository
     public Task<string> NextCodeAsync(CancellationToken ct) =>
         Task.FromResult($"MGL-{++_seq:0000}");
 
+    public Task<IReadOnlyList<Laboratory>> GetAllAsync(CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Laboratory>>(Store.ToList());
+
     public void Add(Laboratory laboratory) => Store.Add(laboratory);
 }
 
@@ -90,6 +93,8 @@ public sealed class FakeRepresentativeRepository : IRepresentativeRepository
         Task.FromResult(Store.FirstOrDefault(r => r.Id == id));
     public Task<bool> ExistsAsync(RepresentativeId id, CancellationToken ct) =>
         Task.FromResult(Store.Any(r => r.Id == id));
+    public Task<IReadOnlyList<Representative>> GetAllAsync(CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Representative>>(Store.ToList());
     public void Add(Representative representative) => Store.Add(representative);
 }
 
@@ -274,6 +279,8 @@ public sealed class FakeRefItemRepository : IRefItemRepository
         Task.FromResult(Store.FirstOrDefault(r => r.Id == id));
     public Task<bool> ExistsAsync(Domain.Reference.RefType type, string code, CancellationToken ct) =>
         Task.FromResult(Store.Any(r => r.Type == type && string.Equals(r.Code, code, StringComparison.OrdinalIgnoreCase)));
+    public Task<IReadOnlyList<Domain.Reference.RefItem>> GetByTypeAsync(Domain.Reference.RefType type, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Domain.Reference.RefItem>>(Store.Where(r => r.Type == type).ToList());
     public void Add(Domain.Reference.RefItem item) => Store.Add(item);
     public void Remove(Domain.Reference.RefItem item) => Store.Remove(item);
 }
@@ -285,7 +292,7 @@ public sealed class FakeSetupQueries : Application.Features.Setup.ISetupQueries
     {
         IReadOnlyList<Application.Features.Setup.RefItemDto> items = type == nameof(RefType.Segment)
             ? new[] { "A", "B", "C" }
-                .Select((s, i) => new Application.Features.Setup.RefItemDto(Guid.NewGuid(), nameof(RefType.Segment), s, s, null, i))
+                .Select((s, i) => new Application.Features.Setup.RefItemDto(Guid.NewGuid(), nameof(RefType.Segment), s, s, null, i, nameof(Domain.Common.RecordSource.Manual)))
                 .ToList()
             : new List<Application.Features.Setup.RefItemDto>();
         return Task.FromResult(items);

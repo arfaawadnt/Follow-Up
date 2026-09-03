@@ -1,16 +1,18 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DateInputComponent } from '../../shared/date-input.component';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { ReceivingItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
-import { exportCsv, printTable, localToday, localDateTime } from '../../shared/export.util';
+import { exportCsv, printTable, localToday, localDateTime, ddmy } from '../../shared/export.util';
+import { AppDatePipe } from '../../shared/app-date.pipe';
 
 @Component({
   selector: 'app-labcheckin',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, TranslatePipe],
+  imports: [FormsModule, DecimalPipe, TranslatePipe, AppDatePipe, DateInputComponent],
   template: `
     <div class="pagehead" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <div><div class="breadcrumbs">Home / {{ 'labcheckin' | t }}</div><h1>{{ 'labcheckin' | t }}</h1></div>
@@ -32,8 +34,8 @@ import { exportCsv, printTable, localToday, localDateTime } from '../../shared/e
 
     <div class="card" style="padding:20px;margin-bottom:20px">
       <div class="frm-grid" style="grid-template-columns:repeat(4,1fr);gap:12px">
-        <div class="field"><label>{{ 'start_date' | t }}</label><input type="date" class="input" [(ngModel)]="start"></div>
-        <div class="field"><label>{{ 'end_date' | t }}</label><input type="date" class="input" [(ngModel)]="end"></div>
+        <div class="field"><label>{{ 'start_date' | t }}</label><app-date-input [(ngModel)]="start"></app-date-input></div>
+        <div class="field"><label>{{ 'end_date' | t }}</label><app-date-input [(ngModel)]="end"></app-date-input></div>
         <div class="field"><label>{{ 'branch_2' | t }}</label>
           <select class="select" [(ngModel)]="branch"><option value="All">{{ 'all_2' | t }}</option>@for (b of opts('branch'); track b) { <option [value]="b">{{ b }}</option> }</select></div>
         <div class="field"><label>{{ 'governorate_2' | t }}</label>
@@ -66,7 +68,7 @@ import { exportCsv, printTable, localToday, localDateTime } from '../../shared/e
               <tr>
                 <td>@if (r.status !== 'Received') { <input type="checkbox" [checked]="selected.has(r.visitId)" (change)="toggleRow(r.visitId)"> }</td>
                 <td><b style="color:var(--slate-900)">{{ r.labName }}</b><div class="small muted">{{ r.labDisplayCode }}@if (r.area) { · {{ r.area }} }</div></td>
-                <td class="mono small">{{ r.visitDate }} · {{ r.visitTime }}</td>
+                <td class="mono small">{{ r.visitDate | appDate }} · {{ r.visitTime }}</td>
                 <td>{{ r.collectorName ?? '—' }}<div class="small muted">{{ r.transferRepName ?? '' }}</div></td>
                 <td class="mono" style="font-weight:700">{{ r.samples ?? 0 }}</td>
                 <td class="mono small">{{ when(r.transferTime) }}</td>
@@ -148,7 +150,7 @@ export class LabCheckInComponent {
   // ---- Exports ----
 
   private exportRows(): (string | number | null)[][] {
-    return this.filtered().map((r) => [r.labName, r.labDisplayCode, r.area, r.governorate, `${r.visitDate} ${r.visitTime}`,
+    return this.filtered().map((r) => [r.labName, r.labDisplayCode, r.area, r.governorate, `${ddmy(r.visitDate)} ${r.visitTime}`,
       r.collectorName, r.transferRepName, r.samples ?? 0, this.when(r.transferTime), r.status, this.when(r.receivedTime)]);
   }
   private static readonly EXPORT_HEADER = ['Laboratory', 'Code', 'Area', 'Governorate', 'Collected', 'Collector rep', 'Transfer rep', 'Samples', 'Transfer time', 'Status', 'Received at'];

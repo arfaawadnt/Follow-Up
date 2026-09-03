@@ -1,7 +1,8 @@
 import { localToday } from '../../shared/export.util';
+import { AppDatePipe } from '../../shared/app-date.pipe';
 import { Component, computed, inject, signal } from '@angular/core';
-import { DatePipe } from '@angular/common';
 import { FormsModule, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { DateInputComponent } from '../../shared/date-input.component';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { LabListItem, MarketingVisit, PagedResult, RepListItem } from '../../core/models';
@@ -21,7 +22,7 @@ const STATUSES = ['All', 'Scheduled', 'Completed', 'Cancelled'];
 @Component({
   selector: 'app-marketing',
   standalone: true,
-  imports: [DatePipe, FormsModule, ReactiveFormsModule, TranslatePipe],
+  imports: [AppDatePipe, FormsModule, ReactiveFormsModule, TranslatePipe, DateInputComponent],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'marketing_visit_followup' | t : 'Marketing' }}</div><h1>{{ 'marketing_visit_followup' | t : 'Marketing Visits' }}</h1></div>
@@ -44,7 +45,7 @@ const STATUSES = ['All', 'Scheduled', 'Completed', 'Cancelled'];
                 <td class="mono">{{ v.reference }}</td>
                 <td><b style="color:var(--slate-900)">{{ v.lab }}</b><div class="small muted">{{ v.labDisplayCode }}@if (v.area) { · {{ v.area }} }</div></td>
                 <td>{{ v.rep ?? '—' }}</td>
-                <td class="mono small">{{ v.scheduledDate | date:'mediumDate' }}</td>
+                <td class="mono small">{{ v.scheduledDate | appDate }}</td>
                 <td class="mono small">{{ v.scheduledTime ?? '—' }}</td>
                 <td>{{ purposeLabel(v.purpose) }}</td>
                 <td><span class="badge" [class]="badge(v.status)">{{ v.status }}</span></td>
@@ -76,7 +77,7 @@ const STATUSES = ['All', 'Scheduled', 'Completed', 'Cancelled'];
                 <select class="select" formControlName="laboratoryId"><option value="">—</option>@for (l of labs(); track l.id) { <option [value]="l.id">{{ l.displayCode }} · {{ l.name }}</option> }</select></div>
               <div class="field"><label>{{ 'marketing_rep_lbl' | t : 'Marketing rep *' }}</label>
                 <select class="select" formControlName="representativeId"><option value="">—</option>@for (r of marketingReps(); track r.id) { <option [value]="r.id">{{ r.fullName }}</option> }</select></div>
-              <div class="field"><label>{{ 'date_lbl' | t : 'Date *' }}</label><input type="date" class="input" formControlName="scheduledDate"></div>
+              <div class="field"><label>{{ 'date_lbl' | t : 'Date *' }}</label><app-date-input formControlName="scheduledDate"></app-date-input></div>
               <div class="field"><label>{{ 'time' | t : 'Time' }}</label><input type="time" class="input" formControlName="scheduledTime"></div>
               <div class="field" style="grid-column:1/-1"><label>{{ 'purpose' | t }}</label>
                 <select class="select" formControlName="purpose">@for (p of purposes; track p.value) { <option [value]="p.value">{{ p.label }}</option> }</select></div>
@@ -96,7 +97,7 @@ const STATUSES = ['All', 'Scheduled', 'Completed', 'Cancelled'];
         <div class="dlg" (click)="$event.stopPropagation()" style="width:min(94vw,480px)">
           <div class="dlg-head"><h2>{{ 'complete_visit' | t : 'Complete visit' }} — {{ v.reference }}</h2><button class="btn btn-mini btn-s" (click)="completing.set(null)">✕</button></div>
           <div style="padding:16px">
-            <div class="small muted" style="margin-bottom:8px">{{ v.lab }} · {{ purposeLabel(v.purpose) }} · {{ v.scheduledDate | date:'mediumDate' }}</div>
+            <div class="small muted" style="margin-bottom:8px">{{ v.lab }} · {{ purposeLabel(v.purpose) }} · {{ v.scheduledDate | appDate }}</div>
             <div class="field"><label>{{ 'outcome' | t : 'Outcome' }} *</label><textarea class="input" rows="4" [(ngModel)]="outcomeText"></textarea></div>
             <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
               <button class="btn btn-s" (click)="completing.set(null)">{{ 'cancel' | t }}</button>
