@@ -126,10 +126,11 @@ const DASH = '—';
   `,
   styles: [`
     th.r,td.r{text-align:right}
-    .stick{position:sticky;inset-inline-start:0;z-index:1;background:var(--white,#fff)}
+    .stick{position:sticky;inset-inline-start:0;z-index:1}
+    td.stick{background:var(--white,#fff)}
     thead .stick{z-index:2}
     td.tot,th.tot{border-inline-start:2px solid var(--slate-150,#edebe9)}
-    td.ref,th.ref{background:var(--slate-50,#f8fafc)}
+    td.ref{background:var(--slate-50,#f8fafc)}
     .area-cell{padding-inline-start:22px;color:var(--slate-700,#605e5c)}
     .gov-row td{background:var(--slate-100,#f1f5f9)}
     .gov-row .stick{background:var(--slate-100,#f1f5f9)}
