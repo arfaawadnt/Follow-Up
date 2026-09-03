@@ -1,6 +1,6 @@
 import { exportCsv, localToday, printTable } from '../../shared/export.util';
 import { Component, computed, inject, signal } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
@@ -10,14 +10,14 @@ interface TestStat { date: string; testCode: string; testType: number; testName:
 interface Cell { count: number; income: number; }
 interface PivotRow { key: string; testCode: string; testName: string; groupName: string; cells: Record<string, Cell>; totalCount: number; totalIncome: number; }
 interface Group { id: string; code: string; nameEn: string; }
-interface NoLabRow { date: string; accNo: string; patientName: string; testName: string; testCode: string; testType: number; }
+interface NoLabRow { regDate: string; accNo: string; patientName: string; doctor: string; registeredBy: string; testName: string; testCode: string; testType: number; }
 type View = 'daily' | 'monthly' | 'yearly';
 const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 @Component({
   selector: 'app-teststats',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, TranslatePipe],
+  imports: [FormsModule, DecimalPipe, DatePipe, TranslatePipe],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'teststats' | t : 'Test statistics' }}</div><h1>{{ 'teststats' | t : 'Test statistics' }}</h1></div>
@@ -129,12 +129,12 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
               @else {
                 <table class="grid-table" style="margin:0">
                   <thead><tr>
-                    <th>{{ 'date' | t : 'Date' }}</th><th>{{ 'acc_no' | t : 'Acc No' }}</th><th>{{ 'patient_name' | t : 'Patient Name' }}</th><th>{{ 'test_name_2' | t : 'Test Name' }}</th>
+                    <th>{{ 'date_time' | t : 'Date/Time' }}</th><th>{{ 'acc_no' | t : 'Acc No' }}</th><th>{{ 'patient_name' | t : 'Patient Name' }}</th><th>{{ 'doctor' | t : 'Doctor' }}</th><th>{{ 'registered_by' | t : 'Registered By' }}</th><th>{{ 'test_name_2' | t : 'Test Name' }}</th>
                   </tr></thead>
                   <tbody>
                     @for (r of noLabRows(); track $index) {
-                      <tr><td class="mono">{{ r.date }}</td><td class="mono">{{ r.accNo }}</td><td>{{ r.patientName }}</td><td>{{ r.testName }}</td></tr>
-                    } @empty { <tr><td colspan="4" class="empty" style="text-align:center;padding:24px">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
+                      <tr><td class="mono">{{ r.regDate | date:'yyyy-MM-dd HH:mm' }}</td><td class="mono">{{ r.accNo }}</td><td>{{ r.patientName }}</td><td>{{ r.doctor }}</td><td>{{ r.registeredBy }}</td><td>{{ r.testName }}</td></tr>
+                    } @empty { <tr><td colspan="6" class="empty" style="text-align:center;padding:24px">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
                   </tbody>
                 </table>
               }
@@ -269,8 +269,9 @@ export class TestStatsComponent {
       error: (e) => { this.noLabLoading.set(false); this.noLabErr.set(e?.error?.detail ?? 'Failed to load the report.'); },
     });
   }
+  private fmtDt(s: string): string { return s ? s.replace('T', ' ').slice(0, 16) : ''; }
   private noLabExport(): { h: string[]; rows: (string | number)[][] } {
-    return { h: ['Date', 'Acc No', 'Patient Name', 'Test Name'], rows: this.noLabRows().map((r) => [r.date, r.accNo, r.patientName, r.testName]) };
+    return { h: ['Date/Time', 'Acc No', 'Patient Name', 'Doctor', 'Registered By', 'Test Name'], rows: this.noLabRows().map((r) => [this.fmtDt(r.regDate), r.accNo, r.patientName, r.doctor, r.registeredBy, r.testName]) };
   }
   exportNoLabExcel(): void { const e = this.noLabExport(); exportCsv(`no-lab-tests-${this.today}.csv`, e.h, e.rows); }
   exportNoLabPdf(): void { const e = this.noLabExport(); printTable('No-Lab Tests', e.h, e.rows); }

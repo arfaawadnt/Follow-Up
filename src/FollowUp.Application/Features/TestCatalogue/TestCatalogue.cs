@@ -58,7 +58,7 @@ public sealed class GetTestStatsHandler : IQueryHandler<GetTestStatsQuery, IRead
 }
 
 /// <summary>One test that is counted in Test Statistics but not in Lab Statistics (its registration resolves to no lab).</summary>
-public sealed record NoLabTestRowDto(DateOnly Date, string AccNo, string PatientName, string TestName, string TestCode, int TestType);
+public sealed record NoLabTestRowDto(DateTime RegDate, string AccNo, string PatientName, string Doctor, string RegisteredBy, string TestName, string TestCode, int TestType);
 
 /// <summary>
 /// Live Oracle report (not synced): the per-test detail of tests present on Test Statistics but absent from Lab
@@ -86,13 +86,15 @@ public sealed class GetNoLabTestsReportHandler : IQueryHandler<GetNoLabTestsRepo
         foreach (var row in rows)
         {
             var v = row.Values;
-            var date = v.TryGetValue("THE_DATE", out var d) && d is not null ? DateOnly.FromDateTime(Convert.ToDateTime(d)) : default;
+            var regDt = v.TryGetValue("REG_DT", out var d) && d is not null ? Convert.ToDateTime(d) : default;
             var acc = v.TryGetValue("ACC_NO", out var a) && a is not null ? Convert.ToString(a)!.Trim() : string.Empty;
             var patient = v.TryGetValue("PATIENT_NAME", out var p) && p is not null ? Convert.ToString(p)!.Trim() : string.Empty;
+            var doctor = v.TryGetValue("DOCTOR", out var dr) && dr is not null ? Convert.ToString(dr)!.Trim() : string.Empty;
+            var regBy = v.TryGetValue("REGISTERED_BY", out var rb) && rb is not null ? Convert.ToString(rb)!.Trim() : string.Empty;
             var tname = v.TryGetValue("TEST_NAME", out var tn) && tn is not null ? Convert.ToString(tn)!.Trim() : string.Empty;
             var tcode = v.TryGetValue("TEST_CODE", out var tc) && tc is not null ? Convert.ToString(tc)!.Trim() : string.Empty;
             var ttype = v.TryGetValue("TEST_TYPE", out var tt) && tt is not null ? Convert.ToInt32(tt) : 0;
-            list.Add(new NoLabTestRowDto(date, acc, patient, tname, tcode, ttype));
+            list.Add(new NoLabTestRowDto(regDt, acc, patient, doctor, regBy, tname, tcode, ttype));
         }
         return list;
     }

@@ -75,9 +75,11 @@ public static class OracleDefaultQueries
     /// Not synced to Postgres — read live for the Test Statistics "No-Lab Tests" report.
     /// </summary>
     public const string NoLabTests =
-        "SELECT TRUNC(r.reg_date) AS the_date, " +
+        "SELECT r.reg_date AS reg_dt, " +
         "r.lab_no AS acc_no, " +
         "r.patient_name AS patient_name, " +
+        "r.doctor AS doctor, " +
+        "rss.created_by AS registered_by, " +
         "rss.service_code AS test_code, " +
         "rss.service_type AS test_type, " +
         "gt.test_name AS test_name " +
@@ -85,9 +87,12 @@ public static class OracleDefaultQueries
         "JOIN reg_selected_services rss ON rss.reg_key = r.reg_key " +
         "AND rss.service_type <> 7 AND NVL(rss.iscancelled,0) <> 1 " +
         "JOIN global_tests2 gt ON gt.test_code = rss.service_code AND gt.test_type = rss.service_type AND gt.visible = 1 " +
+        // Resolve the "no lab" set once via a derived table (the same doctor→lab mapping LabStats uses),
+        // then keep only regs whose doctor name is NOT in it — far faster than a per-row correlated NOT EXISTS.
+        "LEFT JOIN (SELECT DISTINCT UPPER(TRIM(d.doctor_name)) AS dname " +
+        "FROM doctors d JOIN lab l ON l.doctor_code = d.doctor_code) dl ON dl.dname = UPPER(TRIM(r.doctor)) " +
         "WHERE r.reg_date >= :from_date AND r.reg_date < :to_date " +
-        "AND NOT EXISTS (SELECT 1 FROM doctors d JOIN lab l ON l.doctor_code = d.doctor_code " +
-        "WHERE UPPER(TRIM(d.doctor_name)) = UPPER(TRIM(r.doctor))) " +
+        "AND dl.dname IS NULL " +
         "ORDER BY r.reg_date, r.lab_no";
 
     /// <summary>Active test-group master (maps to <c>TestGroup</c>: code, name). Only VISIBLE=1; mirrored by the sync.</summary>
