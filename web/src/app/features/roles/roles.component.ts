@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { TranslatePipe } from '../../core/i18n';
+import { ToastService } from '../../core/toast.service';
 import { RefItem, RoleItem } from '../../core/models';
 
 interface MatrixSpecial { priv: string; key: string; label: string; }
@@ -66,7 +67,6 @@ const MATRIX: MatrixRow[] = [
   imports: [FormsModule, TranslatePipe],
   template: `
     <div class="pagehead"><div><div class="breadcrumbs">Home / {{ 'roles' | t : 'Roles' }}</div><h1>{{ 'role_privilege' | t : 'Role Privilege' }}</h1></div></div>
-    @if (banner()) { <div class="inline-banner" [class.inline-banner-error]="bannerError()">{{ banner() }}</div> }
 
     <div class="grid" style="grid-template-columns:1fr 3fr;gap:16px;align-items:start">
       <div class="card" style="padding:16px">
@@ -205,6 +205,7 @@ const MATRIX: MatrixRow[] = [
 export class RolesComponent {
   private readonly api = inject(ApiService);
   readonly auth = inject(AuthService);
+  private readonly toast = inject(ToastService);
   readonly busy = signal(false);
   readonly roles = signal<RoleItem[]>([]);
   readonly selected = signal<RoleItem | null>(null);
@@ -215,8 +216,6 @@ export class RolesComponent {
   readonly governorateOptions = signal<string[]>([]);
   readonly scopeBranches = signal<Set<string>>(new Set());
   readonly scopeGovernorates = signal<Set<string>>(new Set());
-  readonly banner = signal<string | null>(null);
-  readonly bannerError = signal(false);
   readonly matrix = MATRIX;
   newName = '';
 
@@ -266,7 +265,7 @@ export class RolesComponent {
 
   savePrivs(): void {
     const r = this.selected(); if (!r) return;
-    this.busy.set(true); this.banner.set(null);
+    this.busy.set(true);
     const scope = {
       branches: [...this.scopeBranches()],
       governorates: [...this.scopeGovernorates()],
@@ -279,19 +278,18 @@ export class RolesComponent {
       id: r.id, name: r.name, privileges: [...this.draft()],
       defaultLanguage: this.defLang(), defaultTheme: this.defTheme(), scope,
     }).subscribe({
-      next: () => { this.busy.set(false); this.set('Role saved.', false); this.load(); }, error: (e) => { this.busy.set(false); this.set(e?.error?.detail ?? 'Save failed.', true); },
+      next: () => { this.busy.set(false); this.toast.success('Role saved.'); this.load(); }, error: () => { this.busy.set(false); },
     });
   }
   createRole(): void {
-    this.busy.set(true); this.banner.set(null);
+    this.busy.set(true);
     this.api.post('/setup/roles', { name: this.newName, privileges: [], defaultLanguage: 'en', defaultTheme: 'light' }).subscribe({
-      next: () => { this.busy.set(false); this.newName = ''; this.set('Role created.', false); this.load(); }, error: (e) => { this.busy.set(false); this.set(e?.error?.detail ?? 'Create failed.', true); },
+      next: () => { this.busy.set(false); this.newName = ''; this.toast.success('Role created.'); this.load(); }, error: () => { this.busy.set(false); },
     });
   }
   delRole(r: RoleItem): void {
     if (!window.confirm(`Delete role ${r.name}?`)) return;
     this.busy.set(true);
-    this.api.delete(`/setup/roles/${r.id}`).subscribe({ next: () => { this.busy.set(false); this.selected.set(null); this.load(); }, error: (e) => { this.busy.set(false); this.set(e?.error?.detail ?? 'Delete failed.', true); } });
+    this.api.delete(`/setup/roles/${r.id}`).subscribe({ next: () => { this.busy.set(false); this.selected.set(null); this.load(); }, error: () => { this.busy.set(false); } });
   }
-  private set(msg: string, err: boolean): void { this.banner.set(msg); this.bannerError.set(err); }
 }

@@ -6,6 +6,7 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { PagedResult, RepListItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
+import { ToastService } from '../../core/toast.service';
 
 const TYPES = ['Collector', 'Marketing', 'Transfer', 'Scanning'];
 
@@ -21,8 +22,6 @@ const TYPES = ['Collector', 'Marketing', 'Transfer', 'Scanning'];
         @if (canEdit()) { <button class="btn btn-p" (click)="openNew()" style="height:38px">+ {{ 'new_representative' | t : 'New representative' }}</button> }
       </div>
     </div>
-    @if (notice()) { <div class="inline-banner" style="background:var(--ok-bg,#dff6dd);color:var(--ok-ink,#107c41);padding:10px 14px;border-radius:8px;margin-bottom:12px">{{ notice() }}</div> }
-
     <div class="card" style="padding:12px;margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <div style="display:flex;gap:6px;flex-wrap:wrap;flex:1">
         @for (t of typeFilters; track t) { <span class="pill" [class.on]="type() === t" (click)="setType(t)">{{ t }}</span> }
@@ -72,6 +71,7 @@ const TYPES = ['Collector', 'Marketing', 'Transfer', 'Scanning'];
 export class RepsComponent {
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
+  private readonly toast = inject(ToastService);
   readonly auth = inject(AuthService);
   readonly loading = signal(true);
   readonly items = signal<RepListItem[]>([]);
@@ -79,7 +79,6 @@ export class RepsComponent {
   readonly type = signal('All');
   readonly query = signal('');
   readonly syncing = signal(false);
-  readonly notice = signal<string | null>(null);
 
   readonly filtered = computed(() => {
     const q = this.query().trim().toLowerCase();
@@ -100,10 +99,10 @@ export class RepsComponent {
 
   canEdit(): boolean { return this.auth.has('AddReps') || this.auth.has('ManageReps') || this.auth.has('UpdateReps'); }
   sync(): void {
-    this.syncing.set(true); this.notice.set(null);
+    this.syncing.set(true);
     this.api.post('/integration/sync-now').subscribe({
-      next: () => { this.syncing.set(false); this.notice.set('Synced from Oracle.'); this.load(); },
-      error: () => { this.syncing.set(false); this.notice.set('Oracle sync failed.'); },
+      next: () => { this.syncing.set(false); this.toast.success('Synced from Oracle.'); this.load(); },
+      error: () => { this.syncing.set(false); },
     });
   }
   sub(r: RepListItem): string { return [r.governorate, r.area, r.employmentType].filter(Boolean).join(' · '); }

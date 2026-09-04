@@ -6,6 +6,7 @@ import { DateInputComponent } from '../../shared/date-input.component';
 import { FilterSelectComponent } from '../../shared/filter-select.component';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
+import { ToastService } from '../../core/toast.service';
 import { LabStat } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
 
@@ -34,7 +35,6 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
         </div>
       }
     </div>
-    @if (summary()) { <div class="inline-banner" [class.inline-banner-error]="summaryError()">{{ summary() }}</div> }
     <div class="small muted" style="margin-bottom:10px">{{ 'import_hint' | t : 'Import columns: Date, LabCode, Registrations, TestCount, Income.' }}</div>
 
     <div class="kpis" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
@@ -121,7 +121,6 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
           </div>
           <div style="padding:16px">
             <div class="small muted" style="margin-bottom:12px">{{ 'sync_range_hint_labs' | t : 'Pull per-lab daily statistics from Oracle for this date range and merge them into the existing data.' }}</div>
-            @if (syncErr()) { <div class="inline-banner inline-banner-error" style="margin-bottom:12px">{{ syncErr() }}</div> }
             <div class="frm-grid" style="grid-template-columns:1fr 1fr;gap:12px">
               <div class="field"><label>{{ 'start_date' | t }}</label><app-date-input [(ngModel)]="syncFrom"></app-date-input></div>
               <div class="field"><label>{{ 'end_date' | t }}</label><app-date-input [(ngModel)]="syncTo"></app-date-input></div>
@@ -153,10 +152,9 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
 export class LabStatsComponent {
   private readonly api = inject(ApiService);
   readonly auth = inject(AuthService);
+  private readonly toast = inject(ToastService);
   readonly loading = signal(true);
   readonly importing = signal(false);
-  readonly summary = signal<string | null>(null);
-  readonly summaryError = signal(false);
   readonly rows = signal<LabStat[]>([]);
   readonly q = signal('');
   readonly gov = signal<string[]>([]);
@@ -171,7 +169,6 @@ export class LabStatsComponent {
   readonly pageSize = signal(25);
   readonly syncOpen = signal(false);
   readonly syncing = signal(false);
-  readonly syncErr = signal<string | null>(null);
   syncFrom = ''; syncTo = '';
   private readonly today = localToday();
   from = this.today.slice(0, 7) + '-01'; to = this.today; // first of the current month → today
@@ -255,22 +252,22 @@ export class LabStatsComponent {
   openSync(): void {
     const y = new Date(); y.setDate(y.getDate() - 1);
     this.syncFrom = this.ymd(y); this.syncTo = this.today; // default: yesterday → today
-    this.syncErr.set(null); this.syncOpen.set(true);
+    this.syncOpen.set(true);
   }
   runSync(): void {
-    if (!this.syncFrom || !this.syncTo) { this.syncErr.set('Please choose a start and end date.'); return; }
-    if (this.syncFrom > this.syncTo) { this.syncErr.set('The start date must be on or before the end date.'); return; }
-    this.syncing.set(true); this.syncErr.set(null);
+    if (!this.syncFrom || !this.syncTo) { this.toast.warning('Please choose a start and end date.'); return; }
+    if (this.syncFrom > this.syncTo) { this.toast.warning('The start date must be on or before the end date.'); return; }
+    this.syncing.set(true);
     this.api.post<{ labsUpserted: number; upserts?: Record<string, number> }>('/labstats/sync', { from: this.syncFrom, to: this.syncTo }).subscribe({
       next: (r) => {
-        this.syncing.set(false); this.syncOpen.set(false); this.summaryError.set(false);
+        this.syncing.set(false); this.syncOpen.set(false);
         const restatused = r.upserts?.['LabStatus'] ?? 0;
-        this.summary.set(`Synced from Oracle: ${r.labsUpserted} lab-day record(s) for ${this.syncFrom} → ${this.syncTo}; ${restatused} lab status(es) updated.`);
+        this.toast.success(`Synced from Oracle: ${r.labsUpserted} lab-day record(s) for ${this.syncFrom} → ${this.syncTo}; ${restatused} lab status(es) updated.`);
         if (this.syncFrom < this.from) this.from = this.syncFrom;
         if (this.syncTo > this.to) this.to = this.syncTo;
         this.load();
       },
-      error: (e) => { this.syncing.set(false); this.syncErr.set(e?.error?.detail ?? 'Oracle sync failed.'); },
+      error: () => { this.syncing.set(false); },
     });
   }
 
@@ -285,13 +282,13 @@ export class LabStatsComponent {
   onImport(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0]; if (!file) return;
-    this.importing.set(true); this.summary.set(null); this.summaryError.set(false);
+    this.importing.set(true);
     const reader = new FileReader();
     reader.onload = () => {
       const content = String(reader.result).split(',')[1] ?? ''; // strip data: prefix → base64
       this.api.post<{ processed: number; upserted: number; skipped: number; warnings: string[] }>('/labstats/import', { content }).subscribe({
-        next: (s) => { this.importing.set(false); this.summary.set(`Imported ${s.processed}: ${s.upserted} upserted, ${s.skipped} skipped${s.warnings.length ? ' · ' + s.warnings.length + ' warning(s)' : ''}.`); input.value = ''; this.load(); },
-        error: (e) => { this.importing.set(false); this.summaryError.set(true); this.summary.set(e?.error?.detail ?? 'Import failed.'); input.value = ''; },
+        next: (s) => { this.importing.set(false); this.toast.success(`Imported ${s.processed}: ${s.upserted} upserted, ${s.skipped} skipped${s.warnings.length ? ' · ' + s.warnings.length + ' warning(s)' : ''}.`); input.value = ''; this.load(); },
+        error: () => { this.importing.set(false); input.value = ''; },
       });
     };
     reader.readAsDataURL(file);

@@ -45,7 +45,6 @@ const TABS: { key: Tab; label: string }[] = [
         </button>
       }
     </div>
-    @if (notice()) { <div class="inline-banner" style="background:var(--ok-bg,#dff6dd);color:var(--ok-ink,#107c41)">{{ notice() }}</div> }
 
     <div class="tabbar">
       @for (t of tabs; track t.key) {
@@ -268,7 +267,6 @@ export class SetupComponent {
   readonly govOptions = signal<string[]>([]);
   readonly q = signal('');
   readonly syncing = signal(false);
-  readonly notice = signal<string | null>(null);
   readonly oracleTab = computed(() => ['governorates', 'labcategories', 'branches', 'cities', 'areas'].includes(this.tab()));
   readonly refsF = computed(() => this.filter(this.refs(), (r) => [r.nameEn, r.code]));
   readonly citiesF = computed(() => this.filter(this.cities(), (c) => [c.name, c.governorate]));
@@ -281,10 +279,10 @@ export class SetupComponent {
     return list.filter((x) => fields(x).some((f) => (f ?? '').toLowerCase().includes(term)));
   }
   sync(): void {
-    this.syncing.set(true); this.notice.set(null);
+    this.syncing.set(true);
     this.api.post('/integration/sync-now').subscribe({
-      next: () => { this.syncing.set(false); this.notice.set('Synced from Oracle.'); this.select(this.tab()); },
-      error: () => { this.syncing.set(false); this.notice.set('Oracle sync failed.'); },
+      next: () => { this.syncing.set(false); this.toast.success('Synced from Oracle.'); this.select(this.tab()); },
+      error: () => { this.syncing.set(false); },
     });
   }
 

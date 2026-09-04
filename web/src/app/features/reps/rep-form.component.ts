@@ -6,6 +6,7 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { TranslatePipe } from '../../core/i18n';
 import { RepDetail } from '../../core/models';
+import { ToastService } from '../../core/toast.service';
 
 interface Ref { nameEn: string; }
 interface City { id: string; name: string; governorate: string; }
@@ -28,8 +29,6 @@ const DURATIONS = ['Monthly', 'Quarterly'];
         <div class="breadcrumbs">Home / <a routerLink="/reps" class="crumb">{{ 'representative_profiles' | t : 'Representative Profiles' }}</a> / {{ isEdit ? loadedName() : ('new_representative' | t : 'New representative') }}</div>
         <h1>@if (isEdit) { {{ 'edit_representative' | t : 'Edit Representative' }} — {{ loadedName() }} } @else { {{ 'new_representative_title' | t : 'New Representative' }} }</h1>
       </div></div>
-
-      @if (error()) { <div class="inline-banner inline-banner-error" style="margin-bottom:12px">{{ error() }}</div> }
 
       <section class="card sect"><h3>{{ 'identity_employment' | t : 'Identity & Employment' }}</h3>
         <div class="grid4">
@@ -74,6 +73,7 @@ export class RepFormComponent {
   private readonly api = inject(ApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly toast = inject(ToastService);
   readonly auth = inject(AuthService);
 
   readonly types = TYPES;
@@ -84,7 +84,6 @@ export class RepFormComponent {
 
   readonly loading = signal(false);
   readonly busy = signal(false);
-  readonly error = signal<string | null>(null);
   readonly loadedName = signal('');
 
   readonly governorates = signal<string[]>([]);
@@ -135,7 +134,7 @@ export class RepFormComponent {
         };
         this.loading.set(false);
       },
-      error: () => { this.loading.set(false); this.error.set('Could not load representative.'); },
+      error: () => { this.loading.set(false); this.toast.error('Could not load representative.'); },
     });
   }
 
@@ -153,7 +152,7 @@ export class RepFormComponent {
 
   save(): void {
     if (!this.canSave() || this.busy()) return;
-    this.busy.set(true); this.error.set(null);
+    this.busy.set(true);
     const body: Record<string, unknown> = {
       fullName: this.f.fullName.trim(),
       salary: this.f.salary ?? 0, target: this.f.target ?? 0,
@@ -168,9 +167,8 @@ export class RepFormComponent {
       : this.api.post('/reps', { ...body, type: this.f.type, goalDuration: this.f.goalDuration });
     req.subscribe({
       next: () => void this.router.navigate(['/reps']),
-      error: (e) => {
+      error: () => {
         this.busy.set(false);
-        this.error.set(e?.status === 409 ? 'This representative changed since you opened it — reload and retry.' : (e?.error?.detail ?? 'Save failed.'));
       },
     });
   }

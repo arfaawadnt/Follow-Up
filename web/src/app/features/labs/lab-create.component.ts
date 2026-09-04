@@ -7,6 +7,7 @@ import { AuthService } from '../../core/auth.service';
 import { TranslatePipe } from '../../core/i18n';
 import { RepListItem } from '../../core/models';
 import { MapComponent } from '../../shared/map.component';
+import { ToastService } from '../../core/toast.service';
 
 interface Ref { nameEn: string; }
 interface City { id: string; name: string; governorate: string; }
@@ -32,8 +33,6 @@ function parseGeo(text: string): { lat: number; lng: number } | null {
   imports: [FormsModule, TranslatePipe, MapComponent, DateInputComponent],
   template: `
     <div class="pagehead"><div><div class="breadcrumbs">Home / {{ 'new_laboratory' | t : 'New Laboratory' }}</div><h1>{{ 'new_laboratory' | t : 'New Laboratory' }}</h1></div></div>
-
-    @if (error()) { <div class="inline-banner inline-banner-error" style="margin-bottom:12px">{{ error() }}</div> }
 
     <section class="card sect"><h3>{{ 'identity' | t : 'Identity' }}</h3>
       <div class="grid4">
@@ -164,10 +163,10 @@ function parseGeo(text: string): { lat: number; lng: number } | null {
 export class LabCreateComponent {
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
+  private readonly toast = inject(ToastService);
   readonly auth = inject(AuthService);
 
   readonly busy = signal(false);
-  readonly error = signal<string | null>(null);
   readonly statuses = STATUSES;
   readonly channels = CHANNELS;
   readonly days = DAYS;
@@ -274,7 +273,7 @@ export class LabCreateComponent {
       data.append('file', file);
       this.api.post<{ path: string }>('/labs/upload', data).subscribe({
         next: (r) => { this.images.update((a) => [...a, r.path]); if (--pending === 0) this.busy.set(false); },
-        error: (e) => { this.error.set(e?.error?.detail ?? 'Image upload failed.'); if (--pending === 0) this.busy.set(false); },
+        error: () => { if (--pending === 0) this.busy.set(false); },
       });
     }
   }
@@ -290,8 +289,8 @@ export class LabCreateComponent {
     if (!this.canSave() || this.busy()) return;
     const canGeo = this.canViewLocation();
     const geo = canGeo ? parseGeo(this.f.geo) : null;
-    if (canGeo && this.f.geo.trim() && !geo) { this.error.set('Enter coordinates as "lat, lng" (e.g. 30.0444, 31.2357).'); return; }
-    this.busy.set(true); this.error.set(null);
+    if (canGeo && this.f.geo.trim() && !geo) { this.toast.warning('Enter coordinates as "lat, lng" (e.g. 30.0444, 31.2357).'); return; }
+    this.busy.set(true);
     const contacts = [
       ...this.managers.filter((c) => c.name.trim()).map((c) => ({ name: c.name, role: 'Manager', phone: c.phone || null, birthday: c.birthday || null })),
       ...this.receptionists.filter((c) => c.name.trim()).map((c) => ({ name: c.name, role: 'Receptionist', phone: c.phone || null, birthday: c.birthday || null })),
@@ -314,7 +313,7 @@ export class LabCreateComponent {
       contacts,
     }).subscribe({
       next: () => void this.router.navigate(['/labs']),
-      error: (e) => { this.busy.set(false); this.error.set(e?.error?.detail ?? 'Create failed.'); },
+      error: () => { this.busy.set(false); },
     });
   }
 

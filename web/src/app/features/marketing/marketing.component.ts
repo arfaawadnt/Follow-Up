@@ -71,7 +71,6 @@ const STATUSES = ['All', 'Scheduled', 'Completed', 'Cancelled'];
         <div class="dlg" (click)="$event.stopPropagation()" style="width:min(94vw,560px)">
           <div class="dlg-head"><h2>{{ 'schedule_mkt_visit' | t : 'Schedule marketing visit' }}</h2><button class="btn btn-mini btn-s" (click)="showForm.set(false)">✕</button></div>
           <form [formGroup]="form" (ngSubmit)="submit()" style="padding:16px">
-            @if (formError()) { <div class="inline-banner inline-banner-error">{{ formError() }}</div> }
             <div class="frm-grid" style="grid-template-columns:1fr 1fr;gap:12px">
               <div class="field"><label>{{ 'laboratory_lbl' | t : 'Laboratory *' }}</label>
                 <select class="select" formControlName="laboratoryId"><option value="">—</option>@for (l of labs(); track l.id) { <option [value]="l.id">{{ l.displayCode }} · {{ l.name }}</option> }</select></div>
@@ -129,7 +128,6 @@ export class MarketingComponent {
   readonly marketingReps = computed(() => this.reps().filter((r) => r.type === 'Marketing'));
   readonly showForm = signal(false);
   readonly completing = signal<MarketingVisit | null>(null);
-  readonly formError = signal<string | null>(null);
   readonly status = signal('All');
   readonly purposes = PURPOSES;
   readonly statuses = STATUSES;
@@ -160,7 +158,7 @@ export class MarketingComponent {
     });
   }
   openForm(): void {
-    this.showForm.set(true); this.formError.set(null);
+    this.showForm.set(true);
     if (this.labs().length === 0) {
       this.api.get<PagedResult<LabListItem>>('/labs', { pageSize: 500 }).subscribe({ next: (r) => this.labs.set(r.items) });
       this.api.get<PagedResult<RepListItem>>('/reps', { pageSize: 500 }).subscribe({ next: (r) => this.reps.set(r.items) });
@@ -168,13 +166,13 @@ export class MarketingComponent {
   }
   submit(): void {
     if (this.form.invalid) return;
-    this.busy.set(true); this.formError.set(null);
+    this.busy.set(true);
     const v = this.form.getRawValue();
     // TimeOnly binds "HH:mm:ss" only — pad the time input's "HH:mm".
     const time = v.scheduledTime ? (v.scheduledTime.length === 5 ? v.scheduledTime + ':00' : v.scheduledTime) : null;
     this.api.post('/marketing', { ...v, scheduledTime: time, plan: v.plan.trim() || null }).subscribe({
       next: () => { this.busy.set(false); this.showForm.set(false); this.form.patchValue({ laboratoryId: '', representativeId: '', purpose: 'Routine', scheduledTime: '10:00', plan: '' }); this.load(); },
-      error: (e) => { this.busy.set(false); this.formError.set(e?.error?.detail ?? 'Schedule failed.'); },
+      error: () => { this.busy.set(false); },
     });
   }
   openComplete(v: MarketingVisit): void { this.outcomeText = ''; this.completing.set(v); }

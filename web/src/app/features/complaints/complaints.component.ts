@@ -97,7 +97,6 @@ type StageForm = 'ack' | 'validity' | 'investigation' | 'outcome' | 'resolve';
             <button class="btn btn-mini btn-s" (click)="showLog.set(false)">✕</button>
           </div>
           <form [formGroup]="form" (ngSubmit)="submit()" style="padding:16px">
-            @if (formError()) { <div class="inline-banner inline-banner-error">{{ formError() }}</div> }
             <div class="frm-grid" style="grid-template-columns:1fr 1fr;gap:12px">
               <div class="field"><label>{{ 'laboratory_lbl' | t : 'Laboratory *' }}</label>
                 <select class="select" formControlName="laboratoryId"><option value="">—</option>@for (l of labs(); track l.id) { <option [value]="l.id">{{ l.displayCode }} · {{ l.name }}</option> }</select></div>
@@ -169,7 +168,6 @@ type StageForm = 'ack' | 'validity' | 'investigation' | 'outcome' | 'resolve';
               <!-- Stage action forms -->
               @if (auth.has('UpdateComplaints') && d.status !== 'Resolved') {
                 <div class="stagebox">
-                  @if (actionError()) { <div class="inline-banner inline-banner-error">{{ actionError() }}</div> }
                   @switch (stageForm(d)) {
                     @case ('ack') {
                       <b>{{ 'ack_title' | t : 'Acknowledge Complaint' }}</b>
@@ -278,8 +276,6 @@ export class ComplaintsComponent {
     else if (this.showLog()) this.showLog.set(false);
   }
   readonly audit = signal<ComplaintAuditRow[] | null>(null);
-  readonly formError = signal<string | null>(null);
-  readonly actionError = signal<string | null>(null);
   readonly status = signal('All');
   readonly category = signal('');
   readonly categories = CATEGORIES; readonly channels = CHANNELS; readonly statuses = STATUSES;
@@ -359,7 +355,7 @@ export class ComplaintsComponent {
   }
 
   openLog(): void {
-    this.showLog.set(true); this.formError.set(null);
+    this.showLog.set(true);
     // The reference prefills the complaint date/time with "now".
     this.form.controls.receivedAt.setValue(ComplaintsComponent.nowLocal());
     if (this.labs().length === 0) {
@@ -374,7 +370,7 @@ export class ComplaintsComponent {
   }
   submit(): void {
     if (this.form.invalid) return;
-    this.busy.set(true); this.formError.set(null);
+    this.busy.set(true);
     const v = this.form.getRawValue();
     this.api.post('/complaints', {
       laboratoryId: v.laboratoryId, category: v.category, viaChannel: v.viaChannel,
@@ -383,13 +379,13 @@ export class ComplaintsComponent {
       receivedAt: v.receivedAt ? new Date(v.receivedAt).toISOString() : null,
     }).subscribe({
       next: () => { this.busy.set(false); this.showLog.set(false); this.form.reset({ category: CATEGORIES[0], viaChannel: 'Phone Call', assignedTeam: this.teams()[0]?.nameEn ?? '' }); this.load(); },
-      error: (e) => { this.busy.set(false); this.formError.set(e?.error?.detail ?? 'Submit failed.'); },
+      error: () => { this.busy.set(false); },
     });
   }
 
   // ---- Details popup ----
   openDetail(id: string): void {
-    this.detailTab.set('meta'); this.audit.set(null); this.actionError.set(null);
+    this.detailTab.set('meta'); this.audit.set(null);
     this.resetStageInputs();
     this.api.get<ComplaintDetail>(`/complaints/${id}`).subscribe({ next: (d) => this.detail.set(d) });
   }
@@ -408,10 +404,10 @@ export class ComplaintsComponent {
 
   // ---- Workflow actions ----
   private act(id: string, obs: { subscribe: Function }): void {
-    this.busy.set(true); this.actionError.set(null);
+    this.busy.set(true);
     (obs as { subscribe: Function }).subscribe({
       next: () => { this.busy.set(false); this.refreshDetail(id); },
-      error: (e: { error?: { detail?: string } }) => { this.busy.set(false); this.actionError.set(e?.error?.detail ?? 'Action failed.'); },
+      error: () => { this.busy.set(false); },
     });
   }
   investigate(c: ComplaintListItem): void {
@@ -445,10 +441,10 @@ export class ComplaintsComponent {
     this.act(d.id, this.api.post(`/complaints/${d.id}/resolve`, { resolutionSummary: summary }));
   }
   reopen(id: string): void {
-    this.busy.set(true); this.actionError.set(null);
+    this.busy.set(true);
     this.api.post(`/complaints/${id}/reopen`).subscribe({
       next: () => { this.busy.set(false); if (this.detail()) this.refreshDetail(id); else this.load(); },
-      error: (e) => { this.busy.set(false); this.actionError.set(e?.error?.detail ?? 'Reopen failed.'); },
+      error: () => { this.busy.set(false); },
     });
   }
 }

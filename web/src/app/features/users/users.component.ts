@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
+import { ToastService } from '../../core/toast.service';
 import { PagedResult, UserListItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
 
@@ -16,7 +17,6 @@ interface Role { id: string; name: string; privileges: string[]; isBuiltIn: bool
       <div><div class="breadcrumbs">Home / {{ 'users' | t : 'Users' }}</div><h1>{{ 'users' | t : 'Users' }}</h1></div>
       <div class="pagehead-actions">@if (auth.has('ManageUsers')) { <button class="btn btn-p" (click)="toggle()">{{ showForm() ? 'Close' : ('new_user_btn' | t : '+ New User') }}</button> }</div>
     </div>
-    @if (banner()) { <div class="inline-banner" [class.inline-banner-error]="bannerError()">{{ banner() }}</div> }
 
     @if (showForm()) {
       <form class="card" style="padding:20px;margin-bottom:20px" [formGroup]="form" (ngSubmit)="save()">
@@ -67,14 +67,13 @@ export class UsersComponent {
   private readonly api = inject(ApiService);
   private readonly fb = inject(NonNullableFormBuilder);
   readonly auth = inject(AuthService);
+  private readonly toast = inject(ToastService);
   readonly loading = signal(true);
   readonly busy = signal(false);
   readonly users = signal<UserListItem[]>([]);
   readonly roles = signal<Role[]>([]);
   readonly showForm = signal(false);
   readonly editingId = signal<string | null>(null);
-  readonly banner = signal<string | null>(null);
-  readonly bannerError = signal(false);
 
   readonly form = this.fb.group({
     username: this.fb.control('', Validators.required),
@@ -104,7 +103,7 @@ export class UsersComponent {
     this.form.controls.username.enable();
     this.form.controls.password.setValidators([Validators.required, Validators.minLength(8)]);
     this.form.controls.password.updateValueAndValidity();
-    this.showForm.set(true); this.banner.set(null);
+    this.showForm.set(true);
   }
 
   edit(u: UserListItem): void {
@@ -113,23 +112,23 @@ export class UsersComponent {
     this.form.controls.username.disable();
     this.form.controls.password.clearValidators();
     this.form.controls.password.updateValueAndValidity();
-    this.showForm.set(true); this.banner.set(null);
+    this.showForm.set(true);
   }
 
   save(): void {
     if (this.form.invalid) return;
-    this.busy.set(true); this.banner.set(null);
+    this.busy.set(true);
     const v = this.form.getRawValue();
     const id = this.editingId();
     if (id) {
       this.api.put(`/users/${id}`, { roleId: v.roleId, email: v.email || null, displayName: v.displayName || null, language: v.language }).subscribe({
-        next: () => { this.busy.set(false); this.closeForm(); this.set('User updated.', false); this.load(); },
-        error: (e) => { this.busy.set(false); this.set(e?.error?.detail ?? 'Update failed.', true); },
+        next: () => { this.busy.set(false); this.closeForm(); this.toast.success('User updated.'); this.load(); },
+        error: () => { this.busy.set(false); },
       });
     } else {
       this.api.post('/users', { username: v.username, password: v.password, roleId: v.roleId, email: v.email || null, displayName: v.displayName || null, language: v.language }).subscribe({
-        next: () => { this.busy.set(false); this.closeForm(); this.set('User created.', false); this.load(); },
-        error: (e) => { this.busy.set(false); this.set(e?.error?.detail ?? 'Create failed.', true); },
+        next: () => { this.busy.set(false); this.closeForm(); this.toast.success('User created.'); this.load(); },
+        error: () => { this.busy.set(false); },
       });
     }
   }
@@ -140,10 +139,9 @@ export class UsersComponent {
   del(u: UserListItem): void {
     if (!window.confirm(`Delete user ${u.username}?`)) return;
     this.busy.set(true);
-    this.api.delete(`/users/${u.id}`).subscribe({ next: () => { this.busy.set(false); this.load(); }, error: (e) => { this.busy.set(false); this.set(e?.error?.detail ?? 'Delete failed.', true); } });
+    this.api.delete(`/users/${u.id}`).subscribe({ next: () => { this.busy.set(false); this.load(); }, error: () => { this.busy.set(false); } });
   }
   private closeForm(): void { this.showForm.set(false); this.editingId.set(null); this.form.reset(); }
-  private set(msg: string, err: boolean): void { this.banner.set(msg); this.bannerError.set(err); }
 }
 
 type RoleArr = Role[];

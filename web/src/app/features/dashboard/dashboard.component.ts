@@ -44,7 +44,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
         </div>
       </div>
 
-      @if (d.bday) { <div class="inline-banner inline-banner-info">🎂 {{ 'birthday_reminder' | t : 'Birthday reminder' }} — {{ d.bday.text }}</div> }
+      @if (d.bday) { <div class="inline-banner">🎂 {{ 'birthday_reminder' | t : 'Birthday reminder' }} — {{ d.bday.text }}</div> }
 
       <div class="kpis" style="margin-bottom:14px">
         <div class="kpi kpi-teal"><div class="lbl">{{ 'active_labs' | t }}</div><div class="val">{{ d.kpis.activeLabs }}</div><div class="sub">{{ 'of' | t }} {{ d.kpis.totalLabs }} {{ 'registered' | t }}</div></div>
@@ -191,7 +191,9 @@ export class DashboardComponent {
 
   load(): void {
     this.api.get<DashboardData>('/dashboard').subscribe({
-      next: (data) => { this.d.set(data); this.loading.set(false); this.icons.render(); },
+      next: (data) => {
+        this.d.set(data); this.loading.set(false); this.icons.render();
+      },
       error: () => this.loading.set(false),
     });
   }

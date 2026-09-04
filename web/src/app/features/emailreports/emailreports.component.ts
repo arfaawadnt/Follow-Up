@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { TranslatePipe } from '../../core/i18n';
+import { ToastService } from '../../core/toast.service';
 import { FilterSelectComponent } from '../../shared/filter-select.component';
 
 interface Smtp { enabled: boolean; host: string; port: number; useSsl: boolean; fromAddress: string; user: string | null; hasPassword: boolean; }
@@ -35,7 +36,6 @@ const NEW_EDITOR = (): Editor => ({ id: null, name: '', includeLabStats: true, i
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'email_reports' | t : 'Email Reports' }}</div><h1>{{ 'email_reports' | t : 'Email Reports' }}</h1></div>
     </div>
-    @if (msg()) { <div class="inline-banner" [class.inline-banner-error]="msgError()">{{ msg() }}</div> }
 
     <!-- ===== Mail Gateway ===== -->
     <div class="card" style="padding:18px;margin-bottom:18px;max-width:760px">
@@ -145,9 +145,8 @@ const NEW_EDITOR = (): Editor => ({ id: null, name: '', includeLabStats: true, i
 export class EmailReportsComponent {
   private readonly api = inject(ApiService);
   readonly auth = inject(AuthService);
+  private readonly toast = inject(ToastService);
   readonly busy = signal(false);
-  readonly msg = signal<string | null>(null);
-  readonly msgError = signal(false);
 
   smtp: Smtp = { enabled: false, host: '', port: 587, useSsl: true, fromAddress: '', user: null, hasPassword: false };
   smtpPassword = '';
@@ -180,10 +179,9 @@ export class EmailReportsComponent {
   }
 
   pad(n: number): string { return String(n).padStart(2, '0'); }
-  private note(text: string, err = false): void { this.msgError.set(err); this.msg.set(text); }
   private run<T>(obs: Observable<T>, ok: (v: T) => void): void {
     this.busy.set(true);
-    obs.subscribe({ next: (v) => { this.busy.set(false); ok(v); }, error: (e) => { this.busy.set(false); this.note(e?.error?.detail ?? 'Request failed.', true); } });
+    obs.subscribe({ next: (v) => { this.busy.set(false); ok(v); }, error: () => { this.busy.set(false); } });
   }
 
   private loadSmtp(): void { this.api.get<Smtp>('/email/smtp').subscribe({ next: (s) => { this.smtp = s; } }); }
@@ -191,11 +189,11 @@ export class EmailReportsComponent {
 
   saveSmtp(): void {
     const body = { ...this.smtp, password: this.smtpPassword.trim() || null };
-    this.run(this.api.post('/email/smtp', body), () => { this.smtpPassword = ''; this.note('Mail gateway saved.'); this.loadSmtp(); });
+    this.run(this.api.post('/email/smtp', body), () => { this.smtpPassword = ''; this.toast.success('Mail gateway saved.'); this.loadSmtp(); });
   }
   sendTest(): void {
     this.run(this.api.post<{ sent: boolean; error: string | null }>('/email/smtp/test', { toEmail: this.testEmail.trim() }),
-      (r) => r.sent ? this.note(`Test email sent to ${this.testEmail.trim()}.`) : this.note(`Test failed: ${r.error}`, true));
+      (r) => r.sent ? this.toast.success(`Test email sent to ${this.testEmail.trim()}.`) : this.toast.warning(`Test failed: ${r.error}`));
   }
 
   startNew(): void { this.ed = NEW_EDITOR(); this.editing.set(true); }
@@ -215,11 +213,11 @@ export class EmailReportsComponent {
       emails, sendHour: +this.ed.sendHour, sendMinute: +this.ed.sendMinute, windowDays: +this.ed.windowDays, enabled: this.ed.enabled,
     };
     const req = this.ed.id ? this.api.put(`/email/subscriptions/${this.ed.id}`, body) : this.api.post('/email/subscriptions', body);
-    this.run(req, () => { this.editing.set(false); this.note('Report saved.'); this.loadSubs(); });
+    this.run(req, () => { this.editing.set(false); this.toast.success('Report saved.'); this.loadSubs(); });
   }
-  del(s: Subscription): void { if (confirm(`Delete "${s.name}"?`)) this.run(this.api.delete(`/email/subscriptions/${s.id}`), () => { this.note('Report deleted.'); this.loadSubs(); }); }
+  del(s: Subscription): void { if (confirm(`Delete "${s.name}"?`)) this.run(this.api.delete(`/email/subscriptions/${s.id}`), () => { this.toast.success('Report deleted.'); this.loadSubs(); }); }
   sendNow(s: Subscription): void {
     this.run(this.api.post<{ sent: boolean; recipients: number; failures: number; status: string }>(`/email/subscriptions/${s.id}/send-now`, {}),
-      (r) => { this.note(`"${s.name}": ${r.status}.`, r.failures > 0 && r.recipients === 0); this.loadSubs(); });
+      (r) => { const text = `"${s.name}": ${r.status}.`; (r.failures > 0 && r.recipients === 0) ? this.toast.warning(text) : this.toast.success(text); this.loadSubs(); });
   }
 }

@@ -15,7 +15,12 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(req).pipe(
     catchError((error: HttpErrorResponse) => {
-      if (isMutation && error.status !== 401) toasts.error(messageFor(error));
+      // 401 is handled by the auth interceptor (redirect to login). Client faults — missing/invalid data,
+      // not found, conflicts (400/404/409/422) — are warnings the user can fix; server/network faults are errors.
+      if (isMutation && error.status !== 401) {
+        if ([400, 404, 409, 422].includes(error.status)) toasts.warning(messageFor(error));
+        else toasts.error(messageFor(error));
+      }
       return throwError(() => error);
     }),
   );

@@ -12,7 +12,6 @@ interface TestSetup { id: string; code: string; nameEn: string; nameAr: string |
   imports: [FormsModule],
   template: `
     <h1 class="display page-title">Test Catalogue</h1>
-    @if (banner()) { <div class="inline-banner" [class.inline-banner-error]="bannerError()">{{ banner() }}</div> }
 
     <div class="grid">
       <div class="dcard"><div class="cbody">
@@ -111,8 +110,6 @@ export class TestCatalogueComponent {
   readonly setups = signal<TestSetup[]>([]);
   readonly editG = signal<string | null>(null);
   readonly editS = signal<string | null>(null);
-  readonly banner = signal<string | null>(null);
-  readonly bannerError = signal(false);
 
   newGroup = { code: '', nameEn: '', nameAr: '' };
   newSetup: { code: string; nameEn: string; groupId: string | null } = { code: '', nameEn: '', groupId: null };
@@ -149,10 +146,10 @@ export class TestCatalogueComponent {
   delSetup(s: TestSetup): void { this.run(this.api.delete(`/test-setups/${s.id}`)); }
 
   private run(obs: { subscribe: Function }, onOk?: () => void): void {
-    this.busy.set(true); this.banner.set(null);
+    this.busy.set(true);
     (obs as any).subscribe({
       next: () => { this.busy.set(false); onOk?.(); this.load(); },
-      error: (err: any) => { this.busy.set(false); this.bannerError.set(true); this.banner.set(err?.error?.detail ?? 'Operation failed.'); },
+      error: () => { this.busy.set(false); },
     });
   }
 }

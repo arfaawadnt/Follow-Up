@@ -3,6 +3,7 @@ import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
+import { ToastService } from '../../core/toast.service';
 import { FilterSelectComponent } from '../../shared/filter-select.component';
 import { TranslatePipe } from '../../core/i18n';
 
@@ -25,8 +26,6 @@ interface TestSetup {
         </button>
       }
     </div>
-    @if (banner()) { <div class="inline-banner inline-banner-error">{{ banner() }}</div> }
-    @if (notice()) { <div class="inline-banner" style="background:var(--ok-bg,#dff6dd);color:var(--ok-ink,#107c41)">{{ notice() }}</div> }
 
     <div class="grid" style="grid-template-columns:1fr 2fr;gap:16px;align-items:start">
       @if (auth.has('AddTestsetup') || editId()) {
@@ -101,6 +100,7 @@ interface TestSetup {
 export class TestSetupComponent {
   private readonly api = inject(ApiService);
   readonly auth = inject(AuthService);
+  private readonly toast = inject(ToastService);
   readonly loading = signal(true);
   readonly busy = signal(false);
   readonly syncing = signal(false);
@@ -130,8 +130,6 @@ export class TestSetupComponent {
     return this.filtered().slice(start, start + this.pageSize());
   });
   readonly editId = signal<string | null>(null);
-  readonly banner = signal<string | null>(null);
-  readonly notice = signal<string | null>(null);
   code = ''; name = ''; groupId: string | null = null; testType = 0; cost = 0;
 
   constructor() { this.load(); }
@@ -142,27 +140,27 @@ export class TestSetupComponent {
     this.api.get<TestSetup[]>('/test-setups').subscribe({ next: (s) => { this.setups.set(s); this.loading.set(false); }, error: () => this.loading.set(false) });
   }
   sync(): void {
-    this.syncing.set(true); this.banner.set(null); this.notice.set(null);
+    this.syncing.set(true);
     this.api.post<{ testsUpserted: number; testsDeleted: number }>('/integration/sync-now').subscribe({
-      next: (r) => { this.syncing.set(false); this.notice.set(`Synced from Oracle: ${r.testsUpserted} tests (${r.testsDeleted} removed).`); this.load(); },
-      error: (e) => { this.syncing.set(false); this.banner.set(e?.error?.detail ?? 'Oracle sync failed.'); },
+      next: (r) => { this.syncing.set(false); this.toast.success(`Synced from Oracle: ${r.testsUpserted} tests (${r.testsDeleted} removed).`); this.load(); },
+      error: () => { this.syncing.set(false); },
     });
   }
   groupName(id: string | null): string { return id ? (this.groups().find((g) => g.id === id)?.code ?? '—') : '—'; }
   edit(s: TestSetup): void { this.editId.set(s.id); this.code = s.code; this.name = s.nameEn; this.groupId = s.groupId; this.testType = s.testType; this.cost = s.cost; }
-  reset(): void { this.editId.set(null); this.code = ''; this.name = ''; this.groupId = null; this.testType = 0; this.cost = 0; this.banner.set(null); }
+  reset(): void { this.editId.set(null); this.code = ''; this.name = ''; this.groupId = null; this.testType = 0; this.cost = 0; }
   save(): void {
-    this.busy.set(true); this.banner.set(null);
+    this.busy.set(true);
     const id = this.editId();
     const body = { nameEn: this.name, nameAr: null, groupId: this.groupId, testType: Number(this.testType) || 0, cost: Number(this.cost) || 0 };
     const obs = id
       ? this.api.put(`/test-setups/${id}`, { id, ...body })
       : this.api.post('/test-setups', { code: this.code, ...body });
-    obs.subscribe({ next: () => { this.busy.set(false); this.reset(); this.load(); }, error: (e) => { this.busy.set(false); this.banner.set(e?.error?.detail ?? 'Save failed.'); } });
+    obs.subscribe({ next: () => { this.busy.set(false); this.reset(); this.load(); }, error: () => { this.busy.set(false); } });
   }
   del(s: TestSetup): void {
     if (!window.confirm(`Delete test ${s.code}?`)) return;
     this.busy.set(true);
-    this.api.delete(`/test-setups/${s.id}`).subscribe({ next: () => { this.busy.set(false); this.load(); }, error: (e) => { this.busy.set(false); this.banner.set(e?.error?.detail ?? 'Delete failed.'); } });
+    this.api.delete(`/test-setups/${s.id}`).subscribe({ next: () => { this.busy.set(false); this.load(); }, error: () => { this.busy.set(false); } });
   }
 }

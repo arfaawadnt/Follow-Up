@@ -1,6 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
+import { ToastService } from '../../core/toast.service';
 import { RetentionDto, SettingDto } from '../../core/models';
 
 interface EditableSetting extends SettingDto { draft: string; dirty: boolean; }
@@ -11,7 +12,6 @@ interface EditableSetting extends SettingDto { draft: string; dirty: boolean; }
   imports: [FormsModule],
   template: `
     <h1 class="display page-title">Settings</h1>
-    @if (banner()) { <div class="inline-banner" [class.inline-banner-error]="bannerError()">{{ banner() }}</div> }
 
     <div class="dcard"><div class="cbody">
       <h3 class="sec">Application settings</h3>
@@ -65,12 +65,11 @@ interface EditableSetting extends SettingDto { draft: string; dirty: boolean; }
 })
 export class SettingsComponent {
   private readonly api = inject(ApiService);
+  private readonly toast = inject(ToastService);
   readonly loading = signal(true);
   readonly busy = signal(false);
   readonly settings = signal<EditableSetting[]>([]);
   readonly retention = signal<RetentionDto | null>(null);
-  readonly banner = signal<string | null>(null);
-  readonly bannerError = signal(false);
   retentionDays = 90;
 
   constructor() { this.load(); this.loadRetention(); }
@@ -79,7 +78,7 @@ export class SettingsComponent {
     this.loading.set(true);
     this.api.get<SettingDto[]>('/settings').subscribe({
       next: (s) => { this.settings.set(s.map((x) => ({ ...x, draft: x.isSecret ? '' : (x.value ?? ''), dirty: false }))); this.loading.set(false); },
-      error: () => { this.loading.set(false); this.setBanner('Could not load settings.', true); },
+      error: () => { this.loading.set(false); this.toast.error('Could not load settings.'); },
     });
   }
 
@@ -92,26 +91,24 @@ export class SettingsComponent {
   save(s: EditableSetting): void {
     this.busy.set(true);
     this.api.put(`/settings/${encodeURIComponent(s.key)}`, { value: s.draft, isSecret: s.isSecret }).subscribe({
-      next: () => { this.busy.set(false); s.dirty = false; this.setBanner(`${s.key} saved.`, false); },
-      error: (err) => { this.busy.set(false); this.setBanner(err?.error?.detail ?? 'Save failed.', true); },
+      next: () => { this.busy.set(false); s.dirty = false; this.toast.success(`${s.key} saved.`); },
+      error: () => { this.busy.set(false); },
     });
   }
 
   saveRetention(): void {
     this.busy.set(true);
     this.api.put('/setup/retention', { days: this.retentionDays }).subscribe({
-      next: () => { this.busy.set(false); this.setBanner('Retention updated.', false); this.loadRetention(); },
-      error: (err) => { this.busy.set(false); this.setBanner(err?.error?.detail ?? 'Update failed (min 30 days).', true); },
+      next: () => { this.busy.set(false); this.toast.success('Retention updated.'); this.loadRetention(); },
+      error: () => { this.busy.set(false); },
     });
   }
 
   runRetention(): void {
     this.busy.set(true);
     this.api.post('/setup/retention/run').subscribe({
-      next: () => { this.busy.set(false); this.setBanner('Retention purge executed.', false); },
-      error: (err) => { this.busy.set(false); this.setBanner(err?.error?.detail ?? 'Run failed.', true); },
+      next: () => { this.busy.set(false); this.toast.success('Retention purge executed.'); },
+      error: () => { this.busy.set(false); },
     });
   }
-
-  private setBanner(msg: string, error: boolean): void { this.banner.set(msg); this.bannerError.set(error); }
 }

@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { TranslatePipe } from '../../core/i18n';
+import { ToastService } from '../../core/toast.service';
 
 interface TestGroup { id: string; code: string; nameEn: string; nameAr: string | null; source: string; }
 
@@ -19,8 +20,6 @@ interface TestGroup { id: string; code: string; nameEn: string; nameAr: string |
         </button>
       }
     </div>
-    @if (banner()) { <div class="inline-banner inline-banner-error">{{ banner() }}</div> }
-    @if (notice()) { <div class="inline-banner" style="background:var(--ok-bg,#dff6dd);color:var(--ok-ink,#107c41)">{{ notice() }}</div> }
 
     <div class="grid" style="grid-template-columns:1fr 2fr;gap:16px;align-items:start">
       @if (auth.has('AddGroups') || editId()) {
@@ -75,6 +74,7 @@ interface TestGroup { id: string; code: string; nameEn: string; nameAr: string |
 export class GroupsComponent {
   private readonly api = inject(ApiService);
   readonly auth = inject(AuthService);
+  private readonly toast = inject(ToastService);
   readonly loading = signal(true);
   readonly busy = signal(false);
   readonly syncing = signal(false);
@@ -86,8 +86,6 @@ export class GroupsComponent {
     return this.groups().filter((g) => g.code.toLowerCase().includes(q) || (g.nameEn ?? '').toLowerCase().includes(q));
   });
   readonly editId = signal<string | null>(null);
-  readonly banner = signal<string | null>(null);
-  readonly notice = signal<string | null>(null);
   code = ''; name = '';
 
   constructor() { this.load(); }
@@ -97,25 +95,25 @@ export class GroupsComponent {
     this.api.get<TestGroup[]>('/test-groups').subscribe({ next: (g) => { this.groups.set(g); this.loading.set(false); }, error: () => this.loading.set(false) });
   }
   sync(): void {
-    this.syncing.set(true); this.banner.set(null); this.notice.set(null);
+    this.syncing.set(true);
     this.api.post<{ groupsUpserted: number; groupsDeleted: number }>('/integration/sync-now').subscribe({
-      next: (r) => { this.syncing.set(false); this.notice.set(`Synced from Oracle: ${r.groupsUpserted} groups (${r.groupsDeleted} removed).`); this.load(); },
-      error: (e) => { this.syncing.set(false); this.banner.set(e?.error?.detail ?? 'Oracle sync failed.'); },
+      next: (r) => { this.syncing.set(false); this.toast.success(`Synced from Oracle: ${r.groupsUpserted} groups (${r.groupsDeleted} removed).`); this.load(); },
+      error: () => { this.syncing.set(false); },
     });
   }
   edit(g: TestGroup): void { this.editId.set(g.id); this.code = g.code; this.name = g.nameEn; }
-  reset(): void { this.editId.set(null); this.code = ''; this.name = ''; this.banner.set(null); }
+  reset(): void { this.editId.set(null); this.code = ''; this.name = ''; }
   save(): void {
-    this.busy.set(true); this.banner.set(null);
+    this.busy.set(true);
     const id = this.editId();
     const obs = id
       ? this.api.put(`/test-groups/${id}`, { id, nameEn: this.name, nameAr: null })
       : this.api.post('/test-groups', { code: this.code, nameEn: this.name, nameAr: null });
-    obs.subscribe({ next: () => { this.busy.set(false); this.reset(); this.load(); }, error: (e) => { this.busy.set(false); this.banner.set(e?.error?.detail ?? 'Save failed.'); } });
+    obs.subscribe({ next: () => { this.busy.set(false); this.reset(); this.load(); }, error: () => { this.busy.set(false); } });
   }
   del(g: TestGroup): void {
     if (!window.confirm(`Delete group ${g.code}?`)) return;
     this.busy.set(true);
-    this.api.delete(`/test-groups/${g.id}`).subscribe({ next: () => { this.busy.set(false); this.load(); }, error: (e) => { this.busy.set(false); this.banner.set(e?.error?.detail ?? 'Delete failed.'); } });
+    this.api.delete(`/test-groups/${g.id}`).subscribe({ next: () => { this.busy.set(false); this.load(); }, error: () => { this.busy.set(false); } });
   }
 }

@@ -6,6 +6,7 @@ import { DateInputComponent } from '../../shared/date-input.component';
 import { FilterSelectComponent } from '../../shared/filter-select.component';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
+import { ToastService } from '../../core/toast.service';
 import { TranslatePipe } from '../../core/i18n';
 
 interface AreaStat { date: string; governorate: string | null; city: string | null; area: string | null; governorateRealName: string | null; areaRealName: string | null; testCount: number; income: number; }
@@ -30,7 +31,6 @@ const DASH = '—';
         <button class="btn btn-s" (click)="exportPdf()">{{ 'export_pdf' | t : 'Export PDF' }}</button>
       </div>
     </div>
-    @if (summary()) { <div class="inline-banner" [class.inline-banner-error]="summaryError()">{{ summary() }}</div> }
     <div class="small muted" style="margin-bottom:10px">{{ 'areastats_hint' | t : 'Test volumes grouped by governorate and area, compared against a reference month. Green cells beat the reference, red fall short. Daily data syncs automatically each night.' }}</div>
 
     <div class="kpis" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
@@ -111,7 +111,6 @@ const DASH = '—';
           </div>
           <div style="padding:16px">
             <div class="small muted" style="margin-bottom:12px">{{ 'sync_range_hint_area' | t : 'Pull daily statistics from Oracle for this date range and merge them into the existing data. The last day is also synced automatically every night.' }}</div>
-            @if (syncErr()) { <div class="inline-banner inline-banner-error" style="margin-bottom:12px">{{ syncErr() }}</div> }
             <div class="frm-grid" style="grid-template-columns:1fr 1fr;gap:12px">
               <div class="field"><label>{{ 'start_date' | t }}</label><app-date-input [(ngModel)]="syncFrom"></app-date-input></div>
               <div class="field"><label>{{ 'end_date' | t }}</label><app-date-input [(ngModel)]="syncTo"></app-date-input></div>
@@ -150,9 +149,8 @@ const DASH = '—';
 export class AreaStatsComponent {
   private readonly api = inject(ApiService);
   readonly auth = inject(AuthService);
+  private readonly toast = inject(ToastService);
   readonly loading = signal(true);
-  readonly summary = signal<string | null>(null);
-  readonly summaryError = signal(false);
   readonly rows = signal<AreaStat[]>([]);
   readonly refRows = signal<AreaStat[]>([]);
   readonly gov = signal<string[]>([]);
@@ -162,7 +160,6 @@ export class AreaStatsComponent {
   readonly sortDir = signal<'desc' | 'asc'>('desc');
   readonly syncOpen = signal(false);
   readonly syncing = signal(false);
-  readonly syncErr = signal<string | null>(null);
   syncFrom = ''; syncTo = '';
   private readonly today = localToday();
   from = this.today.slice(0, 7) + '-01'; to = this.today; // first of the current month → today
@@ -289,21 +286,21 @@ export class AreaStatsComponent {
   openSync(): void {
     const y = new Date(); y.setDate(y.getDate() - 1);
     this.syncFrom = this.ymd(y); this.syncTo = this.today; // default: yesterday → today
-    this.syncErr.set(null); this.syncOpen.set(true);
+    this.syncOpen.set(true);
   }
   runSync(): void {
-    if (!this.syncFrom || !this.syncTo) { this.syncErr.set('Please choose a start and end date.'); return; }
-    if (this.syncFrom > this.syncTo) { this.syncErr.set('The start date must be on or before the end date.'); return; }
-    this.syncing.set(true); this.syncErr.set(null);
+    if (!this.syncFrom || !this.syncTo) { this.toast.warning('Please choose a start and end date.'); return; }
+    if (this.syncFrom > this.syncTo) { this.toast.warning('The start date must be on or before the end date.'); return; }
+    this.syncing.set(true);
     this.api.post<{ labsUpserted: number }>('/area-statistics/sync', { from: this.syncFrom, to: this.syncTo }).subscribe({
       next: (r) => {
-        this.syncing.set(false); this.syncOpen.set(false); this.summaryError.set(false);
-        this.summary.set(`Synced from Oracle: ${r.labsUpserted} lab-day record(s) for ${this.syncFrom} → ${this.syncTo}.`);
+        this.syncing.set(false); this.syncOpen.set(false);
+        this.toast.success(`Synced from Oracle: ${r.labsUpserted} lab-day record(s) for ${this.syncFrom} → ${this.syncTo}.`);
         if (this.syncFrom < this.from) this.from = this.syncFrom;
         if (this.syncTo > this.to) this.to = this.syncTo;
         this.load();
       },
-      error: (e) => { this.syncing.set(false); this.syncErr.set(e?.error?.detail ?? 'Oracle sync failed.'); },
+      error: () => { this.syncing.set(false); },
     });
   }
 

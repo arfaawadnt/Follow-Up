@@ -5,6 +5,7 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { IconsService } from '../../core/icons.service';
 import { I18nService, TranslatePipe } from '../../core/i18n';
+import { ToastService } from '../../core/toast.service';
 
 interface OracleConfig {
   enabled: boolean; intervalHours: number; allowListedQueries: string[];
@@ -25,8 +26,6 @@ interface OracleConfig {
         <p class="muted small" style="margin:4px 0 0">{{ 'configure_connection_settings_custom_queri' | t : 'Configure the scheduled sync with the Oracle LIS.' }}</p>
       </div>
     </div>
-
-    @if (banner()) { <div class="inline-banner" [class.inline-banner-error]="bannerError()">{{ banner() }}</div> }
 
     @if (c(); as c) {
       <div style="display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:24px">
@@ -104,10 +103,9 @@ export class IntegrationComponent {
   private readonly icons = inject(IconsService);
   private readonly i18n = inject(I18nService);
   readonly auth = inject(AuthService);
+  private readonly toast = inject(ToastService);
   readonly busy = signal(false);
   readonly c = signal<OracleConfig | null>(null);
-  readonly banner = signal<string | null>(null);
-  readonly bannerError = signal(false);
   enabled = false; intervalHours = 24;
 
   constructor() { this.load(); }
@@ -131,18 +129,17 @@ export class IntegrationComponent {
   }
 
   save(): void {
-    this.busy.set(true); this.banner.set(null);
+    this.busy.set(true);
     this.api.post('/integration/config', { enabled: this.enabled, intervalHours: this.intervalHours }).subscribe({
-      next: () => { this.busy.set(false); this.set('Configuration saved.', false); this.load(); },
-      error: (e) => { this.busy.set(false); this.set(e?.error?.detail ?? 'Save failed.', true); },
+      next: () => { this.busy.set(false); this.toast.success('Configuration saved.'); this.load(); },
+      error: () => { this.busy.set(false); },
     });
   }
   syncNow(): void {
-    this.busy.set(true); this.banner.set(null);
+    this.busy.set(true);
     this.api.post('/integration/sync-now').subscribe({
-      next: () => { this.busy.set(false); this.set('Sync triggered.', false); this.load(); },
-      error: (e) => { this.busy.set(false); this.set(e?.error?.detail ?? 'Sync failed.', true); },
+      next: () => { this.busy.set(false); this.toast.success('Sync triggered.'); this.load(); },
+      error: () => { this.busy.set(false); },
     });
   }
-  private set(msg: string, err: boolean): void { this.banner.set(msg); this.bannerError.set(err); }
 }

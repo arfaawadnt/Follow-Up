@@ -7,6 +7,7 @@ import { AuthService } from '../../core/auth.service';
 import { TranslatePipe } from '../../core/i18n';
 import { LabDetail, RepListItem } from '../../core/models';
 import { MapComponent } from '../../shared/map.component';
+import { ToastService } from '../../core/toast.service';
 
 interface Ref { nameEn: string; }
 interface City { id: string; name: string; governorate: string; }
@@ -33,7 +34,6 @@ function parseGeo(text: string): { lat: number; lng: number } | null {
   imports: [FormsModule, RouterLink, TranslatePipe, MapComponent, DateInputComponent],
   template: `
     @if (loading()) { <div class="card sect">{{ 'loading' | t : 'Loading…' }}</div> }
-    @if (error()) { <div class="inline-banner inline-banner-error" style="margin-bottom:12px">{{ error() }}</div> }
     @if (lab(); as l) {
       <div class="pagehead"><div>
         <div class="breadcrumbs">Home / <a routerLink="/labs" class="crumb">{{ 'lab_mgmt' | t : 'Laboratories' }}</a> / {{ l.displayCode }}</div>
@@ -172,11 +172,11 @@ export class LabDetailComponent {
   private readonly api = inject(ApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly toast = inject(ToastService);
   readonly auth = inject(AuthService);
 
   readonly loading = signal(true);
   readonly busy = signal(false);
-  readonly error = signal<string | null>(null);
   readonly lab = signal<LabDetail | null>(null);
   readonly statuses = STATUSES;
   readonly channels = CHANNELS;
@@ -263,7 +263,7 @@ export class LabDetailComponent {
         this.images.set([...l.images]);
         this.loading.set(false);
       },
-      error: () => { this.loading.set(false); this.error.set('Could not load laboratory.'); },
+      error: () => { this.loading.set(false); this.toast.error('Could not load laboratory.'); },
     });
   }
 
@@ -314,7 +314,7 @@ export class LabDetailComponent {
       data.append('file', file);
       this.api.post<{ path: string }>('/labs/upload', data).subscribe({
         next: (r) => { this.images.update((a) => [...a, r.path]); if (--pending === 0) this.busy.set(false); },
-        error: (e) => { this.error.set(e?.error?.detail ?? 'Image upload failed.'); if (--pending === 0) this.busy.set(false); },
+        error: () => { if (--pending === 0) this.busy.set(false); },
       });
     }
   }
@@ -330,8 +330,8 @@ export class LabDetailComponent {
     if (!l || !this.canSave() || this.busy()) return;
     const canGeo = this.canViewLocation();
     const geo = canGeo ? parseGeo(this.f.geo) : null;
-    if (canGeo && this.f.geo.trim() && !geo) { this.error.set('Enter coordinates as "lat, lng" (e.g. 30.0444, 31.2357).'); return; }
-    this.busy.set(true); this.error.set(null);
+    if (canGeo && this.f.geo.trim() && !geo) { this.toast.warning('Enter coordinates as "lat, lng" (e.g. 30.0444, 31.2357).'); return; }
+    this.busy.set(true);
     const contacts = [
       ...this.managers.filter((c) => c.name.trim()).map((c) => ({ name: c.name, role: 'Manager', phone: c.phone || null, birthday: c.birthday || null })),
       ...this.receptionists.filter((c) => c.name.trim()).map((c) => ({ name: c.name, role: 'Receptionist', phone: c.phone || null, birthday: c.birthday || null })),
@@ -358,15 +358,14 @@ export class LabDetailComponent {
         if (this.f.status !== l.status) {
           this.api.put(`/labs/${this.id}/status`, { status: this.f.status }).subscribe({
             next: () => void this.router.navigate(['/labs']),
-            error: (e) => { this.busy.set(false); this.error.set(e?.error?.detail ?? 'Saved, but the status change failed.'); },
+            error: () => { this.busy.set(false); },
           });
         } else {
           void this.router.navigate(['/labs']);
         }
       },
-      error: (e) => {
+      error: () => {
         this.busy.set(false);
-        this.error.set(e?.status === 409 ? 'This lab changed since you opened it — reload and retry.' : (e?.error?.detail ?? 'Save failed.'));
       },
     });
   }
