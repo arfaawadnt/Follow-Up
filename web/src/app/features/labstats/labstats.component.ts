@@ -41,7 +41,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
       <div class="kpi kpi-teal"><div class="lbl">{{ 'total_tests' | t : 'Total tests' }}</div><div class="val">{{ k().tests | number:'1.0-0' }}</div></div>
       <div class="kpi kpi-green"><div class="lbl">{{ 'total_income' | t : 'Total income' }}</div><div class="val">{{ k().income | number:'1.0-0' }}</div><div class="sub">EGP</div></div>
       <div class="kpi kpi-blue"><div class="lbl">{{ 'active_labs_in_stats' | t : 'Active Labs in Stats' }}</div><div class="val">{{ k().labs }}</div></div>
-      <div class="kpi kpi-amber"><div class="lbl">{{ 'avg_tests_lab' | t : 'Avg tests / lab' }}</div><div class="val">{{ k().avg | number:'1.0-0' }}</div></div>
+      <div class="kpi kpi-amber"><div class="lbl">{{ 'avg_tests_visit' | t : 'Avg tests / visit' }}</div><div class="val">{{ k().avg | number:'1.0-0' }}</div></div>
     </div>
 
     <div class="card" style="padding:16px;margin-bottom:16px">
@@ -239,7 +239,10 @@ export class LabStatsComponent {
     const f = this.filtered();
     const tests = f.reduce((a, s) => a + s.testCount, 0);
     const labs = new Set(f.map((s) => s.labCode)).size;
-    return { tests, income: f.reduce((a, s) => a + s.income, 0), labs, avg: labs ? tests / labs : 0 };
+    // Each row is one (lab, day) statistic = one lab visit; average per lab per visit divides by visits,
+    // not by distinct labs (a lab active over N days is N visits, not one).
+    const visits = f.length;
+    return { tests, income: f.reduce((a, s) => a + s.income, 0), labs, visits, avg: visits ? tests / visits : 0 };
   });
 
   constructor() { this.load(); }
