@@ -17,13 +17,13 @@ interface Subscription {
   filtersJson: string; userIds: string[]; emails: string[]; sendHour: number; sendMinute: number;
   windowDays: number; enabled: boolean; lastStatus: string | null; lastRunAt: string | null;
 }
-interface Filters { governorates: string[]; cities: string[]; areas: string[]; categories: string[]; segments: string[]; groups: string[]; }
+interface Filters { governorates: string[]; cities: string[]; areas: string[]; categories: string[]; segments: string[]; groups: string[]; refMonth: string; }
 interface Editor {
   id: string | null; name: string; includeLabStats: boolean; includeTestStats: boolean; includeAreaStats: boolean;
   filters: Filters; userIds: string[]; emailsText: string; sendHour: number; sendMinute: number; windowDays: number; enabled: boolean;
 }
 
-const EMPTY_FILTERS = (): Filters => ({ governorates: [], cities: [], areas: [], categories: [], segments: [], groups: [] });
+const EMPTY_FILTERS = (): Filters => ({ governorates: [], cities: [], areas: [], categories: [], segments: [], groups: [], refMonth: '' });
 const NEW_EDITOR = (): Editor => ({ id: null, name: '', includeLabStats: true, includeTestStats: false, includeAreaStats: false,
   filters: EMPTY_FILTERS(), userIds: [], emailsText: '', sendHour: 6, sendMinute: 0, windowDays: 1, enabled: true });
 
@@ -92,7 +92,9 @@ const NEW_EDITOR = (): Editor => ({ id: null, name: '', includeLabStats: true, i
             <div class="field"><label>{{ 'category' | t : 'Lab Category' }}</label><app-filter-select [multiple]="true" [options]="categories()" [(ngModel)]="ed.filters.categories"></app-filter-select></div>
             <div class="field"><label>{{ 'segment' | t : 'Segment' }}</label><app-filter-select [multiple]="true" [options]="segments()" [(ngModel)]="ed.filters.segments"></app-filter-select></div>
             <div class="field"><label>{{ 'group' | t : 'Test Group' }}</label><app-filter-select [multiple]="true" [options]="groups()" [(ngModel)]="ed.filters.groups"></app-filter-select></div>
+            <div class="field"><label>{{ 'reference_month' | t : 'Reference Month' }} <span class="small muted">({{ 'areastats' | t : 'Area statistics' }})</span></label><input class="input" type="month" [(ngModel)]="ed.filters.refMonth"></div>
           </div>
+          <div class="small muted" style="margin-top:4px">{{ 'ref_month_email_hint' | t : 'The Area Statistics sheet is colour-coded against this reference month (green beats its daily average, red falls short). Leave empty to use the previous month.' }}</div>
 
           <label class="lbl" style="margin-top:14px">{{ 'recipients' | t : 'Recipients' }}</label>
           <div class="frm-grid" style="grid-template-columns:1fr 1fr;gap:10px;margin-top:4px">

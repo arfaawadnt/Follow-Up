@@ -135,7 +135,8 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
         _email = email; _clock = clock; _logger = logger;
     }
 
-    private sealed record Filters(string[]? Governorates, string[]? Cities, string[]? Areas, string[]? Categories, string[]? Segments, string[]? Groups);
+    private sealed record Filters(string[]? Governorates, string[]? Cities, string[]? Areas, string[]? Categories,
+        string[]? Segments, string[]? Groups, string? RefMonth);
     private static bool Match(string[]? filter, string? value) =>
         filter is null || filter.Length == 0 || (value != null && filter.Contains(value));
     private static string Enc(string? v) => WebUtility.HtmlEncode(v ?? "");
@@ -148,8 +149,8 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
         var to = _clock.CairoToday.AddDays(-1);
         var from = to.AddDays(-(Math.Max(1, sub.WindowDays) - 1));
         Filters f;
-        try { f = JsonSerializer.Deserialize<Filters>(sub.FiltersJson, JsonOpts) ?? new Filters(null, null, null, null, null, null); }
-        catch { f = new Filters(null, null, null, null, null, null); }
+        try { f = JsonSerializer.Deserialize<Filters>(sub.FiltersJson, JsonOpts) ?? new Filters(null, null, null, null, null, null, null); }
+        catch { f = new Filters(null, null, null, null, null, null, null); }
 
         var (html, attachments) = await BuildAsync(sub, from, to, f, ct);
         var recipients = await ResolveRecipientsAsync(sub, ct);
@@ -186,9 +187,14 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
         return set.ToList();
     }
 
-    /// <summary>One report: the HTML summary (rendered inline, capped) plus the full typed rows exported as an .xlsx attachment.</summary>
+    /// <summary>One report: the HTML summary (rendered inline, capped) plus the full data exported as an .xlsx
+    /// attachment. HTML and xlsx carry their own headers/rows so the Area report can attach the grouped, colour-coded
+    /// grid (matching the on-screen page) while the email body keeps a compact preview.</summary>
     private sealed record ReportSection(string Title, string FileName, string SummaryHtml,
-        string[] Headers, List<string[]> HtmlRows, List<object?[]> DataRows);
+        string[] HtmlHeaders, List<string[]> HtmlRows, string[] XlsxHeaders, List<XlsxCell[]> XlsxRows);
+
+    private static List<XlsxCell[]> Plain(IEnumerable<object?[]> rows) =>
+        rows.Select(r => r.Select(v => new XlsxCell(v)).ToArray()).ToList();
 
     private async Task<(string Html, IReadOnlyList<EmailAttachment> Attachments)> BuildAsync(
         StatsEmailSubscription sub, DateOnly from, DateOnly to, Filters f, CancellationToken ct)
@@ -207,13 +213,13 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
         var attachments = new List<EmailAttachment>();
         foreach (var s in sections)
         {
-            sb.Append(Table(s.Title, s.SummaryHtml, s.Headers, s.HtmlRows));
-            if (s.DataRows.Count > 0)
-                attachments.Add(new EmailAttachment(s.FileName, XlsxWriter.Build(s.Title, s.Headers, s.DataRows), XlsxWriter.ContentType));
+            sb.Append(Table(s.Title, s.SummaryHtml, s.HtmlHeaders, s.HtmlRows));
+            if (s.XlsxRows.Count > 0)
+                attachments.Add(new EmailAttachment(s.FileName, XlsxWriter.Build(s.Title, s.XlsxHeaders, s.XlsxRows), XlsxWriter.ContentType));
         }
 
         if (attachments.Count > 0)
-            sb.Append("<p style=\"color:#333;font-size:13px;margin-top:16px\">The full data for each report is attached as an Excel file.</p>");
+            sb.Append("<p style=\"color:#333;font-size:13px;margin-top:16px\">The full data for each report is attached as an Excel file. The Area Statistics sheet is grouped by governorate &amp; area and colour-coded against the reference month, matching the on-screen page.</p>");
         sb.Append("<p style=\"color:#999;font-size:12px;margin-top:22px\">Sent automatically by Follow-Up.</p></div>");
         return (sb.ToString(), attachments);
     }
@@ -249,11 +255,12 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
             Name = g.First().Name ?? g.Key, Gov = g.First().Governorate ?? "—", Area = g.First().Area ?? "—",
             Tests = g.Sum(x => x.TestCount), Income = g.Sum(x => x.Income),
         }).OrderByDescending(x => x.Tests).ToList();
+        var headers = new[] { "Lab", "Governorate", "Area", "Tests", "Income" };
         var htmlRows = agg.Select(a => new[] { a.Name, a.Gov, a.Area, a.Tests.ToString("N0"), a.Income.ToString("N1") }).ToList();
-        var dataRows = agg.Select(a => new object?[] { a.Name, a.Gov, a.Area, a.Tests, a.Income }).ToList();
+        var dataRows = agg.Select(a => new object?[] { a.Name, a.Gov, a.Area, a.Tests, a.Income });
         var summary = $"<b>Total tests:</b> {agg.Sum(a => a.Tests):N0} &middot; <b>Labs:</b> {agg.Count:N0} &middot; <b>Income:</b> {agg.Sum(a => a.Income):N0} EGP";
         return new ReportSection("Lab Statistics", $"Lab-Statistics-{dateTag}.xlsx", summary,
-            new[] { "Lab", "Governorate", "Area", "Tests", "Income" }, htmlRows, dataRows);
+            headers, htmlRows, headers, Plain(dataRows));
     }
 
     private async Task<ReportSection> RenderTestAsync(string dateTag, DateOnly from, DateOnly to, Filters f, CancellationToken ct)
@@ -265,29 +272,137 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
             Test = g.First().TestName ?? g.Key.TestCode, Group = g.First().GroupName ?? "—",
             Count = g.Sum(x => x.Count), Income = g.Sum(x => x.Income),
         }).OrderByDescending(x => x.Count).ToList();
+        var headers = new[] { "Test", "Group", "Count", "Income" };
         var htmlRows = agg.Select(a => new[] { a.Test, a.Group, a.Count.ToString("N0"), a.Income.ToString("N1") }).ToList();
-        var dataRows = agg.Select(a => new object?[] { a.Test, a.Group, a.Count, a.Income }).ToList();
+        var dataRows = agg.Select(a => new object?[] { a.Test, a.Group, a.Count, a.Income });
         var summary = $"<b>Total tests:</b> {agg.Sum(a => a.Count):N0} &middot; <b>Distinct tests:</b> {agg.Count:N0}";
         return new ReportSection("Test Statistics", $"Test-Statistics-{dateTag}.xlsx", summary,
-            new[] { "Test", "Group", "Count", "Income" }, htmlRows, dataRows);
+            headers, htmlRows, headers, Plain(dataRows));
     }
 
+    private const string Dash = "—";
+
+    // Reference-month window from the "YYYY-MM" RefMonth filter; falls back to the calendar month before `to`.
+    private static (DateOnly From, DateOnly To, int Days) RefWindow(DateOnly to, string? refMonth)
+    {
+        int y, m;
+        if (!string.IsNullOrWhiteSpace(refMonth) && refMonth.Length >= 7
+            && int.TryParse(refMonth.AsSpan(0, 4), out var py) && int.TryParse(refMonth.AsSpan(5, 2), out var pm)
+            && pm is >= 1 and <= 12)
+        { y = py; m = pm; }
+        else { var prev = new DateOnly(to.Year, to.Month, 1).AddMonths(-1); y = prev.Year; m = prev.Month; }
+        var days = DateTime.DaysInMonth(y, m);
+        return (new DateOnly(y, m, 1), new DateOnly(y, m, days), days);
+    }
+
+    private class AreaAcc
+    {
+        public string? RealName;
+        public readonly Dictionary<DateOnly, int> Cells = new();
+        public int Total;
+        public decimal Income;
+        public int RefMonth;
+    }
+    private sealed class GovAcc : AreaAcc { public readonly Dictionary<string, AreaAcc> Areas = new(); }
+
+    /// <summary>
+    /// Area Statistics as a grouped, colour-coded sheet matching the on-screen page and its Excel export: rows are
+    /// governorate bands (light fill, bold) each followed by its areas, with per-day columns flagged green when the
+    /// day beats the reference month's daily average and red when it falls short (daily view over the window).
+    /// </summary>
     private async Task<ReportSection> RenderAreaAsync(string dateTag, DateOnly from, DateOnly to, Filters f, CancellationToken ct)
     {
-        var rows = (await _areaStats.ListAsync(from, to, OrgScope.Global, ct))
-            .Where(r => Match(f.Governorates, r.Governorate) && Match(f.Cities, r.City) && Match(f.Areas, r.Area));
-        var agg = rows.GroupBy(r => (Gov: r.Governorate ?? "—", Area: r.Area ?? "—",
-                GovReal: r.GovernorateRealName, AreaReal: r.AreaRealName))
-            .Select(g => new
+        bool Geo(AreaStatDto r) => Match(f.Governorates, r.Governorate) && Match(f.Cities, r.City) && Match(f.Areas, r.Area);
+        var rows = (await _areaStats.ListAsync(from, to, OrgScope.Global, ct)).Where(Geo).ToList();
+
+        var (refFrom, refTo, refDays) = RefWindow(to, f.RefMonth);
+        var refRows = (await _areaStats.ListAsync(refFrom, refTo, OrgScope.Global, ct)).Where(Geo).ToList();
+
+        // Reference-month totals per governorate and per (governorate|area).
+        var refByGov = new Dictionary<string, int>();
+        var refByArea = new Dictionary<string, int>();
+        foreach (var r in refRows)
+        {
+            var g = r.Governorate ?? Dash; var a = r.Area ?? Dash;
+            refByGov[g] = refByGov.GetValueOrDefault(g) + r.TestCount;
+            var key = g + "|" + a;
+            refByArea[key] = refByArea.GetValueOrDefault(key) + r.TestCount;
+        }
+
+        var periods = rows.Select(r => r.Date).Distinct().OrderBy(d => d).ToList();
+
+        var govs = new Dictionary<string, GovAcc>();
+        foreach (var r in rows)
+        {
+            var govName = r.Governorate ?? Dash; var areaName = r.Area ?? Dash;
+            if (!govs.TryGetValue(govName, out var g))
             {
-                Gov = g.Key.GovReal is null ? g.Key.Gov : $"{g.Key.Gov} ({g.Key.GovReal})",
-                Area = g.Key.AreaReal is null ? g.Key.Area : $"{g.Key.Area} ({g.Key.AreaReal})",
-                Tests = g.Sum(x => x.TestCount), Income = g.Sum(x => x.Income),
-            }).OrderByDescending(x => x.Tests).ToList();
-        var htmlRows = agg.Select(a => new[] { a.Gov, a.Area, a.Tests.ToString("N0"), a.Income.ToString("N1") }).ToList();
-        var dataRows = agg.Select(a => new object?[] { a.Gov, a.Area, a.Tests, a.Income }).ToList();
-        var summary = $"<b>Total tests:</b> {agg.Sum(a => a.Tests):N0} &middot; <b>Areas:</b> {agg.Count:N0}";
+                g = new GovAcc { RealName = r.GovernorateRealName, RefMonth = refByGov.GetValueOrDefault(govName) };
+                govs[govName] = g;
+            }
+            g.Cells[r.Date] = g.Cells.GetValueOrDefault(r.Date) + r.TestCount; g.Total += r.TestCount; g.Income += r.Income;
+            if (!g.Areas.TryGetValue(areaName, out var a))
+            {
+                a = new AreaAcc { RealName = r.AreaRealName, RefMonth = refByArea.GetValueOrDefault(govName + "|" + areaName) };
+                g.Areas[areaName] = a;
+            }
+            a.Cells[r.Date] = a.Cells.GetValueOrDefault(r.Date) + r.TestCount; a.Total += r.TestCount; a.Income += r.Income;
+        }
+        var govList = govs.OrderByDescending(x => x.Value.Total).ThenBy(x => x.Key).ToList();
+
+        // Daily-view baseline: a period cell is compared against the reference month's average day.
+        XlsxFill Flag(int value, int refMonth)
+        {
+            var baseline = refDays > 0 ? refMonth / (double)refDays : 0;
+            if (baseline <= 0) return XlsxFill.None;
+            return value > baseline ? XlsxFill.Pos : value < baseline ? XlsxFill.Neg : XlsxFill.None;
+        }
+        int RefDay(int refMonth) => (int)Math.Round(refDays > 0 ? refMonth / (double)refDays : 0);
+        static decimal Dec(decimal v) => Math.Round(v, 1);
+        static string Named(string name, string? real) => string.IsNullOrWhiteSpace(real) ? name : $"{name} ({real})";
+
+        var headers = new List<string> { "Governorate", "Area", "Real Name", "Ref by Month", "Ref by Day", "Total Test Count", "Total Income" };
+        headers.AddRange(periods.Select(p => p.ToString("yyyy-MM-dd")));
+
+        var xlsxRows = new List<XlsxCell[]>();
+        foreach (var (govName, g) in govList)
+        {
+            XlsxCell Gov(object? v) => new(v, XlsxFill.Gov, Bold: true);
+            var govCells = new List<XlsxCell> { Gov(govName), Gov(""), Gov(g.RealName ?? ""), Gov(g.RefMonth), Gov(RefDay(g.RefMonth)), Gov(g.Total), Gov(Dec(g.Income)) };
+            foreach (var p in periods)
+            {
+                var v = g.Cells.GetValueOrDefault(p);
+                var flag = Flag(v, g.RefMonth);
+                govCells.Add(flag != XlsxFill.None ? new XlsxCell(v, flag) : Gov(v));
+            }
+            xlsxRows.Add(govCells.ToArray());
+
+            foreach (var (areaName, a) in g.Areas.OrderByDescending(x => x.Value.Total).ThenBy(x => x.Key))
+            {
+                var areaCells = new List<XlsxCell> { "", areaName, a.RealName ?? "", a.RefMonth, RefDay(a.RefMonth), a.Total, Dec(a.Income) };
+                foreach (var p in periods)
+                {
+                    var v = a.Cells.GetValueOrDefault(p);
+                    var flag = Flag(v, a.RefMonth);
+                    areaCells.Add(flag != XlsxFill.None ? new XlsxCell(v, flag) : new XlsxCell(v));
+                }
+                xlsxRows.Add(areaCells.ToArray());
+            }
+        }
+
+        // Compact HTML preview in the email body (governorate + area totals); the full grouped/colour-coded grid is the attachment.
+        var htmlHeaders = new[] { "Governorate", "Area", "Ref (month)", "Tests", "Income" };
+        var htmlRows = new List<string[]>();
+        foreach (var (govName, g) in govList)
+        {
+            htmlRows.Add(new[] { Named(govName, g.RealName), "", g.RefMonth.ToString("N0"), g.Total.ToString("N0"), g.Income.ToString("N1") });
+            foreach (var (areaName, a) in g.Areas.OrderByDescending(x => x.Value.Total).ThenBy(x => x.Key))
+                htmlRows.Add(new[] { "", Named(areaName, a.RealName), a.RefMonth.ToString("N0"), a.Total.ToString("N0"), a.Income.ToString("N1") });
+        }
+
+        var totalTests = rows.Sum(r => r.TestCount);
+        var summary = $"<b>Total tests:</b> {totalTests:N0} &middot; <b>Areas:</b> {govList.Sum(x => x.Value.Areas.Count):N0} &middot; <b>Reference month:</b> {refFrom:yyyy-MM} (green beats the daily average, red falls short)";
         return new ReportSection("Area Statistics", $"Area-Statistics-{dateTag}.xlsx", summary,
-            new[] { "Governorate", "Area", "Tests", "Income" }, htmlRows, dataRows);
+            htmlHeaders, htmlRows, headers.ToArray(), xlsxRows);
     }
 }
