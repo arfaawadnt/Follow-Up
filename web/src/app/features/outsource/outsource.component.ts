@@ -6,7 +6,7 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { LabListItem, OutsourceSample, PagedResult } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
-import { exportCsv, localToday, ddmy } from '../../shared/export.util';
+import { exportXlsx, localToday, ddmy } from '../../shared/export.util';
 import { AppDatePipe } from '../../shared/app-date.pipe';
 
 const STATUSES = ['All', 'Collected', 'Sent', 'Received'];
@@ -177,7 +177,7 @@ export class OutsourceComponent {
   }
 
   exportExcel(): void {
-    exportCsv('outsource-samples.csv',
+    exportXlsx('outsource-samples.xlsx',
       ['Date', 'Source lab', 'Code', 'Samples', 'Status', 'Destination lab', 'Notes'],
       this.filtered().map((o) => [ddmy(o.visitDate), o.labName, o.labDisplayCode, o.quantity, o.status, o.destinationLab, o.notes]));
   }

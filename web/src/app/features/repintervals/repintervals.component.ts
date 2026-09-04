@@ -1,4 +1,4 @@
-import { exportCsv, localToday, printTable, ddmy } from '../../shared/export.util';
+import { exportXlsx, localToday, printTable, ddmy } from '../../shared/export.util';
 import { AppDatePipe } from '../../shared/app-date.pipe';
 import { Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
@@ -192,6 +192,6 @@ export class RepIntervalsComponent {
       rows: this.filtered().map((r) => [ddmy(r.visitDate), r.visitTime, r.labName, r.labCode, r.collectorName, r.samples ?? '—', this.dur(r.plannedToCollect), this.dur(r.collectToTransfer), this.dur(r.transferToCheckin), this.dur(r.totalCycle)]),
     };
   }
-  exportExcel(): void { const { header, rows } = this.exportData(); exportCsv(`rep-performance-${this.today}.csv`, header, rows); }
+  exportExcel(): void { const { header, rows } = this.exportData(); exportXlsx(`rep-performance-${this.today}.xlsx`, header, rows); }
   exportPdf(): void { const { header, rows } = this.exportData(); printTable('Rep performance', header, rows); }
 }

@@ -6,7 +6,7 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { PagedResult, RepListItem, TransferItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
-import { exportCsv, printTable, localToday, localDateTime, ddmy } from '../../shared/export.util';
+import { exportXlsx, printTable, localToday, localDateTime, ddmy } from '../../shared/export.util';
 import { AppDatePipe } from '../../shared/app-date.pipe';
 
 interface Draft { rep: string; name: string; mobile: string; car: string; when: string; done: boolean; }
@@ -246,6 +246,6 @@ export class TransfersComponent {
       r.driverName, r.driverMobile, r.carPlate, r.transferRepName, r.transferTime]);
   }
   private static readonly EXPORT_HEADER = ['Laboratory', 'Code', 'Area', 'Branch', 'Collected', 'Collector', 'Samples', 'Status', 'Driver', 'Mobile', 'Car', 'Transfer rep', 'Transferred at'];
-  exportExcel(): void { exportCsv('transfers.csv', TransfersComponent.EXPORT_HEADER, this.exportRows()); }
+  exportExcel(): void { exportXlsx('transfers.xlsx', TransfersComponent.EXPORT_HEADER, this.exportRows()); }
   exportPdf(): void { printTable('Transfer Management', TransfersComponent.EXPORT_HEADER, this.exportRows()); }
 }

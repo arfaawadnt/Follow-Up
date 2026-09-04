@@ -1,4 +1,4 @@
-import { exportCsv, localToday, printTable, ddmy } from '../../shared/export.util';
+import { exportXlsx, localToday, printTable, ddmy } from '../../shared/export.util';
 import { AppDatePipe } from '../../shared/app-date.pipe';
 import { Component, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
@@ -225,6 +225,6 @@ export class ReportsComponent {
       ] : [],
     };
   }
-  exportExcel(): void { const { title, header, rows } = this.exportData(); exportCsv(`${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${this.today}.csv`, header, rows); }
+  exportExcel(): void { const { title, header, rows } = this.exportData(); exportXlsx(`${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${this.today}.xlsx`, header, rows); }
   exportPdf(): void { const { title, header, rows } = this.exportData(); printTable(title, header, rows); }
 }

@@ -1,4 +1,4 @@
-import { exportCsv, localToday, printTable } from '../../shared/export.util';
+import { exportXlsx, localToday, printTable } from '../../shared/export.util';
 import { Component, computed, inject, signal } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -274,7 +274,7 @@ export class TestStatsComponent {
   private noLabExport(): { h: string[]; rows: (string | number)[][] } {
     return { h: ['Date/Time', 'Acc No', 'Patient Name', 'Doctor', 'Registered By', 'Test Name'], rows: this.noLabRows().map((r) => [this.fmtDt(r.regDate), r.accNo, r.patientName, r.doctor, r.registeredBy, r.testName]) };
   }
-  exportNoLabExcel(): void { const e = this.noLabExport(); exportCsv(`no-lab-tests-${this.today}.csv`, e.h, e.rows); }
+  exportNoLabExcel(): void { const e = this.noLabExport(); exportXlsx(`no-lab-tests-${this.today}.xlsx`, e.h, e.rows); }
   exportNoLabPdf(): void { const e = this.noLabExport(); printTable('No-Lab Tests', e.h, e.rows); }
 
   private exportHeaders(): string[] { return ['Test code', 'Test name', 'Parent group', ...this.periods().map((p) => this.colLabel(p)), 'Total count', 'Total income']; }
@@ -282,7 +282,7 @@ export class TestStatsComponent {
     const periods = this.periods();
     return this.pivot().map((r) => [r.testCode, r.testName, r.groupName, ...periods.map((p) => this.cell(r, p)), r.totalCount, Math.round(r.totalIncome * 10) / 10]);
   }
-  exportExcel(): void { exportCsv(`test-statistics-${this.today}.csv`, this.exportHeaders(), this.exportRows()); }
+  exportExcel(): void { exportXlsx(`test-statistics-${this.today}.xlsx`, this.exportHeaders(), this.exportRows()); }
   exportPdf(): void { printTable('Test statistics', this.exportHeaders(), this.exportRows()); }
 
   onImport(event: Event): void {

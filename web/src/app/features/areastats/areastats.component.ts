@@ -1,4 +1,4 @@
-import { escHtml, exportCsv, localToday, printDoc } from '../../shared/export.util';
+import { escHtml, exportXlsx, localToday, printDoc, SheetCell } from '../../shared/export.util';
 import { Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -309,17 +309,27 @@ export class AreaStatsComponent {
   private exportHeaders(): string[] {
     return ['Governorate', 'Area', 'Real Name', 'Ref by Month', 'Ref by Day', 'Total Test Count', 'Total Income', ...this.periods().map((p) => this.colLabel(p))];
   }
-  private exportRows(): (string | number)[][] {
+  /** A flagged period cell: green/red fill vs the reference baseline (govFill = light band on a governorate row). */
+  private pcell(v: number, refMonth: number, govFill = false): SheetCell {
+    const f = this.flag(v, refMonth);
+    if (f) return { v, fill: f as 'pos' | 'neg' };
+    return govFill ? { v, fill: 'gov', bold: true } : v;
+  }
+  private exportRows(): SheetCell[][] {
     const periods = this.periods();
-    const out: (string | number)[][] = [];
+    const g0 = (v: string | number): SheetCell => ({ v, fill: 'gov', bold: true }); // governorate-row cell
+    const dec = (v: number) => Math.round(v * 10) / 10;
+    const out: SheetCell[][] = [];
     for (const g of this.groups()) {
-      out.push([g.gov, '', g.realName ?? '', g.refMonth, Math.round(this.refDay(g.refMonth)), g.total, Math.round(g.income * 10) / 10, ...periods.map((p) => this.gcell(g, p))]);
+      out.push([g0(g.gov), g0(''), g0(g.realName ?? ''), g0(g.refMonth), g0(Math.round(this.refDay(g.refMonth))), g0(g.total), g0(dec(g.income)),
+        ...periods.map((p) => this.pcell(this.gcell(g, p), g.refMonth, true))]);
       for (const a of g.areas)
-        out.push(['', a.area, a.realName ?? '', a.refMonth, Math.round(this.refDay(a.refMonth)), a.total, Math.round(a.income * 10) / 10, ...periods.map((p) => this.acell(a, p))]);
+        out.push(['', a.area, a.realName ?? '', a.refMonth, Math.round(this.refDay(a.refMonth)), a.total, dec(a.income),
+          ...periods.map((p) => this.pcell(this.acell(a, p), a.refMonth))]);
     }
     return out;
   }
-  exportExcel(): void { exportCsv(`area-statistics-${this.today}.csv`, this.exportHeaders(), this.exportRows()); }
+  exportExcel(): void { exportXlsx(`area-statistics-${this.today}.xlsx`, this.exportHeaders(), this.exportRows()); }
 
   /** PDF report: renders the grouped grid with the real name beside each name and the same green/red flags. */
   exportPdf(): void {

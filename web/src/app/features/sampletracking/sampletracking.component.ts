@@ -5,7 +5,7 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { SampleLifecycleRow, SampleTracking, UserLookup } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
-import { exportCsv, printTable, localToday, localDateTime, ddmy } from '../../shared/export.util';
+import { exportXlsx, printTable, localToday, localDateTime, ddmy } from '../../shared/export.util';
 import { AppDatePipe } from '../../shared/app-date.pipe';
 
 interface City { id: string; name: string; governorate: string; }
@@ -305,7 +305,7 @@ export class SampleTrackingComponent {
       this.stage(r.dataEntryBy, r.dataEntryAt), this.stage(r.reviewBy, r.reviewAt), this.stage(r.sortBy, r.sortAt), r.notes]);
   }
   private static readonly REPORT_HEADER = ['Laboratory', 'Code', 'Area', 'Visit datetime', 'Samples', 'Collected', 'Transferred', 'Received', 'Data entry', 'Revised', 'Sorted', 'Notes'];
-  exportReportExcel(): void { exportCsv('sample-lifecycle.csv', SampleTrackingComponent.REPORT_HEADER, this.reportRows()); }
+  exportReportExcel(): void { exportXlsx('sample-lifecycle.xlsx', SampleTrackingComponent.REPORT_HEADER, this.reportRows()); }
   exportLifecyclePdf(): void { printTable('Sample Life Cycle History', SampleTrackingComponent.REPORT_HEADER, this.reportRows()); }
   exportMotionPdf(): void {
     // Motion tracking mirrors the reference: who moved the samples at each leg, incl. the driver details.

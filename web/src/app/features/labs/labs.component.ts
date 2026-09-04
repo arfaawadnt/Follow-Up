@@ -5,7 +5,7 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { LabListItem, PagedResult } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
-import { exportCsv, printTable } from '../../shared/export.util';
+import { exportXlsx, printTable } from '../../shared/export.util';
 
 const SEGMENTS = ['All', 'A', 'B', 'C', 'D'];
 const STATUSES = ['All', 'Scanned', 'Interactive', 'Active', 'Inactive', 'Stopped', 'Pending', 'Suspended', 'Churned'];
@@ -20,7 +20,7 @@ const STATUSES = ['All', 'Scanned', 'Interactive', 'Active', 'Inactive', 'Stoppe
       <div class="pagehead-actions" style="display:flex;gap:8px">
         @if (auth.has('OracleIntegration')) { <button class="btn btn-s" [disabled]="syncing()" (click)="sync()">{{ syncing() ? 'Syncing…' : 'Sync from Oracle' }}</button> }
         @if (auth.has('AddLabs')) { <a class="btn btn-p" routerLink="/labs/new">{{ 'new_lab_btn' | t : '+ New laboratory' }}</a> }
-        <button class="btn btn-s" (click)="exportCsv()" [disabled]="!filtered().length">{{ 'export_excel' | t : 'Export Excel' }}</button>
+        <button class="btn btn-s" (click)="exportXlsx()" [disabled]="!filtered().length">{{ 'export_excel' | t : 'Export Excel' }}</button>
         <button class="btn btn-s" (click)="exportPdf()" [disabled]="!filtered().length">{{ 'export_pdf' | t : 'Export PDF' }}</button>
         <button class="btn-ghost" (click)="clearFilters()">{{ 'clear_filters' | t : 'Clear Filters' }}</button>
       </div>
@@ -155,9 +155,9 @@ export class LabsComponent {
     this.load();
   }
 
-  exportCsv(): void {
+  exportXlsx(): void {
     const map = this.canViewLocation();
-    exportCsv('laboratories.csv',
+    exportXlsx('laboratories.xlsx',
       ['Laboratory', 'Code', 'Segment', 'Status', 'Address', ...(map ? ['Map'] : []), 'Collector', 'Marketing', 'Avg/mo'],
       this.filtered().map((l) => [l.name, l.displayCode, l.segment, l.status,
         [l.area, l.governorate].filter(Boolean).join(', '),

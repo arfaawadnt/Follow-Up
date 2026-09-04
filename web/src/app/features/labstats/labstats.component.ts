@@ -1,4 +1,4 @@
-import { exportCsv, localToday, printTable } from '../../shared/export.util';
+import { exportXlsx, localToday, printTable } from '../../shared/export.util';
 import { Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -275,7 +275,7 @@ export class LabStatsComponent {
     const periods = this.periods();
     return this.pivot().map((r) => [r.name, r.labCode, r.category, r.segment, r.governorate, r.city, r.area, ...periods.map((p) => this.cell(r, p)), r.totalTests, Math.round(r.totalIncome * 10) / 10]);
   }
-  exportExcel(): void { exportCsv(`lab-statistics-${this.today}.csv`, this.exportHeaders(), this.exportRows()); }
+  exportExcel(): void { exportXlsx(`lab-statistics-${this.today}.xlsx`, this.exportHeaders(), this.exportRows()); }
   exportPdf(): void { printTable('Lab statistics', this.exportHeaders(), this.exportRows()); }
 
   onImport(event: Event): void {

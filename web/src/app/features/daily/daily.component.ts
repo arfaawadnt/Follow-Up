@@ -7,7 +7,7 @@ import { AuthService } from '../../core/auth.service';
 import { IconsService } from '../../core/icons.service';
 import { BoardItem, PagedResult, RepListItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
-import { exportCsv, printTable, localToday, localTime, localDateTime, ddmy } from '../../shared/export.util';
+import { exportXlsx, printTable, localToday, localTime, localDateTime, ddmy } from '../../shared/export.util';
 import { AppDatePipe } from '../../shared/app-date.pipe';
 
 const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
@@ -284,7 +284,7 @@ export class DailyComponent {
       v.rep, this.statusLabel(v.status), v.samples, localDateTime(v.markedAt), v.adminChecked ? 'Yes' : 'No']);
   }
   exportExcel(): void {
-    exportCsv('daily-followup.csv',
+    exportXlsx('daily-followup.xlsx',
       ['Date', 'Time', 'Laboratory', 'Code', 'Branch', 'Area', 'Governorate', 'Collector', 'Status', 'Samples', 'Marked at', 'Verified'],
       this.exportRows());
   }

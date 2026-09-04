@@ -6,7 +6,7 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { ReceivingItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
-import { exportCsv, printTable, localToday, localDateTime, ddmy } from '../../shared/export.util';
+import { exportXlsx, printTable, localToday, localDateTime, ddmy } from '../../shared/export.util';
 import { AppDatePipe } from '../../shared/app-date.pipe';
 
 @Component({
@@ -154,6 +154,6 @@ export class LabCheckInComponent {
       r.collectorName, r.transferRepName, r.samples ?? 0, this.when(r.transferTime), r.status, this.when(r.receivedTime)]);
   }
   private static readonly EXPORT_HEADER = ['Laboratory', 'Code', 'Area', 'Governorate', 'Collected', 'Collector rep', 'Transfer rep', 'Samples', 'Transfer time', 'Status', 'Received at'];
-  exportExcel(): void { exportCsv('lab-checkin.csv', LabCheckInComponent.EXPORT_HEADER, this.exportRows()); }
+  exportExcel(): void { exportXlsx('lab-checkin.xlsx', LabCheckInComponent.EXPORT_HEADER, this.exportRows()); }
   exportPdf(): void { printTable('Lab Checkin', LabCheckInComponent.EXPORT_HEADER, this.exportRows()); }
 }
