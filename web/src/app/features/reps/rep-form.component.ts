@@ -54,7 +54,7 @@ const DURATIONS = ['Monthly', 'Quarterly'];
       </section>
 
       <div class="foot-actions">
-        <button type="button" class="btn btn-p" [disabled]="!canSave() || busy()" (click)="save()">{{ isEdit ? ('save_changes' | t : 'Save Changes') : ('create_profile' | t : 'Create Profile') }}</button>
+        <button type="button" class="btn btn-p" [disabled]="busy()" (click)="save()">{{ isEdit ? ('save_changes' | t : 'Save Changes') : ('create_profile' | t : 'Create Profile') }}</button>
         <button type="button" class="btn btn-s" (click)="cancel()">{{ 'cancel' | t : 'Cancel' }}</button>
       </div>
     }
@@ -148,10 +148,19 @@ export class RepFormComponent {
     if (!this.filteredAreas().some((a) => a.name === this.f.area)) this.f.area = '';
   }
 
-  canSave(): boolean { return !!this.f.fullName.trim() && !!this.f.governorate && this.f.target != null; }
+  /** Labels of the mandatory fields still empty (empty array = ready to save). */
+  private missingFields(): string[] {
+    const m: string[] = [];
+    if (!this.f.fullName.trim()) m.push('Full name');
+    if (!this.f.governorate) m.push('Governorate');
+    if (this.f.target == null) m.push('Target');
+    return m;
+  }
 
   save(): void {
-    if (!this.canSave() || this.busy()) return;
+    if (this.busy()) return;
+    const missing = this.missingFields();
+    if (missing.length) { this.toast.warning('Please fill in the required fields: ' + missing.join(', ') + '.'); return; }
     this.busy.set(true);
     const body: Record<string, unknown> = {
       fullName: this.f.fullName.trim(),

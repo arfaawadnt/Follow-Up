@@ -131,7 +131,7 @@ function parseGeo(text: string): { lat: number; lng: number } | null {
     </section>
 
     <div class="foot-actions">
-      <button type="button" class="btn btn-p" [disabled]="!canSave() || busy()" (click)="submit()">{{ 'create_laboratory' | t : 'Create Laboratory' }}</button>
+      <button type="button" class="btn btn-p" [disabled]="busy()" (click)="submit()">{{ 'create_laboratory' | t : 'Create Laboratory' }}</button>
       <button type="button" class="btn btn-s" (click)="cancel()">{{ 'cancel' | t : 'Cancel' }}</button>
     </div>
   `,
@@ -280,13 +280,22 @@ export class LabCreateComponent {
 
   removeImage(index: number): void { this.images.update((a) => a.filter((_, i) => i !== index)); }
 
-  canSave(): boolean {
-    return !!this.f.name.trim() && !!this.f.code.trim() && !!this.f.governorate && !!this.f.city
-      && !!this.f.time1 && this.workDays.length > 0;
+  /** Labels of the mandatory fields still empty (empty array = ready to submit). */
+  private missingFields(): string[] {
+    const m: string[] = [];
+    if (!this.f.name.trim()) m.push('Lab name');
+    if (!this.f.code.trim()) m.push('Lab code');
+    if (!this.f.governorate) m.push('Governorate');
+    if (!this.f.city) m.push('City');
+    if (!this.f.time1) m.push('Visit time 1');
+    if (this.workDays.length === 0) m.push('Working days');
+    return m;
   }
 
   submit(): void {
-    if (!this.canSave() || this.busy()) return;
+    if (this.busy()) return;
+    const missing = this.missingFields();
+    if (missing.length) { this.toast.warning('Please fill in the required fields: ' + missing.join(', ') + '.'); return; }
     const canGeo = this.canViewLocation();
     const geo = canGeo ? parseGeo(this.f.geo) : null;
     if (canGeo && this.f.geo.trim() && !geo) { this.toast.warning('Enter coordinates as "lat, lng" (e.g. 30.0444, 31.2357).'); return; }
