@@ -10,8 +10,9 @@ import { ToastService } from '../../core/toast.service';
 import { LabStat } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
 
-interface LabPivotRow { labCode: string; name: string; category: string; segment: string; governorate: string; city: string; area: string; cells: Record<string, number>; totalTests: number; totalIncome: number; }
+interface LabPivotRow { labCode: string; name: string; category: string; segment: string; governorate: string; city: string; area: string; cells: Record<string, { count: number; income: number }>; totalTests: number; totalIncome: number; }
 type View = 'daily' | 'monthly' | 'yearly';
+type Metric = 'count' | 'income';
 const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 @Component({
@@ -49,6 +50,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
         <div class="field"><label>{{ 'start_date' | t }}</label><app-date-input [(ngModel)]="from"></app-date-input></div>
         <div class="field"><label>{{ 'end_date' | t }}</label><app-date-input [(ngModel)]="to"></app-date-input></div>
         <div class="field"><label>{{ 'view_type' | t : 'View Type' }}</label><select class="select" [ngModel]="view()" (ngModelChange)="view.set($event)"><option value="daily">{{ 'daily_2' | t : 'Daily' }}</option><option value="monthly">{{ 'monthly' | t : 'Monthly' }}</option><option value="yearly">{{ 'yearly' | t : 'Yearly' }}</option></select></div>
+        <div class="field"><label>{{ 'compare_by' | t : 'Compare By' }}</label><select class="select" [ngModel]="metric()" (ngModelChange)="metric.set($event)"><option value="count">{{ 'compare_test_count' | t : 'Test Count' }}</option><option value="income">{{ 'compare_test_income' | t : 'Test Income' }}</option></select></div>
         <div class="field"><button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply_filters' | t : 'Apply Filters' }}</button></div>
         <div class="field"><label>{{ 'search_lab' | t : 'Search Lab' }}</label><input class="input" [ngModel]="q()" (ngModelChange)="q.set($event)" placeholder="name or code"></div>
         <div class="field"><label>{{ 'governorate_2' | t : 'Governorate' }}</label><app-filter-select [multiple]="true" [options]="govs()" [ngModel]="gov()" (ngModelChange)="gov.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
@@ -84,7 +86,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
                 <td>{{ r.category }}</td>
                 <td><span class="badge b-info">{{ r.segment }}</span></td>
                 <td>{{ r.governorate }}</td><td>{{ r.city }}</td><td>{{ r.area }}</td>
-                @for (p of periods(); track p) { <td class="r mono">{{ cell(r, p) | number:'1.0-0' }}</td> }
+                @for (p of periods(); track p) { <td class="r mono">{{ cell(r, p) | number: numFmt() }}</td> }
                 <td class="r mono tot" style="font-weight:700">{{ r.totalTests | number:'1.0-0' }}</td>
                 <td class="r mono" style="font-weight:700">{{ r.totalIncome | number:'1.0-1' }}</td>
               </tr>
@@ -93,7 +95,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
           @if (pivot().length) {
             <tfoot><tr>
               <td class="stick" style="font-weight:700">{{ 'total' | t : 'Total' }}</td><td></td><td></td><td></td><td></td><td></td>
-              @for (p of periods(); track p) { <td class="r mono" style="font-weight:700">{{ colTotal(p) | number:'1.0-0' }}</td> }
+              @for (p of periods(); track p) { <td class="r mono" style="font-weight:700">{{ colTotal(p) | number: numFmt() }}</td> }
               <td class="r mono tot" style="font-weight:800">{{ k().tests | number:'1.0-0' }}</td>
               <td class="r mono" style="font-weight:800">{{ k().income | number:'1.0-1' }}</td>
             </tr></tfoot>
@@ -165,6 +167,8 @@ export class LabStatsComponent {
   readonly category = signal<string[]>([]);
   readonly sortBy = signal<'tests_desc' | 'tests_asc' | 'income_desc' | 'income_asc'>('tests_desc');
   readonly view = signal<View>('monthly');
+  readonly metric = signal<Metric>('count');
+  readonly numFmt = computed(() => (this.metric() === 'income' ? '1.0-1' : '1.0-0'));
   readonly page = signal(1);
   readonly pageSize = signal(25);
   readonly syncOpen = signal(false);
@@ -205,7 +209,8 @@ export class LabStatsComponent {
       const period = this.periodKey(s.date);
       let r = map.get(s.labCode);
       if (!r) { r = { labCode: s.labCode, name: s.name ?? s.labCode, category: s.category ?? '—', segment: s.segment ?? '—', governorate: s.governorate ?? '—', city: s.city ?? '—', area: s.area ?? '—', cells: {}, totalTests: 0, totalIncome: 0 }; map.set(s.labCode, r); }
-      r.cells[period] = (r.cells[period] ?? 0) + s.testCount;
+      const c = r.cells[period] ?? (r.cells[period] = { count: 0, income: 0 });
+      c.count += s.testCount; c.income += s.income;
       r.totalTests += s.testCount; r.totalIncome += s.income;
     }
     const sb = this.sortBy();
@@ -219,13 +224,13 @@ export class LabStatsComponent {
       }
     });
   });
-  readonly columnTotals = computed<Record<string, number>>(() => {
-    const m: Record<string, number> = {};
-    for (const s of this.filtered()) { const p = this.periodKey(s.date); m[p] = (m[p] ?? 0) + s.testCount; }
+  readonly columnTotals = computed<Record<string, { count: number; income: number }>>(() => {
+    const m: Record<string, { count: number; income: number }> = {};
+    for (const s of this.filtered()) { const p = this.periodKey(s.date); const c = m[p] ?? (m[p] = { count: 0, income: 0 }); c.count += s.testCount; c.income += s.income; }
     return m;
   });
-  cell(r: LabPivotRow, p: string): number { return r.cells[p] ?? 0; }
-  colTotal(p: string): number { return this.columnTotals()[p] ?? 0; }
+  cell(r: LabPivotRow, p: string): number { const c = r.cells[p]; return c ? (this.metric() === 'income' ? c.income : c.count) : 0; }
+  colTotal(p: string): number { const c = this.columnTotals()[p]; return c ? (this.metric() === 'income' ? c.income : c.count) : 0; }
   readonly pageCount = computed(() => Math.max(1, Math.ceil(this.pivot().length / this.pageSize())));
   readonly curPage = computed(() => Math.min(this.page(), this.pageCount()));
   readonly paged = computed<LabPivotRow[]>(() => {

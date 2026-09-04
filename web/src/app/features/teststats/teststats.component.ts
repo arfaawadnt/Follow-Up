@@ -15,6 +15,7 @@ interface PivotRow { key: string; testCode: string; testName: string; groupName:
 interface Group { id: string; code: string; nameEn: string; }
 interface NoLabRow { regDate: string; accNo: string; patientName: string; doctor: string; registeredBy: string; testName: string; testCode: string; testType: number; }
 type View = 'daily' | 'monthly' | 'yearly';
+type Metric = 'count' | 'income';
 const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 @Component({
@@ -53,6 +54,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
         <div class="field"><label>{{ 'start_date' | t }}</label><app-date-input [(ngModel)]="from"></app-date-input></div>
         <div class="field"><label>{{ 'end_date' | t }}</label><app-date-input [(ngModel)]="to"></app-date-input></div>
         <div class="field"><label>{{ 'view_by' | t : 'View By' }}</label><select class="select" [ngModel]="view()" (ngModelChange)="view.set($event)"><option value="daily">{{ 'daily_2' | t : 'Daily' }}</option><option value="monthly">{{ 'monthly' | t : 'Monthly' }}</option><option value="yearly">{{ 'yearly' | t : 'Yearly' }}</option></select></div>
+        <div class="field"><label>{{ 'compare_by' | t : 'Compare By' }}</label><select class="select" [ngModel]="metric()" (ngModelChange)="metric.set($event)"><option value="count">{{ 'compare_test_count' | t : 'Test Count' }}</option><option value="income">{{ 'compare_test_income' | t : 'Test Income' }}</option></select></div>
         <div class="field"><label>{{ 'search_test_code' | t : 'Search (Test/Code)' }}</label><input class="input" [ngModel]="q()" (ngModelChange)="q.set($event)" placeholder="test name or code"></div>
         <div class="field"><label>{{ 'group' | t : 'Group' }}</label><app-filter-select [options]="groupNames()" [ngModel]="group()" (ngModelChange)="group.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><label>{{ 'sort_by' | t : 'Sort By' }}</label><select class="select" [ngModel]="sortDir()" (ngModelChange)="sortDir.set($event)"><option value="desc">{{ 'sort_count_desc' | t : 'Test Count (High → Low)' }}</option><option value="asc">{{ 'sort_count_asc' | t : 'Test Count (Low → High)' }}</option></select></div>
@@ -75,7 +77,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
                 <td class="mono" style="font-weight:600">{{ r.testCode }}</td>
                 <td>{{ r.testName }}</td>
                 <td>@if (r.groupName !== '—') { <span class="badge b-neu">{{ r.groupName }}</span> } @else { — }</td>
-                @for (p of periods(); track p) { <td class="r mono">{{ cell(r, p) | number : '1.0-0' }}</td> }
+                @for (p of periods(); track p) { <td class="r mono">{{ cell(r, p) | number : numFmt() }}</td> }
                 <td class="r mono tot" style="font-weight:700">{{ r.totalCount | number : '1.0-0' }}</td>
                 <td class="r mono" style="font-weight:700">{{ r.totalIncome | number : '1.0-1' }}</td>
               </tr>
@@ -84,7 +86,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
           @if (pivot().length) {
             <tfoot><tr>
               <td style="font-weight:700">{{ 'total' | t : 'Total' }}</td><td></td><td></td>
-              @for (p of periods(); track p) { <td class="r mono" style="font-weight:700">{{ colTotal(p) | number : '1.0-0' }}</td> }
+              @for (p of periods(); track p) { <td class="r mono" style="font-weight:700">{{ colTotal(p) | number : numFmt() }}</td> }
               <td class="r mono tot" style="font-weight:800">{{ totals().count | number : '1.0-0' }}</td>
               <td class="r mono" style="font-weight:800">{{ totals().income | number : '1.0-1' }}</td>
             </tr></tfoot>
@@ -174,6 +176,8 @@ export class TestStatsComponent {
   readonly group = signal('');
   readonly groupNames = computed(() => this.groups().map((g) => g.nameEn));
   readonly view = signal<View>('monthly');
+  readonly metric = signal<Metric>('count');
+  readonly numFmt = computed(() => (this.metric() === 'income' ? '1.0-1' : '1.0-0'));
   readonly sortDir = signal<'desc' | 'asc'>('desc');
   readonly syncOpen = signal(false);
   readonly syncing = signal(false);
@@ -221,8 +225,8 @@ export class TestStatsComponent {
     }
     return m;
   });
-  cell(r: PivotRow, p: string): number { return r.cells[p]?.count ?? 0; }
-  colTotal(p: string): number { return this.columnTotals()[p]?.count ?? 0; }
+  cell(r: PivotRow, p: string): number { const c = r.cells[p]; return c ? (this.metric() === 'income' ? c.income : c.count) : 0; }
+  colTotal(p: string): number { const c = this.columnTotals()[p]; return c ? (this.metric() === 'income' ? c.income : c.count) : 0; }
   readonly totals = computed(() => {
     const f = this.filtered();
     return { count: f.reduce((a, s) => a + s.count, 0), income: f.reduce((a, s) => a + s.income, 0), distinct: new Set(f.map((s) => `${s.testCode}|${s.testType}`)).size };

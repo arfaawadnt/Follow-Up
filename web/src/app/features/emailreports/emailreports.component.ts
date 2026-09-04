@@ -18,13 +18,13 @@ interface Subscription {
   filtersJson: string; userIds: string[]; emails: string[]; sendHour: number; sendMinute: number;
   windowDays: number; enabled: boolean; lastStatus: string | null; lastRunAt: string | null;
 }
-interface Filters { governorates: string[]; cities: string[]; areas: string[]; categories: string[]; segments: string[]; groups: string[]; refMonth: string; }
+interface Filters { governorates: string[]; cities: string[]; areas: string[]; categories: string[]; segments: string[]; groups: string[]; refMonth: string; compareBy: string; }
 interface Editor {
   id: string | null; name: string; includeLabStats: boolean; includeTestStats: boolean; includeAreaStats: boolean;
   filters: Filters; userIds: string[]; emailsText: string; sendHour: number; sendMinute: number; windowDays: number; enabled: boolean;
 }
 
-const EMPTY_FILTERS = (): Filters => ({ governorates: [], cities: [], areas: [], categories: [], segments: [], groups: [], refMonth: '' });
+const EMPTY_FILTERS = (): Filters => ({ governorates: [], cities: [], areas: [], categories: [], segments: [], groups: [], refMonth: '', compareBy: 'count' });
 const NEW_EDITOR = (): Editor => ({ id: null, name: '', includeLabStats: true, includeTestStats: false, includeAreaStats: false,
   filters: EMPTY_FILTERS(), userIds: [], emailsText: '', sendHour: 6, sendMinute: 0, windowDays: 1, enabled: true });
 
@@ -93,6 +93,7 @@ const NEW_EDITOR = (): Editor => ({ id: null, name: '', includeLabStats: true, i
             <div class="field"><label>{{ 'segment' | t : 'Segment' }}</label><app-filter-select [multiple]="true" [options]="segments()" [(ngModel)]="ed.filters.segments"></app-filter-select></div>
             <div class="field"><label>{{ 'group' | t : 'Test Group' }}</label><app-filter-select [multiple]="true" [options]="groups()" [(ngModel)]="ed.filters.groups"></app-filter-select></div>
             <div class="field"><label>{{ 'reference_month' | t : 'Reference Month' }} <span class="small muted">({{ 'areastats' | t : 'Area statistics' }})</span></label><input class="input" type="month" [(ngModel)]="ed.filters.refMonth"></div>
+            <div class="field"><label>{{ 'compare_by' | t : 'Compare By' }}</label><select class="select" [(ngModel)]="ed.filters.compareBy"><option value="count">{{ 'compare_test_count' | t : 'Test Count' }}</option><option value="income">{{ 'compare_test_income' | t : 'Test Income' }}</option></select></div>
           </div>
           <div class="small muted" style="margin-top:4px">{{ 'ref_month_email_hint' | t : 'The Area Statistics sheet is colour-coded against this reference month (green beats its daily average, red falls short). Leave empty to use the previous month.' }}</div>
 
