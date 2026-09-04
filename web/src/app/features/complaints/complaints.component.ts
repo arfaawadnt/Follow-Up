@@ -187,7 +187,7 @@ type StageForm = 'ack' | 'validity' | 'investigation' | 'outcome' | 'resolve';
                       <b>{{ 'investigation_title' | t : 'Investigation & Root Cause Analysis' }}</b>
                       <div class="field" style="margin-top:8px"><label>{{ 'investigation_lbl' | t : 'Investigation Notes & Root Cause' }}</label>
                         <textarea class="input" rows="3" [(ngModel)]="stageNotes" placeholder="Enter investigation details and root cause analysis..."></textarea></div>
-                      <button class="btn btn-p" style="margin-top:8px" [disabled]="!stageNotes.trim() || busy()" (click)="recordInvestigation(d)">{{ 'save_proceed' | t : 'Save & Proceed' }}</button>
+                      <button class="btn btn-p" style="margin-top:8px" [disabled]="busy()" (click)="recordInvestigation(d)">{{ 'save_proceed' | t : 'Save & Proceed' }}</button>
                     }
                     @case ('outcome') {
                       <b>{{ 'outcome_title' | t : 'Business Outcome' }}</b>
@@ -430,7 +430,7 @@ export class ComplaintsComponent {
     this.act(d.id, this.api.post(`/complaints/${d.id}/advance`, { stage: 'ValidityChecked', isValid: this.stageValid, notes: this.stageNotes.trim() || null }));
   }
   recordInvestigation(d: ComplaintDetail): void {
-    if (!this.stageNotes.trim()) return;
+    if (!this.stageNotes.trim()) { this.toast.warning('Please enter investigation notes & root cause.'); return; }
     this.act(d.id, this.api.post(`/complaints/${d.id}/advance`, { stage: 'Investigation', notes: this.stageNotes.trim() }));
   }
   recordOutcome(d: ComplaintDetail): void {

@@ -88,7 +88,7 @@ export class LoginComponent {
   password = '';
 
   submit(): void {
-    if (!this.username.trim() || !this.password) return;
+    if (!this.username.trim() || !this.password) { this.error.set('Enter your username and password.'); return; }
     this.loading.set(true);
     this.error.set(null);
     this.auth.login(this.username.trim(), this.password).subscribe({

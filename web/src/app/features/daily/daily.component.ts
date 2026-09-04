@@ -141,7 +141,7 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
           </div>
           <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
             <button class="btn btn-s" (click)="closeRecord()">{{ 'cancel' | t : 'Cancel' }}</button>
-            <button class="btn btn-p" [disabled]="recordCount === null || recordCount < 0 || busy()" (click)="confirmRecord()">{{ 'confirm' | t : 'Confirm visit' }}</button>
+            <button class="btn btn-p" [disabled]="busy()" (click)="confirmRecord()">{{ 'confirm' | t : 'Confirm visit' }}</button>
           </div>
         </div>
       </div>
@@ -248,7 +248,8 @@ export class DailyComponent {
   closeRecord(): void { this.recording.set(null); }
   confirmRecord(): void {
     const v = this.recording();
-    if (!v || this.recordCount === null || this.recordCount < 0) return;
+    if (!v) return;
+    if (this.recordCount === null || this.recordCount < 0) { this.toast.warning('Enter a valid sample count.'); return; }
     this.busy.set(true);
     this.api.post(`/daily/${v.visitId}/checkin?source=daily`, {
       sampleCount: this.recordCount,

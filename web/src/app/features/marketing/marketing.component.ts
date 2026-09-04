@@ -101,7 +101,7 @@ const STATUSES = ['All', 'Scheduled', 'Completed', 'Cancelled'];
             <div class="field"><label>{{ 'outcome' | t : 'Outcome' }} *</label><textarea class="input" rows="4" [(ngModel)]="outcomeText"></textarea></div>
             <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
               <button class="btn btn-s" (click)="completing.set(null)">{{ 'cancel' | t }}</button>
-              <button class="btn btn-p" [disabled]="!outcomeText.trim() || busy()" (click)="complete()">{{ 'complete_btn' | t : 'Complete' }}</button>
+              <button class="btn btn-p" [disabled]="busy()" (click)="complete()">{{ 'complete_btn' | t : 'Complete' }}</button>
             </div>
           </div>
         </div>
@@ -179,7 +179,8 @@ export class MarketingComponent {
   }
   openComplete(v: MarketingVisit): void { this.outcomeText = ''; this.completing.set(v); }
   complete(): void {
-    const v = this.completing(); if (!v || !this.outcomeText.trim()) return;
+    const v = this.completing(); if (!v) return;
+    if (!this.outcomeText.trim()) { this.toast.warning('Please enter the visit outcome.'); return; }
     this.busy.set(true);
     this.api.post(`/marketing/${v.id}/complete`, { outcome: this.outcomeText.trim() }).subscribe({
       next: () => { this.toast.success('Visit completed.'); this.busy.set(false); this.completing.set(null); this.load(); },
