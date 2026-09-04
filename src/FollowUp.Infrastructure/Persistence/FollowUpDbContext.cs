@@ -2,6 +2,7 @@ using System.Reflection;
 using FollowUp.Domain.Audit;
 using FollowUp.Domain.Compensation;
 using FollowUp.Domain.Complaints;
+using FollowUp.Domain.Emailing;
 using FollowUp.Domain.Identity;
 using FollowUp.Domain.Integration;
 using FollowUp.Domain.Laboratories;
@@ -68,6 +69,8 @@ public sealed class FollowUpDbContext : DbContext
     public DbSet<SystemNotification> SystemNotifications => Set<SystemNotification>();
     public DbSet<NotificationDeliveryLog> DeliveryLogs => Set<NotificationDeliveryLog>();
     public DbSet<OracleConfig> OracleConfigs => Set<OracleConfig>();
+    public DbSet<SmtpConfig> SmtpConfigs => Set<SmtpConfig>();
+    public DbSet<StatsEmailSubscription> StatsEmailSubscriptions => Set<StatsEmailSubscription>();
 
     // Infrastructure
     public DbSet<Outbox.OutboxMessage> OutboxMessages => Set<Outbox.OutboxMessage>();

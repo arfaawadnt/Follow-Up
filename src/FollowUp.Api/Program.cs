@@ -222,6 +222,7 @@ api.MapAuditEndpoints();
 api.MapCompensationEndpoints();
 api.MapStatsEndpoints();
 api.MapIntegrationEndpoints();
+api.MapEmailReportsEndpoints();
 
 app.MapHub<NotificationsHub>("/hubs/notifications");
 app.MapHangfireDashboard("/jobs", new DashboardOptions

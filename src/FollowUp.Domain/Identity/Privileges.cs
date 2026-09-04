@@ -70,6 +70,7 @@ public static class Privileges
     // Administration
     public const string ManageUsers = nameof(ManageUsers);
     public const string OracleIntegration = nameof(OracleIntegration);
+    public const string ManageEmailReports = nameof(ManageEmailReports);
     public const string SetupRefs = nameof(SetupRefs);
     public const string SetupCities = nameof(SetupCities);
     public const string SetupAreas = nameof(SetupAreas);
@@ -88,7 +89,7 @@ public static class Privileges
         ManageLoyalty, ManageCommissions,
         ViewLabStats, ViewTeststats, ViewAreaStats, AddGroups, UpdateGroups, DeleteGroups,
         AddTestsetup, UpdateTestsetup, DeleteTestsetup, AddTeststats,
-        ManageUsers, OracleIntegration, SetupRefs, SetupCities, SetupAreas,
+        ManageUsers, OracleIntegration, ManageEmailReports, SetupRefs, SetupCities, SetupAreas,
     };
 
     // Coarse → fine-grained expansions, plus documented cross-grants.

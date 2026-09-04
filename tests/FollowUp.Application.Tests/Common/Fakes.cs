@@ -292,7 +292,7 @@ public sealed class FakeSetupQueries : Application.Features.Setup.ISetupQueries
     {
         IReadOnlyList<Application.Features.Setup.RefItemDto> items = type == nameof(RefType.Segment)
             ? new[] { "A", "B", "C" }
-                .Select((s, i) => new Application.Features.Setup.RefItemDto(Guid.NewGuid(), nameof(RefType.Segment), s, s, null, i, nameof(Domain.Common.RecordSource.Manual)))
+                .Select((s, i) => new Application.Features.Setup.RefItemDto(Guid.NewGuid(), nameof(RefType.Segment), s, s, null, null, i, nameof(Domain.Common.RecordSource.Manual)))
                 .ToList()
             : new List<Application.Features.Setup.RefItemDto>();
         return Task.FromResult(items);

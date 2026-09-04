@@ -137,6 +137,23 @@ public sealed class StringListComparer : ValueComparer<IReadOnlyCollection<strin
     { }
 }
 
+public sealed class GuidListConverter : ValueConverter<IReadOnlyCollection<Guid>, string>
+{
+    public GuidListConverter() : base(
+        v => Json.Serialize(v.ToArray()),
+        s => (Json.Deserialize<Guid[]>(string.IsNullOrWhiteSpace(s) || !s.TrimStart().StartsWith("[") ? "[]" : s) ?? Array.Empty<Guid>()).ToList())
+    { }
+}
+
+public sealed class GuidListComparer : ValueComparer<IReadOnlyCollection<Guid>>
+{
+    public GuidListComparer() : base(
+        (a, b) => a!.SequenceEqual(b!),
+        v => v.Aggregate(0, (h, x) => h ^ x.GetHashCode()),
+        v => v.ToList())
+    { }
+}
+
 // ---- OracleConfig allow-listed queries <-> json ----
 
 internal sealed record QuerySurrogate(string Name, string Sql);

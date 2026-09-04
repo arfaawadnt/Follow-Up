@@ -2,6 +2,7 @@ using FollowUp.Domain.Audit;
 using FollowUp.Domain.Common;
 using FollowUp.Domain.Compensation;
 using FollowUp.Domain.Complaints;
+using FollowUp.Domain.Emailing;
 using FollowUp.Domain.Identity;
 using FollowUp.Domain.Laboratories;
 using FollowUp.Domain.Marketing;
@@ -63,3 +64,4 @@ public sealed class NotificationTemplateIdConverter : ValueConverter<Notificatio
 public sealed class NotificationPreferenceIdConverter : ValueConverter<NotificationPreferenceId, Guid> { public NotificationPreferenceIdConverter() : base(x => x.Value, v => new NotificationPreferenceId(v)) { } }
 public sealed class SystemNotificationIdConverter : ValueConverter<SystemNotificationId, Guid> { public SystemNotificationIdConverter() : base(x => x.Value, v => new SystemNotificationId(v)) { } }
 public sealed class NotificationDeliveryLogIdConverter : ValueConverter<NotificationDeliveryLogId, Guid> { public NotificationDeliveryLogIdConverter() : base(x => x.Value, v => new NotificationDeliveryLogId(v)) { } }
+public sealed class StatsEmailSubscriptionIdConverter : ValueConverter<StatsEmailSubscriptionId, Guid> { public StatsEmailSubscriptionIdConverter() : base(x => x.Value, v => new StatsEmailSubscriptionId(v)) { } }

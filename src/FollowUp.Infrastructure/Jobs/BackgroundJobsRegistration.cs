@@ -1,3 +1,5 @@
+using FollowUp.Application.Common.Abstractions;
+using FollowUp.Infrastructure.Emailing;
 using Hangfire;
 using Hangfire.PostgreSql;
 using Microsoft.Extensions.Configuration;
@@ -37,6 +39,7 @@ public static class BackgroundJobsRegistration
         services.AddScoped<TestStatsSyncJob>();
         services.AddScoped<LabStatsSyncJob>();
         services.AddScoped<RetentionJob>();
+        services.AddScoped<StatsEmailJobRunner>();
 
         services.AddHostedService<RecurringJobsInitializer>();
         return services;
@@ -47,15 +50,17 @@ public static class BackgroundJobsRegistration
 public sealed class RecurringJobsInitializer : IHostedService
 {
     private readonly IRecurringJobManager _jobs;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<RecurringJobsInitializer> _logger;
 
-    public RecurringJobsInitializer(IRecurringJobManager jobs, ILogger<RecurringJobsInitializer> logger)
+    public RecurringJobsInitializer(IRecurringJobManager jobs, IServiceScopeFactory scopeFactory, ILogger<RecurringJobsInitializer> logger)
     {
         _jobs = jobs;
+        _scopeFactory = scopeFactory;
         _logger = logger;
     }
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
         var cairo = ResolveCairo();
         var cairoOptions = new RecurringJobOptions { TimeZone = cairo };
@@ -72,8 +77,18 @@ public sealed class RecurringJobsInitializer : IHostedService
         _jobs.AddOrUpdate<LabStatsSyncJob>("labstats-sync", j => j.RunAsync(CancellationToken.None), "5 0 * * *", cairoOptions);
         _jobs.AddOrUpdate<RetentionJob>("retention-purge", j => j.RunAsync(CancellationToken.None), "0 3 * * *", cairoOptions);
 
+        // Per-subscription daily statistics-email schedules (each has its own send time).
+        try
+        {
+            await using var scope = _scopeFactory.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<IStatsEmailScheduler>().SyncAllAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to reconcile stats-email schedules on startup.");
+        }
+
         _logger.LogInformation("Recurring jobs registered (Cairo timezone).");
-        return Task.CompletedTask;
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

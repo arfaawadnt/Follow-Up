@@ -96,6 +96,12 @@ public static class DependencyInjection
         services.AddScoped<Jobs.RetentionService>();
         services.AddScoped<IRetentionRunner>(sp => sp.GetRequiredService<Jobs.RetentionService>());
         services.AddScoped<Jobs.OutboxDispatcher>();
+
+        // Daily statistics email
+        services.AddScoped<Application.Common.Abstractions.Persistence.ISmtpConfigRepository, Emailing.SmtpConfigRepository>();
+        services.AddScoped<Application.Common.Abstractions.Persistence.IStatsEmailSubscriptionRepository, Emailing.StatsEmailSubscriptionRepository>();
+        services.AddScoped<Application.Common.Abstractions.IStatsEmailScheduler, Emailing.StatsEmailScheduler>();
+        services.AddScoped<Application.Common.Abstractions.IStatsEmailRunner, Emailing.StatsEmailRunner>();
         return services;
     }
 
@@ -121,6 +127,8 @@ public static class DependencyInjection
         services.AddScoped<Application.Features.Notifications.INotificationQueries, Persistence.Queries.NotificationQueries>();
         services.AddScoped<Application.Features.Insights.IInsightsQueries, Persistence.Queries.InsightsQueries>();
         services.AddScoped<Application.Features.Setup.ISettingsQueries, Persistence.Queries.SettingsQueries>();
+        services.AddScoped<Application.Features.EmailReports.ISmtpConfigQueries, Emailing.SmtpConfigQueries>();
+        services.AddScoped<Application.Features.EmailReports.IStatsEmailSubscriptionQueries, Emailing.StatsEmailSubscriptionQueries>();
         return services;
     }
 

@@ -54,6 +54,7 @@ export const routes: Routes = [
       { path: 'roles', loadComponent: () => import('./features/roles/roles.component').then((m) => m.RolesComponent) },
       { path: 'setup', loadComponent: () => import('./features/setup/setup.component').then((m) => m.SetupComponent) },
       { path: 'integration', loadComponent: () => import('./features/integration/integration.component').then((m) => m.IntegrationComponent) },
+      { path: 'email-reports', loadComponent: () => import('./features/emailreports/emailreports.component').then((m) => m.EmailReportsComponent) },
       { path: 'notifications', loadComponent: () => import('./features/notifications/notifications.component').then((m) => m.NotificationsComponent) },
       { path: 'sessions', loadComponent: () => import('./features/sessions/sessions.component').then((m) => m.SessionsComponent) },
       { path: 'audit', loadComponent: () => import('./features/audit/audit.component').then((m) => m.AuditComponent) },
