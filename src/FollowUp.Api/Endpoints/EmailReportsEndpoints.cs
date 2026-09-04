@@ -19,7 +19,7 @@ public static class EmailReportsEndpoints
             return Results.NoContent();
         }).WithTags("EmailReports");
         api.MapPost("/email/smtp/test", async (TestEmailBody b, IMediator m, CancellationToken ct) =>
-        { await m.Send(new SendTestEmailCommand(b.ToEmail), ct); return Results.NoContent(); }).WithTags("EmailReports");
+            Results.Ok(await m.Send(new SendTestEmailCommand(b.ToEmail), ct))).WithTags("EmailReports");
 
         // Daily-email subscriptions
         api.MapGet("/email/subscriptions", async (IMediator m, CancellationToken ct) =>

@@ -156,13 +156,16 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
         var subject = sub.WindowDays == 1 ? $"Daily statistics — {to:yyyy-MM-dd}" : $"Statistics {from:yyyy-MM-dd} → {to:yyyy-MM-dd}";
 
         int sent = 0, fail = 0;
+        string? lastError = null;
         foreach (var email in recipients)
         {
             try { await _email.SendAsync(email, subject, html, ct); sent++; }
-            catch (Exception ex) { fail++; _logger.LogWarning(ex, "Stats email to {Email} failed ({Sub})", email, sub.Name); }
+            catch (Exception ex) { fail++; lastError = ex.Message; _logger.LogWarning(ex, "Stats email to {Email} failed ({Sub})", email, sub.Name); }
         }
 
-        var status = recipients.Count == 0 ? "no-recipients" : $"sent={sent} failed={fail}";
+        var status = recipients.Count == 0 ? "no-recipients"
+            : fail > 0 ? $"sent={sent} failed={fail} · {lastError}"
+            : $"sent={sent} failed={fail}";
         sub.RecordRun(status, _clock.UtcNow);
         await _db.SaveChangesAsync(ct);
         _logger.LogInformation("Stats email '{Sub}' {From:yyyy-MM-dd}..{To:yyyy-MM-dd}: {Status}", sub.Name, from, to, status);

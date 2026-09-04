@@ -65,7 +65,9 @@ public sealed class UpdateSmtpConfigHandler : ICommandHandler<UpdateSmtpConfigCo
 }
 
 /// <summary>Sends a one-off test email through the current gateway so the operator can verify it works.</summary>
-public sealed record SendTestEmailCommand(string ToEmail) : ICommand, IAuthorizedRequest
+public sealed record TestEmailResult(bool Sent, string? Error);
+
+public sealed record SendTestEmailCommand(string ToEmail) : ICommand<TestEmailResult>, IAuthorizedRequest
 {
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageEmailReports };
 }
@@ -75,15 +77,28 @@ public sealed class SendTestEmailValidator : AbstractValidator<SendTestEmailComm
     public SendTestEmailValidator() => RuleFor(x => x.ToEmail).NotEmpty().EmailAddress();
 }
 
-public sealed class SendTestEmailHandler : ICommandHandler<SendTestEmailCommand>
+public sealed class SendTestEmailHandler : ICommandHandler<SendTestEmailCommand, TestEmailResult>
 {
     private readonly IEmailSender _email;
-    public SendTestEmailHandler(IEmailSender email) => _email = email;
-    public async Task<Unit> Handle(SendTestEmailCommand r, CancellationToken ct)
+    private readonly ISmtpConfigRepository _cfg;
+    public SendTestEmailHandler(IEmailSender email, ISmtpConfigRepository cfg) { _email = email; _cfg = cfg; }
+
+    public async Task<TestEmailResult> Handle(SendTestEmailCommand r, CancellationToken ct)
     {
-        await _email.SendAsync(r.ToEmail, "Follow-Up — SMTP test email",
-            "<p>This is a test email from the Follow-Up mail gateway. If you received it, SMTP is configured correctly.</p>", ct);
-        return Unit.Value;
+        var cfg = await _cfg.GetAsync(ct);
+        if (cfg is null || !cfg.Enabled || string.IsNullOrWhiteSpace(cfg.Host))
+            return new TestEmailResult(false, "Save and enable the mail gateway (a host is required) before sending a test.");
+        try
+        {
+            await _email.SendAsync(r.ToEmail, "Follow-Up — SMTP test email",
+                "<p>This is a test email from the Follow-Up mail gateway. If you received it, SMTP is configured correctly.</p>", ct);
+            return new TestEmailResult(true, null);
+        }
+        catch (Exception ex)
+        {
+            // Surface the SMTP failure (auth, connection, TLS…) to the operator instead of a generic 500.
+            return new TestEmailResult(false, ex.Message);
+        }
     }
 }
 

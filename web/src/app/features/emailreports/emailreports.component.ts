@@ -191,7 +191,10 @@ export class EmailReportsComponent {
     const body = { ...this.smtp, password: this.smtpPassword.trim() || null };
     this.run(this.api.post('/email/smtp', body), () => { this.smtpPassword = ''; this.note('Mail gateway saved.'); this.loadSmtp(); });
   }
-  sendTest(): void { this.run(this.api.post('/email/smtp/test', { toEmail: this.testEmail.trim() }), () => this.note(`Test email sent to ${this.testEmail.trim()}.`)); }
+  sendTest(): void {
+    this.run(this.api.post<{ sent: boolean; error: string | null }>('/email/smtp/test', { toEmail: this.testEmail.trim() }),
+      (r) => r.sent ? this.note(`Test email sent to ${this.testEmail.trim()}.`) : this.note(`Test failed: ${r.error}`, true));
+  }
 
   startNew(): void { this.ed = NEW_EDITOR(); this.editing.set(true); }
   startEdit(s: Subscription): void {
