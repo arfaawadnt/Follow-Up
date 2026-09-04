@@ -1,9 +1,15 @@
 namespace FollowUp.Application.Common.Abstractions;
 
+/// <summary>A file attached to an outbound email (e.g. an .xlsx export of the report data).</summary>
+public sealed record EmailAttachment(string FileName, byte[] Content, string ContentType = "application/octet-stream");
+
 /// <summary>Outbound email (SMTP). HTML bodies must have their variables escaped by the sender (JOBS-003).</summary>
 public interface IEmailSender
 {
     Task SendAsync(string toEmail, string subject, string htmlBody, CancellationToken ct);
+
+    /// <summary>Sends an HTML email with file attachments (used by the daily statistics reports).</summary>
+    Task SendAsync(string toEmail, string subject, string htmlBody, IReadOnlyList<EmailAttachment> attachments, CancellationToken ct);
 }
 
 /// <summary>Outbound WhatsApp template message via the Meta Cloud API (SRS External Interfaces).</summary>

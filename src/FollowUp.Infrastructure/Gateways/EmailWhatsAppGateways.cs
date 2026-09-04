@@ -28,7 +28,10 @@ public sealed class SmtpEmailSender : IEmailSender
         _logger = logger;
     }
 
-    public async Task SendAsync(string toEmail, string subject, string htmlBody, CancellationToken ct)
+    public Task SendAsync(string toEmail, string subject, string htmlBody, CancellationToken ct) =>
+        SendAsync(toEmail, subject, htmlBody, System.Array.Empty<EmailAttachment>(), ct);
+
+    public async Task SendAsync(string toEmail, string subject, string htmlBody, IReadOnlyList<EmailAttachment> attachments, CancellationToken ct)
     {
         var s = await ResolveAsync(ct);
         if (string.IsNullOrWhiteSpace(s.Host))
@@ -45,11 +48,25 @@ public sealed class SmtpEmailSender : IEmailSender
             BodyEncoding = Encoding.UTF8,
             SubjectEncoding = Encoding.UTF8,
         };
-        using var client = new SmtpClient(s.Host, s.Port) { EnableSsl = s.UseSsl };
-        if (!string.IsNullOrWhiteSpace(s.User))
-            client.Credentials = new NetworkCredential(s.User, s.Password);
+        var streams = new List<MemoryStream>();
+        foreach (var a in attachments ?? System.Array.Empty<EmailAttachment>())
+        {
+            var stream = new MemoryStream(a.Content);
+            streams.Add(stream);
+            message.Attachments.Add(new Attachment(stream, a.FileName, a.ContentType));
+        }
+        try
+        {
+            using var client = new SmtpClient(s.Host, s.Port) { EnableSsl = s.UseSsl };
+            if (!string.IsNullOrWhiteSpace(s.User))
+                client.Credentials = new NetworkCredential(s.User, s.Password);
 
-        await client.SendMailAsync(message, ct);
+            await client.SendMailAsync(message, ct);
+        }
+        finally
+        {
+            foreach (var stream in streams) stream.Dispose();
+        }
     }
 
     private async Task<(string? Host, int Port, string? From, bool UseSsl, string? User, string? Password)> ResolveAsync(CancellationToken ct)

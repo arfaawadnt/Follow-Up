@@ -151,7 +151,7 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
         try { f = JsonSerializer.Deserialize<Filters>(sub.FiltersJson, JsonOpts) ?? new Filters(null, null, null, null, null, null); }
         catch { f = new Filters(null, null, null, null, null, null); }
 
-        var html = await BuildHtmlAsync(sub, from, to, f, ct);
+        var (html, attachments) = await BuildAsync(sub, from, to, f, ct);
         var recipients = await ResolveRecipientsAsync(sub, ct);
         var subject = sub.WindowDays == 1 ? $"Daily statistics — {to:yyyy-MM-dd}" : $"Statistics {from:yyyy-MM-dd} → {to:yyyy-MM-dd}";
 
@@ -159,7 +159,7 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
         string? lastError = null;
         foreach (var email in recipients)
         {
-            try { await _email.SendAsync(email, subject, html, ct); sent++; }
+            try { await _email.SendAsync(email, subject, html, attachments, ct); sent++; }
             catch (Exception ex) { fail++; lastError = ex.Message; _logger.LogWarning(ex, "Stats email to {Email} failed ({Sub})", email, sub.Name); }
         }
 
@@ -186,17 +186,36 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
         return set.ToList();
     }
 
-    private async Task<string> BuildHtmlAsync(StatsEmailSubscription sub, DateOnly from, DateOnly to, Filters f, CancellationToken ct)
+    /// <summary>One report: the HTML summary (rendered inline, capped) plus the full typed rows exported as an .xlsx attachment.</summary>
+    private sealed record ReportSection(string Title, string FileName, string SummaryHtml,
+        string[] Headers, List<string[]> HtmlRows, List<object?[]> DataRows);
+
+    private async Task<(string Html, IReadOnlyList<EmailAttachment> Attachments)> BuildAsync(
+        StatsEmailSubscription sub, DateOnly from, DateOnly to, Filters f, CancellationToken ct)
     {
+        var dateTag = to.ToString("yyyy-MM-dd");
+        var sections = new List<ReportSection>();
+        if (sub.IncludeLabStats) sections.Add(await RenderLabAsync(dateTag, from, to, f, ct));
+        if (sub.IncludeTestStats) sections.Add(await RenderTestAsync(dateTag, from, to, f, ct));
+        if (sub.IncludeAreaStats) sections.Add(await RenderAreaAsync(dateTag, from, to, f, ct));
+
         var sb = new StringBuilder();
         sb.Append("<div style=\"font:14px system-ui,Arial,sans-serif;color:#1a1a1a\">");
         sb.Append($"<h2 style=\"color:#004578;margin:0 0 4px\">{Enc(sub.Name)}</h2>");
         sb.Append($"<p style=\"color:#555;margin:0 0 8px\">Reporting period: {from:yyyy-MM-dd} &rarr; {to:yyyy-MM-dd}</p>");
-        if (sub.IncludeLabStats) sb.Append(await RenderLabAsync(from, to, f, ct));
-        if (sub.IncludeTestStats) sb.Append(await RenderTestAsync(from, to, f, ct));
-        if (sub.IncludeAreaStats) sb.Append(await RenderAreaAsync(from, to, f, ct));
+
+        var attachments = new List<EmailAttachment>();
+        foreach (var s in sections)
+        {
+            sb.Append(Table(s.Title, s.SummaryHtml, s.Headers, s.HtmlRows));
+            if (s.DataRows.Count > 0)
+                attachments.Add(new EmailAttachment(s.FileName, XlsxWriter.Build(s.Title, s.Headers, s.DataRows), XlsxWriter.ContentType));
+        }
+
+        if (attachments.Count > 0)
+            sb.Append("<p style=\"color:#333;font-size:13px;margin-top:16px\">The full data for each report is attached as an Excel file.</p>");
         sb.Append("<p style=\"color:#999;font-size:12px;margin-top:22px\">Sent automatically by Follow-Up.</p></div>");
-        return sb.ToString();
+        return (sb.ToString(), attachments);
     }
 
     private static string Table(string title, string summary, string[] headers, List<string[]> rows)
@@ -216,11 +235,11 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
             sb.Append("</tr>");
         }
         sb.Append("</table>");
-        if (rows.Count > 100) sb.Append($"<p style=\"color:#777;font-size:12px\">&hellip;and {rows.Count - 100} more.</p>");
+        if (rows.Count > 100) sb.Append($"<p style=\"color:#777;font-size:12px\">&hellip;and {rows.Count - 100} more (see the attached Excel file for the full data).</p>");
         return sb.ToString();
     }
 
-    private async Task<string> RenderLabAsync(DateOnly from, DateOnly to, Filters f, CancellationToken ct)
+    private async Task<ReportSection> RenderLabAsync(string dateTag, DateOnly from, DateOnly to, Filters f, CancellationToken ct)
     {
         var rows = (await _labStats.ListAsync(from, to, OrgScope.Global, ct))
             .Where(r => Match(f.Governorates, r.Governorate) && Match(f.Cities, r.City) && Match(f.Areas, r.Area)
@@ -230,12 +249,14 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
             Name = g.First().Name ?? g.Key, Gov = g.First().Governorate ?? "—", Area = g.First().Area ?? "—",
             Tests = g.Sum(x => x.TestCount), Income = g.Sum(x => x.Income),
         }).OrderByDescending(x => x.Tests).ToList();
-        var table = agg.Select(a => new[] { a.Name, a.Gov, a.Area, a.Tests.ToString("N0"), a.Income.ToString("N1") }).ToList();
+        var htmlRows = agg.Select(a => new[] { a.Name, a.Gov, a.Area, a.Tests.ToString("N0"), a.Income.ToString("N1") }).ToList();
+        var dataRows = agg.Select(a => new object?[] { a.Name, a.Gov, a.Area, a.Tests, a.Income }).ToList();
         var summary = $"<b>Total tests:</b> {agg.Sum(a => a.Tests):N0} &middot; <b>Labs:</b> {agg.Count:N0} &middot; <b>Income:</b> {agg.Sum(a => a.Income):N0} EGP";
-        return Table("Lab Statistics", summary, new[] { "Lab", "Governorate", "Area", "Tests", "Income" }, table);
+        return new ReportSection("Lab Statistics", $"Lab-Statistics-{dateTag}.xlsx", summary,
+            new[] { "Lab", "Governorate", "Area", "Tests", "Income" }, htmlRows, dataRows);
     }
 
-    private async Task<string> RenderTestAsync(DateOnly from, DateOnly to, Filters f, CancellationToken ct)
+    private async Task<ReportSection> RenderTestAsync(string dateTag, DateOnly from, DateOnly to, Filters f, CancellationToken ct)
     {
         var rows = (await _testStats.GetTestStatsAsync(from, to, ct))
             .Where(r => Match(f.Groups, r.GroupName));
@@ -244,12 +265,14 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
             Test = g.First().TestName ?? g.Key.TestCode, Group = g.First().GroupName ?? "—",
             Count = g.Sum(x => x.Count), Income = g.Sum(x => x.Income),
         }).OrderByDescending(x => x.Count).ToList();
-        var table = agg.Select(a => new[] { a.Test, a.Group, a.Count.ToString("N0"), a.Income.ToString("N1") }).ToList();
+        var htmlRows = agg.Select(a => new[] { a.Test, a.Group, a.Count.ToString("N0"), a.Income.ToString("N1") }).ToList();
+        var dataRows = agg.Select(a => new object?[] { a.Test, a.Group, a.Count, a.Income }).ToList();
         var summary = $"<b>Total tests:</b> {agg.Sum(a => a.Count):N0} &middot; <b>Distinct tests:</b> {agg.Count:N0}";
-        return Table("Test Statistics", summary, new[] { "Test", "Group", "Count", "Income" }, table);
+        return new ReportSection("Test Statistics", $"Test-Statistics-{dateTag}.xlsx", summary,
+            new[] { "Test", "Group", "Count", "Income" }, htmlRows, dataRows);
     }
 
-    private async Task<string> RenderAreaAsync(DateOnly from, DateOnly to, Filters f, CancellationToken ct)
+    private async Task<ReportSection> RenderAreaAsync(string dateTag, DateOnly from, DateOnly to, Filters f, CancellationToken ct)
     {
         var rows = (await _areaStats.ListAsync(from, to, OrgScope.Global, ct))
             .Where(r => Match(f.Governorates, r.Governorate) && Match(f.Cities, r.City) && Match(f.Areas, r.Area));
@@ -261,8 +284,10 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
                 Area = g.Key.AreaReal is null ? g.Key.Area : $"{g.Key.Area} ({g.Key.AreaReal})",
                 Tests = g.Sum(x => x.TestCount), Income = g.Sum(x => x.Income),
             }).OrderByDescending(x => x.Tests).ToList();
-        var table = agg.Select(a => new[] { a.Gov, a.Area, a.Tests.ToString("N0"), a.Income.ToString("N1") }).ToList();
+        var htmlRows = agg.Select(a => new[] { a.Gov, a.Area, a.Tests.ToString("N0"), a.Income.ToString("N1") }).ToList();
+        var dataRows = agg.Select(a => new object?[] { a.Gov, a.Area, a.Tests, a.Income }).ToList();
         var summary = $"<b>Total tests:</b> {agg.Sum(a => a.Tests):N0} &middot; <b>Areas:</b> {agg.Count:N0}";
-        return Table("Area Statistics", summary, new[] { "Governorate", "Area", "Tests", "Income" }, table);
+        return new ReportSection("Area Statistics", $"Area-Statistics-{dateTag}.xlsx", summary,
+            new[] { "Governorate", "Area", "Tests", "Income" }, htmlRows, dataRows);
     }
 }
