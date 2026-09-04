@@ -6,6 +6,7 @@ import { AuthService } from '../../core/auth.service';
 import { LabListItem, PagedResult } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
 import { exportXlsx, printTable } from '../../shared/export.util';
+import { FilterSelectComponent } from '../../shared/filter-select.component';
 
 const SEGMENTS = ['All', 'A', 'B', 'C', 'D'];
 const STATUSES = ['All', 'Scanned', 'Interactive', 'Active', 'Inactive', 'Stopped', 'Pending', 'Suspended', 'Churned'];
@@ -13,7 +14,7 @@ const STATUSES = ['All', 'Scanned', 'Interactive', 'Active', 'Inactive', 'Stoppe
 @Component({
   selector: 'app-labs',
   standalone: true,
-  imports: [FormsModule, RouterLink, TranslatePipe],
+  imports: [FormsModule, RouterLink, TranslatePipe, FilterSelectComponent],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'lab_mgmt' | t : 'Laboratories' }}</div><h1>{{ 'lab_mgmt' | t : 'Laboratories' }}</h1></div>
@@ -39,12 +40,12 @@ const STATUSES = ['All', 'Scanned', 'Interactive', 'Active', 'Inactive', 'Stoppe
         <div class="field"><label>{{ 'search' | t : 'Search' }}</label><input class="input" [(ngModel)]="search" (keyup.enter)="load()" [placeholder]="'search_lab_name_or_code' | t : 'Name or code'"></div>
         <div class="field"><label>{{ 'status' | t }}</label><select class="select" [(ngModel)]="status" (ngModelChange)="load()"><option value="All">{{ 'all' | t }}</option>@for (s of statuses.slice(1); track s) { <option [value]="s">{{ s }}</option> }</select></div>
         <div class="field"><label>{{ 'segment' | t }}</label><select class="select" [(ngModel)]="segment" (ngModelChange)="load()"><option value="All">{{ 'all' | t }}</option>@for (s of segments.slice(1); track s) { <option [value]="s">{{ s }}</option> }</select></div>
-        <div class="field"><label>{{ 'governorate_2' | t }}</label><select class="select" [ngModel]="gov()" (ngModelChange)="gov.set($event); page.set(1)"><option value="All">{{ 'all_2' | t }}</option>@for (g of govs(); track g) { <option [value]="g">{{ g }}</option> }</select></div>
-        <div class="field"><label>{{ 'city' | t : 'City' }}</label><select class="select" [ngModel]="city()" (ngModelChange)="city.set($event); page.set(1)"><option value="All">{{ 'all_2' | t }}</option>@for (c of cities(); track c) { <option [value]="c">{{ c }}</option> }</select></div>
-        <div class="field"><label>{{ 'area' | t : 'Area' }}</label><select class="select" [ngModel]="area()" (ngModelChange)="area.set($event); page.set(1)"><option value="All">{{ 'all_2' | t }}</option>@for (a of areas(); track a) { <option [value]="a">{{ a }}</option> }</select></div>
-        <div class="field"><label>{{ 'serving_branch' | t : 'Serving branch' }}</label><select class="select" [ngModel]="branch()" (ngModelChange)="branch.set($event); page.set(1)"><option value="All">{{ 'all_2' | t }}</option>@for (b of branches(); track b) { <option [value]="b">{{ b }}</option> }</select></div>
-        <div class="field"><label>{{ 'collection_rep' | t : 'Collection rep' }}</label><select class="select" [ngModel]="collectorRep()" (ngModelChange)="collectorRep.set($event); page.set(1)"><option value="All">{{ 'all_2' | t }}</option>@for (r of collectorReps(); track r) { <option [value]="r">{{ r }}</option> }</select></div>
-        <div class="field"><label>{{ 'marketing_rep' | t : 'Marketing rep' }}</label><select class="select" [ngModel]="marketingRep()" (ngModelChange)="marketingRep.set($event); page.set(1)"><option value="All">{{ 'all_2' | t }}</option>@for (r of marketingReps(); track r) { <option [value]="r">{{ r }}</option> }</select></div>
+        <div class="field"><label>{{ 'governorate_2' | t }}</label><app-filter-select [multiple]="true" [options]="govs()" [ngModel]="gov()" (ngModelChange)="gov.set($event); page.set(1)" [placeholder]="'all_2' | t"></app-filter-select></div>
+        <div class="field"><label>{{ 'city' | t : 'City' }}</label><app-filter-select [multiple]="true" [options]="cities()" [ngModel]="city()" (ngModelChange)="city.set($event); page.set(1)" [placeholder]="'all_2' | t"></app-filter-select></div>
+        <div class="field"><label>{{ 'area' | t : 'Area' }}</label><app-filter-select [multiple]="true" [options]="areas()" [ngModel]="area()" (ngModelChange)="area.set($event); page.set(1)" [placeholder]="'all_2' | t"></app-filter-select></div>
+        <div class="field"><label>{{ 'serving_branch' | t : 'Serving branch' }}</label><app-filter-select [options]="branches()" [ngModel]="branch()" (ngModelChange)="branch.set($event); page.set(1)" [allValue]="'All'" [placeholder]="'all_2' | t"></app-filter-select></div>
+        <div class="field"><label>{{ 'collection_rep' | t : 'Collection rep' }}</label><app-filter-select [options]="collectorReps()" [ngModel]="collectorRep()" (ngModelChange)="collectorRep.set($event); page.set(1)" [allValue]="'All'" [placeholder]="'all_2' | t"></app-filter-select></div>
+        <div class="field"><label>{{ 'marketing_rep' | t : 'Marketing rep' }}</label><app-filter-select [options]="marketingReps()" [ngModel]="marketingRep()" (ngModelChange)="marketingRep.set($event); page.set(1)" [allValue]="'All'" [placeholder]="'all_2' | t"></app-filter-select></div>
       </div>
     </div>
 
@@ -99,7 +100,7 @@ export class LabsComponent {
   readonly items = signal<LabListItem[]>([]);
   readonly segments = SEGMENTS; readonly statuses = STATUSES;
   search = ''; segment = 'All'; status = 'All';
-  readonly gov = signal('All'); readonly city = signal('All'); readonly area = signal('All');
+  readonly gov = signal<string[]>([]); readonly city = signal<string[]>([]); readonly area = signal<string[]>([]);
   readonly branch = signal('All'); readonly collectorRep = signal('All'); readonly marketingRep = signal('All');
   readonly syncing = signal(false);
   readonly page = signal(1);
@@ -120,9 +121,9 @@ export class LabsComponent {
   }
 
   readonly filtered = computed(() => this.items().filter((l) =>
-    (this.gov() === 'All' || l.governorate === this.gov())
-    && (this.city() === 'All' || l.city === this.city())
-    && (this.area() === 'All' || l.area === this.area())
+    (!this.gov().length || this.gov().includes(l.governorate ?? ''))
+    && (!this.city().length || this.city().includes(l.city ?? ''))
+    && (!this.area().length || this.area().includes(l.area ?? ''))
     && (this.branch() === 'All' || l.branch === this.branch())
     && (this.collectorRep() === 'All' || l.collectors.includes(this.collectorRep()))
     && (this.marketingRep() === 'All' || l.marketing === this.marketingRep())));
@@ -150,7 +151,7 @@ export class LabsComponent {
 
   clearFilters(): void {
     this.search = ''; this.segment = 'All'; this.status = 'All';
-    this.gov.set('All'); this.city.set('All'); this.area.set('All');
+    this.gov.set([]); this.city.set([]); this.area.set([]);
     this.branch.set('All'); this.collectorRep.set('All'); this.marketingRep.set('All');
     this.load();
   }

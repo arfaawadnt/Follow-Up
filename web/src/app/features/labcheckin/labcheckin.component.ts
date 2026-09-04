@@ -2,6 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DateInputComponent } from '../../shared/date-input.component';
+import { FilterSelectComponent } from '../../shared/filter-select.component';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { ReceivingItem } from '../../core/models';
@@ -12,7 +13,7 @@ import { AppDatePipe } from '../../shared/app-date.pipe';
 @Component({
   selector: 'app-labcheckin',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, TranslatePipe, AppDatePipe, DateInputComponent],
+  imports: [FormsModule, DecimalPipe, TranslatePipe, AppDatePipe, DateInputComponent, FilterSelectComponent],
   template: `
     <div class="pagehead" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <div><div class="breadcrumbs">Home / {{ 'labcheckin' | t }}</div><h1>{{ 'labcheckin' | t }}</h1></div>
@@ -37,17 +38,17 @@ import { AppDatePipe } from '../../shared/app-date.pipe';
         <div class="field"><label>{{ 'start_date' | t }}</label><app-date-input [(ngModel)]="start"></app-date-input></div>
         <div class="field"><label>{{ 'end_date' | t }}</label><app-date-input [(ngModel)]="end"></app-date-input></div>
         <div class="field"><label>{{ 'branch_2' | t }}</label>
-          <select class="select" [(ngModel)]="branch"><option value="All">{{ 'all_2' | t }}</option>@for (b of opts('branch'); track b) { <option [value]="b">{{ b }}</option> }</select></div>
+          <app-filter-select [options]="opts('branch')" [(ngModel)]="branch" [allValue]="'All'" [placeholder]="'all_2' | t"></app-filter-select></div>
         <div class="field"><label>{{ 'governorate_2' | t }}</label>
-          <select class="select" [(ngModel)]="gov"><option value="All">{{ 'all_2' | t }}</option>@for (g of opts('governorate'); track g) { <option [value]="g">{{ g }}</option> }</select></div>
+          <app-filter-select [multiple]="true" [options]="opts('governorate')" [(ngModel)]="gov" [placeholder]="'all_2' | t"></app-filter-select></div>
       </div>
       <div class="frm-grid" style="grid-template-columns:repeat(4,1fr);gap:12px;margin-top:10px">
         <div class="field"><label>{{ 'city_2' | t }}</label>
-          <select class="select" [(ngModel)]="city"><option value="All">{{ 'all_2' | t }}</option>@for (c of opts('city'); track c) { <option [value]="c">{{ c }}</option> }</select></div>
+          <app-filter-select [multiple]="true" [options]="opts('city')" [(ngModel)]="city" [placeholder]="'all_2' | t"></app-filter-select></div>
         <div class="field"><label>{{ 'area_2' | t }}</label>
-          <select class="select" [(ngModel)]="area"><option value="All">{{ 'all_2' | t }}</option>@for (a of opts('area'); track a) { <option [value]="a">{{ a }}</option> }</select></div>
+          <app-filter-select [multiple]="true" [options]="opts('area')" [(ngModel)]="area" [placeholder]="'all_2' | t"></app-filter-select></div>
         <div class="field"><label>{{ 'transfer_rep' | t : 'Transfer rep' }}</label>
-          <select class="select" [(ngModel)]="repFilter"><option value="All">{{ 'all_2' | t }}</option>@for (n of repNames(); track n) { <option [value]="n">{{ n }}</option> }</select></div>
+          <app-filter-select [options]="repNames()" [(ngModel)]="repFilter" [allValue]="'All'" [placeholder]="'all_2' | t"></app-filter-select></div>
       </div>
       <div style="display:flex;gap:8px;margin-top:12px">
         <button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply_filters' | t : 'Apply Filters' }}</button>
@@ -92,14 +93,14 @@ export class LabCheckInComponent {
   readonly items = signal<ReceivingItem[]>([]);
 
   private readonly today = localToday();
-  start = this.today; end = this.today; branch = 'All'; gov = 'All'; city = 'All'; area = 'All'; repFilter = 'All';
+  start = this.today; end = this.today; branch = 'All'; gov: string[] = []; city: string[] = []; area: string[] = []; repFilter = 'All';
   readonly selected = new Set<string>();
 
   readonly filtered = computed(() => this.items().filter((i) =>
     (this.branch === 'All' || i.branch === this.branch) &&
-    (this.gov === 'All' || i.governorate === this.gov) &&
-    (this.city === 'All' || i.city === this.city) &&
-    (this.area === 'All' || i.area === this.area) &&
+    (!this.gov.length || this.gov.includes(i.governorate ?? '')) &&
+    (!this.city.length || this.city.includes(i.city ?? '')) &&
+    (!this.area.length || this.area.includes(i.area ?? '')) &&
     (this.repFilter === 'All' || i.transferRepName === this.repFilter)));
 
   repNames(): string[] { return [...new Set(this.items().map((i) => i.transferRepName).filter((x): x is string => !!x))].sort(); }
@@ -123,7 +124,7 @@ export class LabCheckInComponent {
       next: (r) => { this.items.set(r); this.loading.set(false); }, error: () => this.loading.set(false),
     });
   }
-  reset(): void { this.start = this.today; this.end = this.today; this.branch = this.gov = this.city = this.area = this.repFilter = 'All'; this.load(); }
+  reset(): void { this.start = this.today; this.end = this.today; this.branch = this.repFilter = 'All'; this.gov = []; this.city = []; this.area = []; this.load(); }
 
   when(iso: string | null): string { return localDateTime(iso); }
 

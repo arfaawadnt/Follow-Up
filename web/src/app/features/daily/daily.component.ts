@@ -2,6 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DateInputComponent } from '../../shared/date-input.component';
+import { FilterSelectComponent } from '../../shared/filter-select.component';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { IconsService } from '../../core/icons.service';
@@ -15,7 +16,7 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
 @Component({
   selector: 'app-daily',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, TranslatePipe, AppDatePipe, DateInputComponent],
+  imports: [FormsModule, DecimalPipe, TranslatePipe, AppDatePipe, DateInputComponent, FilterSelectComponent],
   template: `
     <div class="pagehead" style="display:flex;justify-content:space-between;align-items:center">
       <div><div class="breadcrumbs">Home / {{ 'daily' | t }}</div><h1>{{ 'daily_followup_board' | t : 'Daily Follow-up Board' }}</h1></div>
@@ -38,22 +39,17 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
         <div class="field"><label>{{ 'start_date' | t }}</label><app-date-input [(ngModel)]="start"></app-date-input></div>
         <div class="field"><label>{{ 'end_date' | t }}</label><app-date-input [(ngModel)]="end"></app-date-input></div>
         <div class="field"><label>{{ 'branch_2' | t }}</label>
-          <select class="select" [(ngModel)]="branch"><option value="All">{{ 'all_2' | t }}</option>
-            @for (b of opts('branch'); track b) { <option [value]="b">{{ b }}</option> }</select></div>
+          <app-filter-select [options]="opts('branch')" [(ngModel)]="branch" [allValue]="'All'" [placeholder]="'all_2' | t"></app-filter-select></div>
         <div class="field"><label>{{ 'governorate_2' | t }}</label>
-          <select class="select" [(ngModel)]="gov"><option value="All">{{ 'all_2' | t }}</option>
-            @for (g of opts('governorate'); track g) { <option [value]="g">{{ g }}</option> }</select></div>
+          <app-filter-select [multiple]="true" [options]="opts('governorate')" [(ngModel)]="gov" [placeholder]="'all_2' | t"></app-filter-select></div>
       </div>
       <div class="frm-grid" style="grid-template-columns:repeat(4,1fr);gap:12px;margin-top:10px">
         <div class="field"><label>{{ 'city_2' | t }}</label>
-          <select class="select" [(ngModel)]="city"><option value="All">{{ 'all_2' | t }}</option>
-            @for (c of opts('city'); track c) { <option [value]="c">{{ c }}</option> }</select></div>
+          <app-filter-select [multiple]="true" [options]="opts('city')" [(ngModel)]="city" [placeholder]="'all_2' | t"></app-filter-select></div>
         <div class="field"><label>{{ 'area_2' | t }}</label>
-          <select class="select" [(ngModel)]="area"><option value="All">{{ 'all_2' | t }}</option>
-            @for (a of opts('area'); track a) { <option [value]="a">{{ a }}</option> }</select></div>
+          <app-filter-select [multiple]="true" [options]="opts('area')" [(ngModel)]="area" [placeholder]="'all_2' | t"></app-filter-select></div>
         <div class="field"><label>{{ 'collector_rep' | t }}</label>
-          <select class="select" [(ngModel)]="rep" (ngModelChange)="load()"><option value="All">{{ 'all_2' | t }}</option>
-            @for (r of reps(); track r.id) { <option [value]="r.id">{{ r.fullName }}</option> }</select></div>
+          <app-filter-select [options]="repOptions()" [(ngModel)]="rep" (ngModelChange)="load()" [allValue]="'All'" [placeholder]="'all_2' | t"></app-filter-select></div>
         <div class="field"><label>{{ 'search_name_code' | t }}</label>
           <input type="text" class="input" [(ngModel)]="query" [placeholder]="'search_lab_name_or_code' | t"></div>
       </div>
@@ -184,17 +180,18 @@ export class DailyComponent {
 
   private readonly today = localToday();
   start = this.today; end = this.today;
-  branch = 'All'; gov = 'All'; city = 'All'; area = 'All'; rep = 'All'; query = '';
+  branch = 'All'; gov: string[] = []; city: string[] = []; area: string[] = []; rep = 'All'; query = '';
 
   readonly filtered = computed(() => {
     const q = this.query.trim().toLowerCase();
     return this.items().filter((i) =>
       (this.branch === 'All' || i.branch === this.branch) &&
-      (this.gov === 'All' || i.governorate === this.gov) &&
-      (this.city === 'All' || i.city === this.city) &&
-      (this.area === 'All' || i.area === this.area) &&
+      (!this.gov.length || this.gov.includes(i.governorate ?? '')) &&
+      (!this.city.length || this.city.includes(i.city ?? '')) &&
+      (!this.area.length || this.area.includes(i.area ?? '')) &&
       (!q || i.lab?.toLowerCase().includes(q) || i.labDisplayCode?.toLowerCase().includes(q)));
   });
+  readonly repOptions = computed(() => this.reps().map((r) => ({ value: r.id, label: r.fullName })));
 
   readonly pageCount = computed(() => Math.max(1, Math.ceil(this.filtered().length / this.pageSize())));
   readonly curPage = computed(() => Math.min(this.page(), this.pageCount()));
@@ -229,7 +226,7 @@ export class DailyComponent {
     });
   }
   setStatus(s: string): void { this.status.set(s); this.load(); }
-  reset(): void { this.start = this.today; this.end = this.today; this.branch = this.gov = this.city = this.area = this.rep = 'All'; this.query = ''; this.status.set('All'); this.load(); }
+  reset(): void { this.start = this.today; this.end = this.today; this.branch = this.rep = 'All'; this.gov = []; this.city = []; this.area = []; this.query = ''; this.status.set('All'); this.load(); }
 
   // ---- Record-visit popup (SRS FR-5) ----
 

@@ -1,10 +1,11 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DateInputComponent } from '../../shared/date-input.component';
+import { FilterSelectComponent } from '../../shared/filter-select.component';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { SampleLifecycleRow, SampleTracking, UserLookup } from '../../core/models';
-import { TranslatePipe } from '../../core/i18n';
+import { I18nService, TranslatePipe } from '../../core/i18n';
 import { exportXlsx, printTable, localToday, localDateTime, ddmy } from '../../shared/export.util';
 import { AppDatePipe } from '../../shared/app-date.pipe';
 
@@ -15,7 +16,7 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
 @Component({
   selector: 'app-sampletracking',
   standalone: true,
-  imports: [FormsModule, TranslatePipe, AppDatePipe, DateInputComponent],
+  imports: [FormsModule, TranslatePipe, AppDatePipe, DateInputComponent, FilterSelectComponent],
   template: `
     <div class="pagehead">
       <div>
@@ -38,22 +39,22 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
           <div class="field"><label>{{ 'start_date' | t : 'Start Date' }}</label><app-date-input [(ngModel)]="start"></app-date-input></div>
           <div class="field"><label>{{ 'end_date' | t : 'End Date' }}</label><app-date-input [(ngModel)]="end"></app-date-input></div>
           <div class="field"><label>{{ 'governorate_2' | t : 'Governorate' }}</label>
-            <select class="select" [(ngModel)]="gov"><option value="All">{{ 'all_2' | t : 'All' }}</option>@for (g of govOptions(); track g) { <option [value]="g">{{ g }}</option> }</select></div>
+            <app-filter-select [multiple]="true" [options]="govOptions()" [(ngModel)]="gov" [placeholder]="'all_2' | t : 'All'"></app-filter-select></div>
           <div class="field"><label>{{ 'city_2' | t : 'City' }}</label>
-            <select class="select" [(ngModel)]="city"><option value="All">{{ 'all_2' | t : 'All' }}</option>@for (c of cityOptions(); track c) { <option [value]="c">{{ c }}</option> }</select></div>
+            <app-filter-select [multiple]="true" [options]="cityOptions()" [(ngModel)]="city" [placeholder]="'all_2' | t : 'All'"></app-filter-select></div>
         </div>
         <div class="frm-grid" style="grid-template-columns:repeat(4,1fr);gap:12px;margin-top:10px">
           <div class="field"><label>{{ 'area_2' | t : 'Area' }}</label>
-            <select class="select" [(ngModel)]="areaFilter"><option value="All">{{ 'all_2' | t : 'All' }}</option>@for (a of areaOptions(); track a) { <option [value]="a">{{ a }}</option> }</select></div>
+            <app-filter-select [multiple]="true" [options]="areaOptions()" [(ngModel)]="areaFilter" [placeholder]="'all_2' | t : 'All'"></app-filter-select></div>
           <div class="field"><label>{{ 'search_area' | t : 'Search Area' }}</label><input class="input" [(ngModel)]="search" [placeholder]="'search_area_placeholder' | t : 'Search area...'"></div>
           <div class="field"><label>{{ 'data_entry' | t : 'Data Entry' }}</label>
-            <select class="select" [(ngModel)]="fDataEntry"><option value="All">{{ 'all_2' | t : 'All' }}</option><option value="">{{ 'unassigned' | t : 'Unassigned' }}</option>@for (u of users(); track u.id) { <option [value]="u.username">{{ u.username }}</option> }</select></div>
+            <app-filter-select [options]="userOptions()" [(ngModel)]="fDataEntry" [allValue]="'All'" [placeholder]="'all_2' | t : 'All'"></app-filter-select></div>
           <div class="field"><label>{{ 'reviewer' | t : 'Reviewer' }}</label>
-            <select class="select" [(ngModel)]="fReview"><option value="All">{{ 'all_2' | t : 'All' }}</option><option value="">{{ 'unassigned' | t : 'Unassigned' }}</option>@for (u of users(); track u.id) { <option [value]="u.username">{{ u.username }}</option> }</select></div>
+            <app-filter-select [options]="userOptions()" [(ngModel)]="fReview" [allValue]="'All'" [placeholder]="'all_2' | t : 'All'"></app-filter-select></div>
         </div>
         <div class="frm-grid" style="grid-template-columns:repeat(4,1fr);gap:12px;margin-top:10px">
           <div class="field"><label>{{ 'sorted_by' | t : 'Sorted by' }}</label>
-            <select class="select" [(ngModel)]="fSort"><option value="All">{{ 'all_2' | t : 'All' }}</option><option value="">{{ 'unassigned' | t : 'Unassigned' }}</option>@for (u of users(); track u.id) { <option [value]="u.username">{{ u.username }}</option> }</select></div>
+            <app-filter-select [options]="userOptions()" [(ngModel)]="fSort" [allValue]="'All'" [placeholder]="'all_2' | t : 'All'"></app-filter-select></div>
           <div class="field"><label>{{ 'status' | t : 'Status' }}</label>
             <select class="select" [(ngModel)]="fStatus"><option value="Pending">{{ 'pending_2' | t : 'Pending' }}</option><option value="Completed">{{ 'completed' | t : 'Completed' }}</option><option value="All">{{ 'all_2' | t : 'All' }}</option></select></div>
           <div class="field" style="align-self:end"><button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply' | t : 'Apply' }}</button></div>
@@ -105,7 +106,7 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
           <div class="field"><label>{{ 'start_date' | t : 'Start Date' }}</label><app-date-input [(ngModel)]="rStart"></app-date-input></div>
           <div class="field"><label>{{ 'end_date' | t : 'End Date' }}</label><app-date-input [(ngModel)]="rEnd"></app-date-input></div>
           <div class="field"><label>{{ 'area_2' | t : 'Area' }}</label>
-            <select class="select" [(ngModel)]="rArea"><option value="All">{{ 'all_2' | t : 'All' }}</option>@for (a of reportAreas(); track a) { <option [value]="a">{{ a }}</option> }</select></div>
+            <app-filter-select [options]="reportAreas()" [(ngModel)]="rArea" [allValue]="'All'" [placeholder]="'all_2' | t : 'All'"></app-filter-select></div>
           <div class="field"><label>{{ 'group_by' | t : 'Group By' }}</label>
             <select class="select" [(ngModel)]="groupBy"><option value="Area">{{ 'area_2' | t : 'Area' }}</option><option value="Laboratory">{{ 'laboratory' | t : 'Laboratory' }}</option></select></div>
         </div>
@@ -164,6 +165,7 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
 })
 export class SampleTrackingComponent {
   private readonly api = inject(ApiService);
+  private readonly i18n = inject(I18nService);
   readonly auth = inject(AuthService);
   readonly loading = signal(true);
   readonly reportLoading = signal(false);
@@ -180,7 +182,7 @@ export class SampleTrackingComponent {
   // Both tabs default to today, like the reference (its local-date variant); older days via the range filter.
   private readonly today = localToday();
   start = this.today; end = this.today;
-  gov = 'All'; city = 'All'; areaFilter = 'All'; search = '';
+  gov: string[] = []; city: string[] = []; areaFilter: string[] = []; search = '';
   fDataEntry = 'All'; fReview = 'All'; fSort = 'All'; fStatus = 'All';
   rStart = this.today; rEnd = this.today; rArea = 'All'; groupBy: 'Area' | 'Laboratory' = 'Area';
 
@@ -198,16 +200,20 @@ export class SampleTrackingComponent {
     return { city: c?.name ?? null, gov: c?.governorate ?? null };
   }
   govOptions(): string[] { return [...new Set(this.cities().map((c) => c.governorate))].sort(); }
-  cityOptions(): string[] { return [...new Set(this.cities().filter((c) => this.gov === 'All' || c.governorate === this.gov).map((c) => c.name))].sort(); }
+  cityOptions(): string[] { return [...new Set(this.cities().filter((c) => !this.gov.length || this.gov.includes(c.governorate)).map((c) => c.name))].sort(); }
   areaOptions(): string[] { return [...new Set(this.items().map((i) => i.area))].sort(); }
+  readonly userOptions = computed(() => [
+    { value: '', label: this.i18n.t('unassigned', 'Unassigned') },
+    ...this.users().map((u) => ({ value: u.username, label: u.username })),
+  ]);
 
   readonly filtered = computed(() => {
     const q = this.search.trim().toLowerCase();
     return this.items().filter((r) => {
       const g = this.geo(r.area);
-      return (this.gov === 'All' || g.gov === this.gov) &&
-        (this.city === 'All' || g.city === this.city) &&
-        (this.areaFilter === 'All' || r.area === this.areaFilter) &&
+      return (!this.gov.length || this.gov.includes(g.gov ?? '')) &&
+        (!this.city.length || this.city.includes(g.city ?? '')) &&
+        (!this.areaFilter.length || this.areaFilter.includes(r.area)) &&
         (!q || r.area.toLowerCase().includes(q)) &&
         (this.fDataEntry === 'All' || (r.dataEntryBy ?? '') === this.fDataEntry) &&
         (this.fReview === 'All' || (r.reviewBy ?? '') === this.fReview) &&
@@ -245,7 +251,8 @@ export class SampleTrackingComponent {
   }
   reset(): void {
     this.start = this.today; this.end = this.today;
-    this.gov = this.city = this.areaFilter = this.fDataEntry = this.fReview = this.fSort = this.fStatus = 'All';
+    this.gov = []; this.city = []; this.areaFilter = [];
+    this.fDataEntry = this.fReview = this.fSort = this.fStatus = 'All';
     this.search = ''; this.load();
   }
 

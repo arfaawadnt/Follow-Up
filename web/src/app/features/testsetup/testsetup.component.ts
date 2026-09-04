@@ -3,6 +3,7 @@ import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
+import { FilterSelectComponent } from '../../shared/filter-select.component';
 import { TranslatePipe } from '../../core/i18n';
 
 interface TestGroup { id: string; code: string; nameEn: string; }
@@ -14,7 +15,7 @@ interface TestSetup {
 @Component({
   selector: 'app-testsetup',
   standalone: true,
-  imports: [FormsModule, TranslatePipe, DecimalPipe],
+  imports: [FormsModule, TranslatePipe, DecimalPipe, FilterSelectComponent],
   template: `
     <div class="pagehead" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
       <div><div class="breadcrumbs">Home / {{ 'testsetup' | t : 'Test setup' }}</div><h1>{{ 'testsetup' | t : 'Test setup' }}</h1></div>
@@ -52,10 +53,7 @@ interface TestSetup {
             <input class="input" [ngModel]="query()" (ngModelChange)="query.set($event); page.set(1)" placeholder="{{ 'search_tests' | t : 'Search by code, name, or group…' }}">
             @if (query()) { <button class="fu-search-clear" (click)="query.set(''); page.set(1)" title="Clear">×</button> }
           </div>
-          <select class="select fu-group-filter" [ngModel]="groupFilter()" (ngModelChange)="groupFilter.set($event); page.set(1)">
-            <option [ngValue]="null">{{ 'all_groups' | t : 'All groups' }}</option>
-            @for (g of groups(); track g.id) { <option [ngValue]="g.id">{{ g.nameEn }} ({{ g.code }})</option> }
-          </select>
+          <app-filter-select class="fu-group-filter" [options]="groupOptions()" [ngModel]="groupFilter()" (ngModelChange)="groupFilter.set($event); page.set(1)" [placeholder]="'all_groups' | t : 'All groups'"></app-filter-select>
           <span class="fu-count">{{ filtered().length }} / {{ setups().length }}</span>
         </div>
         @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
@@ -110,6 +108,7 @@ export class TestSetupComponent {
   readonly setups = signal<TestSetup[]>([]);
   readonly query = signal('');
   readonly groupFilter = signal<string | null>(null);
+  readonly groupOptions = computed(() => this.groups().map((g) => ({ value: g.id, label: `${g.nameEn} (${g.code})` })));
   readonly filtered = computed(() => {
     const q = this.query().trim().toLowerCase();
     const gf = this.groupFilter();

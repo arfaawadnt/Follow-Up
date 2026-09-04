@@ -3,6 +3,7 @@ import { DatePipe, SlicePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
 import { PagedResult } from '../../core/models';
+import { FilterSelectComponent } from '../../shared/filter-select.component';
 import { TranslatePipe } from '../../core/i18n';
 
 interface AuditRow { id: string; occurredAt: string; actor: string; entity: string; entityId: string; action: string; before: string | null; after: string | null; correlationId: string | null; }
@@ -10,7 +11,7 @@ interface AuditRow { id: string; occurredAt: string; actor: string; entity: stri
 @Component({
   selector: 'app-audit',
   standalone: true,
-  imports: [FormsModule, DatePipe, SlicePipe, TranslatePipe],
+  imports: [FormsModule, DatePipe, SlicePipe, TranslatePipe, FilterSelectComponent],
   template: `
     <div class="pagehead"><div><div class="breadcrumbs">Home / {{ 'audit_trail' | t : 'Audit trail' }}</div><h1>{{ 'audit_trail' | t : 'Audit trail' }}</h1></div></div>
 
@@ -23,16 +24,10 @@ interface AuditRow { id: string; occurredAt: string; actor: string; entity: stri
     <div class="card" style="padding:16px;margin-bottom:16px">
       <div class="frm-grid" style="grid-template-columns:repeat(2,1fr);gap:12px;align-items:end">
         <div class="field"><label>{{ 'entity' | t : 'Entity' }}</label>
-          <select class="select" [ngModel]="entity" (ngModelChange)="entity = $event; load()">
-            <option value="All">{{ 'all' | t : 'All' }}</option>
-            @for (e of entities(); track e) { <option [value]="e">{{ e }}</option> }
-          </select>
+          <app-filter-select [options]="entities()" [ngModel]="entity" (ngModelChange)="entity = $event; load()" [allValue]="'All'" [placeholder]="'all' | t : 'All'"></app-filter-select>
         </div>
         <div class="field"><label>{{ 'user' | t : 'User' }}</label>
-          <select class="select" [ngModel]="actor" (ngModelChange)="actor = $event; load()">
-            <option value="All">{{ 'all' | t : 'All' }}</option>
-            @for (u of actors(); track u) { <option [value]="u">{{ u }}</option> }
-          </select>
+          <app-filter-select [options]="actors()" [ngModel]="actor" (ngModelChange)="actor = $event; load()" [allValue]="'All'" [placeholder]="'all' | t : 'All'"></app-filter-select>
         </div>
       </div>
     </div>

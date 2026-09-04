@@ -2,6 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { DatePipe, SlicePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
+import { FilterSelectComponent } from '../../shared/filter-select.component';
 import { TranslatePipe } from '../../core/i18n';
 
 interface Sess { id: string; username: string; ipAddress: string | null; terminal: string | null; loginAt: string; logoutAt: string | null; lastSeenAt: string; durationSec: number; status: string; }
@@ -9,7 +10,7 @@ interface Sess { id: string; username: string; ipAddress: string | null; termina
 @Component({
   selector: 'app-sessions',
   standalone: true,
-  imports: [FormsModule, DatePipe, SlicePipe, TranslatePipe],
+  imports: [FormsModule, DatePipe, SlicePipe, TranslatePipe, FilterSelectComponent],
   template: `
     <div class="pagehead"><div><div class="breadcrumbs">Home / {{ 'active_sessions' | t : 'Sessions' }}</div><h1>{{ 'active_sessions' | t : 'Sessions' }}</h1></div></div>
 
@@ -30,10 +31,7 @@ interface Sess { id: string; username: string; ipAddress: string | null; termina
       </div>
       <div class="field" style="min-width:200px">
         <label>{{ 'username' | t : 'Username' }}</label>
-        <select class="select" [ngModel]="user()" (ngModelChange)="user.set($event)">
-          <option value="All">{{ 'all' | t : 'All' }}</option>
-          @for (u of usernames(); track u) { <option [value]="u">{{ u }}</option> }
-        </select>
+        <app-filter-select [options]="usernames()" [ngModel]="user()" (ngModelChange)="user.set($event)" [allValue]="'All'" [placeholder]="'all' | t : 'All'"></app-filter-select>
       </div>
     </div>
 

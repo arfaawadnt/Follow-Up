@@ -4,6 +4,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DateInputComponent } from '../../shared/date-input.component';
+import { FilterSelectComponent } from '../../shared/filter-select.component';
 import { ApiService } from '../../core/api.service';
 import { TranslatePipe } from '../../core/i18n';
 
@@ -24,7 +25,7 @@ type AvgField = 'plannedToCollect' | 'collectToTransfer' | 'transferToCheckin' |
 @Component({
   selector: 'app-repintervals',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, TranslatePipe, AppDatePipe, DateInputComponent],
+  imports: [FormsModule, DecimalPipe, TranslatePipe, AppDatePipe, DateInputComponent, FilterSelectComponent],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'rep_intervals' | t }}</div><h1>{{ 'rep_intervals' | t }}</h1></div>
@@ -46,12 +47,12 @@ type AvgField = 'plannedToCollect' | 'collectToTransfer' | 'transferToCheckin' |
         <div class="field"><label>{{ 'start_date' | t }}</label><app-date-input [(ngModel)]="start"></app-date-input></div>
         <div class="field"><label>{{ 'end_date' | t }}</label><app-date-input [(ngModel)]="end"></app-date-input></div>
         <div class="field" style="display:flex;gap:8px"><button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply' | t : 'Apply' }}</button><button class="btn btn-s" (click)="reset()" style="height:36px">{{ 'reset' | t : 'Reset' }}</button></div>
-        <div class="field"><label>{{ 'collector' | t : 'Collector' }}</label><select class="select" [ngModel]="fCollector()" (ngModelChange)="fCollector.set($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (v of collectors(); track v) { <option [value]="v">{{ v }}</option> }</select></div>
-        <div class="field"><label>{{ 'laboratory' | t : 'Laboratory' }}</label><select class="select" [ngModel]="fLab()" (ngModelChange)="fLab.set($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (v of labNames(); track v) { <option [value]="v">{{ v }}</option> }</select></div>
-        <div class="field"><label>{{ 'branch' | t : 'Branch' }}</label><select class="select" [ngModel]="fBranch()" (ngModelChange)="fBranch.set($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (v of branches(); track v) { <option [value]="v">{{ v }}</option> }</select></div>
-        <div class="field"><label>{{ 'governorate_2' | t : 'Governorate' }}</label><select class="select" [ngModel]="fGov()" (ngModelChange)="fGov.set($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (v of govs(); track v) { <option [value]="v">{{ v }}</option> }</select></div>
-        <div class="field"><label>{{ 'city' | t : 'City' }}</label><select class="select" [ngModel]="fCity()" (ngModelChange)="fCity.set($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (v of cities(); track v) { <option [value]="v">{{ v }}</option> }</select></div>
-        <div class="field"><label>{{ 'area_2' | t : 'Area' }}</label><select class="select" [ngModel]="fArea()" (ngModelChange)="fArea.set($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (v of areas(); track v) { <option [value]="v">{{ v }}</option> }</select></div>
+        <div class="field"><label>{{ 'collector' | t : 'Collector' }}</label><app-filter-select [options]="collectors()" [ngModel]="fCollector()" (ngModelChange)="fCollector.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
+        <div class="field"><label>{{ 'laboratory' | t : 'Laboratory' }}</label><app-filter-select [options]="labNames()" [ngModel]="fLab()" (ngModelChange)="fLab.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
+        <div class="field"><label>{{ 'branch' | t : 'Branch' }}</label><app-filter-select [options]="branches()" [ngModel]="fBranch()" (ngModelChange)="fBranch.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
+        <div class="field"><label>{{ 'governorate_2' | t : 'Governorate' }}</label><app-filter-select [multiple]="true" [options]="govs()" [ngModel]="fGov()" (ngModelChange)="fGov.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
+        <div class="field"><label>{{ 'city' | t : 'City' }}</label><app-filter-select [multiple]="true" [options]="cities()" [ngModel]="fCity()" (ngModelChange)="fCity.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
+        <div class="field"><label>{{ 'area_2' | t : 'Area' }}</label><app-filter-select [multiple]="true" [options]="areas()" [ngModel]="fArea()" (ngModelChange)="fArea.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><label>{{ 'group_by' | t : 'Group by' }}</label>
           <select class="select" [ngModel]="groupBy()" (ngModelChange)="groupBy.set($event)">
             <option value="rep">{{ 'representative' | t : 'Representative' }}</option>
@@ -111,9 +112,9 @@ export class RepIntervalsComponent {
   readonly fCollector = signal('');
   readonly fLab = signal('');
   readonly fBranch = signal('');
-  readonly fGov = signal('');
-  readonly fCity = signal('');
-  readonly fArea = signal('');
+  readonly fGov = signal<string[]>([]);
+  readonly fCity = signal<string[]>([]);
+  readonly fArea = signal<string[]>([]);
   private readonly today = localToday();
   start = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
   end = this.today;
@@ -129,9 +130,9 @@ export class RepIntervalsComponent {
     (!this.fCollector() || r.collectorName === this.fCollector()) &&
     (!this.fLab() || r.labName === this.fLab()) &&
     (!this.fBranch() || r.branch === this.fBranch()) &&
-    (!this.fGov() || r.governorate === this.fGov()) &&
-    (!this.fCity() || r.city === this.fCity()) &&
-    (!this.fArea() || r.area === this.fArea())));
+    (!this.fGov().length || this.fGov().includes(r.governorate ?? '')) &&
+    (!this.fCity().length || this.fCity().includes(r.city ?? '')) &&
+    (!this.fArea().length || this.fArea().includes(r.area ?? ''))));
 
   readonly grouped = computed<GroupRow[]>(() => {
     const by = this.groupBy();
@@ -165,7 +166,7 @@ export class RepIntervalsComponent {
     this.start = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
     this.end = this.today;
     this.groupBy.set('rep');
-    this.fCollector.set(''); this.fLab.set(''); this.fBranch.set(''); this.fGov.set(''); this.fCity.set(''); this.fArea.set('');
+    this.fCollector.set(''); this.fLab.set(''); this.fBranch.set(''); this.fGov.set([]); this.fCity.set([]); this.fArea.set([]);
     this.load();
   }
 

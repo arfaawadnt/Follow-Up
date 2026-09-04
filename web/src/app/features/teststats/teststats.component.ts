@@ -3,6 +3,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DateInputComponent } from '../../shared/date-input.component';
+import { FilterSelectComponent } from '../../shared/filter-select.component';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { TranslatePipe } from '../../core/i18n';
@@ -18,7 +19,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
 @Component({
   selector: 'app-teststats',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, DatePipe, TranslatePipe, DateInputComponent],
+  imports: [FormsModule, DecimalPipe, DatePipe, TranslatePipe, DateInputComponent, FilterSelectComponent],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'teststats' | t : 'Test statistics' }}</div><h1>{{ 'teststats' | t : 'Test statistics' }}</h1></div>
@@ -53,7 +54,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
         <div class="field"><label>{{ 'end_date' | t }}</label><app-date-input [(ngModel)]="to"></app-date-input></div>
         <div class="field"><label>{{ 'view_by' | t : 'View By' }}</label><select class="select" [ngModel]="view()" (ngModelChange)="view.set($event)"><option value="daily">{{ 'daily_2' | t : 'Daily' }}</option><option value="monthly">{{ 'monthly' | t : 'Monthly' }}</option><option value="yearly">{{ 'yearly' | t : 'Yearly' }}</option></select></div>
         <div class="field"><label>{{ 'search_test_code' | t : 'Search (Test/Code)' }}</label><input class="input" [ngModel]="q()" (ngModelChange)="q.set($event)" placeholder="test name or code"></div>
-        <div class="field"><label>{{ 'group' | t : 'Group' }}</label><select class="select" [ngModel]="group()" (ngModelChange)="group.set($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (g of groups(); track g.id) { <option [value]="g.nameEn">{{ g.nameEn }}</option> }</select></div>
+        <div class="field"><label>{{ 'group' | t : 'Group' }}</label><app-filter-select [options]="groupNames()" [ngModel]="group()" (ngModelChange)="group.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><label>{{ 'sort_by' | t : 'Sort By' }}</label><select class="select" [ngModel]="sortDir()" (ngModelChange)="sortDir.set($event)"><option value="desc">{{ 'sort_count_desc' | t : 'Test Count (High → Low)' }}</option><option value="asc">{{ 'sort_count_asc' | t : 'Test Count (Low → High)' }}</option></select></div>
         <div class="field"><button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply_filters' | t : 'Apply Filters' }}</button></div>
       </div>
@@ -174,6 +175,7 @@ export class TestStatsComponent {
   readonly groups = signal<Group[]>([]);
   readonly q = signal('');
   readonly group = signal('');
+  readonly groupNames = computed(() => this.groups().map((g) => g.nameEn));
   readonly view = signal<View>('monthly');
   readonly sortDir = signal<'desc' | 'asc'>('desc');
   readonly syncOpen = signal(false);

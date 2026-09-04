@@ -1,6 +1,7 @@
 import { exportXlsx, localToday, printTable, ddmy } from '../../shared/export.util';
+import { FilterSelectComponent } from '../../shared/filter-select.component';
 import { AppDatePipe } from '../../shared/app-date.pipe';
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -28,7 +29,7 @@ interface LabHistory {
 @Component({
   selector: 'app-reports',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, AppDatePipe, RouterLink, TranslatePipe],
+  imports: [FormsModule, DecimalPipe, AppDatePipe, RouterLink, TranslatePipe, FilterSelectComponent],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'stats_reports' | t : 'Reports' }}</div><h1>{{ 'stats_reports' | t : 'Reports' }}</h1></div>
@@ -94,9 +95,7 @@ interface LabHistory {
 
     @if (tab() === 'labhistory') {
       <div class="toolbar" style="margin-bottom:14px;display:flex;gap:10px;align-items:center">
-        <select class="select" [(ngModel)]="histLab" (ngModelChange)="loadHist()" style="min-width:280px">
-          @for (l of labs(); track l.id) { <option [value]="l.id">{{ l.name }} — {{ l.displayCode }}</option> }
-        </select>
+        <app-filter-select [options]="labOptions()" [(ngModel)]="histLab" (ngModelChange)="loadHist()" [clearable]="false" style="min-width:280px"></app-filter-select>
         @if (histLab) { <a class="btn btn-s" [routerLink]="['/labs', histLab]">{{ 'edit_this_lab' | t : 'Edit this laboratory' }}</a> }
       </div>
       @if (hist(); as x) {
@@ -172,6 +171,7 @@ export class ReportsComponent {
   readonly ov = signal<Overview | null>(null);
   readonly perf = signal<RepPerformanceRow[]>([]);
   readonly labs = signal<LabListItem[]>([]);
+  readonly labOptions = computed(() => this.labs().map((l) => ({ value: l.id, label: `${l.name} — ${l.displayCode}` })));
   readonly hist = signal<LabHistory | null>(null);
   histLab = '';
   private readonly today = localToday();

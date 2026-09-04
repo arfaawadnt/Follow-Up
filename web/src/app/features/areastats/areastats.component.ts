@@ -3,6 +3,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DateInputComponent } from '../../shared/date-input.component';
+import { FilterSelectComponent } from '../../shared/filter-select.component';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { TranslatePipe } from '../../core/i18n';
@@ -17,7 +18,7 @@ const DASH = '—';
 @Component({
   selector: 'app-areastats',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, TranslatePipe, DateInputComponent],
+  imports: [FormsModule, DecimalPipe, TranslatePipe, DateInputComponent, FilterSelectComponent],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'areastats' | t : 'Area statistics' }}</div><h1>{{ 'areastats' | t : 'Area statistics' }}</h1></div>
@@ -45,9 +46,9 @@ const DASH = '—';
         <div class="field"><label>{{ 'end_date' | t }}</label><app-date-input [(ngModel)]="to"></app-date-input></div>
         <div class="field"><label>{{ 'view_by' | t : 'View By' }}</label><select class="select" [ngModel]="view()" (ngModelChange)="view.set($event)"><option value="daily">{{ 'daily_2' | t : 'Daily' }}</option><option value="monthly">{{ 'monthly' | t : 'Monthly' }}</option><option value="yearly">{{ 'yearly' | t : 'Yearly' }}</option></select></div>
         <div class="field"><label>{{ 'reference_month' | t : 'Reference Month' }}</label><input class="input" type="month" [ngModel]="refMonth()" (ngModelChange)="onRefMonthChange($event)"></div>
-        <div class="field"><label>{{ 'governorate_2' | t : 'Governorate' }}</label><select class="select" [ngModel]="gov()" (ngModelChange)="gov.set($event); city.set(''); area.set('')"><option value="">{{ 'all' | t : 'All' }}</option>@for (g of govs(); track g) { <option [value]="g">{{ g }}</option> }</select></div>
-        <div class="field"><label>{{ 'city' | t : 'City' }}</label><select class="select" [ngModel]="city()" (ngModelChange)="city.set($event); area.set('')"><option value="">{{ 'all' | t : 'All' }}</option>@for (c of cities(); track c) { <option [value]="c">{{ c }}</option> }</select></div>
-        <div class="field"><label>{{ 'area_2' | t : 'Area' }}</label><select class="select" [ngModel]="area()" (ngModelChange)="area.set($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (a of areas(); track a) { <option [value]="a">{{ a }}</option> }</select></div>
+        <div class="field"><label>{{ 'governorate_2' | t : 'Governorate' }}</label><app-filter-select [multiple]="true" [options]="govs()" [ngModel]="gov()" (ngModelChange)="gov.set($event); city.set([]); area.set([])" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
+        <div class="field"><label>{{ 'city' | t : 'City' }}</label><app-filter-select [multiple]="true" [options]="cities()" [ngModel]="city()" (ngModelChange)="city.set($event); area.set([])" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
+        <div class="field"><label>{{ 'area_2' | t : 'Area' }}</label><app-filter-select [multiple]="true" [options]="areas()" [ngModel]="area()" (ngModelChange)="area.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><label>{{ 'sort_by' | t : 'Sort By' }}</label><select class="select" [ngModel]="sortDir()" (ngModelChange)="sortDir.set($event)"><option value="desc">{{ 'sort_count_desc' | t : 'Test Count (High → Low)' }}</option><option value="asc">{{ 'sort_count_asc' | t : 'Test Count (Low → High)' }}</option></select></div>
         <div class="field"><button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply_filters' | t : 'Apply Filters' }}</button></div>
       </div>
@@ -154,9 +155,9 @@ export class AreaStatsComponent {
   readonly summaryError = signal(false);
   readonly rows = signal<AreaStat[]>([]);
   readonly refRows = signal<AreaStat[]>([]);
-  readonly gov = signal('');
-  readonly city = signal('');
-  readonly area = signal('');
+  readonly gov = signal<string[]>([]);
+  readonly city = signal<string[]>([]);
+  readonly area = signal<string[]>([]);
   readonly view = signal<View>('monthly');
   readonly sortDir = signal<'desc' | 'asc'>('desc');
   readonly syncOpen = signal(false);
@@ -177,17 +178,17 @@ export class AreaStatsComponent {
   }
   refDay(refMonthTotal: number): number { return refMonthTotal / this.daysInRefMonth(); }
 
-  // Cascading filter option lists.
+  // Cascading filter option lists (a city/area list narrows to the selected governorate(s)/cities).
   readonly govs = computed(() => [...new Set(this.rows().map((s) => s.governorate ?? DASH))].sort());
-  readonly cities = computed(() => [...new Set(this.rows().filter((s) => !this.gov() || (s.governorate ?? DASH) === this.gov()).map((s) => s.city ?? DASH))].sort());
+  readonly cities = computed(() => [...new Set(this.rows().filter((s) => !this.gov().length || this.gov().includes(s.governorate ?? DASH)).map((s) => s.city ?? DASH))].sort());
   readonly areas = computed(() => [...new Set(this.rows()
-    .filter((s) => (!this.gov() || (s.governorate ?? DASH) === this.gov()) && (!this.city() || (s.city ?? DASH) === this.city()))
+    .filter((s) => (!this.gov().length || this.gov().includes(s.governorate ?? DASH)) && (!this.city().length || this.city().includes(s.city ?? DASH)))
     .map((s) => s.area ?? DASH))].sort());
 
   private matches(s: AreaStat): boolean {
-    return (!this.gov() || (s.governorate ?? DASH) === this.gov()) &&
-      (!this.city() || (s.city ?? DASH) === this.city()) &&
-      (!this.area() || (s.area ?? DASH) === this.area());
+    return (!this.gov().length || this.gov().includes(s.governorate ?? DASH)) &&
+      (!this.city().length || this.city().includes(s.city ?? DASH)) &&
+      (!this.area().length || this.area().includes(s.area ?? DASH));
   }
   readonly filtered = computed(() => this.rows().filter((s) => this.matches(s)));
 

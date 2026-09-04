@@ -3,6 +3,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DateInputComponent } from '../../shared/date-input.component';
+import { FilterSelectComponent } from '../../shared/filter-select.component';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { LabStat } from '../../core/models';
@@ -15,7 +16,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
 @Component({
   selector: 'app-labstats',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, TranslatePipe, DateInputComponent],
+  imports: [FormsModule, DecimalPipe, TranslatePipe, DateInputComponent, FilterSelectComponent],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'labstats' | t : 'Lab statistics' }}</div><h1>{{ 'labstats' | t : 'Lab statistics' }}</h1></div>
@@ -50,12 +51,12 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
         <div class="field"><label>{{ 'view_type' | t : 'View Type' }}</label><select class="select" [ngModel]="view()" (ngModelChange)="view.set($event)"><option value="daily">{{ 'daily_2' | t : 'Daily' }}</option><option value="monthly">{{ 'monthly' | t : 'Monthly' }}</option><option value="yearly">{{ 'yearly' | t : 'Yearly' }}</option></select></div>
         <div class="field"><button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply_filters' | t : 'Apply Filters' }}</button></div>
         <div class="field"><label>{{ 'search_lab' | t : 'Search Lab' }}</label><input class="input" [ngModel]="q()" (ngModelChange)="q.set($event)" placeholder="name or code"></div>
-        <div class="field"><label>{{ 'governorate_2' | t : 'Governorate' }}</label><select class="select" [ngModel]="gov()" (ngModelChange)="gov.set($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (g of govs(); track g) { <option [value]="g">{{ g }}</option> }</select></div>
-        <div class="field"><label>{{ 'city' | t : 'City' }}</label><select class="select" [ngModel]="city()" (ngModelChange)="city.set($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (c of cities(); track c) { <option [value]="c">{{ c }}</option> }</select></div>
-        <div class="field"><label>{{ 'area_2' | t : 'Area' }}</label><select class="select" [ngModel]="area()" (ngModelChange)="area.set($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (a of areas(); track a) { <option [value]="a">{{ a }}</option> }</select></div>
-        <div class="field"><label>{{ 'segment' | t : 'Segment' }}</label><select class="select" [ngModel]="segment()" (ngModelChange)="segment.set($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (s of segments(); track s) { <option [value]="s">{{ s }}</option> }</select></div>
-        <div class="field"><label>{{ 'lab_status' | t : 'Lab Status' }}</label><select class="select" [ngModel]="status()" (ngModelChange)="status.set($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (s of statuses(); track s) { <option [value]="s">{{ s }}</option> }</select></div>
-        <div class="field"><label>{{ 'category' | t : 'Category' }}</label><select class="select" [ngModel]="category()" (ngModelChange)="category.set($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (c of categories(); track c) { <option [value]="c">{{ c }}</option> }</select></div>
+        <div class="field"><label>{{ 'governorate_2' | t : 'Governorate' }}</label><app-filter-select [multiple]="true" [options]="govs()" [ngModel]="gov()" (ngModelChange)="gov.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
+        <div class="field"><label>{{ 'city' | t : 'City' }}</label><app-filter-select [multiple]="true" [options]="cities()" [ngModel]="city()" (ngModelChange)="city.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
+        <div class="field"><label>{{ 'area_2' | t : 'Area' }}</label><app-filter-select [multiple]="true" [options]="areas()" [ngModel]="area()" (ngModelChange)="area.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
+        <div class="field"><label>{{ 'segment' | t : 'Segment' }}</label><app-filter-select [options]="segments()" [ngModel]="segment()" (ngModelChange)="segment.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
+        <div class="field"><label>{{ 'lab_status' | t : 'Lab Status' }}</label><app-filter-select [options]="statuses()" [ngModel]="status()" (ngModelChange)="status.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
+        <div class="field"><label>{{ 'category' | t : 'Category' }}</label><app-filter-select [multiple]="true" [options]="categories()" [ngModel]="category()" (ngModelChange)="category.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><label>{{ 'sort_by' | t : 'Sort By' }}</label><select class="select" [ngModel]="sortBy()" (ngModelChange)="sortBy.set($event)">
           <option value="tests_desc">{{ 'sort_tests_desc' | t : 'Total Tests (High → Low)' }}</option>
           <option value="tests_asc">{{ 'sort_tests_asc' | t : 'Total Tests (Low → High)' }}</option>
@@ -158,12 +159,12 @@ export class LabStatsComponent {
   readonly summaryError = signal(false);
   readonly rows = signal<LabStat[]>([]);
   readonly q = signal('');
-  readonly gov = signal('');
-  readonly city = signal('');
-  readonly area = signal('');
+  readonly gov = signal<string[]>([]);
+  readonly city = signal<string[]>([]);
+  readonly area = signal<string[]>([]);
   readonly segment = signal('');
   readonly status = signal('');
-  readonly category = signal('');
+  readonly category = signal<string[]>([]);
   readonly sortBy = signal<'tests_desc' | 'tests_asc' | 'income_desc' | 'income_asc'>('tests_desc');
   readonly view = signal<View>('monthly');
   readonly page = signal(1);
@@ -186,12 +187,12 @@ export class LabStatsComponent {
     const q = this.q().trim().toLowerCase();
     return this.rows().filter((s) =>
       (!q || s.labCode.toLowerCase().includes(q) || (s.name ?? '').toLowerCase().includes(q)) &&
-      (!this.gov() || s.governorate === this.gov()) &&
-      (!this.city() || s.city === this.city()) &&
-      (!this.area() || s.area === this.area()) &&
+      (!this.gov().length || this.gov().includes(s.governorate ?? '')) &&
+      (!this.city().length || this.city().includes(s.city ?? '')) &&
+      (!this.area().length || this.area().includes(s.area ?? '')) &&
       (!this.segment() || s.segment === this.segment()) &&
       (!this.status() || s.status === this.status()) &&
-      (!this.category() || s.category === this.category()));
+      (!this.category().length || this.category().includes(s.category ?? '')));
   });
   private periodKey(date: string): string { const v = this.view(); return v === 'yearly' ? date.slice(0, 4) : v === 'monthly' ? date.slice(0, 7) : date; }
   colLabel(c: string): string { if (this.view() === 'monthly' && c.length === 7) { const [y, m] = c.split('-'); return `${MO[+m - 1]} ${y}`; } return c; }
