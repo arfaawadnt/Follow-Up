@@ -5,6 +5,7 @@ import { FormsModule, NonNullableFormBuilder, ReactiveFormsModule, Validators } 
 import { DateInputComponent } from '../../shared/date-input.component';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
+import { ToastService } from '../../core/toast.service';
 import { LabListItem, MarketingVisit, PagedResult, RepListItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
 
@@ -118,6 +119,7 @@ const STATUSES = ['All', 'Scheduled', 'Completed', 'Cancelled'];
 export class MarketingComponent {
   private readonly api = inject(ApiService);
   private readonly fb = inject(NonNullableFormBuilder);
+  private readonly toast = inject(ToastService);
   readonly auth = inject(AuthService);
   readonly loading = signal(true);
   readonly busy = signal(false);
@@ -171,7 +173,7 @@ export class MarketingComponent {
     // TimeOnly binds "HH:mm:ss" only — pad the time input's "HH:mm".
     const time = v.scheduledTime ? (v.scheduledTime.length === 5 ? v.scheduledTime + ':00' : v.scheduledTime) : null;
     this.api.post('/marketing', { ...v, scheduledTime: time, plan: v.plan.trim() || null }).subscribe({
-      next: () => { this.busy.set(false); this.showForm.set(false); this.form.patchValue({ laboratoryId: '', representativeId: '', purpose: 'Routine', scheduledTime: '10:00', plan: '' }); this.load(); },
+      next: () => { this.toast.success('Visit scheduled.'); this.busy.set(false); this.showForm.set(false); this.form.patchValue({ laboratoryId: '', representativeId: '', purpose: 'Routine', scheduledTime: '10:00', plan: '' }); this.load(); },
       error: () => { this.busy.set(false); },
     });
   }
@@ -180,7 +182,7 @@ export class MarketingComponent {
     const v = this.completing(); if (!v || !this.outcomeText.trim()) return;
     this.busy.set(true);
     this.api.post(`/marketing/${v.id}/complete`, { outcome: this.outcomeText.trim() }).subscribe({
-      next: () => { this.busy.set(false); this.completing.set(null); this.load(); },
+      next: () => { this.toast.success('Visit completed.'); this.busy.set(false); this.completing.set(null); this.load(); },
       error: () => this.busy.set(false),
     });
   }
@@ -188,7 +190,7 @@ export class MarketingComponent {
     const reason = window.prompt('Cancellation reason (optional):') ?? '';
     this.busy.set(true);
     this.api.post(`/marketing/${v.id}/cancel`, { reason: reason.trim() || null }).subscribe({
-      next: () => { this.busy.set(false); this.load(); }, error: () => this.busy.set(false),
+      next: () => { this.toast.success('Visit cancelled.'); this.busy.set(false); this.load(); }, error: () => this.busy.set(false),
     });
   }
 }

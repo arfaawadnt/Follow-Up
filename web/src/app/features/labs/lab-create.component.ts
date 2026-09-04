@@ -312,7 +312,7 @@ export class LabCreateComponent {
       visitTimes: [this.f.time1, this.f.time2].filter(Boolean),
       contacts,
     }).subscribe({
-      next: () => void this.router.navigate(['/labs']),
+      next: () => { this.toast.success('Laboratory created.'); void this.router.navigate(['/labs']); },
       error: () => { this.busy.set(false); },
     });
   }

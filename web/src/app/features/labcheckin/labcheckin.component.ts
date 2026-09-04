@@ -9,6 +9,7 @@ import { ReceivingItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
 import { exportXlsx, printTable, localToday, localDateTime, ddmy } from '../../shared/export.util';
 import { AppDatePipe } from '../../shared/app-date.pipe';
+import { ToastService } from '../../core/toast.service';
 
 @Component({
   selector: 'app-labcheckin',
@@ -87,6 +88,7 @@ import { AppDatePipe } from '../../shared/app-date.pipe';
 })
 export class LabCheckInComponent {
   private readonly api = inject(ApiService);
+  private readonly toast = inject(ToastService);
   readonly auth = inject(AuthService);
   readonly loading = signal(true);
   readonly busy = signal(false);
@@ -143,7 +145,7 @@ export class LabCheckInComponent {
     if (!visitIds.length) return;
     this.busy.set(true);
     this.api.post('/labcheckin/confirm-batch', { visitIds }).subscribe({
-      next: () => { this.busy.set(false); this.selected.clear(); this.load(); },
+      next: () => { this.toast.success('Receipts confirmed.'); this.busy.set(false); this.selected.clear(); this.load(); },
       error: () => this.busy.set(false),
     });
   }

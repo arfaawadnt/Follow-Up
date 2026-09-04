@@ -9,6 +9,7 @@ import { PagedResult, RepListItem, TransferItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
 import { exportXlsx, printTable, localToday, localDateTime, ddmy } from '../../shared/export.util';
 import { AppDatePipe } from '../../shared/app-date.pipe';
+import { ToastService } from '../../core/toast.service';
 
 interface Draft { rep: string; name: string; mobile: string; car: string; when: string; done: boolean; }
 
@@ -135,6 +136,7 @@ interface Draft { rep: string; name: string; mobile: string; car: string; when: 
 })
 export class TransfersComponent {
   private readonly api = inject(ApiService);
+  private readonly toast = inject(ToastService);
   readonly auth = inject(AuthService);
   readonly loading = signal(true);
   readonly busy = signal(false);
@@ -235,7 +237,7 @@ export class TransfersComponent {
     if (!lines.length) return;
     this.busy.set(true);
     this.api.post('/transfers/confirm-batch', { lines }).subscribe({
-      next: () => { this.busy.set(false); for (const l of lines) this.drafts.delete(l.visitId); this.selected.clear(); this.load(); },
+      next: () => { this.toast.success('Transfers confirmed.'); this.busy.set(false); for (const l of lines) this.drafts.delete(l.visitId); this.selected.clear(); this.load(); },
       error: () => this.busy.set(false),
     });
   }

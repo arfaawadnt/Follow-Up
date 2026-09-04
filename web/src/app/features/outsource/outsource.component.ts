@@ -4,6 +4,7 @@ import { FormsModule, NonNullableFormBuilder, ReactiveFormsModule, Validators } 
 import { DateInputComponent } from '../../shared/date-input.component';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
+import { ToastService } from '../../core/toast.service';
 import { LabListItem, OutsourceSample, PagedResult } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
 import { exportXlsx, localToday, ddmy } from '../../shared/export.util';
@@ -100,6 +101,7 @@ const NEXT: Record<string, string> = { Collected: 'Sent', Sent: 'Received' };
 export class OutsourceComponent {
   private readonly api = inject(ApiService);
   private readonly fb = inject(NonNullableFormBuilder);
+  private readonly toast = inject(ToastService);
   readonly auth = inject(AuthService);
   readonly loading = signal(true);
   readonly busy = signal(false);
@@ -155,7 +157,7 @@ export class OutsourceComponent {
     this.api.put(`/outsource-samples/${o.id}`, {
       quantity: d.quantity, destinationLab: d.destinationLab.trim() || null, notes: d.notes.trim() || null,
     }).subscribe({
-      next: () => { this.busy.set(false); this.drafts.delete(o.id); this.load(); },
+      next: () => { this.toast.success('Sample updated.'); this.busy.set(false); this.drafts.delete(o.id); this.load(); },
       error: () => this.busy.set(false),
     });
   }
@@ -172,7 +174,7 @@ export class OutsourceComponent {
     // CreateOutsourceSampleCommand does not accept a status yet — new samples always start as Collected on the server, so the select stays bound but its value is not sent.
     const { status: _status, ...v } = this.form.getRawValue();
     this.api.post('/outsource-samples', { ...v, notes: v.notes || null }).subscribe({
-      next: () => { this.busy.set(false); this.form.patchValue({ laboratoryId: '', destinationLab: '', quantity: 1, status: 'Collected', notes: '' }); this.load(); }, error: () => this.busy.set(false),
+      next: () => { this.toast.success('Sample added.'); this.busy.set(false); this.form.patchValue({ laboratoryId: '', destinationLab: '', quantity: 1, status: 'Collected', notes: '' }); this.load(); }, error: () => this.busy.set(false),
     });
   }
 
@@ -184,11 +186,11 @@ export class OutsourceComponent {
   advance(o: OutsourceSample): void {
     const status = this.next(o.status); if (!status) return;
     this.busy.set(true);
-    this.api.post(`/outsource-samples/${o.id}/status`, { status }).subscribe({ next: () => { this.busy.set(false); this.load(); }, error: () => this.busy.set(false) });
+    this.api.post(`/outsource-samples/${o.id}/status`, { status }).subscribe({ next: () => { this.toast.success('Status updated.'); this.busy.set(false); this.load(); }, error: () => this.busy.set(false) });
   }
   remove(o: OutsourceSample): void {
     if (!window.confirm('Delete this outsource sample?')) return;
     this.busy.set(true);
-    this.api.delete(`/outsource-samples/${o.id}`).subscribe({ next: () => { this.busy.set(false); this.load(); }, error: () => this.busy.set(false) });
+    this.api.delete(`/outsource-samples/${o.id}`).subscribe({ next: () => { this.toast.success('Sample deleted.'); this.busy.set(false); this.load(); }, error: () => this.busy.set(false) });
   }
 }

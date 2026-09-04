@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
+import { ToastService } from '../../core/toast.service';
 
 interface TestGroup { id: string; code: string; nameEn: string; nameAr: string | null; }
 interface TestSetup { id: string; code: string; nameEn: string; nameAr: string | null; groupId: string | null; }
@@ -104,6 +105,7 @@ interface TestSetup { id: string; code: string; nameEn: string; nameAr: string |
 })
 export class TestCatalogueComponent {
   private readonly api = inject(ApiService);
+  private readonly toast = inject(ToastService);
   readonly auth = inject(AuthService);
   readonly busy = signal(false);
   readonly groups = signal<TestGroup[]>([]);
@@ -127,28 +129,28 @@ export class TestCatalogueComponent {
 
   addGroup(): void {
     this.run(this.api.post('/test-groups', { code: this.newGroup.code, nameEn: this.newGroup.nameEn, nameAr: this.newGroup.nameAr || null }),
-      () => { this.newGroup = { code: '', nameEn: '', nameAr: '' }; });
+      () => { this.newGroup = { code: '', nameEn: '', nameAr: '' }; }, 'Group added.');
   }
   startEditG(g: TestGroup): void { this.editG.set(g.id); this.draftG = { nameEn: g.nameEn, nameAr: g.nameAr ?? '' }; }
   saveGroup(g: TestGroup): void {
-    this.run(this.api.put(`/test-groups/${g.id}`, { id: g.id, nameEn: this.draftG.nameEn, nameAr: this.draftG.nameAr || null }), () => this.editG.set(null));
+    this.run(this.api.put(`/test-groups/${g.id}`, { id: g.id, nameEn: this.draftG.nameEn, nameAr: this.draftG.nameAr || null }), () => this.editG.set(null), 'Group saved.');
   }
-  delGroup(g: TestGroup): void { this.run(this.api.delete(`/test-groups/${g.id}`)); }
+  delGroup(g: TestGroup): void { this.run(this.api.delete(`/test-groups/${g.id}`), undefined, 'Group deleted.'); }
 
   addSetup(): void {
     this.run(this.api.post('/test-setups', { code: this.newSetup.code, nameEn: this.newSetup.nameEn, nameAr: null, groupId: this.newSetup.groupId }),
-      () => { this.newSetup = { code: '', nameEn: '', groupId: null }; });
+      () => { this.newSetup = { code: '', nameEn: '', groupId: null }; }, 'Test added.');
   }
   startEditS(s: TestSetup): void { this.editS.set(s.id); this.draftS = { nameEn: s.nameEn, groupId: s.groupId }; }
   saveSetup(s: TestSetup): void {
-    this.run(this.api.put(`/test-setups/${s.id}`, { id: s.id, nameEn: this.draftS.nameEn, nameAr: s.nameAr, groupId: this.draftS.groupId }), () => this.editS.set(null));
+    this.run(this.api.put(`/test-setups/${s.id}`, { id: s.id, nameEn: this.draftS.nameEn, nameAr: s.nameAr, groupId: this.draftS.groupId }), () => this.editS.set(null), 'Test saved.');
   }
-  delSetup(s: TestSetup): void { this.run(this.api.delete(`/test-setups/${s.id}`)); }
+  delSetup(s: TestSetup): void { this.run(this.api.delete(`/test-setups/${s.id}`), undefined, 'Test deleted.'); }
 
-  private run(obs: { subscribe: Function }, onOk?: () => void): void {
+  private run(obs: { subscribe: Function }, onOk?: () => void, msg?: string): void {
     this.busy.set(true);
     (obs as any).subscribe({
-      next: () => { this.busy.set(false); onOk?.(); this.load(); },
+      next: () => { if (msg) this.toast.success(msg); this.busy.set(false); onOk?.(); this.load(); },
       error: () => { this.busy.set(false); },
     });
   }

@@ -8,6 +8,7 @@ import { SampleLifecycleRow, SampleTracking, UserLookup } from '../../core/model
 import { I18nService, TranslatePipe } from '../../core/i18n';
 import { exportXlsx, printTable, localToday, localDateTime, ddmy } from '../../shared/export.util';
 import { AppDatePipe } from '../../shared/app-date.pipe';
+import { ToastService } from '../../core/toast.service';
 
 interface City { id: string; name: string; governorate: string; }
 interface AreaRef { id: string; name: string; cityId: string; }
@@ -166,6 +167,7 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
 export class SampleTrackingComponent {
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18nService);
+  private readonly toast = inject(ToastService);
   readonly auth = inject(AuthService);
   readonly loading = signal(true);
   readonly reportLoading = signal(false);
@@ -269,7 +271,7 @@ export class SampleTrackingComponent {
     if (!lines.length) return;
     this.busy.set(true);
     this.api.post('/sample-tracking/assignments', { lines }).subscribe({
-      next: () => { this.busy.set(false); this.load(); },
+      next: () => { this.toast.success('Assignments saved.'); this.busy.set(false); this.load(); },
       error: () => this.busy.set(false),
     });
   }

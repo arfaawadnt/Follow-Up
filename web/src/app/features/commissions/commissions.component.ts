@@ -3,6 +3,7 @@ import { DecimalPipe, formatDate } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
+import { ToastService } from '../../core/toast.service';
 import { TranslatePipe } from '../../core/i18n';
 
 interface Commission {
@@ -60,6 +61,7 @@ const GROUPS = ['Collector', 'Marketing', 'Scanning'];
 })
 export class CommissionsComponent {
   private readonly api = inject(ApiService);
+  private readonly toast = inject(ToastService);
   readonly auth = inject(AuthService);
   readonly loading = signal(true);
   readonly busy = signal(false);
@@ -93,6 +95,6 @@ export class CommissionsComponent {
     // One transactional call (CPN-8): the server recomputes and saves every in-scope rep's payout together,
     // so a period is never left half-saved the way the old per-row fan-out could.
     this.api.post('/commissions/save-all', { period: this.period })
-      .subscribe({ next: () => { this.busy.set(false); this.load(); }, error: () => this.busy.set(false) });
+      .subscribe({ next: () => { this.toast.success('Payouts saved.'); this.busy.set(false); this.load(); }, error: () => this.busy.set(false) });
   }
 }

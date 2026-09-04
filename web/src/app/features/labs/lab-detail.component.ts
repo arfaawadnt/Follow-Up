@@ -313,7 +313,7 @@ export class LabDetailComponent {
       const data = new FormData();
       data.append('file', file);
       this.api.post<{ path: string }>('/labs/upload', data).subscribe({
-        next: (r) => { this.images.update((a) => [...a, r.path]); if (--pending === 0) this.busy.set(false); },
+        next: (r) => { this.toast.success('Image uploaded.'); this.images.update((a) => [...a, r.path]); if (--pending === 0) this.busy.set(false); },
         error: () => { if (--pending === 0) this.busy.set(false); },
       });
     }
@@ -354,10 +354,11 @@ export class LabDetailComponent {
       contacts,
     }).subscribe({
       next: () => {
+        this.toast.success('Laboratory saved.');
         // The Update command intentionally never touches status — change it via the dedicated endpoint when edited.
         if (this.f.status !== l.status) {
           this.api.put(`/labs/${this.id}/status`, { status: this.f.status }).subscribe({
-            next: () => void this.router.navigate(['/labs']),
+            next: () => { void this.router.navigate(['/labs']); },
             error: () => { this.busy.set(false); },
           });
         } else {

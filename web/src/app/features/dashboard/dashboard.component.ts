@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
+import { ToastService } from '../../core/toast.service';
 import { IconsService } from '../../core/icons.service';
 import { PagedResult, RepListItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
@@ -174,6 +175,7 @@ export class DashboardComponent {
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
   private readonly icons = inject(IconsService);
+  private readonly toast = inject(ToastService);
   readonly auth = inject(AuthService);
   readonly loading = signal(true);
   readonly busy = signal(false);
@@ -224,7 +226,7 @@ export class DashboardComponent {
       outsourceCount: this.recordOutsource,
       notes: this.recordNotes.trim() || null,
     }).subscribe({
-      next: () => { this.busy.set(false); this.recording.set(null); this.load(); },
+      next: () => { this.toast.success('Record confirmed.'); this.busy.set(false); this.recording.set(null); this.load(); },
       error: () => this.busy.set(false),
     });
   }

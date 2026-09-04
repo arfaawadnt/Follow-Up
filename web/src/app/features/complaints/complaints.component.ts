@@ -6,6 +6,7 @@ import { AuthService } from '../../core/auth.service';
 import { ComplaintAuditRow, ComplaintCounts, ComplaintDetail, ComplaintListItem, LabListItem, PagedResult, RefItem, RepListItem } from '../../core/models';
 import { EsignPanelComponent } from '../../shared/esign-panel.component';
 import { TranslatePipe } from '../../core/i18n';
+import { ToastService } from '../../core/toast.service';
 
 const CATEGORIES = ['Representative Issue', 'Call Center Issue', 'Result Quality', 'Data Entry Mistake'];
 const CHANNELS = ['WhatsApp', 'Phone Call', 'Email', 'In-person'];
@@ -258,6 +259,7 @@ type StageForm = 'ack' | 'validity' | 'investigation' | 'outcome' | 'resolve';
 export class ComplaintsComponent {
   private readonly api = inject(ApiService);
   private readonly fb = inject(NonNullableFormBuilder);
+  private readonly toast = inject(ToastService);
   readonly auth = inject(AuthService);
   readonly loading = signal(true);
   readonly busy = signal(false);
@@ -378,7 +380,7 @@ export class ComplaintsComponent {
       representativeId: v.representativeId || null,
       receivedAt: v.receivedAt ? new Date(v.receivedAt).toISOString() : null,
     }).subscribe({
-      next: () => { this.busy.set(false); this.showLog.set(false); this.form.reset({ category: CATEGORIES[0], viaChannel: 'Phone Call', assignedTeam: this.teams()[0]?.nameEn ?? '' }); this.load(); },
+      next: () => { this.toast.success('Complaint logged.'); this.busy.set(false); this.showLog.set(false); this.form.reset({ category: CATEGORIES[0], viaChannel: 'Phone Call', assignedTeam: this.teams()[0]?.nameEn ?? '' }); this.load(); },
       error: () => { this.busy.set(false); },
     });
   }
@@ -406,7 +408,7 @@ export class ComplaintsComponent {
   private act(id: string, obs: { subscribe: Function }): void {
     this.busy.set(true);
     (obs as { subscribe: Function }).subscribe({
-      next: () => { this.busy.set(false); this.refreshDetail(id); },
+      next: () => { this.toast.success('Complaint updated.'); this.busy.set(false); this.refreshDetail(id); },
       error: () => { this.busy.set(false); },
     });
   }
@@ -443,7 +445,7 @@ export class ComplaintsComponent {
   reopen(id: string): void {
     this.busy.set(true);
     this.api.post(`/complaints/${id}/reopen`).subscribe({
-      next: () => { this.busy.set(false); if (this.detail()) this.refreshDetail(id); else this.load(); },
+      next: () => { this.toast.success('Complaint reopened.'); this.busy.set(false); if (this.detail()) this.refreshDetail(id); else this.load(); },
       error: () => { this.busy.set(false); },
     });
   }

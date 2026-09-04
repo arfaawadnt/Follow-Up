@@ -7,6 +7,7 @@ import { LabListItem, PagedResult } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
 import { exportXlsx, printTable } from '../../shared/export.util';
 import { FilterSelectComponent } from '../../shared/filter-select.component';
+import { ToastService } from '../../core/toast.service';
 
 const SEGMENTS = ['All', 'A', 'B', 'C', 'D'];
 const STATUSES = ['All', 'Scanned', 'Interactive', 'Active', 'Inactive', 'Stopped', 'Pending', 'Suspended', 'Churned'];
@@ -94,6 +95,7 @@ const STATUSES = ['All', 'Scanned', 'Interactive', 'Active', 'Inactive', 'Stoppe
 export class LabsComponent {
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
+  private readonly toast = inject(ToastService);
   readonly auth = inject(AuthService);
   readonly loading = signal(true);
   readonly result = signal<PagedResult<LabListItem> | null>(null);
@@ -115,7 +117,7 @@ export class LabsComponent {
   sync(): void {
     this.syncing.set(true);
     this.api.post('/integration/sync-now').subscribe({
-      next: () => { this.syncing.set(false); this.load(); },
+      next: () => { this.toast.success('Synced from Oracle.'); this.syncing.set(false); this.load(); },
       error: () => { this.syncing.set(false); },
     });
   }

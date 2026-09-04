@@ -10,6 +10,7 @@ import { BoardItem, PagedResult, RepListItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
 import { exportXlsx, printTable, localToday, localTime, localDateTime, ddmy } from '../../shared/export.util';
 import { AppDatePipe } from '../../shared/app-date.pipe';
+import { ToastService } from '../../core/toast.service';
 
 const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
 
@@ -158,6 +159,7 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
 export class DailyComponent {
   private readonly api = inject(ApiService);
   private readonly icons = inject(IconsService);
+  private readonly toast = inject(ToastService);
   readonly auth = inject(AuthService);
   readonly loading = signal(true);
   readonly busy = signal(false);
@@ -256,20 +258,20 @@ export class DailyComponent {
       outsourceCount: this.recordOutsource,
       notes: this.recordNotes.trim() || null,
     }).subscribe({
-      next: () => { this.busy.set(false); this.recording.set(null); this.load(); },
+      next: () => { this.toast.success('Follow-up recorded.'); this.busy.set(false); this.recording.set(null); this.load(); },
       error: () => this.busy.set(false),
     });
   }
 
   miss(v: BoardItem): void {
     if (!window.confirm(`Mark the ${v.scheduledTime} visit to ${v.lab} as missed?`)) return;
-    this.run(this.api.post(`/daily/${v.visitId}/miss?source=daily`));
+    this.run(this.api.post(`/daily/${v.visitId}/miss?source=daily`), 'Visit marked as missed.');
   }
-  verify(v: BoardItem): void { this.run(this.api.post(`/daily/${v.visitId}/verify?source=daily`, { verified: true })); }
+  verify(v: BoardItem): void { this.run(this.api.post(`/daily/${v.visitId}/verify?source=daily`, { verified: true }), 'Visit verified.'); }
 
-  private run(obs: { subscribe: Function }): void {
+  private run(obs: { subscribe: Function }, msg?: string): void {
     this.busy.set(true);
-    (obs as { subscribe: Function }).subscribe({ next: () => { this.busy.set(false); this.load(); }, error: () => this.busy.set(false) });
+    (obs as { subscribe: Function }).subscribe({ next: () => { if (msg) this.toast.success(msg); this.busy.set(false); this.load(); }, error: () => this.busy.set(false) });
   }
 
   sub(v: BoardItem): string { return [v.labDisplayCode, v.branch, v.area, v.governorate].filter(Boolean).join(' · '); }
