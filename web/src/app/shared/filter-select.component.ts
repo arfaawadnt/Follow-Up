@@ -111,7 +111,8 @@ export class FilterSelectComponent implements ControlValueAccessor, OnDestroy {
   private onChange: (v: string | string[]) => void = () => {};
   private onTouched: () => void = () => {};
 
-  private readonly scrollHandler = (): void => { if (this.open()) this.close(); };
+  // Keep the popup open while the page scrolls — reposition it to follow the trigger instead of closing.
+  private readonly scrollHandler = (): void => { if (this.open()) this.position(); };
   constructor() { document.addEventListener('scroll', this.scrollHandler, true); }
   ngOnDestroy(): void { document.removeEventListener('scroll', this.scrollHandler, true); }
 
@@ -186,7 +187,7 @@ export class FilterSelectComponent implements ControlValueAccessor, OnDestroy {
     if (below < H && r.top > below) { this.popAbove = true; this.popBottom = window.innerHeight - r.top + 4; }
     else { this.popAbove = false; this.popTop = r.bottom + 4; }
   }
-  @HostListener('window:resize') onResize(): void { if (this.open()) this.close(); }
+  @HostListener('window:resize') onResize(): void { if (this.open()) this.position(); }
   @HostListener('document:click', ['$event'])
   onDocClick(ev: MouseEvent): void { if (this.open() && !this.host.nativeElement.contains(ev.target as Node)) this.close(); }
   @HostListener('keydown.escape') onEsc(): void { this.close(); }

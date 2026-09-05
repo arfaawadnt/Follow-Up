@@ -32,13 +32,13 @@ internal sealed class LabStatsQueries : ILabStatsQueries
 
         // Enrich with lab profile (name/segment/location) by code — for the pivot rows.
         var labInfo = (await _db.Laboratories.AsNoTracking()
-            .Select(l => new { l.Code, l.Name, l.Category, l.Segment, l.Governorate, l.City, l.Area, l.Status }).ToListAsync(ct))
+            .Select(l => new { l.Code, l.Name, l.Category, l.Segment, l.Governorate, l.City, l.Area, l.Branch, l.Status }).ToListAsync(ct))
             .GroupBy(l => l.Code.Value).ToDictionary(g => g.Key, g => g.First());
         return rows.Select(s =>
         {
             labInfo.TryGetValue(s.LabCode, out var l);
             return new LabStatDto(s.Date, s.LabCode, l?.Name, l?.Category, l?.Segment, l?.Governorate, l?.City, l?.Area,
-                l?.Status?.Name, s.Registrations, s.TestCount, s.Income.Amount);
+                l?.Branch, l?.Status?.Name, s.Registrations, s.TestCount, s.Income.Amount);
         }).ToList();
     }
 
@@ -78,7 +78,7 @@ internal sealed class AreaStatsQueries : IAreaStatsQueries
 
         // Resolve each lab's stamped geography by code (the geography lives on the lab, not the stats row).
         var geoByCode = (await _db.Laboratories.AsNoTracking()
-                .Select(l => new { l.Code, l.Governorate, l.City, l.Area }).ToListAsync(ct))
+                .Select(l => new { l.Code, l.Governorate, l.City, l.Area, l.Branch }).ToListAsync(ct))
             .GroupBy(l => l.Code.Value).ToDictionary(g => g.Key, g => g.First());
 
         // Operator-maintained real names (independent of Oracle sync): governorate by RefItem name, area by name.
@@ -92,11 +92,13 @@ internal sealed class AreaStatsQueries : IAreaStatsQueries
             .GroupBy(a => a.Name).ToDictionary(g => g.Key, g => g.First().RealName, StringComparer.OrdinalIgnoreCase);
 
         // Aggregate to (date, governorate, city, area). Unmapped labs fall into a null bucket the page renders as "—".
-        var agg = new Dictionary<(DateOnly, string?, string?, string?), (int test, decimal income)>();
+        // Branch is carried as an extra grouping dimension so the page can filter by serving branch; the page
+        // still groups by governorate → area (summing across branches), so display is unchanged.
+        var agg = new Dictionary<(DateOnly, string?, string?, string?, string?), (int test, decimal income)>();
         foreach (var s in rows)
         {
             geoByCode.TryGetValue(s.LabCode, out var g);
-            var key = (s.Date, g?.Governorate, g?.City, g?.Area);
+            var key = (s.Date, g?.Governorate, g?.City, g?.Area, g?.Branch);
             var cur = agg.TryGetValue(key, out var x) ? x : default;
             agg[key] = (cur.test + s.TestCount, cur.income + s.Income.Amount);
         }
@@ -104,7 +106,7 @@ internal sealed class AreaStatsQueries : IAreaStatsQueries
         string? GovReal(string? name) => name != null && govRealName.TryGetValue(name, out var v) ? v : null;
         string? AreaReal(string? name) => name != null && areaRealName.TryGetValue(name, out var v) ? v : null;
         return agg
-            .Select(kv => new AreaStatDto(kv.Key.Item1, kv.Key.Item2, kv.Key.Item3, kv.Key.Item4,
+            .Select(kv => new AreaStatDto(kv.Key.Item1, kv.Key.Item2, kv.Key.Item3, kv.Key.Item4, kv.Key.Item5,
                 GovReal(kv.Key.Item2), AreaReal(kv.Key.Item4), kv.Value.test, kv.Value.income))
             .OrderBy(d => d.Date).ThenBy(d => d.Governorate).ThenBy(d => d.Area)
             .ToList();
@@ -237,12 +239,19 @@ internal sealed class TestCatalogueQueries : ITestCatalogueQueries
             .Select(g => new { g.Id, g.NameEn }).ToListAsync(ct))
             .ToDictionary(g => g.Id, g => g.NameEn);
 
+        // Resolve the registration branch code (part of the stat key) to a name via the Branches reference.
+        var branchName = (await _db.RefItems.AsNoTracking()
+                .Where(r => r.Type == RefType.Branch)
+                .Select(r => new { r.Code, r.NameEn }).ToListAsync(ct))
+            .GroupBy(r => r.Code).ToDictionary(g => g.Key, g => g.First().NameEn, StringComparer.OrdinalIgnoreCase);
+
         return rows.Select(t =>
         {
             setups.TryGetValue((t.TestCode, t.TestType), out var s);
             string? groupName = null;
             if (s?.GroupId is { } gid) groups.TryGetValue(gid, out groupName);
-            return new TestStatDto(t.Date, t.TestCode, t.TestType, s?.NameEn, groupName, t.Count, t.Income.Amount);
+            var branch = string.IsNullOrEmpty(t.Branch) ? null : (branchName.TryGetValue(t.Branch, out var bn) ? bn : t.Branch);
+            return new TestStatDto(t.Date, t.TestCode, t.TestType, s?.NameEn, groupName, branch, t.Count, t.Income.Amount);
         }).ToList();
     }
 }

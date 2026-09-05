@@ -444,9 +444,10 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
     private async Task<int> UpsertTestStatsAsync(IReadOnlyList<OracleRow> rows, DateOnly from, DateOnly to, CancellationToken ct)
     {
         if (rows.Count == 0) return 0;
+        // Keyed by (date, code, type, branch) — the reg branch is part of the grain so the page can filter by it.
         var existing = (await _testStats.GetRangeAsync(from, to, ct))
-            .ToDictionary(s => (s.Date, s.TestCode, s.TestType));
-        var seen = new HashSet<(DateOnly, string, int)>();
+            .ToDictionary(s => (s.Date, s.TestCode, s.TestType, s.Branch));
+        var seen = new HashSet<(DateOnly, string, int, string)>();
         var upserted = 0;
         foreach (var row in rows)
         {
@@ -459,12 +460,13 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
 
             var date = DateOnly.FromDateTime(Convert.ToDateTime(dateObj));
             var testType = v.TryGetValue("TEST_TYPE", out var typeObj) && typeObj is not null ? Convert.ToInt32(typeObj) : 0;
+            var branch = ((v.TryGetValue("BRANCH", out var brObj) && brObj is not null ? Convert.ToString(brObj) : null) ?? "").Trim();
             var count = v.TryGetValue("TEST_COUNT", out var cntObj) && cntObj is not null ? Convert.ToInt32(cntObj) : 0;
             var incomeAmount = v.TryGetValue("TEST_INCOME", out var incObj) && incObj is not null ? Convert.ToDecimal(incObj) : 0m;
             var income = new Money(incomeAmount < 0m ? 0m : incomeAmount);
             var testCode = code.ToUpperInvariant();
 
-            var key = (date, testCode, testType);
+            var key = (date, testCode, testType, branch);
             if (existing.TryGetValue(key, out var stat))
             {
                 stat.SetCount(count);
@@ -472,7 +474,7 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
             }
             else
             {
-                stat = TestStatistic.For(date, testCode, testType);
+                stat = TestStatistic.For(date, testCode, testType, branch);
                 stat.SetCount(count);
                 stat.SetIncome(income);
                 _testStats.Add(stat);
@@ -482,10 +484,10 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
             upserted++;
         }
 
-        // Clear any rows in the window Oracle no longer reports — crucially the legacy pre-type rows keyed by
-        // (date, code, type=0) that merged two tests under one code. Re-syncing a window replaces it wholesale,
-        // so a collided code splits into its per-type rows with no double-counting or stale leftovers.
-        foreach (var stale in existing.Values.Where(s => !seen.Contains((s.Date, s.TestCode, s.TestType))))
+        // Clear any rows in the window Oracle no longer reports — including legacy pre-branch rows (branch="") that
+        // will be replaced by the per-branch split. Re-syncing a window replaces it wholesale, so there is no
+        // double-counting or stale leftover.
+        foreach (var stale in existing.Values.Where(s => !seen.Contains((s.Date, s.TestCode, s.TestType, s.Branch))))
             _testStats.Remove(stale);
 
         return upserted;

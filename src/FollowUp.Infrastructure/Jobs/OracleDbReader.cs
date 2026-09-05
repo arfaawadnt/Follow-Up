@@ -25,6 +25,7 @@ public static class OracleDefaultQueries
         "SELECT TRUNC(r.reg_date) AS the_date, " +
         "rss.service_code AS test_code, " +
         "rss.service_type AS test_type, " +
+        "r.branch_code AS branch, " +
         "COUNT(rss.service_code) AS test_count, " +
         "SUM(NVL(rss.patient_fee,0)+NVL(rss.insurance_fee,0)) AS test_income " +
         "FROM reg r " +
@@ -33,7 +34,7 @@ public static class OracleDefaultQueries
         "WHERE r.reg_date >= :from_date AND r.reg_date < :to_date " +
         "AND rss.service_type <> 7 AND NVL(rss.iscancelled,0) <> 1 " +
         "AND gt.visible = 1 " +
-        "GROUP BY TRUNC(r.reg_date), rss.service_code, rss.service_type";
+        "GROUP BY TRUNC(r.reg_date), rss.service_code, rss.service_type, r.branch_code";
 
     /// <summary>
     /// Per-lab daily volumes (maps to <c>DailyLabStatistic</c>: date, lab code, registrations, test count, income).

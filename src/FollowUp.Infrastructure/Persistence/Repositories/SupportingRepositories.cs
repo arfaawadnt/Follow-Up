@@ -30,8 +30,8 @@ internal sealed class TestStatisticRepository : ITestStatisticRepository
 {
     private readonly FollowUpDbContext _db;
     public TestStatisticRepository(FollowUpDbContext db) => _db = db;
-    public Task<TestStatistic?> GetAsync(DateOnly date, string testCode, int testType, CancellationToken ct) =>
-        _db.TestStatistics.FirstOrDefaultAsync(x => x.Date == date && x.TestCode == testCode && x.TestType == testType, ct);
+    public Task<TestStatistic?> GetAsync(DateOnly date, string testCode, int testType, string branch, CancellationToken ct) =>
+        _db.TestStatistics.FirstOrDefaultAsync(x => x.Date == date && x.TestCode == testCode && x.TestType == testType && x.Branch == branch, ct);
     public async Task<IReadOnlyList<TestStatistic>> GetRangeAsync(DateOnly from, DateOnly to, CancellationToken ct) =>
         await _db.TestStatistics.Where(x => x.Date >= from && x.Date <= to).ToListAsync(ct);
     public void Add(TestStatistic stat) => _db.TestStatistics.Add(stat);

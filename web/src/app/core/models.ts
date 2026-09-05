@@ -160,7 +160,7 @@ export interface LoyaltyLedger { laboratoryId: string; code: string; name: strin
 export interface Commission { repId: string; name: string; type: string; goalType: string; period: number; targetAmount: number; achievedAmount: number; baseSalary: number; commissionEarned: number; bonusEarned: number; totalPayout: number; isLocked: boolean; }
 export interface LabStat {
   date: string; labCode: string; name: string | null; category: string | null; segment: string | null;
-  governorate: string | null; city: string | null; area: string | null; status: string | null;
+  governorate: string | null; city: string | null; area: string | null; branch: string | null; status: string | null;
   registrations: number; testCount: number; income: number;
 }
 export interface RepPerformanceRow {

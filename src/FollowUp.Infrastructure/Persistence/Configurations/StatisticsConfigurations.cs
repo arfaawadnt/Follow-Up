@@ -50,10 +50,12 @@ internal sealed class TestStatisticConfiguration : IEntityTypeConfiguration<Test
         b.Property(x => x.Date);
         b.Property(x => x.TestCode).HasMaxLength(64).IsRequired();
         b.Property(x => x.TestType).HasDefaultValue(0);
+        b.Property(x => x.Branch).HasMaxLength(32).HasDefaultValue("");
         b.Property(x => x.Count);
         b.Property(x => x.Income); // Money -> numeric(18,2) via convention
-        // Natural key is (date, code, type): GLOBAL_TESTS2 reuses a test_code across test_types.
-        b.HasIndex(x => new { x.Date, x.TestCode, x.TestType }).IsUnique();
+        // Natural key is (date, code, type, branch): GLOBAL_TESTS2 reuses a test_code across test_types, and the
+        // stats are kept per registration branch (reg.branch_code) so the page can filter by serving branch.
+        b.HasIndex(x => new { x.Date, x.TestCode, x.TestType, x.Branch }).IsUnique();
     }
 }
 

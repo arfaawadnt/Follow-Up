@@ -9,7 +9,7 @@ import { AuthService } from '../../core/auth.service';
 import { ToastService } from '../../core/toast.service';
 import { TranslatePipe } from '../../core/i18n';
 
-interface TestStat { date: string; testCode: string; testType: number; testName: string | null; groupName: string | null; count: number; income: number; }
+interface TestStat { date: string; testCode: string; testType: number; testName: string | null; groupName: string | null; branch: string | null; count: number; income: number; }
 interface Cell { count: number; income: number; }
 interface PivotRow { key: string; testCode: string; testName: string; groupName: string; cells: Record<string, Cell>; totalCount: number; totalIncome: number; }
 interface Group { id: string; code: string; nameEn: string; }
@@ -57,6 +57,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
         <div class="field"><label>{{ 'compare_by' | t : 'Compare By' }}</label><select class="select" [ngModel]="metric()" (ngModelChange)="metric.set($event)"><option value="count">{{ 'compare_test_count' | t : 'Test Count' }}</option><option value="income">{{ 'compare_test_income' | t : 'Test Income' }}</option></select></div>
         <div class="field"><label>{{ 'search_test_code' | t : 'Search (Test/Code)' }}</label><input class="input" [ngModel]="q()" (ngModelChange)="q.set($event)" placeholder="test name or code"></div>
         <div class="field"><label>{{ 'group' | t : 'Group' }}</label><app-filter-select [options]="groupNames()" [ngModel]="group()" (ngModelChange)="group.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
+        <div class="field"><label>{{ 'serving_branch' | t : 'Serving branch' }}</label><app-filter-select [multiple]="true" [options]="branches()" [ngModel]="branch()" (ngModelChange)="branch.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><label>{{ 'sort_by' | t : 'Sort By' }}</label><select class="select" [ngModel]="sortDir()" (ngModelChange)="sortDir.set($event)"><option value="desc">{{ 'sort_count_desc' | t : 'Test Count (High → Low)' }}</option><option value="asc">{{ 'sort_count_asc' | t : 'Test Count (Low → High)' }}</option></select></div>
         <div class="field"><button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply_filters' | t : 'Apply Filters' }}</button></div>
       </div>
@@ -174,6 +175,8 @@ export class TestStatsComponent {
   readonly groups = signal<Group[]>([]);
   readonly q = signal('');
   readonly group = signal('');
+  readonly branch = signal<string[]>([]);
+  readonly branches = computed(() => [...new Set(this.rows().map((s) => s.branch).filter((v): v is string => !!v))].sort());
   readonly groupNames = computed(() => this.groups().map((g) => g.nameEn));
   readonly view = signal<View>('monthly');
   readonly metric = signal<Metric>('count');
@@ -195,7 +198,8 @@ export class TestStatsComponent {
     const q = this.q().trim().toLowerCase();
     return this.rows().filter((s) =>
       (!q || s.testCode.toLowerCase().includes(q) || (s.testName ?? '').toLowerCase().includes(q)) &&
-      (!this.group() || s.groupName === this.group()));
+      (!this.group() || s.groupName === this.group()) &&
+      (!this.branch().length || this.branch().includes(s.branch ?? '')));
   });
   readonly periods = computed<string[]>(() => {
     const set = new Set<string>();

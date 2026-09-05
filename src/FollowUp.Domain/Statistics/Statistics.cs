@@ -59,24 +59,28 @@ public sealed class TestStatistic : AggregateRoot<TestStatisticId>
 {
     private TestStatistic() { } // EF
 
-    private TestStatistic(TestStatisticId id, DateOnly date, string testCode, int testType)
+    private TestStatistic(TestStatisticId id, DateOnly date, string testCode, int testType, string branch)
         : base(id)
     {
         Date = date;
         TestCode = testCode;
         TestType = testType;
+        Branch = branch;
     }
 
     public DateOnly Date { get; private set; }
     public string TestCode { get; private set; } = null!;
     public int TestType { get; private set; }
+    /// <summary>The registration's branch code (from <c>reg.branch_code</c>), part of the natural key. Empty for
+    /// manual xlsx imports and pre-branch legacy rows; resolved to a branch name at read time.</summary>
+    public string Branch { get; private set; } = "";
     public int Count { get; private set; }
     public Money Income { get; private set; }
 
-    public static TestStatistic For(DateOnly date, string testCode, int testType = 0)
+    public static TestStatistic For(DateOnly date, string testCode, int testType = 0, string? branch = null)
     {
         if (string.IsNullOrWhiteSpace(testCode)) throw new DomainException("Test code is required.");
-        return new TestStatistic(TestStatisticId.New(), date, testCode.Trim().ToUpperInvariant(), testType);
+        return new TestStatistic(TestStatisticId.New(), date, testCode.Trim().ToUpperInvariant(), testType, (branch ?? "").Trim());
     }
 
     public void SetCount(int count)
