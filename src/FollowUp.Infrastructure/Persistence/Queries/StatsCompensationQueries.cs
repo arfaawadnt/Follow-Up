@@ -1,3 +1,4 @@
+using FollowUp.Application.Common.Abstractions;
 using FollowUp.Application.Features.AreaStats;
 using FollowUp.Application.Features.Compensation;
 using FollowUp.Application.Features.DetailedStats;
@@ -163,6 +164,37 @@ internal sealed class DetailedStatsQueries : IDetailedStatsQueries
         s.Branches.Contains(OrgScope.Wildcard) && s.Governorates.Contains(OrgScope.Wildcard) &&
         s.Cities.Contains(OrgScope.Wildcard) && s.Areas.Contains(OrgScope.Wildcard) &&
         s.Categories.Contains(OrgScope.Wildcard) && s.Segments.Contains(OrgScope.Wildcard);
+}
+
+/// <summary>Live "No-Lab Tests" fetch from the Oracle NoLabTests feed (registrations resolving to no lab).
+/// Shared by the report handler and the daily statistics-email runner.</summary>
+internal sealed class NoLabTestsQueries : INoLabTestsQueries
+{
+    private readonly IOracleReader _reader;
+    public NoLabTestsQueries(IOracleReader reader) => _reader = reader;
+
+    public async Task<IReadOnlyList<NoLabTestRowDto>> ListAsync(DateOnly from, DateOnly to, CancellationToken ct)
+    {
+        if (to < from) (from, to) = (to, from);
+        // Half-open window [from 00:00, (to + 1 day) 00:00) — matches the stats syncs (To is inclusive).
+        var window = new OracleDateWindow(from.ToDateTime(TimeOnly.MinValue), to.AddDays(1).ToDateTime(TimeOnly.MinValue));
+        var rows = await _reader.ExecuteAsync("NoLabTests", window, ct);
+        var list = new List<NoLabTestRowDto>(rows.Count);
+        foreach (var row in rows)
+        {
+            var v = row.Values;
+            var regDt = v.TryGetValue("REG_DT", out var d) && d is not null ? Convert.ToDateTime(d) : default;
+            var acc = v.TryGetValue("ACC_NO", out var a) && a is not null ? Convert.ToString(a)!.Trim() : string.Empty;
+            var patient = v.TryGetValue("PATIENT_NAME", out var p) && p is not null ? Convert.ToString(p)!.Trim() : string.Empty;
+            var doctor = v.TryGetValue("DOCTOR", out var dr) && dr is not null ? Convert.ToString(dr)!.Trim() : string.Empty;
+            var regBy = v.TryGetValue("REGISTERED_BY", out var rb) && rb is not null ? Convert.ToString(rb)!.Trim() : string.Empty;
+            var tname = v.TryGetValue("TEST_NAME", out var tn) && tn is not null ? Convert.ToString(tn)!.Trim() : string.Empty;
+            var tcode = v.TryGetValue("TEST_CODE", out var tc) && tc is not null ? Convert.ToString(tc)!.Trim() : string.Empty;
+            var ttype = v.TryGetValue("TEST_TYPE", out var tt) && tt is not null ? Convert.ToInt32(tt) : 0;
+            list.Add(new NoLabTestRowDto(regDt, acc, patient, doctor, regBy, tname, tcode, ttype));
+        }
+        return list;
+    }
 }
 
 internal sealed class TestCatalogueQueries : ITestCatalogueQueries

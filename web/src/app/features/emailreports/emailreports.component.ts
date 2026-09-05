@@ -14,18 +14,18 @@ interface Area { name: string; }
 interface Group { nameEn: string; }
 interface UserLookup { id: string; username: string; }
 interface Subscription {
-  id: string; name: string; includeLabStats: boolean; includeTestStats: boolean; includeAreaStats: boolean;
+  id: string; name: string; includeLabStats: boolean; includeTestStats: boolean; includeAreaStats: boolean; includeNoLab: boolean;
   filtersJson: string; userIds: string[]; emails: string[]; sendHour: number; sendMinute: number;
   windowDays: number; enabled: boolean; lastStatus: string | null; lastRunAt: string | null;
 }
 interface Filters { governorates: string[]; cities: string[]; areas: string[]; categories: string[]; segments: string[]; groups: string[]; refMonth: string; compareBy: string; }
 interface Editor {
-  id: string | null; name: string; includeLabStats: boolean; includeTestStats: boolean; includeAreaStats: boolean;
+  id: string | null; name: string; includeLabStats: boolean; includeTestStats: boolean; includeAreaStats: boolean; includeNoLab: boolean;
   filters: Filters; userIds: string[]; emailsText: string; sendHour: number; sendMinute: number; windowDays: number; enabled: boolean;
 }
 
 const EMPTY_FILTERS = (): Filters => ({ governorates: [], cities: [], areas: [], categories: [], segments: [], groups: [], refMonth: '', compareBy: 'count' });
-const NEW_EDITOR = (): Editor => ({ id: null, name: '', includeLabStats: true, includeTestStats: false, includeAreaStats: false,
+const NEW_EDITOR = (): Editor => ({ id: null, name: '', includeLabStats: true, includeTestStats: false, includeAreaStats: false, includeNoLab: false,
   filters: EMPTY_FILTERS(), userIds: [], emailsText: '', sendHour: 6, sendMinute: 0, windowDays: 1, enabled: true });
 
 @Component({
@@ -82,6 +82,7 @@ const NEW_EDITOR = (): Editor => ({ id: null, name: '', includeLabStats: true, i
             <label class="chk"><input type="checkbox" [(ngModel)]="ed.includeLabStats"> {{ 'labstats' | t : 'Lab Statistics' }}</label>
             <label class="chk"><input type="checkbox" [(ngModel)]="ed.includeTestStats"> {{ 'teststats' | t : 'Test Statistics' }}</label>
             <label class="chk"><input type="checkbox" [(ngModel)]="ed.includeAreaStats"> {{ 'areastats' | t : 'Area Statistics' }}</label>
+            <label class="chk"><input type="checkbox" [(ngModel)]="ed.includeNoLab"> {{ 'no_lab_report' | t : 'No-Lab Tests' }}</label>
           </div>
 
           <label class="lbl" style="margin-top:14px">{{ 'filters_optional' | t : 'Filters (optional — leave empty for all)' }}</label>
@@ -120,6 +121,7 @@ const NEW_EDITOR = (): Editor => ({ id: null, name: '', includeLabStats: true, i
                 @if (s.includeLabStats) { <span class="badge b-info">Lab</span> }
                 @if (s.includeTestStats) { <span class="badge b-info">Test</span> }
                 @if (s.includeAreaStats) { <span class="badge b-info">Area</span> }
+                @if (s.includeNoLab) { <span class="badge b-warn">No-Lab</span> }
               </td>
               <td>{{ s.userIds.length + s.emails.length }}</td>
               <td class="mono">{{ pad(s.sendHour) }}:{{ pad(s.sendMinute) }}</td>
@@ -202,7 +204,7 @@ export class EmailReportsComponent {
     let filters = EMPTY_FILTERS();
     try { filters = { ...EMPTY_FILTERS(), ...JSON.parse(s.filtersJson || '{}') }; } catch { /* ignore */ }
     this.ed = { id: s.id, name: s.name, includeLabStats: s.includeLabStats, includeTestStats: s.includeTestStats,
-      includeAreaStats: s.includeAreaStats, filters, userIds: [...s.userIds], emailsText: s.emails.join(', '),
+      includeAreaStats: s.includeAreaStats, includeNoLab: s.includeNoLab, filters, userIds: [...s.userIds], emailsText: s.emails.join(', '),
       sendHour: s.sendHour, sendMinute: s.sendMinute, windowDays: s.windowDays, enabled: s.enabled };
     this.editing.set(true);
   }
@@ -210,7 +212,7 @@ export class EmailReportsComponent {
     const emails = this.ed.emailsText.split(/[,\n;]+/).map((e) => e.trim()).filter(Boolean);
     const body = {
       name: this.ed.name.trim(), includeLabStats: this.ed.includeLabStats, includeTestStats: this.ed.includeTestStats,
-      includeAreaStats: this.ed.includeAreaStats, filtersJson: JSON.stringify(this.ed.filters), userIds: this.ed.userIds,
+      includeAreaStats: this.ed.includeAreaStats, includeNoLab: this.ed.includeNoLab, filtersJson: JSON.stringify(this.ed.filters), userIds: this.ed.userIds,
       emails, sendHour: +this.ed.sendHour, sendMinute: +this.ed.sendMinute, windowDays: +this.ed.windowDays, enabled: this.ed.enabled,
     };
     const req = this.ed.id ? this.api.put(`/email/subscriptions/${this.ed.id}`, body) : this.api.post('/email/subscriptions', body);

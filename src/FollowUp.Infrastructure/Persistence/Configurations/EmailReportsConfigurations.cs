@@ -39,6 +39,7 @@ internal sealed class StatsEmailSubscriptionConfiguration : IEntityTypeConfigura
         b.Property(x => x.IncludeLabStats);
         b.Property(x => x.IncludeTestStats);
         b.Property(x => x.IncludeAreaStats);
+        b.Property(x => x.IncludeNoLab);
         b.Property(x => x.FiltersJson).HasColumnType("jsonb");
         b.Property(x => x.SendHour);
         b.Property(x => x.SendMinute);

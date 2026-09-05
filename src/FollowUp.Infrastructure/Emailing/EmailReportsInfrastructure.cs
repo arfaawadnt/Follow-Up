@@ -62,7 +62,7 @@ internal sealed class StatsEmailSubscriptionQueries : IStatsEmailSubscriptionQue
     {
         var rows = await _db.StatsEmailSubscriptions.AsNoTracking().OrderBy(s => s.Name).ToListAsync(ct);
         return rows.Select(s => new StatsEmailSubscriptionDto(s.Id.Value, s.Name, s.IncludeLabStats, s.IncludeTestStats,
-            s.IncludeAreaStats, s.FiltersJson, s.UserIds.ToList(), s.Emails.ToList(), s.SendHour, s.SendMinute,
+            s.IncludeAreaStats, s.IncludeNoLab, s.FiltersJson, s.UserIds.ToList(), s.Emails.ToList(), s.SendHour, s.SendMinute,
             s.WindowDays, s.Enabled, s.LastStatus, s.LastRunAt)).ToList();
     }
 }
@@ -122,6 +122,7 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
     private readonly ILabStatsQueries _labStats;
     private readonly ITestCatalogueQueries _testStats;
     private readonly IAreaStatsQueries _areaStats;
+    private readonly INoLabTestsQueries _noLab;
     private readonly IEmailSender _email;
     private readonly IClock _clock;
     private readonly ILogger<StatsEmailRunner> _logger;
@@ -129,10 +130,11 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
 
     public StatsEmailRunner(FollowUpDbContext db, IStatsEmailSubscriptionRepository subs, ILabStatsQueries labStats,
-        ITestCatalogueQueries testStats, IAreaStatsQueries areaStats, IEmailSender email, IClock clock, ILogger<StatsEmailRunner> logger)
+        ITestCatalogueQueries testStats, IAreaStatsQueries areaStats, INoLabTestsQueries noLab, IEmailSender email,
+        IClock clock, ILogger<StatsEmailRunner> logger)
     {
         _db = db; _subs = subs; _labStats = labStats; _testStats = testStats; _areaStats = areaStats;
-        _email = email; _clock = clock; _logger = logger;
+        _noLab = noLab; _email = email; _clock = clock; _logger = logger;
     }
 
     private sealed record Filters(string[]? Governorates, string[]? Cities, string[]? Areas, string[]? Categories,
@@ -202,6 +204,7 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
         if (sub.IncludeLabStats) sections.Add(await RenderLabAsync(dateTag, from, to, f, ct));
         if (sub.IncludeTestStats) sections.Add(await RenderTestAsync(dateTag, from, to, f, ct));
         if (sub.IncludeAreaStats) sections.Add(await RenderAreaAsync(dateTag, from, to, f, ct));
+        if (sub.IncludeNoLab) sections.Add(await RenderNoLabAsync(dateTag, from, to, ct));
 
         var sb = new StringBuilder();
         sb.Append("<div style=\"font:14px system-ui,Arial,sans-serif;color:#1a1a1a\">");
@@ -478,5 +481,25 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
         var summary = $"<b>Total tests:</b> {totalTests:N0} &middot; <b>Areas:</b> {govList.Sum(x => x.Value.Areas.Count):N0} &middot; <b>Reference month:</b> {refFrom:yyyy-MM} &middot; <b>Compare by:</b> {MetricLabel(income)} (green beats the daily average, red falls short)";
         return new ReportSection("Area Statistics", $"Area-Statistics-{dateTag}.xlsx", summary,
             htmlHeaders, htmlRows, headers.ToArray(), xlsxRows);
+    }
+
+    /// <summary>
+    /// The live "No-Lab Tests" report (same as the Test Statistics page export): registrations whose doctor resolves
+    /// to no lab, over the window — a management alert. Pulled live from Oracle; ignores the geography/compare-by
+    /// filters (a no-lab registration has no lab and therefore no geography).
+    /// </summary>
+    private async Task<ReportSection> RenderNoLabAsync(string dateTag, DateOnly from, DateOnly to, CancellationToken ct)
+    {
+        var rows = (await _noLab.ListAsync(from, to, ct)).OrderByDescending(r => r.RegDate).ToList();
+        var headers = new[] { "Date / Time", "Accession", "Patient", "Doctor", "Registered By", "Test" };
+        var htmlRows = rows.Select(r => new[]
+        {
+            r.RegDate.ToString("yyyy-MM-dd HH:mm"), r.AccNo, r.PatientName, r.Doctor, r.RegisteredBy, r.TestName,
+        }).ToList();
+        var xlsxRows = htmlRows.Select(hr => hr.Select(v => new XlsxCell(v)).ToArray()).ToList();
+        var registrations = rows.Select(r => r.AccNo).Distinct().Count();
+        var summary = $"<b>No-lab test lines:</b> {rows.Count:N0} &middot; <b>Registrations:</b> {registrations:N0} &mdash; registrations that occurred without a resolvable lab (please review).";
+        return new ReportSection("No-Lab Tests", $"No-Lab-Tests-{dateTag}.xlsx", summary,
+            headers, htmlRows, headers, xlsxRows);
     }
 }

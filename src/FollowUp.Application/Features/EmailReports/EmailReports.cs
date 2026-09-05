@@ -105,7 +105,7 @@ public sealed class SendTestEmailHandler : ICommandHandler<SendTestEmailCommand,
 // ============================ Daily-email subscriptions ============================
 
 public sealed record StatsEmailSubscriptionDto(Guid Id, string Name, bool IncludeLabStats, bool IncludeTestStats,
-    bool IncludeAreaStats, string FiltersJson, IReadOnlyList<Guid> UserIds, IReadOnlyList<string> Emails,
+    bool IncludeAreaStats, bool IncludeNoLab, string FiltersJson, IReadOnlyList<Guid> UserIds, IReadOnlyList<string> Emails,
     int SendHour, int SendMinute, int WindowDays, bool Enabled, string? LastStatus, DateTimeOffset? LastRunAt);
 
 public interface IStatsEmailSubscriptionQueries
@@ -126,7 +126,7 @@ public sealed class GetStatsEmailSubscriptionsHandler : IQueryHandler<GetStatsEm
 }
 
 public sealed record StatsEmailSubscriptionInput(string Name, bool IncludeLabStats, bool IncludeTestStats, bool IncludeAreaStats,
-    string? FiltersJson, IReadOnlyList<Guid> UserIds, IReadOnlyList<string> Emails, int SendHour, int SendMinute, int WindowDays, bool Enabled);
+    bool IncludeNoLab, string? FiltersJson, IReadOnlyList<Guid> UserIds, IReadOnlyList<string> Emails, int SendHour, int SendMinute, int WindowDays, bool Enabled);
 
 public sealed class StatsEmailSubscriptionInputValidator : AbstractValidator<StatsEmailSubscriptionInput>
 {
@@ -136,7 +136,7 @@ public sealed class StatsEmailSubscriptionInputValidator : AbstractValidator<Sta
         RuleFor(x => x.SendHour).InclusiveBetween(0, 23);
         RuleFor(x => x.SendMinute).InclusiveBetween(0, 59);
         RuleFor(x => x.WindowDays).InclusiveBetween(1, 90);
-        RuleFor(x => x).Must(x => x.IncludeLabStats || x.IncludeTestStats || x.IncludeAreaStats)
+        RuleFor(x => x).Must(x => x.IncludeLabStats || x.IncludeTestStats || x.IncludeAreaStats || x.IncludeNoLab)
             .WithMessage("Select at least one report.");
         RuleFor(x => x).Must(x => (x.UserIds?.Count ?? 0) > 0 || (x.Emails?.Count ?? 0) > 0)
             .WithMessage("Add at least one recipient.");
@@ -173,7 +173,7 @@ public sealed class CreateStatsEmailSubscriptionHandler : ICommandHandler<Create
     internal static void Apply(StatsEmailSubscription sub, StatsEmailSubscriptionInput i)
     {
         sub.Rename(i.Name);
-        sub.SetReports(i.IncludeLabStats, i.IncludeTestStats, i.IncludeAreaStats);
+        sub.SetReports(i.IncludeLabStats, i.IncludeTestStats, i.IncludeAreaStats, i.IncludeNoLab);
         sub.SetFilters(i.FiltersJson);
         sub.SetRecipients(i.UserIds ?? Array.Empty<Guid>(), i.Emails ?? Array.Empty<string>());
         sub.SetSchedule(i.SendHour, i.SendMinute, i.WindowDays);

@@ -70,6 +70,8 @@ public sealed class StatsEmailSubscription : AggregateRoot<StatsEmailSubscriptio
     public bool IncludeLabStats { get; private set; }
     public bool IncludeTestStats { get; private set; }
     public bool IncludeAreaStats { get; private set; }
+    /// <summary>The live "No-Lab Tests" report — registrations whose doctor resolves to no lab (management alert).</summary>
+    public bool IncludeNoLab { get; private set; }
     /// <summary>Opaque saved-filter payload (governorates/cities/areas/categories/segments/groups), applied in memory.</summary>
     public string FiltersJson { get; private set; } = "{}";
     public IReadOnlyCollection<Guid> UserIds => _userIds.AsReadOnly();
@@ -95,10 +97,10 @@ public sealed class StatsEmailSubscription : AggregateRoot<StatsEmailSubscriptio
     public void Rename(string name) =>
         Name = string.IsNullOrWhiteSpace(name) ? throw new DomainException("Report name is required.") : name.Trim();
 
-    public void SetReports(bool lab, bool test, bool area)
+    public void SetReports(bool lab, bool test, bool area, bool noLab)
     {
-        if (!lab && !test && !area) throw new DomainException("Select at least one report.");
-        IncludeLabStats = lab; IncludeTestStats = test; IncludeAreaStats = area;
+        if (!lab && !test && !area && !noLab) throw new DomainException("Select at least one report.");
+        IncludeLabStats = lab; IncludeTestStats = test; IncludeAreaStats = area; IncludeNoLab = noLab;
     }
 
     public void SetFilters(string? json) => FiltersJson = string.IsNullOrWhiteSpace(json) ? "{}" : json.Trim();
