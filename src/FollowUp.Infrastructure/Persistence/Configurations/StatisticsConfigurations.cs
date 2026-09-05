@@ -67,6 +67,7 @@ internal sealed class DetailedRegistrationConfiguration : IEntityTypeConfigurati
 
         b.Property(x => x.Date);
         b.Property(x => x.LabCode).HasMaxLength(32);
+        b.Property(x => x.RegBranchCode).HasMaxLength(32);
         b.Property(x => x.AccNo).HasMaxLength(64).IsRequired();
         b.Property(x => x.PatientName).HasMaxLength(256).IsRequired();
         b.Property(x => x.TestCode).HasMaxLength(64).IsRequired();
@@ -74,6 +75,8 @@ internal sealed class DetailedRegistrationConfiguration : IEntityTypeConfigurati
         b.Property(x => x.TestName).HasMaxLength(256);
         b.Property(x => x.PatientFee).HasColumnType("numeric(18,2)");
         b.Property(x => x.InsuranceFee).HasColumnType("numeric(18,2)");
+        b.Property(x => x.SampleStatus).HasMaxLength(64);
+        b.Property(x => x.TestStatus).HasMaxLength(64);
         b.Ignore(x => x.Fee); // computed (PatientFee + InsuranceFee)
         // Window-replace sync + range reads: index by date (and lab code for the scoped/grouped read).
         b.HasIndex(x => new { x.Date, x.LabCode });

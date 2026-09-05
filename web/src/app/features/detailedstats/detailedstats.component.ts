@@ -11,8 +11,9 @@ import { TranslatePipe } from '../../core/i18n';
 
 interface DetailRow {
   date: string; governorate: string | null; city: string | null; area: string | null;
-  category: string | null; branch: string | null; labCode: string | null; labName: string | null;
+  category: string | null; branch: string | null; regBranch: string | null; labCode: string | null; labName: string | null;
   accNo: string; patientName: string; testCode: string; testType: number; testName: string | null; fee: number;
+  sampleStatus: string | null; testStatus: string | null;
 }
 /** A grid row with repeated group cells blanked (grouped look); the raw values stay for export. */
 interface GridRow {
@@ -56,6 +57,10 @@ const NOLAB = 'No lab';
         <div class="field"><label>{{ 'area_2' | t : 'Area' }}</label><app-filter-select [multiple]="true" [options]="areas()" [ngModel]="area()" (ngModelChange)="area.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><label>{{ 'category' | t : 'Lab Category' }}</label><app-filter-select [multiple]="true" [options]="categories()" [ngModel]="category()" (ngModelChange)="category.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><label>{{ 'serving_branch' | t : 'Serving branch' }}</label><app-filter-select [multiple]="true" [options]="branches()" [ngModel]="branch()" (ngModelChange)="branch.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
+        <div class="field"><label>{{ 'reg_branch' | t : 'Reg branch' }}</label><app-filter-select [multiple]="true" [options]="regBranches()" [ngModel]="regBranch()" (ngModelChange)="regBranch.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
+        <div class="field"><label>{{ 'lab_name' | t : 'Lab name' }}</label><app-filter-select [multiple]="true" [options]="labNames()" [ngModel]="labName()" (ngModelChange)="labName.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
+        <div class="field"><label>{{ 'test_name_2' | t : 'Test Name' }}</label><app-filter-select [multiple]="true" [options]="testNames()" [ngModel]="testName()" (ngModelChange)="testName.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
+        <div class="field"><label>{{ 'acc_no' | t : 'Accession' }}</label><input class="input" [ngModel]="acc()" (ngModelChange)="acc.set($event)" placeholder="{{ 'accession_search' | t : 'Accession no.' }}"></div>
         <div class="field"><button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply_filters' | t : 'Apply Filters' }}</button></div>
       </div>
     </div>
@@ -144,6 +149,10 @@ export class DetailedStatsComponent {
   readonly area = signal<string[]>([]);
   readonly category = signal<string[]>([]);
   readonly branch = signal<string[]>([]);
+  readonly regBranch = signal<string[]>([]);
+  readonly labName = signal<string[]>([]);
+  readonly testName = signal<string[]>([]);
+  readonly acc = signal('');
   readonly page = signal(1);
   readonly pageSize = signal(100);
   readonly syncOpen = signal(false);
@@ -163,13 +172,21 @@ export class DetailedStatsComponent {
     .map((s) => s.area ?? DASH))].sort());
   readonly categories = computed(() => [...new Set(this.rows().map((s) => s.category ?? DASH))].sort());
   readonly branches = computed(() => [...new Set(this.rows().map((s) => s.branch ?? DASH))].sort());
+  readonly regBranches = computed(() => [...new Set(this.rows().map((s) => s.regBranch ?? DASH))].sort());
+  readonly labNames = computed(() => [...new Set(this.rows().map((s) => s.labName ?? s.labCode ?? NOLAB))].sort());
+  readonly testNames = computed(() => [...new Set(this.rows().map((s) => s.testName ?? s.testCode))].sort());
 
   private matches(s: DetailRow): boolean {
+    const acc = this.acc().trim().toLowerCase();
     return (!this.gov().length || this.gov().includes(s.governorate ?? NOLAB)) &&
       (!this.city().length || this.city().includes(s.city ?? DASH)) &&
       (!this.area().length || this.area().includes(s.area ?? DASH)) &&
       (!this.category().length || this.category().includes(s.category ?? DASH)) &&
-      (!this.branch().length || this.branch().includes(s.branch ?? DASH));
+      (!this.branch().length || this.branch().includes(s.branch ?? DASH)) &&
+      (!this.regBranch().length || this.regBranch().includes(s.regBranch ?? DASH)) &&
+      (!this.labName().length || this.labName().includes(s.labName ?? s.labCode ?? NOLAB)) &&
+      (!this.testName().length || this.testName().includes(s.testName ?? s.testCode)) &&
+      (!acc || s.accNo.toLowerCase().includes(acc));
   }
 
   // Filtered rows sorted by the reporting hierarchy.

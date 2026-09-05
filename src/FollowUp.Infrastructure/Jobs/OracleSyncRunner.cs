@@ -547,9 +547,10 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
             if (!row.Values.TryGetValue("REG_DT", out var dObj) || dObj is null) continue;
             var date = DateOnly.FromDateTime(Convert.ToDateTime(dObj));
             mapped.Add(DetailedRegistration.Create(
-                date, Str(row, "LAB_CODE"), Str(row, "ACC_NO"), Str(row, "PATIENT_NAME"),
+                date, Str(row, "LAB_CODE"), Str(row, "REG_BRANCH_CODE"), Str(row, "ACC_NO"), Str(row, "PATIENT_NAME"),
                 Str(row, "TEST_CODE"), Int(row, "TEST_TYPE"), Str(row, "TEST_NAME"),
-                Dec(row, "PATIENT_FEE"), Dec(row, "INSURANCE_FEE")));
+                Dec(row, "PATIENT_FEE"), Dec(row, "INSURANCE_FEE"),
+                Str(row, "SAMPLE_STATUS"), Str(row, "TEST_STATUS")));
         }
         _detailed.AddRange(mapped);
         await _db.SaveChangesAsync(ct);

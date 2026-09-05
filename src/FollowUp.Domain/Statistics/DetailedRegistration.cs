@@ -23,6 +23,9 @@ public sealed class DetailedRegistration : AggregateRoot<DetailedRegistrationId>
 
     public DateOnly Date { get; private set; }
     public string? LabCode { get; private set; }
+    /// <summary>The registration's own branch code (from <c>reg.branch_code</c>), resolved to a name via the
+    /// Branches reference at read time. Distinct from the lab's serving branch.</summary>
+    public string? RegBranchCode { get; private set; }
     public string AccNo { get; private set; } = "";
     public string PatientName { get; private set; } = "";
     public string TestCode { get; private set; } = "";
@@ -30,16 +33,21 @@ public sealed class DetailedRegistration : AggregateRoot<DetailedRegistrationId>
     public string? TestName { get; private set; }
     public decimal PatientFee { get; private set; }
     public decimal InsuranceFee { get; private set; }
+    /// <summary>Plain-text sample/test statuses from <c>reg_lines</c> — stored for a separate page.</summary>
+    public string? SampleStatus { get; private set; }
+    public string? TestStatus { get; private set; }
 
     /// <summary>Combined fee shown by the page (cash + insurance).</summary>
     public decimal Fee => PatientFee + InsuranceFee;
 
-    public static DetailedRegistration Create(DateOnly date, string? labCode, string? accNo, string? patientName,
-        string? testCode, int testType, string? testName, decimal patientFee, decimal insuranceFee) =>
+    public static DetailedRegistration Create(DateOnly date, string? labCode, string? regBranchCode, string? accNo,
+        string? patientName, string? testCode, int testType, string? testName, decimal patientFee, decimal insuranceFee,
+        string? sampleStatus, string? testStatus) =>
         new(DetailedRegistrationId.New())
         {
             Date = date,
             LabCode = string.IsNullOrWhiteSpace(labCode) ? null : labCode.Trim().ToUpperInvariant(),
+            RegBranchCode = string.IsNullOrWhiteSpace(regBranchCode) ? null : regBranchCode.Trim(),
             AccNo = accNo?.Trim() ?? "",
             PatientName = patientName?.Trim() ?? "",
             TestCode = testCode?.Trim() ?? "",
@@ -47,5 +55,7 @@ public sealed class DetailedRegistration : AggregateRoot<DetailedRegistrationId>
             TestName = string.IsNullOrWhiteSpace(testName) ? null : testName.Trim(),
             PatientFee = patientFee < 0 ? 0 : patientFee,
             InsuranceFee = insuranceFee < 0 ? 0 : insuranceFee,
+            SampleStatus = string.IsNullOrWhiteSpace(sampleStatus) ? null : sampleStatus.Trim(),
+            TestStatus = string.IsNullOrWhiteSpace(testStatus) ? null : testStatus.Trim(),
         };
 }

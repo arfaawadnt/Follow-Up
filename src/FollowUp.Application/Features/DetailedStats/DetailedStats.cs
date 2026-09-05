@@ -12,8 +12,9 @@ namespace FollowUp.Application.Features.DetailedStats;
 /// registrations that resolve to no lab ("No lab").
 /// </summary>
 public sealed record DetailedStatDto(DateOnly Date, string? Governorate, string? City, string? Area,
-    string? Category, string? Branch, string? LabCode, string? LabName,
-    string AccNo, string PatientName, string TestCode, int TestType, string? TestName, decimal Fee);
+    string? Category, string? Branch, string? RegBranch, string? LabCode, string? LabName,
+    string AccNo, string PatientName, string TestCode, int TestType, string? TestName, decimal Fee,
+    string? SampleStatus, string? TestStatus);
 
 public interface IDetailedStatsQueries
 {

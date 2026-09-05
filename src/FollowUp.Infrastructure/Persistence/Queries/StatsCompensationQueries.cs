@@ -143,11 +143,19 @@ internal sealed class DetailedStatsQueries : IDetailedStatsQueries
                 .Select(l => new { l.Code, l.Name, l.Category, l.Branch, l.Governorate, l.City, l.Area }).ToListAsync(ct))
             .GroupBy(l => l.Code.Value).ToDictionary(g => g.Key, g => g.First());
 
+        // Resolve the registration branch name from its code via the Branches reference (BRANCH_CODE → BRANCH_NAME).
+        var branchName = (await _db.RefItems.AsNoTracking()
+                .Where(r => r.Type == RefType.Branch)
+                .Select(r => new { r.Code, r.NameEn }).ToListAsync(ct))
+            .GroupBy(r => r.Code).ToDictionary(g => g.Key, g => g.First().NameEn, StringComparer.OrdinalIgnoreCase);
+
         return rows.Select(s =>
         {
             var l = s.LabCode != null && labInfo.TryGetValue(s.LabCode, out var found) ? found : null;
-            return new DetailedStatDto(s.Date, l?.Governorate, l?.City, l?.Area, l?.Category, l?.Branch,
-                s.LabCode, l?.Name, s.AccNo, s.PatientName, s.TestCode, s.TestType, s.TestName, s.PatientFee + s.InsuranceFee);
+            var regBranch = s.RegBranchCode != null && branchName.TryGetValue(s.RegBranchCode, out var bn) ? bn : s.RegBranchCode;
+            return new DetailedStatDto(s.Date, l?.Governorate, l?.City, l?.Area, l?.Category, l?.Branch, regBranch,
+                s.LabCode, l?.Name, s.AccNo, s.PatientName, s.TestCode, s.TestType, s.TestName, s.PatientFee + s.InsuranceFee,
+                s.SampleStatus, s.TestStatus);
         }).ToList();
     }
 
