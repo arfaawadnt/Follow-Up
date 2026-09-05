@@ -564,6 +564,32 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
     }
 
     /// <summary>
+    /// Runs TestStats, LabStats and DetailedStats over the SAME window in one pass so the three pages can never
+    /// drift on coverage or snapshot timing: the aggregate counts, the per-lab counts and the transaction-level
+    /// lines are pulled back-to-back for identical dates. Each feed remains self-contained (its own config/enabled
+    /// gate and SaveChanges — LabStats still re-derives lab lifecycle statuses); this only chains them and merges
+    /// the reported counts.
+    /// </summary>
+    public async Task<OracleSyncResult> RunNightlyStatsAsync(DateOnly from, DateOnly to, bool manual, CancellationToken ct)
+    {
+        var test = await RunTestStatsAsync(from, to, manual, ct);
+        var lab = await RunLabStatsAsync(from, to, manual, ct);
+        var detailed = await RunDetailedStatsAsync(from, to, manual, ct);
+
+        var upserts = new Dictionary<string, int>();
+        foreach (var result in new[] { test, lab, detailed })
+            if (result.Upserts is not null)
+                foreach (var kv in result.Upserts) upserts[kv.Key] = kv.Value;
+
+        return new OracleSyncResult(
+            Ran: test.Ran || lab.Ran || detailed.Ran,
+            Status: $"teststats={test.Status};labstats={lab.Status};detailed={detailed.Status}",
+            LabsUpserted: lab.LabsUpserted,
+            StatsUpserted: test.StatsUpserted,
+            Upserts: upserts);
+    }
+
+    /// <summary>
     /// Re-derives every lab's lifecycle status from its statistics history (per the operator's rules):
     /// no records → Pending; a single record within the last 7 days → Interactive; any data in the last
     /// 7 days → Active; else data within 30 days → Inactive; else (only older data) → Stopped. Overwrites

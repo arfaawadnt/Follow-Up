@@ -39,45 +39,22 @@ public sealed class OracleSyncJob
     public Task RunAsync(CancellationToken ct) => _runner.RunAsync(manual: false, ct);
 }
 
-/// <summary>Nightly test-statistics pull — refreshes just the previous (Cairo) day from Oracle.</summary>
-[DisableConcurrentExecution(timeoutInSeconds: 300)]
-public sealed class TestStatsSyncJob
-{
-    private readonly IOracleSyncRunner _runner;
-    private readonly IClock _clock;
-    public TestStatsSyncJob(IOracleSyncRunner runner, IClock clock) { _runner = runner; _clock = clock; }
-    public Task RunAsync(CancellationToken ct)
-    {
-        var yesterday = _clock.CairoToday.AddDays(-1);
-        return _runner.RunTestStatsAsync(yesterday, yesterday, manual: false, ct);
-    }
-}
-
-/// <summary>Nightly lab-statistics pull — refreshes just the previous (Cairo) day from Oracle.</summary>
-[DisableConcurrentExecution(timeoutInSeconds: 300)]
-public sealed class LabStatsSyncJob
-{
-    private readonly IOracleSyncRunner _runner;
-    private readonly IClock _clock;
-    public LabStatsSyncJob(IOracleSyncRunner runner, IClock clock) { _runner = runner; _clock = clock; }
-    public Task RunAsync(CancellationToken ct)
-    {
-        var yesterday = _clock.CairoToday.AddDays(-1);
-        return _runner.RunLabStatsAsync(yesterday, yesterday, manual: false, ct);
-    }
-}
-
-/// <summary>Nightly detailed-statistics pull — replaces the previous (Cairo) day's transaction-level lines from Oracle.</summary>
+/// <summary>
+/// Nightly statistics pull — refreshes just the previous (Cairo) day from Oracle for ALL three stats pages: the
+/// aggregate Test Statistics, the per-lab Lab Statistics, and the transaction-level Detailed Statistics, over the
+/// same window in one pass so the pages can never drift on coverage or snapshot timing (they were previously three
+/// separately-scheduled jobs staggered ~5-15 min apart). Timeout covers the heavier detailed (per-line) pull.
+/// </summary>
 [DisableConcurrentExecution(timeoutInSeconds: 600)]
-public sealed class DetailedStatsSyncJob
+public sealed class NightlyStatsSyncJob
 {
     private readonly IOracleSyncRunner _runner;
     private readonly IClock _clock;
-    public DetailedStatsSyncJob(IOracleSyncRunner runner, IClock clock) { _runner = runner; _clock = clock; }
+    public NightlyStatsSyncJob(IOracleSyncRunner runner, IClock clock) { _runner = runner; _clock = clock; }
     public Task RunAsync(CancellationToken ct)
     {
         var yesterday = _clock.CairoToday.AddDays(-1);
-        return _runner.RunDetailedStatsAsync(yesterday, yesterday, manual: false, ct);
+        return _runner.RunNightlyStatsAsync(yesterday, yesterday, manual: false, ct);
     }
 }
 

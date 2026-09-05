@@ -36,9 +36,7 @@ public static class BackgroundJobsRegistration
         services.AddScoped<MissedSweepJob>();
         services.AddScoped<NotificationDispatchJob>();
         services.AddScoped<OracleSyncJob>();
-        services.AddScoped<TestStatsSyncJob>();
-        services.AddScoped<LabStatsSyncJob>();
-        services.AddScoped<DetailedStatsSyncJob>();
+        services.AddScoped<NightlyStatsSyncJob>();
         services.AddScoped<RetentionJob>();
         services.AddScoped<StatsEmailJobRunner>();
 
@@ -72,12 +70,14 @@ public sealed class RecurringJobsInitializer : IHostedService
         // Notification dispatcher (outbox drain) — frequent; retention nightly; oracle hourly (runner gates on interval).
         _jobs.AddOrUpdate<NotificationDispatchJob>("notification-dispatcher", j => j.RunAsync(CancellationToken.None), "*/1 * * * *");
         _jobs.AddOrUpdate<OracleSyncJob>("oracle-sync", j => j.RunAsync(CancellationToken.None), "0 * * * *");
-        // Statistics: each pulls just the previous day from Oracle around midnight Cairo (full history is
-        // seeded on demand via the page buttons). Staggered a few minutes apart to spread the Oracle load.
-        _jobs.AddOrUpdate<TestStatsSyncJob>("teststats-sync", j => j.RunAsync(CancellationToken.None), "0 0 * * *", cairoOptions);
-        _jobs.AddOrUpdate<LabStatsSyncJob>("labstats-sync", j => j.RunAsync(CancellationToken.None), "5 0 * * *", cairoOptions);
-        // Detailed (transaction-level) stats: midnight Cairo, staggered after test/lab syncs to spread Oracle load.
-        _jobs.AddOrUpdate<DetailedStatsSyncJob>("detailedstats-sync", j => j.RunAsync(CancellationToken.None), "15 0 * * *", cairoOptions);
+        // Statistics: one nightly job pulls the previous day from Oracle for Test, Lab and Detailed stats over the
+        // SAME window in one pass, so the three pages can never drift on coverage or snapshot timing (full history
+        // is still seeded on demand via the page buttons).
+        _jobs.AddOrUpdate<NightlyStatsSyncJob>("nightly-stats-sync", j => j.RunAsync(CancellationToken.None), "0 0 * * *", cairoOptions);
+        // Decommission the former standalone, separately-scheduled stats jobs — all three now ride the job above.
+        _jobs.RemoveIfExists("teststats-sync");
+        _jobs.RemoveIfExists("labstats-sync");
+        _jobs.RemoveIfExists("detailedstats-sync");
         _jobs.AddOrUpdate<RetentionJob>("retention-purge", j => j.RunAsync(CancellationToken.None), "0 3 * * *", cairoOptions);
 
         // Per-subscription daily statistics-email schedules (each has its own send time).
