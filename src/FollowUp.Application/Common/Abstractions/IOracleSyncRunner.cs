@@ -30,4 +30,10 @@ public interface IOracleSyncRunner
     /// transaction-level rows for that window. Drives the nightly "yesterday" job and the Detailed Statistics
     /// page button.</summary>
     Task<OracleSyncResult> RunDetailedStatsAsync(DateOnly from, DateOnly to, bool manual, CancellationToken ct);
+
+    /// <summary>Runs the TestStats, LabStats and DetailedStats feeds over the SAME inclusive date range in one
+    /// pass, so the aggregate Test-Statistics counts, the per-lab Lab-Statistics counts and the transaction-level
+    /// Detailed-Statistics lines always cover identical dates and are pulled from Oracle back-to-back (no cross-job
+    /// window or timing drift). Drives the nightly stats job.</summary>
+    Task<OracleSyncResult> RunNightlyStatsAsync(DateOnly from, DateOnly to, bool manual, CancellationToken ct);
 }
