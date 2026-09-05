@@ -89,8 +89,8 @@ export class DateInputComponent implements ControlValueAccessor, OnDestroy {
 
   private readonly host = inject(ElementRef<HTMLElement>);
 
-  // Close on any scroll (capture phase catches scrolling in nested containers, not just the window).
-  private readonly scrollHandler = (): void => { if (this.open) this.close(); };
+  // Keep the calendar open while the page scrolls — reposition it to follow the field instead of closing.
+  private readonly scrollHandler = (): void => { if (this.open) this.position(); };
   constructor() { document.addEventListener('scroll', this.scrollHandler, true); }
   ngOnDestroy(): void { document.removeEventListener('scroll', this.scrollHandler, true); }
 
@@ -174,7 +174,7 @@ export class DateInputComponent implements ControlValueAccessor, OnDestroy {
   }
 
   @HostListener('window:resize')
-  onResize(): void { if (this.open) this.close(); }
+  onResize(): void { if (this.open) this.position(); }
   close(): void { this.open = false; }
   get monthLabel(): string { return `${MONTHS[this.viewMonth]} ${this.viewYear}`; }
   get weekdays(): string[] { return WD; }
