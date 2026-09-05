@@ -122,6 +122,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Features.Auth.ISessionQueries, Persistence.Queries.SessionQueries>();
         services.AddScoped<Application.Features.LabStats.ILabStatsQueries, Persistence.Queries.LabStatsQueries>();
         services.AddScoped<Application.Features.AreaStats.IAreaStatsQueries, Persistence.Queries.AreaStatsQueries>();
+        services.AddScoped<Application.Features.DetailedStats.IDetailedStatsQueries, Persistence.Queries.DetailedStatsQueries>();
         services.AddScoped<Application.Features.TestCatalogue.ITestCatalogueQueries, Persistence.Queries.TestCatalogueQueries>();
         services.AddScoped<Application.Features.Compensation.ICompensationQueries, Persistence.Queries.CompensationQueries>();
         services.AddScoped<Application.Features.Notifications.INotificationQueries, Persistence.Queries.NotificationQueries>();
@@ -145,6 +146,7 @@ public static class DependencyInjection
         services.AddScoped<IRoleRepository, RoleRepository>();
         services.AddScoped<IUserSessionRepository, UserSessionRepository>();
         services.AddScoped<IDailyLabStatisticRepository, DailyLabStatisticRepository>();
+        services.AddScoped<IDetailedRegistrationRepository, DetailedRegistrationRepository>();
         services.AddScoped<ITestStatisticRepository, TestStatisticRepository>();
         services.AddScoped<ITestGroupRepository, TestGroupRepository>();
         services.AddScoped<ITestSetupRepository, TestSetupRepository>();

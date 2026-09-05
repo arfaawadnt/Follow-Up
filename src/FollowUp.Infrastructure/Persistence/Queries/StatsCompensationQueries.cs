@@ -1,5 +1,6 @@
 using FollowUp.Application.Features.AreaStats;
 using FollowUp.Application.Features.Compensation;
+using FollowUp.Application.Features.DetailedStats;
 using FollowUp.Application.Features.LabStats;
 using FollowUp.Application.Features.TestCatalogue;
 using FollowUp.Domain.Common;
@@ -106,6 +107,48 @@ internal sealed class AreaStatsQueries : IAreaStatsQueries
                 GovReal(kv.Key.Item2), AreaReal(kv.Key.Item4), kv.Value.test, kv.Value.income))
             .OrderBy(d => d.Date).ThenBy(d => d.Governorate).ThenBy(d => d.Area)
             .ToList();
+    }
+
+    private static bool IsGlobal(OrgScope s) =>
+        s.Branches.Contains(OrgScope.Wildcard) && s.Governorates.Contains(OrgScope.Wildcard) &&
+        s.Cities.Contains(OrgScope.Wildcard) && s.Areas.Contains(OrgScope.Wildcard) &&
+        s.Categories.Contains(OrgScope.Wildcard) && s.Segments.Contains(OrgScope.Wildcard);
+}
+
+/// <summary>
+/// Reads synced transaction-level registration lines over a range and enriches each with its lab's stamped
+/// profile (governorate/city/area/category/branch/name) by lab code. Rows whose lab code is null (no lab) keep a
+/// null profile and are excluded when the caller's scope is not global. The page does the grouping/subtotals and
+/// the geography/category/branch filtering client-side (mirrors the other stats pages).
+/// </summary>
+internal sealed class DetailedStatsQueries : IDetailedStatsQueries
+{
+    private readonly FollowUpDbContext _db;
+    public DetailedStatsQueries(FollowUpDbContext db) => _db = db;
+
+    public async Task<IReadOnlyList<DetailedStatDto>> ListAsync(DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct)
+    {
+        var q = _db.DetailedRegistrations.AsNoTracking().Where(s => s.Date >= from && s.Date <= to);
+
+        if (!IsGlobal(scope))
+        {
+            var allowedCodes = (await _db.Laboratories.ApplyScope(scope).Select(l => l.Code).ToListAsync(ct))
+                .Select(c => c.Value).ToList();
+            q = q.Where(s => s.LabCode != null && allowedCodes.Contains(s.LabCode));
+        }
+
+        var rows = await q.OrderBy(s => s.Date).ToListAsync(ct);
+
+        var labInfo = (await _db.Laboratories.AsNoTracking()
+                .Select(l => new { l.Code, l.Name, l.Category, l.Branch, l.Governorate, l.City, l.Area }).ToListAsync(ct))
+            .GroupBy(l => l.Code.Value).ToDictionary(g => g.Key, g => g.First());
+
+        return rows.Select(s =>
+        {
+            var l = s.LabCode != null && labInfo.TryGetValue(s.LabCode, out var found) ? found : null;
+            return new DetailedStatDto(s.Date, l?.Governorate, l?.City, l?.Area, l?.Category, l?.Branch,
+                s.LabCode, l?.Name, s.AccNo, s.PatientName, s.TestCode, s.TestType, s.TestName, s.PatientFee + s.InsuranceFee);
+        }).ToList();
     }
 
     private static bool IsGlobal(OrgScope s) =>

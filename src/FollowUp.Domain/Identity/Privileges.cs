@@ -59,6 +59,7 @@ public static class Privileges
     public const string ViewLabStats = nameof(ViewLabStats);
     public const string ViewTeststats = nameof(ViewTeststats);
     public const string ViewAreaStats = nameof(ViewAreaStats);
+    public const string ViewDetailedStats = nameof(ViewDetailedStats);
     public const string AddGroups = nameof(AddGroups);
     public const string UpdateGroups = nameof(UpdateGroups);
     public const string DeleteGroups = nameof(DeleteGroups);
@@ -87,7 +88,7 @@ public static class Privileges
         ViewMarketing, AddMarketing, UpdateMarketing,
         ViewComplaints, AddComplaints, UpdateComplaints, ResolveComplaints, ManageComplaints,
         ManageLoyalty, ManageCommissions,
-        ViewLabStats, ViewTeststats, ViewAreaStats, AddGroups, UpdateGroups, DeleteGroups,
+        ViewLabStats, ViewTeststats, ViewAreaStats, ViewDetailedStats, AddGroups, UpdateGroups, DeleteGroups,
         AddTestsetup, UpdateTestsetup, DeleteTestsetup, AddTeststats,
         ManageUsers, OracleIntegration, ManageEmailReports, SetupRefs, SetupCities, SetupAreas,
     };
@@ -99,7 +100,7 @@ public static class Privileges
         [ManageReps] = new[] { ViewReps, AddReps, UpdateReps },
         [ManageComplaints] = new[] { ViewComplaints, AddComplaints, UpdateComplaints, ResolveComplaints },
         [ManageTransfers] = new[] { ViewTransfers, ConfirmTransfers },
-        [ViewReports] = new[] { ViewLabStats, ViewTeststats, ViewAreaStats },
+        [ViewReports] = new[] { ViewLabStats, ViewTeststats, ViewAreaStats, ViewDetailedStats },
     };
 
     /// <summary>

@@ -57,6 +57,29 @@ internal sealed class TestStatisticConfiguration : IEntityTypeConfiguration<Test
     }
 }
 
+internal sealed class DetailedRegistrationConfiguration : IEntityTypeConfiguration<DetailedRegistration>
+{
+    public void Configure(EntityTypeBuilder<DetailedRegistration> b)
+    {
+        b.ToTable("detailed_registration");
+        b.HasKey(x => x.Id);
+        b.IgnoreDomainEvents();
+
+        b.Property(x => x.Date);
+        b.Property(x => x.LabCode).HasMaxLength(32);
+        b.Property(x => x.AccNo).HasMaxLength(64).IsRequired();
+        b.Property(x => x.PatientName).HasMaxLength(256).IsRequired();
+        b.Property(x => x.TestCode).HasMaxLength(64).IsRequired();
+        b.Property(x => x.TestType);
+        b.Property(x => x.TestName).HasMaxLength(256);
+        b.Property(x => x.PatientFee).HasColumnType("numeric(18,2)");
+        b.Property(x => x.InsuranceFee).HasColumnType("numeric(18,2)");
+        b.Ignore(x => x.Fee); // computed (PatientFee + InsuranceFee)
+        // Window-replace sync + range reads: index by date (and lab code for the scoped/grouped read).
+        b.HasIndex(x => new { x.Date, x.LabCode });
+    }
+}
+
 internal sealed class TestGroupConfiguration : IEntityTypeConfiguration<TestGroup>
 {
     public void Configure(EntityTypeBuilder<TestGroup> b)

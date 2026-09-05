@@ -56,6 +56,7 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
     private readonly IOracleReader _reader;
     private readonly ITestStatisticRepository _testStats;
     private readonly IDailyLabStatisticRepository _labStats;
+    private readonly IDetailedRegistrationRepository _detailed;
     private readonly ITestGroupRepository _groups;
     private readonly ITestSetupRepository _setups;
     private readonly IRefItemRepository _refs;
@@ -69,6 +70,7 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
 
     public OracleSyncRunner(IOracleConfigRepository configRepo, IOracleReader reader,
         ITestStatisticRepository testStats, IDailyLabStatisticRepository labStats,
+        IDetailedRegistrationRepository detailed,
         ITestGroupRepository groups, ITestSetupRepository setups,
         IRefItemRepository refs, ICityRepository cities, IAreaRepository areas,
         IRepresentativeRepository repsRepo, ILaboratoryRepository labs,
@@ -78,6 +80,7 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
         _reader = reader;
         _testStats = testStats;
         _labStats = labStats;
+        _detailed = detailed;
         _groups = groups;
         _setups = setups;
         _refs = refs;
@@ -518,6 +521,43 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
 
         return new OracleSyncResult(true, "ok", LabsUpserted: upserted, StatsUpserted: 0,
             Upserts: new Dictionary<string, int> { ["LabStats"] = upserted, ["LabStatus"] = restatused });
+    }
+
+    /// <summary>
+    /// Runs the DetailedStats feed over an inclusive date range and replaces the synced transaction-level rows for
+    /// that window (delete the range, then bulk-insert the freshly read lines). Idempotent per window.
+    /// </summary>
+    public async Task<OracleSyncResult> RunDetailedStatsAsync(DateOnly from, DateOnly to, bool manual, CancellationToken ct)
+    {
+        var config = await _configRepo.GetAsync(ct);
+        if (config is null || !config.Enabled)
+            return new OracleSyncResult(false, "disabled", 0, 0);
+        if (to < from) (from, to) = (to, from);
+
+        var window = new OracleDateWindow(
+            from.ToDateTime(TimeOnly.MinValue),
+            to.AddDays(1).ToDateTime(TimeOnly.MinValue));
+        var rows = await _reader.ExecuteAsync("DetailedStats", window, ct);
+
+        // Window replace: clear the range, then insert the freshly read lines.
+        await _detailed.DeleteRangeAsync(from, to, ct);
+        var mapped = new List<DetailedRegistration>(rows.Count);
+        foreach (var row in rows)
+        {
+            if (!row.Values.TryGetValue("REG_DT", out var dObj) || dObj is null) continue;
+            var date = DateOnly.FromDateTime(Convert.ToDateTime(dObj));
+            mapped.Add(DetailedRegistration.Create(
+                date, Str(row, "LAB_CODE"), Str(row, "ACC_NO"), Str(row, "PATIENT_NAME"),
+                Str(row, "TEST_CODE"), Int(row, "TEST_TYPE"), Str(row, "TEST_NAME"),
+                Dec(row, "PATIENT_FEE"), Dec(row, "INSURANCE_FEE")));
+        }
+        _detailed.AddRange(mapped);
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation("DetailedStats sync ({Mode}) {From:yyyy-MM-dd}..{To:yyyy-MM-dd}: {Rows} lines",
+            manual ? "manual" : "scheduled", from, to, mapped.Count);
+        return new OracleSyncResult(true, "ok", LabsUpserted: 0, StatsUpserted: mapped.Count,
+            Upserts: new Dictionary<string, int> { ["DetailedStats"] = mapped.Count });
     }
 
     /// <summary>

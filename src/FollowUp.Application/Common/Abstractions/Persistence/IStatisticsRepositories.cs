@@ -24,6 +24,15 @@ public interface ITestStatisticRepository
     void Remove(TestStatistic stat);
 }
 
+/// <summary>Aggregate repository for <see cref="DetailedRegistration"/> — synced wholesale per date window
+/// (delete the range, then re-insert), so it exposes a bulk delete + add rather than a per-row upsert.</summary>
+public interface IDetailedRegistrationRepository
+{
+    /// <summary>Deletes every synced row whose date falls in the inclusive range (window replace). Returns rows removed.</summary>
+    Task<int> DeleteRangeAsync(DateOnly from, DateOnly to, CancellationToken ct);
+    void AddRange(IEnumerable<DetailedRegistration> rows);
+}
+
 /// <summary>Aggregate repository for <see cref="TestGroup"/>.</summary>
 public interface ITestGroupRepository
 {

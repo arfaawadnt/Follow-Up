@@ -49,6 +49,7 @@ public sealed class FollowUpDbContext : DbContext
     public DbSet<MonthlySample> MonthlySamples => Set<MonthlySample>();
     public DbSet<DailyLabStatistic> DailyLabStatistics => Set<DailyLabStatistic>();
     public DbSet<TestStatistic> TestStatistics => Set<TestStatistic>();
+    public DbSet<DetailedRegistration> DetailedRegistrations => Set<DetailedRegistration>();
     public DbSet<TestGroup> TestGroups => Set<TestGroup>();
     public DbSet<TestSetup> TestSetups => Set<TestSetup>();
 
@@ -113,6 +114,7 @@ public sealed class FollowUpDbContext : DbContext
         c.Properties<ComplaintId>().HaveConversion<ComplaintIdConverter>();
         c.Properties<MonthlySampleId>().HaveConversion<MonthlySampleIdConverter>();
         c.Properties<DailyLabStatisticId>().HaveConversion<DailyLabStatisticIdConverter>();
+        c.Properties<DetailedRegistrationId>().HaveConversion<DetailedRegistrationIdConverter>();
         c.Properties<TestStatisticId>().HaveConversion<TestStatisticIdConverter>();
         c.Properties<TestGroupId>().HaveConversion<TestGroupIdConverter>();
         c.Properties<TestSetupId>().HaveConversion<TestSetupIdConverter>();

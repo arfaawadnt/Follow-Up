@@ -1,4 +1,5 @@
 using FollowUp.Application.Features.AreaStats;
+using FollowUp.Application.Features.DetailedStats;
 using FollowUp.Application.Features.Compensation;
 using FollowUp.Application.Features.Integration;
 using FollowUp.Application.Features.LabStats;
@@ -70,6 +71,11 @@ public static class AnalyticsEndpoints
             Results.Ok(await m.Send(new GetAreaStatsQuery(from, to), ct))).WithTags("AreaStats");
         api.MapPost("/area-statistics/sync", async (SyncStatsBody b, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new SyncAreaStatsCommand(b.From, b.To), ct))).WithTags("AreaStats");
+
+        api.MapGet("/detailed-statistics", async (DateOnly from, DateOnly to, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetDetailedStatsQuery(from, to), ct))).WithTags("DetailedStats");
+        api.MapPost("/detailed-statistics/sync", async (SyncStatsBody b, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new SyncDetailedStatsCommand(b.From, b.To), ct))).WithTags("DetailedStats");
 
         api.MapGet("/test-groups", async (IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetTestGroupsQuery(), ct))).WithTags("TestCatalogue");

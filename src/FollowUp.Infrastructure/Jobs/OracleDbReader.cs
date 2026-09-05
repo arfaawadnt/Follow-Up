@@ -95,6 +95,36 @@ public static class OracleDefaultQueries
         "AND dl.dname IS NULL " +
         "ORDER BY r.reg_date, r.lab_no";
 
+    /// <summary>
+    /// Transaction-level registration test-lines backing the Detailed Statistics page: one row per selected service
+    /// (same "test" definition as <see cref="TestStats"/>/<see cref="LabStats"/> — service_type &lt;&gt; 7, not
+    /// cancelled, visible catalogue match). Returns the reg date, the resolved lab code (LEFT JOIN the same
+    /// doctor→lab mapping LabStats uses; NULL when the doctor resolves to no lab → "No lab"), accession (lab_no),
+    /// patient name, test code/type/name, and the raw patient (cash) + insurance fee components. Synced wholesale
+    /// per date window into <c>detailed_registration</c>.
+    /// </summary>
+    public const string DetailedStats =
+        "SELECT r.reg_date AS reg_dt, " +
+        "dl.lab_code AS lab_code, " +
+        "r.lab_no AS acc_no, " +
+        "r.patient_name AS patient_name, " +
+        "rss.service_code AS test_code, " +
+        "rss.service_type AS test_type, " +
+        "gt.test_name AS test_name, " +
+        "NVL(rss.patient_fee,0) AS patient_fee, " +
+        "NVL(rss.insurance_fee,0) AS insurance_fee " +
+        "FROM reg r " +
+        "JOIN reg_selected_services rss ON rss.reg_key = r.reg_key " +
+        "AND rss.service_type <> 7 AND NVL(rss.iscancelled,0) <> 1 " +
+        "JOIN global_tests2 gt ON gt.test_code = rss.service_code AND gt.test_type = rss.service_type AND gt.visible = 1 " +
+        "LEFT JOIN (" +
+        "SELECT UPPER(TRIM(d.doctor_name)) AS dname, MIN(l.lab_code) AS lab_code " +
+        "FROM doctors d JOIN lab l ON l.doctor_code = d.doctor_code " +
+        "GROUP BY UPPER(TRIM(d.doctor_name))" +
+        ") dl ON dl.dname = UPPER(TRIM(r.doctor)) " +
+        "WHERE r.reg_date >= :from_date AND r.reg_date < :to_date " +
+        "ORDER BY dl.lab_code, r.reg_date, r.lab_no";
+
     /// <summary>Active test-group master (maps to <c>TestGroup</c>: code, name). Only VISIBLE=1; mirrored by the sync.</summary>
     public const string Groups =
         "SELECT group_code, group_name FROM groups WHERE visible = 1";
@@ -132,7 +162,7 @@ public sealed class OracleDbReader : IOracleReader
 {
     private static readonly string[] AllowList =
     {
-        "LabStats", "TestStats", "NoLabTests", "Groups", "Tests",
+        "LabStats", "TestStats", "NoLabTests", "DetailedStats", "Groups", "Tests",
         "Governorates", "Cities", "Areas", "LabCategories", "Branches", "Reps", "Labs",
     };
 

@@ -109,6 +109,7 @@ export class ShellComponent implements AfterViewChecked, OnDestroy {
       { id: 'labstats', key: 'labstats', icon: 'bar-chart-2', path: '/labstats', privilege: 'ViewLabStats' },
       { id: 'teststats', key: 'teststats', icon: 'bar-chart-3', path: '/test-statistics', privilege: 'ViewTeststats' },
       { id: 'areastats', key: 'areastats', icon: 'map', path: '/area-statistics', privilege: 'ViewAreaStats' },
+      { id: 'detailedstats', key: 'detailedstats', icon: 'list', path: '/detailed-statistics', privilege: 'ViewDetailedStats' },
       { id: 'reports', key: 'reports', icon: 'trending-up', path: '/reports', privilege: 'ViewReports' },
       { id: 'rep_intervals', key: 'rep_intervals', icon: 'clock', path: '/rep-intervals', privilege: 'ViewReports' },
     ]},

@@ -25,4 +25,9 @@ public interface IOracleSyncRunner
     /// <summary>Runs only the LabStats feed over an explicit inclusive date range, upserting into existing
     /// per-lab statistics. Drives the nightly "yesterday" job and the date-scoped Lab Statistics page button.</summary>
     Task<OracleSyncResult> RunLabStatsAsync(DateOnly from, DateOnly to, bool manual, CancellationToken ct);
+
+    /// <summary>Runs only the DetailedStats feed over an explicit inclusive date range, replacing the synced
+    /// transaction-level rows for that window. Drives the nightly "yesterday" job and the Detailed Statistics
+    /// page button.</summary>
+    Task<OracleSyncResult> RunDetailedStatsAsync(DateOnly from, DateOnly to, bool manual, CancellationToken ct);
 }

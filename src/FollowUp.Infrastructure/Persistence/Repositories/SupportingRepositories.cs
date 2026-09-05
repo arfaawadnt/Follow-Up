@@ -38,6 +38,15 @@ internal sealed class TestStatisticRepository : ITestStatisticRepository
     public void Remove(TestStatistic stat) => _db.TestStatistics.Remove(stat);
 }
 
+internal sealed class DetailedRegistrationRepository : IDetailedRegistrationRepository
+{
+    private readonly FollowUpDbContext _db;
+    public DetailedRegistrationRepository(FollowUpDbContext db) => _db = db;
+    public Task<int> DeleteRangeAsync(DateOnly from, DateOnly to, CancellationToken ct) =>
+        _db.DetailedRegistrations.Where(x => x.Date >= from && x.Date <= to).ExecuteDeleteAsync(ct);
+    public void AddRange(IEnumerable<DetailedRegistration> rows) => _db.DetailedRegistrations.AddRange(rows);
+}
+
 internal sealed class TestGroupRepository : ITestGroupRepository
 {
     private readonly FollowUpDbContext _db;

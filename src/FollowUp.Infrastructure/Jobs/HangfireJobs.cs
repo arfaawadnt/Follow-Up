@@ -67,6 +67,20 @@ public sealed class LabStatsSyncJob
     }
 }
 
+/// <summary>Nightly detailed-statistics pull — replaces the previous (Cairo) day's transaction-level lines from Oracle.</summary>
+[DisableConcurrentExecution(timeoutInSeconds: 600)]
+public sealed class DetailedStatsSyncJob
+{
+    private readonly IOracleSyncRunner _runner;
+    private readonly IClock _clock;
+    public DetailedStatsSyncJob(IOracleSyncRunner runner, IClock clock) { _runner = runner; _clock = clock; }
+    public Task RunAsync(CancellationToken ct)
+    {
+        var yesterday = _clock.CairoToday.AddDays(-1);
+        return _runner.RunDetailedStatsAsync(yesterday, yesterday, manual: false, ct);
+    }
+}
+
 [DisableConcurrentExecution(timeoutInSeconds: 600)]
 public sealed class RetentionJob
 {

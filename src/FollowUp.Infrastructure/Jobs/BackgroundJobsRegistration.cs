@@ -38,6 +38,7 @@ public static class BackgroundJobsRegistration
         services.AddScoped<OracleSyncJob>();
         services.AddScoped<TestStatsSyncJob>();
         services.AddScoped<LabStatsSyncJob>();
+        services.AddScoped<DetailedStatsSyncJob>();
         services.AddScoped<RetentionJob>();
         services.AddScoped<StatsEmailJobRunner>();
 
@@ -75,6 +76,8 @@ public sealed class RecurringJobsInitializer : IHostedService
         // seeded on demand via the page buttons). Staggered a few minutes apart to spread the Oracle load.
         _jobs.AddOrUpdate<TestStatsSyncJob>("teststats-sync", j => j.RunAsync(CancellationToken.None), "0 0 * * *", cairoOptions);
         _jobs.AddOrUpdate<LabStatsSyncJob>("labstats-sync", j => j.RunAsync(CancellationToken.None), "5 0 * * *", cairoOptions);
+        // Detailed (transaction-level) stats: midnight Cairo, staggered after test/lab syncs to spread Oracle load.
+        _jobs.AddOrUpdate<DetailedStatsSyncJob>("detailedstats-sync", j => j.RunAsync(CancellationToken.None), "15 0 * * *", cairoOptions);
         _jobs.AddOrUpdate<RetentionJob>("retention-purge", j => j.RunAsync(CancellationToken.None), "0 3 * * *", cairoOptions);
 
         // Per-subscription daily statistics-email schedules (each has its own send time).
