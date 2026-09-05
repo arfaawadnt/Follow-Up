@@ -125,12 +125,13 @@ public static class OracleDefaultQueries
         "FROM doctors d JOIN lab l ON l.doctor_code = d.doctor_code " +
         "GROUP BY UPPER(TRIM(d.doctor_name))" +
         ") dl ON dl.dname = UPPER(TRIM(r.doctor)) " +
-        // reg_lines statuses per (reg_key, service): pre-collapsed to one row per line so the join can never
+        // reg_lines statuses per (reg_key, test): reg_lines keys the line by test_code/test_type (matched to the
+        // selected service's service_code/service_type). Pre-collapsed to one row per line so the join can never
         // fan out and duplicate a fee-bearing rss row (sample/test status are plain text — for another page).
         "LEFT JOIN (" +
-        "SELECT reg_key, service_code, service_type, MAX(sample_status) AS sample_status, MAX(test_status) AS test_status " +
-        "FROM reg_lines GROUP BY reg_key, service_code, service_type" +
-        ") rl ON rl.reg_key = r.reg_key AND rl.service_code = rss.service_code AND rl.service_type = rss.service_type " +
+        "SELECT reg_key, test_code, test_type, MAX(sample_status) AS sample_status, MAX(test_status) AS test_status " +
+        "FROM reg_lines GROUP BY reg_key, test_code, test_type" +
+        ") rl ON rl.reg_key = r.reg_key AND rl.test_code = rss.service_code AND rl.test_type = rss.service_type " +
         "WHERE r.reg_date >= :from_date AND r.reg_date < :to_date " +
         "ORDER BY dl.lab_code, r.reg_date, r.lab_no";
 
