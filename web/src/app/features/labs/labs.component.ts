@@ -1,6 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { forkJoin } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { LabListItem, PagedResult } from '../../core/models';
@@ -181,12 +182,30 @@ export class LabsComponent {
   load(): void {
     this.loading.set(true);
     this.page.set(1);
-    const params: Record<string, string | number> = { pageSize: 500 };
-    if (this.search.trim()) params['search'] = this.search.trim();
-    if (this.segment !== 'All') params['segment'] = this.segment;
-    if (this.status !== 'All') params['status'] = this.status;
-    this.api.get<PagedResult<LabListItem>>('/labs', params).subscribe({
-      next: (r) => { this.result.set(r); this.items.set(r.items); this.loading.set(false); }, error: () => this.loading.set(false),
+    const base: Record<string, string | number> = {};
+    if (this.search.trim()) base['search'] = this.search.trim();
+    if (this.segment !== 'All') base['segment'] = this.segment;
+    if (this.status !== 'All') base['status'] = this.status;
+    // The server clamps pageSize to PagedResult.MaxPageSize (1000), so page through and load every
+    // matching lab — the KPI tiles and filter dropdowns count client-side over the full set.
+    const size = 1000;
+    this.api.get<PagedResult<LabListItem>>('/labs', { ...base, page: 1, pageSize: size }).subscribe({
+      next: (first) => {
+        const pages = Math.max(1, Math.ceil(first.total / size));
+        if (pages <= 1) { this.result.set(first); this.items.set(first.items); this.loading.set(false); return; }
+        const rest = Array.from({ length: pages - 1 }, (_, i) =>
+          this.api.get<PagedResult<LabListItem>>('/labs', { ...base, page: i + 2, pageSize: size }));
+        forkJoin(rest).subscribe({
+          next: (results) => {
+            const all = first.items.concat(...results.map((r) => r.items));
+            this.result.set({ ...first, items: all });
+            this.items.set(all);
+            this.loading.set(false);
+          },
+          error: () => { this.result.set(first); this.items.set(first.items); this.loading.set(false); },
+        });
+      },
+      error: () => this.loading.set(false),
     });
   }
 }
