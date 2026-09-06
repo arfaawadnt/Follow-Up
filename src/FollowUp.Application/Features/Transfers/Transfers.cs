@@ -19,7 +19,8 @@ public sealed record TransferItemDto(
     string? Branch, string? Governorate, string? City, string? Area,
     DateOnly VisitDate, string VisitTime, string? CollectorName, int? Samples,
     bool TransferDone, string? DriverName, string? DriverMobile, string? CarPlate,
-    Guid? TransferRepId, string? TransferRepName, string? TransferTime);
+    Guid? TransferRepId, string? TransferRepName, string? TransferTime,
+    bool Archived = false);
 
 /// <summary>Read-side query interface for collected visits (transferred or awaiting transfer) in a range.</summary>
 public interface ITransferQueries

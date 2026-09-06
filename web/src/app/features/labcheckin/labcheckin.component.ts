@@ -68,13 +68,13 @@ import { ToastService } from '../../core/toast.service';
           <tbody>
             @for (r of filtered(); track r.visitId) {
               <tr>
-                <td>@if (r.status !== 'Received') { <input type="checkbox" [checked]="selected.has(r.visitId)" (change)="toggleRow(r.visitId)"> }</td>
+                <td>@if (r.status !== 'Received' && !r.archived) { <input type="checkbox" [checked]="selected.has(r.visitId)" (change)="toggleRow(r.visitId)"> }</td>
                 <td><b style="color:var(--slate-900)">{{ r.labName }}</b><div class="small muted">{{ r.labDisplayCode }}@if (r.area) { · {{ r.area }} }</div></td>
                 <td class="mono small">{{ r.visitDate | appDate }} · {{ r.visitTime }}</td>
                 <td>{{ r.collectorName ?? '—' }}<div class="small muted">{{ r.transferRepName ?? '' }}</div></td>
                 <td class="mono" style="font-weight:700">{{ r.samples ?? 0 }}</td>
                 <td class="mono small">{{ when(r.transferTime) }}</td>
-                <td><span class="badge" [class]="r.status === 'Received' ? 'b-ok' : 'b-warn'">{{ (r.status === 'Received' ? 'received' : 'transferred') | t : r.status }}</span></td>
+                <td><span class="badge" [class]="r.status === 'Received' ? 'b-ok' : 'b-warn'">{{ (r.status === 'Received' ? 'received' : 'transferred') | t : r.status }}</span>@if (r.archived) { <span class="badge b-neu" title="{{ 'archived_readonly' | t : 'Archived — read-only history' }}">{{ 'history' | t : 'History' }}</span> }</td>
                 <td style="text-align:center">
                   @if (r.status === 'Received') { <span style="color:var(--ok-ink)" [title]="when(r.receivedTime)">✓</span> }
                 </td>

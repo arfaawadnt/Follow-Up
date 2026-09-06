@@ -80,6 +80,7 @@ export interface BoardItem {
   branch: string | null; governorate: string | null; city: string | null; area: string | null;
   visitDate: string; scheduledTime: string;
   status: string; samples: number | null; markedAt: string | null; adminChecked: boolean; transferDone: boolean;
+  archived?: boolean;
 }
 
 export interface RepListItem {
@@ -108,12 +109,14 @@ export interface TransferItem {
   visitDate: string; visitTime: string; collectorName: string | null; samples: number | null;
   transferDone: boolean; driverName: string | null; driverMobile: string | null; carPlate: string | null;
   transferRepId: string | null; transferRepName: string | null; transferTime: string | null;
+  archived?: boolean;
 }
 export interface ReceivingItem {
   visitId: string; laboratoryId: string; labDisplayCode: string; labName: string;
   branch: string | null; governorate: string | null; city: string | null; area: string | null;
   visitDate: string; visitTime: string; collectorName: string | null; samples: number | null; status: string;
   transferRepName: string | null; transferTime: string | null; receivedTime: string | null;
+  archived?: boolean;
 }
 export interface SampleTracking {
   id: string; area: string; date: string; count: number;

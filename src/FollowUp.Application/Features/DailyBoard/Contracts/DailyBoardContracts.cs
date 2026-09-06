@@ -21,7 +21,9 @@ public sealed record BoardItemDto(
     int? Samples,
     string? MarkedAt,
     bool AdminChecked,
-    bool TransferDone);
+    bool TransferDone,
+    /// <summary>True for rows read from the archive (past days rolled off the live board) — the UI shows these read-only.</summary>
+    bool Archived = false);
 
 /// <summary>The outcome of a lab-scoped board reconcile — visits added and stale Pending visits pruned.</summary>
 public readonly record struct BoardReconciliation(int Added, int Pruned);

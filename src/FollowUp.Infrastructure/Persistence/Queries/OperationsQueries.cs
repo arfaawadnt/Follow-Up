@@ -20,9 +20,10 @@ internal sealed class DailyBoardQueries : IDailyBoardQueries
         DateOnly start, DateOnly end, Guid? repId, string? status, OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
     {
         var scopedLabs = _db.Laboratories.ApplyScope(scope).Select(l => l.Id);
+
+        // Live board — the actionable rows (only today survives the midnight roll-over).
         var q = _db.DailyVisits.AsNoTracking()
             .Where(v => v.VisitDate >= start && v.VisitDate <= end && scopedLabs.Contains(v.LaboratoryId));
-
         if (repId is { } rid)
             q = q.Where(v => v.CollectorRepId == new RepresentativeId(rid));
         if (status is { Length: > 0 })
@@ -33,26 +34,50 @@ internal sealed class DailyBoardQueries : IDailyBoardQueries
             else
                 q = q.Where(v => v.Status == Enumeration.FromName<VisitStatus>(status));
         }
-
-        var rows = await (from v in q
+        var live = await (from v in q
                           join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
-                          orderby v.VisitDate, v.ScheduledTime
                           select new { v.Id, v.LaboratoryId, l.Code, l.IsEncrypted, l.Name, l.Branch, l.Governorate, l.City, l.Area,
                               v.CollectorRepId, v.VisitDate, v.ScheduledTime, v.Status, v.SampleCount, v.CheckedInAt, v.AdminChecked, v.TransferConfirmedAt })
                          .ToListAsync(ct);
 
-        var repIds = rows.Where(r => r.CollectorRepId != null).Select(r => r.CollectorRepId!.Value).Distinct().ToList();
+        // Archived days (rolled off the live board into visit_history) — read-only history.
+        var hq = _db.VisitHistory.AsNoTracking()
+            .Where(h => h.VisitDate >= start && h.VisitDate <= end && scopedLabs.Contains(h.LaboratoryId));
+        if (repId is { } ridH)
+            hq = hq.Where(h => h.CollectorRepId == new RepresentativeId(ridH));
+        if (status is { Length: > 0 })
+        {
+            if (status == VisitStatus.Visited.Name)
+                hq = hq.Where(h => h.Status == VisitStatus.Visited.Name || h.Status == VisitStatus.Received.Name);
+            else
+                hq = hq.Where(h => h.Status == status);
+        }
+        var archived = await (from h in hq
+                              join l in _db.Laboratories.AsNoTracking() on h.LaboratoryId equals l.Id
+                              select new { h.OriginalVisitId, h.LaboratoryId, l.Code, l.IsEncrypted, l.Name, l.Branch, l.Governorate, l.City, l.Area,
+                                  h.CollectorRepId, h.VisitDate, h.ScheduledTime, h.Status, h.SampleCount, h.CheckedInAt, h.AdminChecked, h.TransferConfirmedAt })
+                             .ToListAsync(ct);
+
+        var repIds = live.Where(r => r.CollectorRepId != null).Select(r => r.CollectorRepId!.Value)
+            .Concat(archived.Where(r => r.CollectorRepId != null).Select(r => r.CollectorRepId!.Value)).Distinct().ToList();
         var repName = (await _db.Representatives.AsNoTracking().Where(r => repIds.Contains(r.Id))
             .Select(r => new { r.Id, r.FullName }).ToListAsync(ct)).ToDictionary(r => r.Id, r => r.FullName);
+        string? RepOf(RepresentativeId? id) => id != null && repName.TryGetValue(id.Value, out var n) ? n : null;
 
-        return rows.Select(r => new BoardItemDto(
+        var liveDtos = live.Select(r => new BoardItemDto(
             r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, r.IsEncrypted, canSeeEncrypted), r.Name,
-            r.CollectorRepId != null ? r.CollectorRepId.Value.Value : (Guid?)null,
-            r.CollectorRepId != null && repName.TryGetValue(r.CollectorRepId.Value, out var n) ? n : null,
+            r.CollectorRepId != null ? r.CollectorRepId.Value.Value : (Guid?)null, RepOf(r.CollectorRepId),
             r.Branch, r.Governorate, r.City, r.Area,
             r.VisitDate, r.ScheduledTime.ToString("HH:mm"), r.Status.Name, r.SampleCount,
-            r.CheckedInAt?.ToString("o"), r.AdminChecked,
-            r.TransferConfirmedAt != null)).ToList();
+            r.CheckedInAt?.ToString("o"), r.AdminChecked, r.TransferConfirmedAt != null, Archived: false));
+        var archDtos = archived.Select(r => new BoardItemDto(
+            r.OriginalVisitId.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, r.IsEncrypted, canSeeEncrypted), r.Name,
+            r.CollectorRepId != null ? r.CollectorRepId.Value.Value : (Guid?)null, RepOf(r.CollectorRepId),
+            r.Branch, r.Governorate, r.City, r.Area,
+            r.VisitDate, r.ScheduledTime != null ? r.ScheduledTime.Value.ToString("HH:mm") : "—", r.Status, r.SampleCount,
+            r.CheckedInAt?.ToString("o"), r.AdminChecked, r.TransferConfirmedAt != null, Archived: true));
+
+        return liveDtos.Concat(archDtos).OrderBy(d => d.VisitDate).ThenBy(d => d.ScheduledTime).ToList();
     }
 
     public async Task<int?> GetSuggestedSampleCountAsync(Guid visitId, OrgScope scope, CancellationToken ct)
@@ -81,27 +106,45 @@ internal sealed class TransferQueries : ITransferQueries
     {
         var scopedLabs = _db.Laboratories.ApplyScope(scope).Select(l => l.Id);
         var visited = VisitStatus.Visited;
-        var rows = await (from v in _db.DailyVisits.AsNoTracking()
+
+        // Live (today) — actionable.
+        var live = await (from v in _db.DailyVisits.AsNoTracking()
                           where v.Status == visited && v.VisitDate >= start && v.VisitDate <= end && scopedLabs.Contains(v.LaboratoryId)
                           join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
-                          orderby v.VisitDate, v.ScheduledTime
                           select new { v.Id, v.LaboratoryId, l.Code, l.IsEncrypted, l.Name, l.Branch, l.Governorate, l.City, l.Area,
-                              v.VisitDate, v.ScheduledTime, v.CollectorRepId, v.SampleCount, v.TransferConfirmedAt,
+                              v.VisitDate, Time = (TimeOnly?)v.ScheduledTime, v.CollectorRepId, v.SampleCount, v.TransferConfirmedAt,
                               v.TransferRepId, v.Transfer })
                          .ToListAsync(ct);
 
-        var repIds = rows.SelectMany(r => new[] { r.CollectorRepId, r.TransferRepId }).Where(x => x != null).Select(x => x!.Value).Distinct().ToList();
+        // Archived (rolled-off days) — read-only history.
+        var archived = await (from h in _db.VisitHistory.AsNoTracking()
+                              where h.Status == VisitStatus.Visited.Name && h.VisitDate >= start && h.VisitDate <= end && scopedLabs.Contains(h.LaboratoryId)
+                              join l in _db.Laboratories.AsNoTracking() on h.LaboratoryId equals l.Id
+                              select new { Id = h.OriginalVisitId, h.LaboratoryId, l.Code, l.IsEncrypted, l.Name, l.Branch, l.Governorate, l.City, l.Area,
+                                  h.VisitDate, Time = h.ScheduledTime, h.CollectorRepId, h.SampleCount, h.TransferConfirmedAt,
+                                  h.TransferRepId, h.DriverName, h.DriverMobile, h.CarPlate })
+                             .ToListAsync(ct);
+
+        var repIds = live.SelectMany(r => new[] { r.CollectorRepId, r.TransferRepId })
+            .Concat(archived.SelectMany(r => new[] { r.CollectorRepId, r.TransferRepId }))
+            .Where(x => x != null).Select(x => x!.Value).Distinct().ToList();
         var repName = (await _db.Representatives.AsNoTracking().Where(r => repIds.Contains(r.Id))
             .Select(r => new { r.Id, r.FullName }).ToListAsync(ct)).ToDictionary(r => r.Id, r => r.FullName);
         string? Name(RepresentativeId? id) => id != null && repName.TryGetValue(id.Value, out var n) ? n : null;
+        TransferItemDto Map(Guid vid, Guid labId, FollowUp.Domain.Laboratories.LabCode code, bool enc, string name,
+            string? br, string? gov, string? city, string? area, DateOnly date, TimeOnly? time, RepresentativeId? collector,
+            int? samples, DateTimeOffset? tConf, RepresentativeId? tRep, string? dName, string? dMob, string? plate, bool archivedRow) =>
+            new(vid, labId, DisplayCode.For(code.Value, enc, canSeeEncrypted), name, br, gov, city, area,
+                date, time != null ? time.Value.ToString("HH:mm") : "—", Name(collector), samples,
+                tConf != null, dName, dMob, plate, tRep != null ? tRep.Value.Value : (Guid?)null, Name(tRep),
+                tConf?.ToString("o"), archivedRow);
 
-        return rows.Select(r => new TransferItemDto(
-            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, r.IsEncrypted, canSeeEncrypted), r.Name,
-            r.Branch, r.Governorate, r.City, r.Area,
-            r.VisitDate, r.ScheduledTime.ToString("HH:mm"), Name(r.CollectorRepId), r.SampleCount,
-            r.TransferConfirmedAt != null, r.Transfer?.DriverName, r.Transfer?.DriverMobile, r.Transfer?.CarPlate,
-            r.TransferRepId != null ? r.TransferRepId.Value.Value : (Guid?)null, Name(r.TransferRepId),
-            r.TransferConfirmedAt?.ToString("o"))).ToList();
+        var liveDtos = live.Select(r => Map(r.Id.Value, r.LaboratoryId.Value, r.Code, r.IsEncrypted, r.Name, r.Branch, r.Governorate, r.City, r.Area,
+            r.VisitDate, r.Time, r.CollectorRepId, r.SampleCount, r.TransferConfirmedAt, r.TransferRepId, r.Transfer?.DriverName, r.Transfer?.DriverMobile, r.Transfer?.CarPlate, false));
+        var archDtos = archived.Select(r => Map(r.Id.Value, r.LaboratoryId.Value, r.Code, r.IsEncrypted, r.Name, r.Branch, r.Governorate, r.City, r.Area,
+            r.VisitDate, r.Time, r.CollectorRepId, r.SampleCount, r.TransferConfirmedAt, r.TransferRepId, r.DriverName, r.DriverMobile, r.CarPlate, true));
+
+        return liveDtos.Concat(archDtos).OrderBy(d => d.VisitDate).ThenBy(d => d.VisitTime).ToList();
     }
 }
 
@@ -115,31 +158,48 @@ internal sealed class LabCheckInQueries : ILabCheckInQueries
         var scopedLabs = _db.Laboratories.ApplyScope(scope).Select(l => l.Id);
         var visited = VisitStatus.Visited;
         var received = VisitStatus.Received;
-        var rows = await (from v in _db.DailyVisits.AsNoTracking()
+
+        // Live (today) — actionable.
+        var live = await (from v in _db.DailyVisits.AsNoTracking()
                           where v.TransferConfirmedAt != null && (v.Status == visited || v.Status == received)
                                 && v.VisitDate >= start && v.VisitDate <= end && scopedLabs.Contains(v.LaboratoryId)
                           join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
-                          orderby v.VisitDate, v.ScheduledTime
                           select new { v.Id, v.LaboratoryId, l.Code, l.IsEncrypted, l.Name, l.Branch, l.Governorate, l.City, l.Area,
-                              v.VisitDate, v.ScheduledTime, v.CollectorRepId, v.SampleCount, v.Status, v.TransferRepId,
+                              v.VisitDate, Time = (TimeOnly?)v.ScheduledTime, v.CollectorRepId, v.SampleCount, IsReceived = v.Status == received, v.TransferRepId,
                               v.TransferConfirmedAt, v.ReceivedAt })
                          .ToListAsync(ct);
 
-        var repIds = rows.SelectMany(r => new[] { r.TransferRepId, r.CollectorRepId })
+        // Archived (rolled-off days) — read-only history.
+        var archived = await (from h in _db.VisitHistory.AsNoTracking()
+                              where h.TransferConfirmedAt != null && (h.Status == VisitStatus.Visited.Name || h.Status == VisitStatus.Received.Name)
+                                    && h.VisitDate >= start && h.VisitDate <= end && scopedLabs.Contains(h.LaboratoryId)
+                              join l in _db.Laboratories.AsNoTracking() on h.LaboratoryId equals l.Id
+                              select new { Id = h.OriginalVisitId, h.LaboratoryId, l.Code, l.IsEncrypted, l.Name, l.Branch, l.Governorate, l.City, l.Area,
+                                  h.VisitDate, Time = h.ScheduledTime, h.CollectorRepId, h.SampleCount, IsReceived = h.Status == VisitStatus.Received.Name, h.TransferRepId,
+                                  h.TransferConfirmedAt, h.ReceivedAt })
+                             .ToListAsync(ct);
+
+        var repIds = live.SelectMany(r => new[] { r.TransferRepId, r.CollectorRepId })
+            .Concat(archived.SelectMany(r => new[] { r.TransferRepId, r.CollectorRepId }))
             .Where(x => x != null).Select(x => x!.Value).Distinct().ToList();
         var repName = (await _db.Representatives.AsNoTracking().Where(r => repIds.Contains(r.Id))
             .Select(r => new { r.Id, r.FullName }).ToListAsync(ct)).ToDictionary(r => r.Id, r => r.FullName);
         string? Name(RepresentativeId? id) => id != null && repName.TryGetValue(id.Value, out var n) ? n : null;
+        // "Transferred" is a display-only status (no VisitStatus member); "Received" is bound to the enum (BRD-11).
+        ReceivingItemDto Map(Guid vid, Guid labId, FollowUp.Domain.Laboratories.LabCode code, bool enc, string name,
+            string? br, string? gov, string? city, string? area, DateOnly date, TimeOnly? time, RepresentativeId? collector,
+            int? samples, bool isReceived, RepresentativeId? tRep, DateTimeOffset? tConf, DateTimeOffset? recv, bool archivedRow) =>
+            new(vid, labId, DisplayCode.For(code.Value, enc, canSeeEncrypted), name, br, gov, city, area,
+                date, time != null ? time.Value.ToString("HH:mm") : "—", Name(collector), samples,
+                isReceived ? VisitStatus.Received.Name : "Transferred", Name(tRep),
+                tConf?.ToString("o"), recv?.ToString("o"), archivedRow);
 
-        return rows.Select(r => new ReceivingItemDto(
-            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, r.IsEncrypted, canSeeEncrypted), r.Name,
-            r.Branch, r.Governorate, r.City, r.Area, r.VisitDate, r.ScheduledTime.ToString("HH:mm"),
-            Name(r.CollectorRepId), r.SampleCount,
-            // "Transferred" is a display-only status (no VisitStatus member); "Received" is bound to the enum (BRD-11).
-            r.Status == received ? VisitStatus.Received.Name : "Transferred",
-            Name(r.TransferRepId),
-            r.TransferConfirmedAt?.ToString("o"),
-            r.ReceivedAt?.ToString("o"))).ToList();
+        var liveDtos = live.Select(r => Map(r.Id.Value, r.LaboratoryId.Value, r.Code, r.IsEncrypted, r.Name, r.Branch, r.Governorate, r.City, r.Area,
+            r.VisitDate, r.Time, r.CollectorRepId, r.SampleCount, r.IsReceived, r.TransferRepId, r.TransferConfirmedAt, r.ReceivedAt, false));
+        var archDtos = archived.Select(r => Map(r.Id.Value, r.LaboratoryId.Value, r.Code, r.IsEncrypted, r.Name, r.Branch, r.Governorate, r.City, r.Area,
+            r.VisitDate, r.Time, r.CollectorRepId, r.SampleCount, r.IsReceived, r.TransferRepId, r.TransferConfirmedAt, r.ReceivedAt, true));
+
+        return liveDtos.Concat(archDtos).OrderBy(d => d.VisitDate).ThenBy(d => d.VisitTime).ToList();
     }
 }
 

@@ -88,15 +88,15 @@ interface Draft { rep: string; name: string; mobile: string; car: string; when: 
               <tbody>
                 @for (r of grp.rows; track r.visitId) {
                   <tr>
-                    <td>@if (!r.transferDone) { <input type="checkbox" [checked]="selected.has(r.visitId)" (change)="toggleRow(r.visitId)"> }</td>
+                    <td>@if (!r.transferDone && !r.archived) { <input type="checkbox" [checked]="selected.has(r.visitId)" (change)="toggleRow(r.visitId)"> }</td>
                     <td><b style="color:var(--slate-900)">{{ r.labName }}</b><div class="small muted">{{ r.labDisplayCode }} · {{ r.branch ?? '—' }}</div></td>
                     <td class="mono small">{{ r.visitDate | appDate }} · {{ r.visitTime }}</td>
                     <td>{{ r.collectorName ?? '—' }}</td>
                     <td class="mono" style="font-weight:700">{{ r.samples ?? 0 }}</td>
-                    <td><span class="badge" [class]="r.transferDone ? 'b-ok' : 'b-warn'">{{ (r.transferDone ? 'transferred' : 'collected') | t : (r.transferDone ? 'Transferred' : 'Collected') }}</span></td>
+                    <td><span class="badge" [class]="r.transferDone ? 'b-ok' : 'b-warn'">{{ (r.transferDone ? 'transferred' : 'collected') | t : (r.transferDone ? 'Transferred' : 'Collected') }}</span>@if (r.archived) { <span class="badge b-neu" title="{{ 'archived_readonly' | t : 'Archived — read-only history' }}">{{ 'history' | t : 'History' }}</span> }</td>
                     <td>
                       @if (r.transferDone) { <div class="small muted">{{ r.driverName }} · {{ r.driverMobile }}<br>{{ r.carPlate }}</div> }
-                      @else if (auth.has('ConfirmTransfers')) {
+                      @else if (!r.archived && auth.has('ConfirmTransfers')) {
                         <div style="display:flex;flex-direction:column;gap:4px">
                           <input class="input" style="padding:4px 8px;font-size:11px;width:130px" [placeholder]="'driver_name_2' | t : 'Driver name'" [(ngModel)]="draft(r.visitId).name">
                           <input class="input" style="padding:4px 8px;font-size:11px;width:130px" [placeholder]="'driver_mobile' | t : 'Driver mobile'" [(ngModel)]="draft(r.visitId).mobile">
@@ -106,7 +106,7 @@ interface Draft { rep: string; name: string; mobile: string; car: string; when: 
                     </td>
                     <td>
                       @if (r.transferDone) { {{ r.transferRepName ?? '—' }} }
-                      @else if (auth.has('ConfirmTransfers')) {
+                      @else if (!r.archived && auth.has('ConfirmTransfers')) {
                         <select class="select" style="width:100%;padding:4px 8px" [(ngModel)]="draft(r.visitId).rep">
                           <option value="">{{ 'select_rep' | t : 'Select rep' }}</option>
                           @for (rep of reps(); track rep.id) { <option [value]="rep.id">{{ rep.fullName }}</option> }
@@ -115,12 +115,12 @@ interface Draft { rep: string; name: string; mobile: string; car: string; when: 
                     </td>
                     <td>
                       @if (r.transferDone) { <span class="mono small">{{ transferAt(r) }}</span> }
-                      @else if (auth.has('ConfirmTransfers')) {
+                      @else if (!r.archived && auth.has('ConfirmTransfers')) {
                         <input type="datetime-local" class="input" style="padding:4px 8px;font-size:11px" [(ngModel)]="draft(r.visitId).when">
                       }
                     </td>
                     <td style="text-align:center">
-                      @if (!r.transferDone && auth.has('ConfirmTransfers')) {
+                      @if (!r.transferDone && !r.archived && auth.has('ConfirmTransfers')) {
                         <input type="checkbox" [(ngModel)]="draft(r.visitId).done" title="Mark transferred (saved with Save Transfer Confirmations)">
                       } @else if (r.transferDone) { <span style="color:var(--ok-ink)">✓</span> }
                     </td>

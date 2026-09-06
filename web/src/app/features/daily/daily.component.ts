@@ -83,12 +83,16 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
               <td class="mono small">{{ marked(v) }}</td>
               <td>{{ v.adminChecked ? '✓' : '—' }}</td>
               <td class="actions">
-                @if (v.status === 'Pending') {
-                  <button class="btn btn-mini btn-p" (click)="openRecord(v)" [disabled]="busy()">{{ 'record_visit' | t : 'Record visit' }}</button>
-                  <button class="btn btn-mini btn-s" (click)="miss(v)" [disabled]="busy()">{{ 'miss' | t : 'missed' }}</button>
-                }
-                @if ((v.status === 'Visited' || v.status === 'Received') && !v.adminChecked && auth.has('VerifyDailyFollowup')) {
-                  <button class="btn btn-mini" (click)="verify(v)" [disabled]="busy()">{{ 'verify' | t : 'Verify' }}</button>
+                @if (v.archived) {
+                  <span class="badge b-neu" title="{{ 'archived_readonly' | t : 'Archived — read-only history' }}">{{ 'history' | t : 'History' }}</span>
+                } @else {
+                  @if (v.status === 'Pending') {
+                    <button class="btn btn-mini btn-p" (click)="openRecord(v)" [disabled]="busy()">{{ 'record_visit' | t : 'Record visit' }}</button>
+                    <button class="btn btn-mini btn-s" (click)="miss(v)" [disabled]="busy()">{{ 'miss' | t : 'missed' }}</button>
+                  }
+                  @if ((v.status === 'Visited' || v.status === 'Received') && !v.adminChecked && auth.has('VerifyDailyFollowup')) {
+                    <button class="btn btn-mini" (click)="verify(v)" [disabled]="busy()">{{ 'verify' | t : 'Verify' }}</button>
+                  }
                 }
               </td>
             </tr>
