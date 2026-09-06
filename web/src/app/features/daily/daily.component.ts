@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal, WritableSignal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DateInputComponent } from '../../shared/date-input.component';
@@ -6,11 +6,12 @@ import { FilterSelectComponent } from '../../shared/filter-select.component';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { IconsService } from '../../core/icons.service';
-import { BoardItem, PagedResult, RepListItem } from '../../core/models';
+import { AttachmentRef, BoardItem, LabListItem, PagedResult, RepListItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
 import { exportXlsx, printTable, localToday, localTime, localDateTime, ddmy } from '../../shared/export.util';
 import { AppDatePipe } from '../../shared/app-date.pipe';
 import { ToastService } from '../../core/toast.service';
+import { AttachmentService } from '../../core/attachment.service';
 
 const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
 
@@ -22,6 +23,9 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
     <div class="pagehead" style="display:flex;justify-content:space-between;align-items:center">
       <div><div class="breadcrumbs">Home / {{ 'daily' | t }}</div><h1>{{ 'daily_followup_board' | t : 'Daily Follow-up Board' }}</h1></div>
       <div style="display:flex;gap:8px">
+        @if (auth.has('AddDailyFollowup')) {
+          <button class="btn btn-p" (click)="openManual()">{{ 'record_manual_visit' | t : 'Record manual visit' }}</button>
+        }
         <button class="btn btn-s" (click)="exportExcel()" [disabled]="!filtered().length">Export Excel</button>
         <button class="btn btn-s" (click)="exportPdf()" [disabled]="!filtered().length">Export PDF</button>
       </div>
@@ -76,7 +80,13 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
           @for (v of paged(); track v.visitId) {
             <tr>
               <td class="mono">{{ v.visitDate | appDate }}<div class="small muted">{{ v.scheduledTime }}</div></td>
-              <td><b style="color:var(--slate-900)">{{ v.lab }}</b><div class="small muted">{{ sub(v) }}</div></td>
+              <td><b style="color:var(--slate-900)">{{ v.lab }}</b><div class="small muted">{{ sub(v) }}</div>
+                @if (v.attachments?.length) {
+                  <div class="docs">@for (a of v.attachments; track a.id) {
+                    <a class="doc-link" (click)="viewDoc(a.id)" [title]="a.fileName">📎 {{ a.fileName }}</a>
+                  }</div>
+                }
+              </td>
               <td>{{ v.rep ?? '—' }}</td>
               <td><span class="badge" [class]="badgeClass(v.status)">{{ statusLabel(v.status) }}</span>@if (v.transferDone) { <span class="badge b-info">{{ 'transferred' | t : 'Transferred' }}</span> }</td>
               <td class="mono">{{ v.samples ?? '—' }}</td>
@@ -143,9 +153,78 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
             <label>Notes (optional)</label>
             <textarea class="input" rows="2" [(ngModel)]="recordNotes" style="width:100%"></textarea>
           </div>
+          <div class="field" style="margin-top:10px">
+            <label>{{ 'documents_optional' | t : 'Documents (optional)' }}</label>
+            <input type="file" multiple accept=".pdf,image/png,image/jpeg" (change)="onAttach($event, recordAtt)">
+            <div class="small muted" style="margin-top:2px">PDF, JPG or PNG · up to 10 MB each</div>
+            @for (a of recordAtt(); track a.id) {
+              <div class="att-row"><span>📎 {{ a.fileName }}</span>
+                <button type="button" class="btn btn-mini btn-s" (click)="removeAtt(a.id, recordAtt)">✕</button></div>
+            }
+            @if (uploading()) { <div class="small muted">{{ 'uploading' | t : 'Uploading…' }}</div> }
+          </div>
           <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
             <button class="btn btn-s" (click)="closeRecord()">{{ 'cancel' | t : 'Cancel' }}</button>
-            <button class="btn btn-p" [disabled]="busy()" (click)="confirmRecord()">{{ 'confirm' | t : 'Confirm visit' }}</button>
+            <button class="btn btn-p" [disabled]="busy() || uploading()" (click)="confirmRecord()">{{ 'confirm' | t : 'Confirm visit' }}</button>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- Manual record: pick any lab (any status) and record a Collected visit for today. -->
+    @if (manualOpen()) {
+      <div class="overlay" (click)="manualOpen.set(false)">
+        <div class="dlg" (click)="$event.stopPropagation()">
+          <h3 style="margin:0 0 12px">{{ 'record_manual_visit' | t : 'Record manual visit' }}</h3>
+          <div class="field">
+            <label>{{ 'laboratory' | t }} *</label>
+            @if (manualLab) {
+              <div class="att-row"><span><b>{{ manualLab.name }}</b> · {{ manualLab.displayCode }} <span class="badge b-neu">{{ manualLab.status }}</span></span>
+                <button type="button" class="btn btn-mini btn-s" (click)="manualLab = null">{{ 'change' | t : 'Change' }}</button></div>
+            } @else {
+              <div style="display:flex;gap:6px">
+                <input class="input" [(ngModel)]="manualLabSearch" (keydown.enter)="searchLabs(); $event.preventDefault()" [placeholder]="'search_lab_name_or_code' | t" style="flex:1">
+                <button class="btn btn-s" (click)="searchLabs()">{{ 'search' | t : 'Search' }}</button>
+              </div>
+              @if (manualLabResults().length) {
+                <div class="lab-results">
+                  @for (l of manualLabResults(); track l.id) {
+                    <div class="lab-opt" (click)="pickManualLab(l)"><b>{{ l.name }}</b> · {{ l.displayCode }} <span class="badge b-neu">{{ l.status }}</span></div>
+                  }
+                </div>
+              } @else if (manualSearched()) { <div class="small muted" style="margin-top:4px">{{ 'no_labs_found' | t : 'No labs found.' }}</div> }
+            }
+          </div>
+          <div class="field" style="margin-top:10px">
+            <label>{{ 'collector_rep' | t : 'Collector Rep' }}</label>
+            <select class="select" [(ngModel)]="manualRep" style="width:100%">
+              <option value="">—</option>
+              @for (r of collectorReps(); track r.id) { <option [value]="r.id">{{ r.fullName }}</option> }
+            </select>
+          </div>
+          <div class="field" style="margin-top:10px">
+            <label>{{ 'samples' | t : 'Samples collected' }} *</label>
+            <input type="number" min="0" class="input" [(ngModel)]="manualCount" style="width:100%">
+          </div>
+          <div class="grid2" style="margin-top:10px">
+            <div class="field"><label>Total Required</label><input type="number" min="0" class="input" [(ngModel)]="manualTotalRequired"></div>
+            <div class="field"><label>No of Requests</label><input type="number" min="0" class="input" [(ngModel)]="manualRequests"></div>
+          </div>
+          <div class="field" style="margin-top:10px"><label>No of Outsource Samples</label><input type="number" min="0" class="input" [(ngModel)]="manualOutsource" style="width:100%"></div>
+          <div class="field" style="margin-top:10px"><label>Notes (optional)</label><textarea class="input" rows="2" [(ngModel)]="manualNotes" style="width:100%"></textarea></div>
+          <div class="field" style="margin-top:10px">
+            <label>{{ 'documents_optional' | t : 'Documents (optional)' }}</label>
+            <input type="file" multiple accept=".pdf,image/png,image/jpeg" (change)="onAttach($event, manualAtt)">
+            <div class="small muted" style="margin-top:2px">PDF, JPG or PNG · up to 10 MB each</div>
+            @for (a of manualAtt(); track a.id) {
+              <div class="att-row"><span>📎 {{ a.fileName }}</span>
+                <button type="button" class="btn btn-mini btn-s" (click)="removeAtt(a.id, manualAtt)">✕</button></div>
+            }
+            @if (uploading()) { <div class="small muted">{{ 'uploading' | t : 'Uploading…' }}</div> }
+          </div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+            <button class="btn btn-s" (click)="manualOpen.set(false)">{{ 'cancel' | t : 'Cancel' }}</button>
+            <button class="btn btn-p" [disabled]="busy() || uploading()" (click)="confirmManual()">{{ 'confirm' | t : 'Confirm visit' }}</button>
           </div>
         </div>
       </div>
@@ -153,8 +232,15 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
   `,
   styles: [`
     .actions{display:flex;gap:6px;align-items:center}.num{width:66px}
+    .docs{margin-top:3px;display:flex;flex-direction:column;gap:2px}
+    .doc-link{font-size:11px;color:var(--brand,#0078d4);cursor:pointer;text-decoration:none;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .doc-link:hover{text-decoration:underline}
+    .att-row{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;margin-top:6px}
+    .lab-results{border:1px solid var(--slate-150,#edebe9);border-radius:8px;margin-top:6px;max-height:180px;overflow:auto}
+    .lab-opt{padding:8px 10px;cursor:pointer;font-size:12.5px;border-bottom:1px solid var(--slate-100,#f3f2f1)}
+    .lab-opt:hover{background:var(--slate-50,#faf9f8)}
     .overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:1000}
-    .dlg{background:var(--white);border-radius:12px;padding:22px;width:min(92vw,420px);box-shadow:0 16px 48px rgba(0,0,0,.25)}
+    .dlg{background:var(--white);border-radius:12px;padding:22px;width:min(92vw,420px);box-shadow:0 16px 48px rgba(0,0,0,.25);max-height:90vh;overflow-y:auto}
     .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .field label{display:block;font:600 11px var(--ui);color:var(--slate-600);margin-bottom:4px}
     .fu-pager{display:flex;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid var(--slate-150,#edebe9);font-size:12.5px;color:var(--slate-700,#605e5c)}
@@ -164,6 +250,7 @@ export class DailyComponent {
   private readonly api = inject(ApiService);
   private readonly icons = inject(IconsService);
   private readonly toast = inject(ToastService);
+  private readonly attach = inject(AttachmentService);
   readonly auth = inject(AuthService);
   readonly loading = signal(true);
   readonly busy = signal(false);
@@ -181,6 +268,22 @@ export class DailyComponent {
   recordRequests: number | null = null;
   recordOutsource: number | null = null;
   recordNotes = '';
+  readonly recordAtt = signal<AttachmentRef[]>([]);
+  readonly uploading = signal(false);
+
+  // Manual-record dialog state
+  readonly manualOpen = signal(false);
+  readonly manualSearched = signal(false);
+  readonly manualLabResults = signal<LabListItem[]>([]);
+  manualLab: LabListItem | null = null;
+  manualLabSearch = '';
+  manualCount: number | null = null;
+  manualRep = '';
+  manualTotalRequired: number | null = null;
+  manualRequests: number | null = null;
+  manualOutsource: number | null = null;
+  manualNotes = '';
+  readonly manualAtt = signal<AttachmentRef[]>([]);
 
   readonly collectorReps = computed(() => this.reps().filter((r) => r.type === 'Collector' || r.type === 'Scanning'));
 
@@ -244,6 +347,7 @@ export class DailyComponent {
     this.recordRequests = null;
     this.recordOutsource = null;
     this.recordNotes = '';
+    this.recordAtt.set([]);
     this.suggested.set(null);
     this.api.get<{ suggested: number | null }>(`/daily/${v.visitId}/suggested-count`).subscribe({
       next: (r) => { this.suggested.set(r.suggested); if (this.recordCount === null && r.suggested !== null) this.recordCount = r.suggested; },
@@ -262,8 +366,63 @@ export class DailyComponent {
       requestCount: this.recordRequests,
       outsourceCount: this.recordOutsource,
       notes: this.recordNotes.trim() || null,
+      attachmentIds: this.recordAtt().map((a) => a.id),
     }).subscribe({
       next: () => { this.toast.success('Follow-up recorded.'); this.busy.set(false); this.recording.set(null); this.load(); },
+      error: () => this.busy.set(false),
+    });
+  }
+
+  // ---- Attachments (shared by the record + manual dialogs) ----
+  viewDoc(id: string): void { this.attach.view(id); }
+
+  onAttach(ev: Event, target: WritableSignal<AttachmentRef[]>): void {
+    const input = ev.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
+    input.value = '';
+    if (!files.length) return;
+    let pending = files.length;
+    this.uploading.set(true);
+    for (const file of files) {
+      this.attach.upload(file).subscribe({
+        next: (ref) => { target.update((a) => [...a, ref]); if (--pending === 0) this.uploading.set(false); },
+        error: () => { if (--pending === 0) this.uploading.set(false); },
+      });
+    }
+  }
+  removeAtt(id: string, target: WritableSignal<AttachmentRef[]>): void {
+    target.update((a) => a.filter((x) => x.id !== id));
+  }
+
+  // ---- Manual record ----
+  openManual(): void {
+    this.manualLab = null; this.manualLabSearch = ''; this.manualLabResults.set([]); this.manualSearched.set(false);
+    this.manualCount = null; this.manualRep = ''; this.manualTotalRequired = null; this.manualRequests = null;
+    this.manualOutsource = null; this.manualNotes = ''; this.manualAtt.set([]);
+    this.manualOpen.set(true);
+  }
+  searchLabs(): void {
+    const term = this.manualLabSearch.trim();
+    this.api.get<PagedResult<LabListItem>>('/labs', { search: term, pageSize: 25 }).subscribe({
+      next: (r) => { this.manualLabResults.set(r.items); this.manualSearched.set(true); },
+    });
+  }
+  pickManualLab(l: LabListItem): void { this.manualLab = l; this.manualLabResults.set([]); }
+  confirmManual(): void {
+    if (!this.manualLab) { this.toast.warning('Select a laboratory.'); return; }
+    if (this.manualCount === null || this.manualCount < 0) { this.toast.warning('Enter a valid sample count.'); return; }
+    this.busy.set(true);
+    this.api.post('/daily/manual', {
+      laboratoryId: this.manualLab.id,
+      sampleCount: this.manualCount,
+      collectorRepId: this.manualRep || null,
+      totalRequired: this.manualTotalRequired,
+      requestCount: this.manualRequests,
+      outsourceCount: this.manualOutsource,
+      notes: this.manualNotes.trim() || null,
+      attachmentIds: this.manualAtt().map((a) => a.id),
+    }).subscribe({
+      next: () => { this.toast.success('Visit recorded.'); this.busy.set(false); this.manualOpen.set(false); this.load(); },
       error: () => this.busy.set(false),
     });
   }

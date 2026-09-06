@@ -106,6 +106,16 @@ public sealed class FakeDailyVisitRepository : IDailyVisitRepository
     public void Add(DailyVisit visit) => Store.Add(visit);
 }
 
+public sealed class FakeVisitAttachmentRepository : IVisitAttachmentRepository
+{
+    public readonly List<VisitAttachment> Store = new();
+    public void Add(VisitAttachment attachment) => Store.Add(attachment);
+    public Task<VisitAttachment?> GetByIdAsync(VisitAttachmentId id, CancellationToken ct) =>
+        Task.FromResult(Store.FirstOrDefault(a => a.Id == id));
+    public Task<IReadOnlyList<VisitAttachment>> GetByIdsAsync(IReadOnlyCollection<VisitAttachmentId> ids, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<VisitAttachment>>(Store.Where(a => ids.Contains(a.Id)).ToList());
+}
+
 public sealed class FakeMarketingVisitRepository : IMarketingVisitRepository
 {
     public readonly List<MarketingVisit> Store = new();

@@ -18,6 +18,7 @@ public sealed record ReceivingItemDto(
     string? Branch, string? Governorate, string? City, string? Area,
     DateOnly VisitDate, string VisitTime, string? CollectorName, int? Samples, string Status,
     string? TransferRepName, string? TransferTime, string? ReceivedTime,
+    IReadOnlyList<Common.Models.AttachmentRefDto>? Attachments = null,
     bool Archived = false);
 
 /// <summary>Read-side query for transferred items (awaiting receipt or received) in a date range.</summary>

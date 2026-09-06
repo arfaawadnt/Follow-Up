@@ -31,7 +31,9 @@ public sealed record SampleLifecycleRowDto(
     string? DataEntryBy, DateTimeOffset? DataEntryAt,
     string? ReviewBy, DateTimeOffset? ReviewAt,
     string? SortBy, DateTimeOffset? SortAt,
-    string? Notes);
+    string? Notes,
+    Guid? VisitId = null,
+    IReadOnlyList<Common.Models.AttachmentRefDto>? Attachments = null);
 
 public interface ISampleTrackingQueries
 {

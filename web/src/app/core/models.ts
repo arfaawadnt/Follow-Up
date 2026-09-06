@@ -74,13 +74,15 @@ export interface ComplaintDetail {
 }
 export interface ComplaintAuditRow { occurredAt: string; actor: string; action: string; before: string | null; after: string | null; }
 
+export interface AttachmentRef { id: string; fileName: string; contentType: string; sizeBytes: number; }
+
 export interface BoardItem {
   visitId: string; laboratoryId: string; labDisplayCode: string; lab: string;
   collectorRepId: string | null; rep: string | null;
   branch: string | null; governorate: string | null; city: string | null; area: string | null;
   visitDate: string; scheduledTime: string;
   status: string; samples: number | null; markedAt: string | null; adminChecked: boolean; transferDone: boolean;
-  archived?: boolean;
+  archived?: boolean; attachments?: AttachmentRef[];
 }
 
 export interface RepListItem {
@@ -109,14 +111,14 @@ export interface TransferItem {
   visitDate: string; visitTime: string; collectorName: string | null; samples: number | null;
   transferDone: boolean; driverName: string | null; driverMobile: string | null; carPlate: string | null;
   transferRepId: string | null; transferRepName: string | null; transferTime: string | null;
-  archived?: boolean;
+  archived?: boolean; attachments?: AttachmentRef[];
 }
 export interface ReceivingItem {
   visitId: string; laboratoryId: string; labDisplayCode: string; labName: string;
   branch: string | null; governorate: string | null; city: string | null; area: string | null;
   visitDate: string; visitTime: string; collectorName: string | null; samples: number | null; status: string;
   transferRepName: string | null; transferTime: string | null; receivedTime: string | null;
-  archived?: boolean;
+  archived?: boolean; attachments?: AttachmentRef[];
 }
 export interface SampleTracking {
   id: string; area: string; date: string; count: number;
@@ -133,6 +135,7 @@ export interface SampleLifecycleRow {
   dataEntryBy: string | null; dataEntryAt: string | null;
   reviewBy: string | null; reviewAt: string | null;
   sortBy: string | null; sortAt: string | null; notes: string | null;
+  visitId?: string | null; attachments?: AttachmentRef[];
 }
 
 export interface OutsourceSample {

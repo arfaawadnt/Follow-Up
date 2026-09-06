@@ -88,6 +88,7 @@ public static class DependencyInjection
         services.AddScoped<IOracleReader, Jobs.OracleDbReader>();
         services.AddScoped<IOracleSyncRunner, Jobs.OracleSyncRunner>();
         services.AddScoped<Application.Common.Abstractions.ISegmentAssignmentRunner, Jobs.SegmentAssignmentRunner>();
+        services.AddSingleton<Application.Common.Abstractions.IAttachmentStorage, Gateways.LocalAttachmentStorage>();
 
         services.AddSingleton<IFileStorage, Gateways.LocalFileStorage>();
 
@@ -111,6 +112,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Features.Laboratories.Contracts.ILaboratoryQueries, Persistence.Queries.LaboratoryQueries>();
         services.AddScoped<Application.Features.Representatives.Contracts.IRepresentativeQueries, Persistence.Queries.RepresentativeQueries>();
         services.AddScoped<Application.Features.DailyBoard.Contracts.IDailyBoardQueries, Persistence.Queries.DailyBoardQueries>();
+        services.AddScoped<Application.Features.DailyBoard.Attachments.IVisitAttachmentQueries, Persistence.Queries.VisitAttachmentQueries>();
         services.AddScoped<Application.Features.Transfers.ITransferQueries, Persistence.Queries.TransferQueries>();
         services.AddScoped<Application.Features.LabCheckIn.ILabCheckInQueries, Persistence.Queries.LabCheckInQueries>();
         services.AddScoped<Application.Features.Outsource.IOutsourceQueries, Persistence.Queries.OutsourceQueries>();
@@ -140,6 +142,7 @@ public static class DependencyInjection
         services.AddScoped<ILaboratoryRepository, LaboratoryRepository>();
         services.AddScoped<IRepresentativeRepository, RepresentativeRepository>();
         services.AddScoped<IDailyVisitRepository, DailyVisitRepository>();
+        services.AddScoped<IVisitAttachmentRepository, VisitAttachmentRepository>();
         services.AddScoped<IOutsourceSampleRepository, OutsourceSampleRepository>();
         services.AddScoped<ISampleTrackingRepository, SampleTrackingRepository>();
         services.AddScoped<IMarketingVisitRepository, MarketingVisitRepository>();

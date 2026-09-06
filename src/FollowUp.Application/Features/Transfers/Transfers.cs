@@ -20,6 +20,7 @@ public sealed record TransferItemDto(
     DateOnly VisitDate, string VisitTime, string? CollectorName, int? Samples,
     bool TransferDone, string? DriverName, string? DriverMobile, string? CarPlate,
     Guid? TransferRepId, string? TransferRepName, string? TransferTime,
+    IReadOnlyList<Common.Models.AttachmentRefDto>? Attachments = null,
     bool Archived = false);
 
 /// <summary>Read-side query interface for collected visits (transferred or awaiting transfer) in a range.</summary>

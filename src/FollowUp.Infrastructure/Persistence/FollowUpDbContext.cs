@@ -40,6 +40,7 @@ public sealed class FollowUpDbContext : DbContext
     // Operations
     public DbSet<DailyVisit> DailyVisits => Set<DailyVisit>();
     public DbSet<VisitHistory> VisitHistory => Set<VisitHistory>();
+    public DbSet<VisitAttachment> VisitAttachments => Set<VisitAttachment>();
     public DbSet<OutsourceSample> OutsourceSamples => Set<OutsourceSample>();
     public DbSet<SampleTracking> SampleTracking => Set<SampleTracking>();
     public DbSet<MarketingVisit> MarketingVisits => Set<MarketingVisit>();
@@ -108,6 +109,7 @@ public sealed class FollowUpDbContext : DbContext
         c.Properties<RepresentativeId>().HaveConversion<RepresentativeIdConverter>();
         c.Properties<DailyVisitId>().HaveConversion<DailyVisitIdConverter>();
         c.Properties<VisitHistoryId>().HaveConversion<VisitHistoryIdConverter>();
+        c.Properties<VisitAttachmentId>().HaveConversion<VisitAttachmentIdConverter>();
         c.Properties<OutsourceSampleId>().HaveConversion<OutsourceSampleIdConverter>();
         c.Properties<SampleTrackingId>().HaveConversion<SampleTrackingIdConverter>();
         c.Properties<MarketingVisitId>().HaveConversion<MarketingVisitIdConverter>();

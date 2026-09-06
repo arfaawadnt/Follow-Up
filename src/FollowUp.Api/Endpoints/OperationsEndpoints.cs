@@ -1,3 +1,4 @@
+using FollowUp.Application.Features.DailyBoard.Attachments;
 using FollowUp.Application.Features.DailyBoard.Commands;
 using FollowUp.Application.Features.DailyBoard.Queries;
 using FollowUp.Application.Features.LabCheckIn;
@@ -12,7 +13,11 @@ namespace FollowUp.Api.Endpoints;
 public static class OperationsEndpoints
 {
     public sealed record CheckInBody(int SampleCount, Guid? CollectorRepId = null,
-        int? TotalRequired = null, int? RequestCount = null, int? OutsourceCount = null, string? Notes = null);
+        int? TotalRequired = null, int? RequestCount = null, int? OutsourceCount = null, string? Notes = null,
+        IReadOnlyList<Guid>? AttachmentIds = null);
+    public sealed record ManualVisitBody(Guid LaboratoryId, int SampleCount, Guid? CollectorRepId = null,
+        int? TotalRequired = null, int? RequestCount = null, int? OutsourceCount = null, string? Notes = null,
+        IReadOnlyList<Guid>? AttachmentIds = null);
     public sealed record OutsourceUpdateBody(int Quantity, string? DestinationLab, string? Notes);
     public sealed record VerifyBody(bool Verified);
     public sealed record OutsourceStatusBody(string Status);
@@ -35,8 +40,36 @@ public static class OperationsEndpoints
                 RequestCount = b.RequestCount,
                 OutsourceCount = b.OutsourceCount,
                 Notes = b.Notes,
+                AttachmentIds = b.AttachmentIds ?? Array.Empty<Guid>(),
             }, ct);
             return Results.NoContent();
+        }).WithTags("DailyBoard");
+        // Manually record a Collected visit for any lab (any status) — not on the generated board (FR-5).
+        api.MapPost("/daily/manual", async (ManualVisitBody b, IMediator m, CancellationToken ct) =>
+        {
+            var visitId = await m.Send(new RecordManualVisitCommand(b.LaboratoryId, b.SampleCount)
+            {
+                CollectorRepId = b.CollectorRepId,
+                TotalRequired = b.TotalRequired,
+                RequestCount = b.RequestCount,
+                OutsourceCount = b.OutsourceCount,
+                Notes = b.Notes,
+                AttachmentIds = b.AttachmentIds ?? Array.Empty<Guid>(),
+            }, ct);
+            return Results.Created($"/api/v1/daily/{visitId}", new { id = visitId });
+        }).WithTags("DailyBoard");
+        // Visit-document attachments: private storage, uploaded pending then bound by the record command.
+        api.MapPost("/daily/upload", async (IFormFile file, IMediator m, CancellationToken ct) =>
+        {
+            using var ms = new MemoryStream();
+            await file.CopyToAsync(ms, ct);
+            return Results.Ok(await m.Send(new UploadVisitAttachmentCommand(ms.ToArray(), file.FileName), ct));
+        }).WithTags("DailyBoard").DisableAntiforgery();
+        // Authenticated, org-scoped serve (inline) — the bytes are NOT on the public /uploads path.
+        api.MapGet("/daily/attachments/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>
+        {
+            var a = await m.Send(new GetVisitAttachmentQuery(id), ct);
+            return Results.File(a.Content, a.ContentType);
         }).WithTags("DailyBoard");
         api.MapPost("/daily/{id:guid}/miss", async (Guid id, IMediator m, CancellationToken ct) =>
         { await m.Send(new MissVisitCommand(id), ct); return Results.NoContent(); }).WithTags("DailyBoard");

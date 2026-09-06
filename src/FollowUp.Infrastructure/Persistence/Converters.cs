@@ -46,6 +46,7 @@ public sealed class ContactPersonIdConverter : ValueConverter<ContactPersonId, G
 public sealed class RepresentativeIdConverter : ValueConverter<RepresentativeId, Guid> { public RepresentativeIdConverter() : base(x => x.Value, v => new RepresentativeId(v)) { } }
 public sealed class DailyVisitIdConverter : ValueConverter<DailyVisitId, Guid> { public DailyVisitIdConverter() : base(x => x.Value, v => new DailyVisitId(v)) { } }
 public sealed class VisitHistoryIdConverter : ValueConverter<VisitHistoryId, Guid> { public VisitHistoryIdConverter() : base(x => x.Value, v => new VisitHistoryId(v)) { } }
+public sealed class VisitAttachmentIdConverter : ValueConverter<VisitAttachmentId, Guid> { public VisitAttachmentIdConverter() : base(x => x.Value, v => new VisitAttachmentId(v)) { } }
 public sealed class OutsourceSampleIdConverter : ValueConverter<OutsourceSampleId, Guid> { public OutsourceSampleIdConverter() : base(x => x.Value, v => new OutsourceSampleId(v)) { } }
 public sealed class SampleTrackingIdConverter : ValueConverter<SampleTrackingId, Guid> { public SampleTrackingIdConverter() : base(x => x.Value, v => new SampleTrackingId(v)) { } }
 public sealed class MarketingVisitIdConverter : ValueConverter<MarketingVisitId, Guid> { public MarketingVisitIdConverter() : base(x => x.Value, v => new MarketingVisitId(v)) { } }

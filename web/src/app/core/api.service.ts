@@ -28,4 +28,10 @@ export class ApiService {
   delete<T>(path: string): Observable<T> {
     return this.http.delete<T>(`${this.base}${path}`);
   }
+
+  /** Fetches a binary response (e.g. an authenticated attachment) as a Blob. The auth token is added by the
+   *  HTTP interceptor, so the file is fetched securely without ever putting the token in a URL. */
+  getBlob(path: string): Observable<Blob> {
+    return this.http.get(`${this.base}${path}`, { responseType: 'blob' });
+  }
 }

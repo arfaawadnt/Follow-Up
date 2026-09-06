@@ -26,6 +26,16 @@ internal static class VisitActionSupport
         user.EnsureOwnedIfRepLinked(visit.CollectorRepId);
         return (visit, lab);
     }
+
+    /// <summary>Binds the pending (just-uploaded) attachments to the visit they were recorded with.</summary>
+    public static async Task BindAttachmentsAsync(IReadOnlyCollection<Guid> attachmentIds, Guid visitId,
+        LaboratoryId labId, IVisitAttachmentRepository attachments, CancellationToken ct)
+    {
+        if (attachmentIds is null || attachmentIds.Count == 0) return;
+        var ids = attachmentIds.Distinct().Select(g => new VisitAttachmentId(g)).ToList();
+        foreach (var a in await attachments.GetByIdsAsync(ids, ct))
+            a.BindTo(visitId, labId);
+    }
 }
 
 // ---- Check-in (Pending -> Visited) ----
@@ -39,6 +49,8 @@ public sealed record CheckInVisitCommand(Guid VisitId, int SampleCount) : IComma
     public int? RequestCount { get; init; }
     public int? OutsourceCount { get; init; }
     public string? Notes { get; init; }
+    /// <summary>Optional documents uploaded with this record (pending attachment ids to bind to the visit).</summary>
+    public IReadOnlyList<Guid> AttachmentIds { get; init; } = Array.Empty<Guid>();
 
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.AddDailyFollowup };
 }
@@ -61,13 +73,15 @@ public sealed class CheckInVisitHandler : ICommandHandler<CheckInVisitCommand>
     private readonly ILaboratoryRepository _labs;
     private readonly IOutsourceSampleRepository _outsource;
     private readonly IRepresentativeRepository _reps;
+    private readonly IVisitAttachmentRepository _attachments;
     private readonly ICurrentUser _user;
     private readonly IClock _clock;
 
     public CheckInVisitHandler(IDailyVisitRepository visits, ILaboratoryRepository labs,
-        IOutsourceSampleRepository outsource, IRepresentativeRepository reps, ICurrentUser user, IClock clock)
+        IOutsourceSampleRepository outsource, IRepresentativeRepository reps, IVisitAttachmentRepository attachments,
+        ICurrentUser user, IClock clock)
     {
-        _visits = visits; _labs = labs; _outsource = outsource; _reps = reps; _user = user; _clock = clock;
+        _visits = visits; _labs = labs; _outsource = outsource; _reps = reps; _attachments = attachments; _user = user; _clock = clock;
     }
 
     public async Task<Unit> Handle(CheckInVisitCommand request, CancellationToken ct)
@@ -94,7 +108,86 @@ public sealed class CheckInVisitHandler : ICommandHandler<CheckInVisitCommand>
             _outsource.Add(Domain.Operations.OutsourceSample.Create(
                 visit.LaboratoryId, visit.VisitDate, null, request.OutsourceCount.Value, visit.Notes));
 
+        await VisitActionSupport.BindAttachmentsAsync(request.AttachmentIds, visit.Id.Value, lab.Id, _attachments, ct);
         return Unit.Value;
+    }
+}
+
+// ---- Manual record (create an ad-hoc Collected visit for ANY lab, regardless of status) ----
+
+/// <summary>
+/// Records a visit that isn't on today's generated board: the operator picks any lab (any status — the scheduler's
+/// Schedulable gate is bypassed here) and records it as Collected for today, with the same extras and optional
+/// document attachments as a normal check-in (SRS FR-5 manual entry).
+/// </summary>
+public sealed record RecordManualVisitCommand(Guid LaboratoryId, int SampleCount) : ICommand<Guid>, IAuthorizedRequest
+{
+    public Guid? CollectorRepId { get; init; }
+    public int? TotalRequired { get; init; }
+    public int? RequestCount { get; init; }
+    public int? OutsourceCount { get; init; }
+    public string? Notes { get; init; }
+    public IReadOnlyList<Guid> AttachmentIds { get; init; } = Array.Empty<Guid>();
+
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.AddDailyFollowup };
+}
+
+public sealed class RecordManualVisitValidator : AbstractValidator<RecordManualVisitCommand>
+{
+    public RecordManualVisitValidator()
+    {
+        RuleFor(x => x.LaboratoryId).NotEmpty();
+        RuleFor(x => x.SampleCount).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.TotalRequired).GreaterThanOrEqualTo(0).When(x => x.TotalRequired.HasValue);
+        RuleFor(x => x.RequestCount).GreaterThanOrEqualTo(0).When(x => x.RequestCount.HasValue);
+        RuleFor(x => x.OutsourceCount).GreaterThanOrEqualTo(0).When(x => x.OutsourceCount.HasValue);
+    }
+}
+
+public sealed class RecordManualVisitHandler : ICommandHandler<RecordManualVisitCommand, Guid>
+{
+    private readonly IDailyVisitRepository _visits;
+    private readonly ILaboratoryRepository _labs;
+    private readonly IOutsourceSampleRepository _outsource;
+    private readonly IRepresentativeRepository _reps;
+    private readonly IVisitAttachmentRepository _attachments;
+    private readonly ICurrentUser _user;
+    private readonly IClock _clock;
+
+    public RecordManualVisitHandler(IDailyVisitRepository visits, ILaboratoryRepository labs,
+        IOutsourceSampleRepository outsource, IRepresentativeRepository reps, IVisitAttachmentRepository attachments,
+        ICurrentUser user, IClock clock)
+    {
+        _visits = visits; _labs = labs; _outsource = outsource; _reps = reps; _attachments = attachments; _user = user; _clock = clock;
+    }
+
+    public async Task<Guid> Handle(RecordManualVisitCommand request, CancellationToken ct)
+    {
+        var lab = await _labs.GetByIdAsync(new LaboratoryId(request.LaboratoryId), ct)
+            ?? throw new NotFoundException("Laboratory", request.LaboratoryId);
+        _user.EnsureInScope(lab); // may only record for a lab in the caller's org-scope
+
+        Domain.Representatives.RepresentativeId? collector = null;
+        if (request.CollectorRepId is { } repId)
+        {
+            collector = new Domain.Representatives.RepresentativeId(repId);
+            if (!await _reps.ExistsAsync(collector.Value, ct))
+                throw new NotFoundException("Representative", repId);
+        }
+
+        var today = _clock.CairoToday;
+        var now = TimeOnly.FromTimeSpan(_clock.CairoNow.TimeOfDay); // distinct slot per record (second precision)
+        var visit = DailyVisit.Schedule(lab.Id, collector, today, now);
+        visit.CheckIn(request.SampleCount, _user.Username, _clock.UtcNow,
+            request.TotalRequired, request.RequestCount, request.OutsourceCount, request.Notes);
+        lab.DeriveActiveFromActivity(); // BR-5
+        _visits.Add(visit);
+
+        if (request.OutsourceCount is > 0 && !await _outsource.ExistsForAsync(lab.Id, today, ct))
+            _outsource.Add(Domain.Operations.OutsourceSample.Create(lab.Id, today, null, request.OutsourceCount.Value, request.Notes));
+
+        await VisitActionSupport.BindAttachmentsAsync(request.AttachmentIds, visit.Id.Value, lab.Id, _attachments, ct);
+        return visit.Id.Value;
     }
 }
 

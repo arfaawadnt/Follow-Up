@@ -1473,3 +1473,9 @@ html[dir="rtl"] .date-input-wrapper .date-display {
 .spin {
   animation: spin 1s linear infinite;
 }
+
+/* Visit-document attachment links (Daily / Transfers / Lab Check-in / Sample Tracking). */
+.docs { margin-top: 3px; display: flex; flex-direction: column; gap: 2px; }
+.doc-link { font-size: 11px; color: var(--brand, #0078d4); cursor: pointer; text-decoration: none;
+  max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doc-link:hover { text-decoration: underline; }

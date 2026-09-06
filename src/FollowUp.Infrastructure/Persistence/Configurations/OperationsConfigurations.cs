@@ -80,6 +80,29 @@ internal sealed class VisitHistoryConfiguration : IEntityTypeConfiguration<Visit
     }
 }
 
+internal sealed class VisitAttachmentConfiguration : IEntityTypeConfiguration<VisitAttachment>
+{
+    public void Configure(EntityTypeBuilder<VisitAttachment> b)
+    {
+        b.ToTable("visit_attachment");
+        b.HasKey(x => x.Id);
+        b.IgnoreDomainEvents();
+        b.MapAuditable();
+
+        // VisitId is the visit's STABLE id (DailyVisit.Id / VisitHistory.OriginalVisitId) — a plain Guid, NOT a FK,
+        // so the attachment survives the midnight roll-over that deletes the daily_visit row.
+        b.Property(x => x.VisitId);
+        b.Property(x => x.StoredName).HasMaxLength(80).IsRequired();
+        b.Property(x => x.FileName).HasMaxLength(200).IsRequired();
+        b.Property(x => x.ContentType).HasMaxLength(100).IsRequired();
+        b.Property(x => x.SizeBytes);
+
+        // Optional FK to the owning lab (nullable while pending) — used for the serve-endpoint scope check.
+        b.HasOne<Laboratory>().WithMany().HasForeignKey(x => x.LaboratoryId).OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(x => x.VisitId);
+    }
+}
+
 internal sealed class OutsourceSampleConfiguration : IEntityTypeConfiguration<OutsourceSample>
 {
     public void Configure(EntityTypeBuilder<OutsourceSample> b)

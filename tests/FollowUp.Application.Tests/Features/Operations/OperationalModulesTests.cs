@@ -66,7 +66,7 @@ public class OperationalModulesTests
         var reps = new FakeRepresentativeRepository(); // empty -> the override rep does not exist
 
         var handler = new CheckInVisitHandler(visits, labs, new FakeOutsourceSampleRepository(), reps,
-            new FakeCurrentUser(), new FakeClock(Now));
+            new FakeVisitAttachmentRepository(), new FakeCurrentUser(), new FakeClock(Now));
 
         var act = () => handler.Handle(
             new CheckInVisitCommand(visit.Id.Value, 5) { CollectorRepId = Guid.NewGuid() }, CancellationToken.None);
@@ -88,13 +88,37 @@ public class OperationalModulesTests
         visits.Store.Add(visit);
 
         var handler = new CheckInVisitHandler(visits, labs, new FakeOutsourceSampleRepository(), reps,
-            new FakeCurrentUser(), new FakeClock(Now));
+            new FakeVisitAttachmentRepository(), new FakeCurrentUser(), new FakeClock(Now));
 
         await handler.Handle(
             new CheckInVisitCommand(visit.Id.Value, 5) { CollectorRepId = rep.Id.Value }, CancellationToken.None);
 
         visit.Status.Should().Be(VisitStatus.Visited);
         visit.CollectorRepId.Should().Be(rep.Id);
+    }
+
+    [Fact]
+    public async Task Manual_record_creates_a_collected_visit_and_binds_attachments()
+    {
+        var (labs, lab) = SeedLab();
+        var visits = new FakeDailyVisitRepository();
+        var attachments = new FakeVisitAttachmentRepository();
+        var att = VisitAttachment.CreatePending("stored.pdf", "form.pdf", "application/pdf", 1234);
+        attachments.Store.Add(att);
+
+        var handler = new RecordManualVisitHandler(visits, labs, new FakeOutsourceSampleRepository(),
+            new FakeRepresentativeRepository(), attachments, new FakeCurrentUser(), new FakeClock(Now));
+
+        var id = await handler.Handle(
+            new RecordManualVisitCommand(lab.Id.Value, 7) { AttachmentIds = new[] { att.Id.Value } },
+            CancellationToken.None);
+
+        var visit = visits.Store.Single();
+        visit.Id.Value.Should().Be(id);
+        visit.Status.Should().Be(VisitStatus.Visited);   // recorded straight to Collected
+        visit.SampleCount.Should().Be(7);
+        att.VisitId.Should().Be(id);                     // pending attachment bound to the new visit
+        att.LaboratoryId.Should().Be(lab.Id);
     }
 
     [Fact]

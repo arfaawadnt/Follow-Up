@@ -9,6 +9,7 @@ import { I18nService, TranslatePipe } from '../../core/i18n';
 import { exportXlsx, printTable, localToday, localDateTime, ddmy } from '../../shared/export.util';
 import { AppDatePipe } from '../../shared/app-date.pipe';
 import { ToastService } from '../../core/toast.service';
+import { AttachmentService } from '../../core/attachment.service';
 
 interface City { id: string; name: string; governorate: string; }
 interface AreaRef { id: string; name: string; cityId: string; }
@@ -135,7 +136,13 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
               <tbody>
                 @for (r of grp.rows; track $index) {
                   <tr>
-                    <td><b>{{ r.lab }}</b><div class="small muted">{{ r.labDisplayCode }}</div></td>
+                    <td><b>{{ r.lab }}</b><div class="small muted">{{ r.labDisplayCode }}</div>
+                      @if (r.attachments?.length) {
+                        <div class="docs">@for (a of r.attachments ?? []; track a.id) {
+                          <a class="doc-link" (click)="viewDoc(a.id)" [title]="a.fileName">📎 {{ a.fileName }}</a>
+                        }</div>
+                      }
+                    </td>
                     <td class="mono small">{{ r.visitDate | appDate }} {{ r.visitTime }}</td>
                     <td class="mono" style="font-weight:700">{{ r.samples ?? '—' }}</td>
                     <td class="small">{{ r.collectorName ?? '—' }}<div class="mono small muted">{{ fmt(r.collectedAt) }}</div></td>
@@ -168,7 +175,9 @@ export class SampleTrackingComponent {
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18nService);
   private readonly toast = inject(ToastService);
+  private readonly attach = inject(AttachmentService);
   readonly auth = inject(AuthService);
+  viewDoc(id: string): void { this.attach.view(id); }
   readonly loading = signal(true);
   readonly reportLoading = signal(false);
   readonly busy = signal(false);

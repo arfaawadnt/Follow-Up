@@ -1,3 +1,6 @@
+using FollowUp.Application.Common.Abstractions;
+using FollowUp.Application.Common.Models;
+using FollowUp.Application.Features.DailyBoard.Attachments;
 using FollowUp.Application.Features.DailyBoard.Contracts;
 using FollowUp.Application.Features.LabCheckIn;
 using FollowUp.Application.Features.Outsource;
@@ -10,6 +13,26 @@ using FollowUp.Domain.Representatives;
 using Microsoft.EntityFrameworkCore;
 
 namespace FollowUp.Infrastructure.Persistence.Queries;
+
+/// <summary>Loads visit attachments (keyed by the stable visit id) for a set of visits — shared by the board,
+/// transfer, check-in and sample-lifecycle read queries so each row can surface its documents.</summary>
+internal static class AttachmentEnricher
+{
+    public static async Task<Dictionary<Guid, IReadOnlyList<AttachmentRefDto>>> LoadAsync(
+        FollowUpDbContext db, IEnumerable<Guid> visitIds, CancellationToken ct)
+    {
+        var ids = visitIds.Distinct().ToList();
+        if (ids.Count == 0) return new();
+        var rows = await db.VisitAttachments.AsNoTracking()
+            .Where(a => a.VisitId != null && ids.Contains(a.VisitId!.Value))
+            .Select(a => new { VisitId = a.VisitId!.Value, a.Id, a.FileName, a.ContentType, a.SizeBytes })
+            .ToListAsync(ct);
+        return rows.GroupBy(a => a.VisitId).ToDictionary(
+            g => g.Key,
+            g => (IReadOnlyList<AttachmentRefDto>)g
+                .Select(a => new AttachmentRefDto(a.Id.Value, a.FileName, a.ContentType, a.SizeBytes)).ToList());
+    }
+}
 
 internal sealed class DailyBoardQueries : IDailyBoardQueries
 {
@@ -77,7 +100,10 @@ internal sealed class DailyBoardQueries : IDailyBoardQueries
             r.VisitDate, r.ScheduledTime != null ? r.ScheduledTime.Value.ToString("HH:mm") : "—", r.Status, r.SampleCount,
             r.CheckedInAt?.ToString("o"), r.AdminChecked, r.TransferConfirmedAt != null, Archived: true));
 
-        return liveDtos.Concat(archDtos).OrderBy(d => d.VisitDate).ThenBy(d => d.ScheduledTime).ToList();
+        var result = liveDtos.Concat(archDtos).OrderBy(d => d.VisitDate).ThenBy(d => d.ScheduledTime).ToList();
+        var atts = await AttachmentEnricher.LoadAsync(_db, result.Select(d => d.VisitId), ct);
+        return atts.Count == 0 ? result
+            : result.Select(d => atts.TryGetValue(d.VisitId, out var a) ? d with { Attachments = a } : d).ToList();
     }
 
     public async Task<int?> GetSuggestedSampleCountAsync(Guid visitId, OrgScope scope, CancellationToken ct)
@@ -137,14 +163,17 @@ internal sealed class TransferQueries : ITransferQueries
             new(vid, labId, DisplayCode.For(code.Value, enc, canSeeEncrypted), name, br, gov, city, area,
                 date, time != null ? time.Value.ToString("HH:mm") : "—", Name(collector), samples,
                 tConf != null, dName, dMob, plate, tRep != null ? tRep.Value.Value : (Guid?)null, Name(tRep),
-                tConf?.ToString("o"), archivedRow);
+                tConf?.ToString("o"), Archived: archivedRow);
 
         var liveDtos = live.Select(r => Map(r.Id.Value, r.LaboratoryId.Value, r.Code, r.IsEncrypted, r.Name, r.Branch, r.Governorate, r.City, r.Area,
             r.VisitDate, r.Time, r.CollectorRepId, r.SampleCount, r.TransferConfirmedAt, r.TransferRepId, r.Transfer?.DriverName, r.Transfer?.DriverMobile, r.Transfer?.CarPlate, false));
         var archDtos = archived.Select(r => Map(r.Id.Value, r.LaboratoryId.Value, r.Code, r.IsEncrypted, r.Name, r.Branch, r.Governorate, r.City, r.Area,
             r.VisitDate, r.Time, r.CollectorRepId, r.SampleCount, r.TransferConfirmedAt, r.TransferRepId, r.DriverName, r.DriverMobile, r.CarPlate, true));
 
-        return liveDtos.Concat(archDtos).OrderBy(d => d.VisitDate).ThenBy(d => d.VisitTime).ToList();
+        var result = liveDtos.Concat(archDtos).OrderBy(d => d.VisitDate).ThenBy(d => d.VisitTime).ToList();
+        var atts = await AttachmentEnricher.LoadAsync(_db, result.Select(d => d.VisitId), ct);
+        return atts.Count == 0 ? result
+            : result.Select(d => atts.TryGetValue(d.VisitId, out var a) ? d with { Attachments = a } : d).ToList();
     }
 }
 
@@ -192,14 +221,39 @@ internal sealed class LabCheckInQueries : ILabCheckInQueries
             new(vid, labId, DisplayCode.For(code.Value, enc, canSeeEncrypted), name, br, gov, city, area,
                 date, time != null ? time.Value.ToString("HH:mm") : "—", Name(collector), samples,
                 isReceived ? VisitStatus.Received.Name : "Transferred", Name(tRep),
-                tConf?.ToString("o"), recv?.ToString("o"), archivedRow);
+                tConf?.ToString("o"), recv?.ToString("o"), Archived: archivedRow);
 
         var liveDtos = live.Select(r => Map(r.Id.Value, r.LaboratoryId.Value, r.Code, r.IsEncrypted, r.Name, r.Branch, r.Governorate, r.City, r.Area,
             r.VisitDate, r.Time, r.CollectorRepId, r.SampleCount, r.IsReceived, r.TransferRepId, r.TransferConfirmedAt, r.ReceivedAt, false));
         var archDtos = archived.Select(r => Map(r.Id.Value, r.LaboratoryId.Value, r.Code, r.IsEncrypted, r.Name, r.Branch, r.Governorate, r.City, r.Area,
             r.VisitDate, r.Time, r.CollectorRepId, r.SampleCount, r.IsReceived, r.TransferRepId, r.TransferConfirmedAt, r.ReceivedAt, true));
 
-        return liveDtos.Concat(archDtos).OrderBy(d => d.VisitDate).ThenBy(d => d.VisitTime).ToList();
+        var result = liveDtos.Concat(archDtos).OrderBy(d => d.VisitDate).ThenBy(d => d.VisitTime).ToList();
+        var atts = await AttachmentEnricher.LoadAsync(_db, result.Select(d => d.VisitId), ct);
+        return atts.Count == 0 ? result
+            : result.Select(d => atts.TryGetValue(d.VisitId, out var a) ? d with { Attachments = a } : d).ToList();
+    }
+}
+
+internal sealed class VisitAttachmentQueries : IVisitAttachmentQueries
+{
+    private readonly FollowUpDbContext _db;
+    private readonly IAttachmentStorage _storage;
+    public VisitAttachmentQueries(FollowUpDbContext db, IAttachmentStorage storage) { _db = db; _storage = storage; }
+
+    public async Task<VisitAttachmentContent?> GetForViewingAsync(Guid id, OrgScope scope, CancellationToken ct)
+    {
+        var attId = new VisitAttachmentId(id);
+        var row = await _db.VisitAttachments.AsNoTracking()
+            .Where(a => a.Id == attId && a.LaboratoryId != null)
+            .Select(a => new { a.StoredName, a.FileName, a.ContentType, a.LaboratoryId })
+            .FirstOrDefaultAsync(ct);
+        if (row is null) return null;
+        // Org-scope: the caller may fetch the document only if the owning lab is within their scope.
+        var inScope = await _db.Laboratories.ApplyScope(scope).AnyAsync(l => l.Id == row.LaboratoryId, ct);
+        if (!inScope) return null;
+        var bytes = await _storage.ReadAsync(row.StoredName, ct);
+        return bytes is null ? null : new VisitAttachmentContent(row.FileName, row.ContentType, bytes);
     }
 }
 
@@ -270,18 +324,18 @@ internal sealed class SampleTrackingQueries : ISampleTrackingQueries
         var live = (await (from v in _db.DailyVisits.AsNoTracking()
                            where v.VisitDate >= start && v.VisitDate <= end && v.SampleCount != null
                            join l in _db.Laboratories.ApplyScope(scope).AsNoTracking() on v.LaboratoryId equals l.Id
-                           select new { l.Code, l.IsEncrypted, l.Name, l.Area, v.VisitDate, Time = (TimeOnly?)v.ScheduledTime,
+                           select new { VisitId = v.Id.Value, l.Code, l.IsEncrypted, l.Name, l.Area, v.VisitDate, Time = (TimeOnly?)v.ScheduledTime,
                                v.SampleCount, v.CheckedInAt, v.TransferConfirmedAt, v.ReceivedAt,
                                v.CollectorRepId, v.TransferRepId, v.Transfer })
                           .ToListAsync(ct))
-            .Select(v => new { v.Code, v.IsEncrypted, v.Name, v.Area, v.VisitDate, v.Time, v.SampleCount, v.CheckedInAt,
+            .Select(v => new { v.VisitId, v.Code, v.IsEncrypted, v.Name, v.Area, v.VisitDate, v.Time, v.SampleCount, v.CheckedInAt,
                 v.TransferConfirmedAt, v.ReceivedAt, v.CollectorRepId, v.TransferRepId,
                 DriverName = v.Transfer?.DriverName, DriverMobile = v.Transfer?.DriverMobile, CarPlate = v.Transfer?.CarPlate });
 
         var archived = await (from h in _db.VisitHistory.AsNoTracking()
                               where h.VisitDate >= start && h.VisitDate <= end && h.SampleCount != null
                               join l in _db.Laboratories.ApplyScope(scope).AsNoTracking() on h.LaboratoryId equals l.Id
-                              select new { l.Code, l.IsEncrypted, l.Name, l.Area, h.VisitDate, Time = h.ScheduledTime,
+                              select new { VisitId = h.OriginalVisitId.Value, l.Code, l.IsEncrypted, l.Name, l.Area, h.VisitDate, Time = h.ScheduledTime,
                                   h.SampleCount, h.CheckedInAt, h.TransferConfirmedAt, h.ReceivedAt,
                                   h.CollectorRepId, h.TransferRepId, h.DriverName, h.DriverMobile, h.CarPlate })
                              .ToListAsync(ct);
@@ -301,7 +355,7 @@ internal sealed class SampleTrackingQueries : ISampleTrackingQueries
             .Where(s => s.Date >= start && s.Date <= end).ToListAsync(ct);
         var tracking = trackingRows.ToDictionary(s => (s.Area, s.Date));
 
-        return rows
+        var result = rows
             .OrderByDescending(r => r.VisitDate).ThenBy(r => r.Time)
             .Select(r =>
             {
@@ -315,8 +369,12 @@ internal sealed class SampleTrackingQueries : ISampleTrackingQueries
                     t?.DataEntry?.User, t?.DataEntry?.At,
                     t?.Review?.User, t?.Review?.At,
                     t?.Sort?.User, t?.Sort?.At,
-                    t?.Notes);
+                    t?.Notes, VisitId: r.VisitId);
             }).ToList();
+
+        var atts = await AttachmentEnricher.LoadAsync(_db, result.Where(d => d.VisitId.HasValue).Select(d => d.VisitId!.Value), ct);
+        return atts.Count == 0 ? result
+            : result.Select(d => d.VisitId.HasValue && atts.TryGetValue(d.VisitId.Value, out var a) ? d with { Attachments = a } : d).ToList();
     }
 
     public async Task<int> SumReceivedSamplesAsync(string area, DateOnly date, CancellationToken ct)

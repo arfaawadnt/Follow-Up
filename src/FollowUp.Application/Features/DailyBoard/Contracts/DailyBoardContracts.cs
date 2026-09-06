@@ -1,3 +1,4 @@
+using FollowUp.Application.Common.Models;
 using FollowUp.Domain.Identity;
 using FollowUp.Domain.Laboratories;
 
@@ -22,6 +23,7 @@ public sealed record BoardItemDto(
     string? MarkedAt,
     bool AdminChecked,
     bool TransferDone,
+    IReadOnlyList<AttachmentRefDto>? Attachments = null,
     /// <summary>True for rows read from the archive (past days rolled off the live board) — the UI shows these read-only.</summary>
     bool Archived = false);
 

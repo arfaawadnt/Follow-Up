@@ -10,6 +10,7 @@ import { TranslatePipe } from '../../core/i18n';
 import { exportXlsx, printTable, localToday, localDateTime, ddmy } from '../../shared/export.util';
 import { AppDatePipe } from '../../shared/app-date.pipe';
 import { ToastService } from '../../core/toast.service';
+import { AttachmentService } from '../../core/attachment.service';
 
 interface Draft { rep: string; name: string; mobile: string; car: string; when: string; done: boolean; }
 
@@ -89,7 +90,13 @@ interface Draft { rep: string; name: string; mobile: string; car: string; when: 
                 @for (r of grp.rows; track r.visitId) {
                   <tr>
                     <td>@if (!r.transferDone && !r.archived) { <input type="checkbox" [checked]="selected.has(r.visitId)" (change)="toggleRow(r.visitId)"> }</td>
-                    <td><b style="color:var(--slate-900)">{{ r.labName }}</b><div class="small muted">{{ r.labDisplayCode }} · {{ r.branch ?? '—' }}</div></td>
+                    <td><b style="color:var(--slate-900)">{{ r.labName }}</b><div class="small muted">{{ r.labDisplayCode }} · {{ r.branch ?? '—' }}</div>
+                      @if (r.attachments?.length) {
+                        <div class="docs">@for (a of r.attachments ?? []; track a.id) {
+                          <a class="doc-link" (click)="viewDoc(a.id)" [title]="a.fileName">📎 {{ a.fileName }}</a>
+                        }</div>
+                      }
+                    </td>
                     <td class="mono small">{{ r.visitDate | appDate }} · {{ r.visitTime }}</td>
                     <td>{{ r.collectorName ?? '—' }}</td>
                     <td class="mono" style="font-weight:700">{{ r.samples ?? 0 }}</td>
@@ -137,7 +144,9 @@ interface Draft { rep: string; name: string; mobile: string; car: string; when: 
 export class TransfersComponent {
   private readonly api = inject(ApiService);
   private readonly toast = inject(ToastService);
+  private readonly attach = inject(AttachmentService);
   readonly auth = inject(AuthService);
+  viewDoc(id: string): void { this.attach.view(id); }
   readonly loading = signal(true);
   readonly busy = signal(false);
   readonly items = signal<TransferItem[]>([]);

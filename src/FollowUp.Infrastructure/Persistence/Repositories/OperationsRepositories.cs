@@ -16,6 +16,18 @@ internal sealed class DailyVisitRepository : IDailyVisitRepository
     public void Add(DailyVisit visit) => _db.DailyVisits.Add(visit);
 }
 
+internal sealed class VisitAttachmentRepository : IVisitAttachmentRepository
+{
+    private readonly FollowUpDbContext _db;
+    public VisitAttachmentRepository(FollowUpDbContext db) => _db = db;
+    public void Add(VisitAttachment attachment) => _db.VisitAttachments.Add(attachment);
+    public Task<VisitAttachment?> GetByIdAsync(VisitAttachmentId id, CancellationToken ct) =>
+        _db.VisitAttachments.FirstOrDefaultAsync(x => x.Id == id, ct);
+    public async Task<IReadOnlyList<VisitAttachment>> GetByIdsAsync(IReadOnlyCollection<VisitAttachmentId> ids, CancellationToken ct) =>
+        ids.Count == 0 ? Array.Empty<VisitAttachment>()
+        : await _db.VisitAttachments.Where(x => ids.Contains(x.Id)).ToListAsync(ct);
+}
+
 internal sealed class OutsourceSampleRepository : IOutsourceSampleRepository
 {
     private readonly FollowUpDbContext _db;
