@@ -50,6 +50,12 @@ public sealed class RefItem : AggregateRoot<RefItemId>, IAuditable
     /// <summary>An operator-maintained "real" display name, never touched by the Oracle sync (SRS FR-18).</summary>
     public string? RealName { get; private set; }
     public int SortOrder { get; private set; }
+    /// <summary>Monthly target-income band lower bound (inclusive), in EGP. Segment rows only (RefType.Segment);
+    /// null on every other reference type. Drives the monthly income-based segment auto-assignment.</summary>
+    public decimal? TargetIncomeFrom { get; private set; }
+    /// <summary>Monthly target-income band upper bound (inclusive), in EGP; null means unbounded (the top tier).
+    /// Segment rows only.</summary>
+    public decimal? TargetIncomeTo { get; private set; }
     public RecordSource Source { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
@@ -90,6 +96,18 @@ public sealed class RefItem : AggregateRoot<RefItemId>, IAuditable
 
     /// <summary>Sets the operator-maintained real name. Independent of Oracle sync (never overwritten by ApplyOracle).</summary>
     public void SetRealName(string? realName) => RealName = string.IsNullOrWhiteSpace(realName) ? null : realName.Trim();
+
+    /// <summary>Sets the monthly target-income band (Segment rows). Either bound may be null (a null 'to' means the
+    /// unbounded top tier, e.g. VIP). Validated: non-negative, and 'to' &gt;= 'from' when both are present.</summary>
+    public void SetTargetIncome(decimal? from, decimal? to)
+    {
+        if (from is < 0) throw new DomainException("Target income 'from' cannot be negative.");
+        if (to is < 0) throw new DomainException("Target income 'to' cannot be negative.");
+        if (from is not null && to is not null && to < from)
+            throw new DomainException("Target income 'to' must be greater than or equal to 'from'.");
+        TargetIncomeFrom = from;
+        TargetIncomeTo = to;
+    }
 }
 
 public readonly record struct CityId(Guid Value)

@@ -18,6 +18,9 @@ internal sealed class RefItemConfiguration : IEntityTypeConfiguration<RefItem>
         b.Property(x => x.NameAr).HasMaxLength(200);
         b.Property(x => x.RealName).HasMaxLength(200);
         b.Property(x => x.SortOrder);
+        // Monthly target-income band (Segment rows only; null on every other ref type).
+        b.Property(x => x.TargetIncomeFrom).HasColumnType("numeric(18,2)");
+        b.Property(x => x.TargetIncomeTo).HasColumnType("numeric(18,2)");
         b.Property(x => x.Source).HasDefaultValue(FollowUp.Domain.Common.RecordSource.Manual);
         b.HasIndex(x => new { x.Type, x.Code }).IsUnique();
     }

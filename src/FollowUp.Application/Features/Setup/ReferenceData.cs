@@ -12,7 +12,8 @@ namespace FollowUp.Application.Features.Setup;
 
 // ---- Read side ----
 
-public sealed record RefItemDto(Guid Id, string Type, string Code, string NameEn, string? NameAr, string? RealName, int SortOrder, string Source);
+public sealed record RefItemDto(Guid Id, string Type, string Code, string NameEn, string? NameAr, string? RealName, int SortOrder, string Source,
+    decimal? TargetIncomeFrom = null, decimal? TargetIncomeTo = null);
 public sealed record CityDto(Guid Id, string Name, string Governorate, string? RealName, string Source);
 public sealed record AreaDto(Guid Id, string Name, Guid CityId, bool TransportationRequired, IReadOnlyList<Guid> TransferReps, string? RealName, string Source);
 
@@ -63,7 +64,8 @@ public sealed class GetAreasHandler : IQueryHandler<GetAreasQuery, IReadOnlyList
 
 // ---- Ref item write ----
 
-public sealed record CreateRefItemCommand(string Type, string Code, string NameEn, string? NameAr, int SortOrder = 0, string? RealName = null)
+public sealed record CreateRefItemCommand(string Type, string Code, string NameEn, string? NameAr, int SortOrder = 0, string? RealName = null,
+    decimal? TargetIncomeFrom = null, decimal? TargetIncomeTo = null)
     : ICommand<Guid>, IAuthorizedRequest
 {
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.SetupRefs };
@@ -76,6 +78,11 @@ public sealed class CreateRefItemValidator : AbstractValidator<CreateRefItemComm
         RuleFor(x => x.Type).NotEmpty();
         RuleFor(x => x.Code).NotEmpty();
         RuleFor(x => x.NameEn).NotEmpty();
+        RuleFor(x => x.TargetIncomeFrom).GreaterThanOrEqualTo(0).When(x => x.TargetIncomeFrom is not null);
+        RuleFor(x => x.TargetIncomeTo).GreaterThanOrEqualTo(0).When(x => x.TargetIncomeTo is not null);
+        RuleFor(x => x.TargetIncomeTo).GreaterThanOrEqualTo(x => x.TargetIncomeFrom!.Value)
+            .When(x => x.TargetIncomeFrom is not null && x.TargetIncomeTo is not null)
+            .WithMessage("Target income 'to' must be greater than or equal to 'from'.");
     }
 }
 
@@ -92,6 +99,8 @@ public sealed class CreateRefItemHandler : ICommandHandler<CreateRefItemCommand,
 
         var item = RefItem.Create(type, request.Code, request.NameEn, request.NameAr, request.SortOrder);
         item.SetRealName(request.RealName);
+        if (request.TargetIncomeFrom is not null || request.TargetIncomeTo is not null)
+            item.SetTargetIncome(request.TargetIncomeFrom, request.TargetIncomeTo);
         _repository.Add(item);
         return item.Id.Value;
     }
@@ -116,7 +125,8 @@ public sealed class DeleteRefItemHandler : ICommandHandler<DeleteRefItemCommand>
     }
 }
 
-public sealed record UpdateRefItemCommand(Guid Id, string Name, string? RealName = null) : ICommand, IAuthorizedRequest
+public sealed record UpdateRefItemCommand(Guid Id, string Name, string? RealName = null,
+    decimal? TargetIncomeFrom = null, decimal? TargetIncomeTo = null) : ICommand, IAuthorizedRequest
 {
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.SetupRefs };
 }
@@ -127,6 +137,11 @@ public sealed class UpdateRefItemValidator : AbstractValidator<UpdateRefItemComm
     {
         RuleFor(x => x.Id).NotEmpty();
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.TargetIncomeFrom).GreaterThanOrEqualTo(0).When(x => x.TargetIncomeFrom is not null);
+        RuleFor(x => x.TargetIncomeTo).GreaterThanOrEqualTo(0).When(x => x.TargetIncomeTo is not null);
+        RuleFor(x => x.TargetIncomeTo).GreaterThanOrEqualTo(x => x.TargetIncomeFrom!.Value)
+            .When(x => x.TargetIncomeFrom is not null && x.TargetIncomeTo is not null)
+            .WithMessage("Target income 'to' must be greater than or equal to 'from'.");
     }
 }
 
@@ -141,6 +156,8 @@ public sealed class UpdateRefItemHandler : ICommandHandler<UpdateRefItemCommand>
             ?? throw new NotFoundException("Reference item", request.Id);
         item.Rename(request.Name, null); // single-name model: NameEn only
         item.SetRealName(request.RealName);
+        // Segment income band (null bounds are valid: a null 'to' is the unbounded top tier, e.g. VIP).
+        item.SetTargetIncome(request.TargetIncomeFrom, request.TargetIncomeTo);
         return Unit.Value;
     }
 }

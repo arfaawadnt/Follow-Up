@@ -87,6 +87,7 @@ public static class DependencyInjection
         services.AddScoped<IElectronicSignatureGate, Gateways.ElectronicSignatureGate>();
         services.AddScoped<IOracleReader, Jobs.OracleDbReader>();
         services.AddScoped<IOracleSyncRunner, Jobs.OracleSyncRunner>();
+        services.AddScoped<Application.Common.Abstractions.ISegmentAssignmentRunner, Jobs.SegmentAssignmentRunner>();
 
         services.AddSingleton<IFileStorage, Gateways.LocalFileStorage>();
 

@@ -1,10 +1,11 @@
+import { DecimalPipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { ToastService } from '../../core/toast.service';
 
-interface RefItem { id: string; type: string; code: string; nameEn: string; nameAr: string | null; realName: string | null; sortOrder: number; source: string; }
+interface RefItem { id: string; type: string; code: string; nameEn: string; nameAr: string | null; realName: string | null; sortOrder: number; source: string; targetIncomeFrom: number | null; targetIncomeTo: number | null; }
 interface City { id: string; name: string; governorate: string; realName: string | null; source: string; }
 interface Area { id: string; name: string; cityId: string; transportationRequired: boolean; transferReps: string[]; realName: string | null; source: string; }
 interface Tier { name: string; minAchievementPercent: number; points: number; }
@@ -35,7 +36,7 @@ const TABS: { key: Tab; label: string }[] = [
 @Component({
   selector: 'app-setup',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, DecimalPipe],
   template: `
     <div class="pagehead" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
       <div><div class="breadcrumbs">Home / Setup & Configuration</div><h1>Setup &amp; Configuration</h1></div>
@@ -59,12 +60,18 @@ const TABS: { key: Tab; label: string }[] = [
           <h3>Create New {{ singular() }}</h3>
           <label class="lbl">{{ singular() }} Name</label>
           <input class="input" [(ngModel)]="newName" placeholder="e.g. New Value" [disabled]="!canEdit()">
+          @if (tab() === 'segments') {
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <div style="flex:1"><label class="lbl">Monthly income from</label><input class="input" type="number" min="0" [(ngModel)]="newFrom" placeholder="0" [disabled]="!canEdit()"></div>
+              <div style="flex:1"><label class="lbl">Monthly income to</label><input class="input" type="number" min="0" [(ngModel)]="newTo" placeholder="∞ (blank = top tier)" [disabled]="!canEdit()"></div>
+            </div>
+          }
           <button class="btn btn-p" style="margin-top:14px" [disabled]="!newName.trim() || busy() || !canEdit()" (click)="addRef()">Add</button>
         </div>
         <div class="card panel">
           <div class="setup-toolbar"><h3 style="margin:0">Current Items</h3><input class="input srch" [ngModel]="q()" (ngModelChange)="q.set($event)" placeholder="Search…"><span class="cnt">{{ refsF().length }}/{{ refs().length }}</span></div>
           <table class="items">
-            <thead><tr><th>{{ singular() }}</th>@if (tab() === 'governorates') { <th>Real Name</th> }<th style="width:80px">Source</th><th class="ar">Actions</th></tr></thead>
+            <thead><tr><th>{{ singular() }}</th>@if (tab() === 'governorates') { <th>Real Name</th> }@if (tab() === 'segments') { <th style="width:120px">Income from</th><th style="width:120px">Income to</th> }<th style="width:80px">Source</th><th class="ar">Actions</th></tr></thead>
             <tbody>
               @for (r of refsF(); track r.id) {
                 <tr>
@@ -75,6 +82,10 @@ const TABS: { key: Tab; label: string }[] = [
                   @if (tab() === 'governorates') {
                     <td>@if (editId() === r.id) { <input class="input" [(ngModel)]="editRealName" placeholder="optional real name"> } @else { {{ r.realName || '—' }} }</td>
                   }
+                  @if (tab() === 'segments') {
+                    <td>@if (editId() === r.id) { <input class="input" type="number" min="0" [(ngModel)]="editFrom" placeholder="0"> } @else { {{ r.targetIncomeFrom === null ? '—' : (r.targetIncomeFrom | number) }} }</td>
+                    <td>@if (editId() === r.id) { <input class="input" type="number" min="0" [(ngModel)]="editTo" placeholder="∞"> } @else { {{ r.targetIncomeTo === null ? '∞' : (r.targetIncomeTo | number) }} }</td>
+                  }
                   <td>@if (r.source === 'Oracle') { <span class="src-b src-o">Oracle</span> } @else { <span class="src-b src-m">Manual</span> }</td>
                   <td class="ar actions">
                     @if (canEdit()) {
@@ -82,7 +93,7 @@ const TABS: { key: Tab; label: string }[] = [
                         <button class="btn btn-mini btn-p" [disabled]="!editName.trim() || busy()" (click)="saveRef(r)">Save</button>
                         <button class="btn btn-mini btn-s" (click)="cancelEdit()">Cancel</button>
                       } @else {
-                        <button class="icon-btn" title="Edit" (click)="startEdit(r.id, r.nameEn, r.realName)">✎</button>
+                        <button class="icon-btn" title="Edit" (click)="startEdit(r.id, r.nameEn, r.realName, r.targetIncomeFrom, r.targetIncomeTo)">✎</button>
                         <button class="icon-btn del" title="Delete" (click)="delRef(r)">🗑</button>
                       }
                     }
@@ -92,6 +103,13 @@ const TABS: { key: Tab; label: string }[] = [
             </tbody>
           </table>
         </div>
+        @if (tab() === 'segments') {
+          <div class="card panel" style="grid-column:1/-1">
+            <h3>Monthly segment auto-assignment</h3>
+            <p class="lbl" style="max-width:640px">On the 1st of each month every lab is automatically reassigned to the segment whose income band contains its <b>previous month's achieved income</b> (patient + insurance fees). Use the button to run it now for last month.</p>
+            <button class="btn btn-s" [disabled]="busy() || !canEdit()" (click)="assignSegments()">Run assignment now</button>
+          </div>
+        }
       </div>
     }
 
@@ -288,8 +306,10 @@ export class SetupComponent {
 
   readonly editId = signal<string | null>(null);
   editName = ''; editGov = ''; editCityId = ''; editTransport = false; editRealName = '';
+  editFrom: number | null = null; editTo: number | null = null;   // segment income band (edit row)
 
   newName = '';
+  newFrom: number | null = null; newTo: number | null = null;     // segment income band (create panel)
   cityName = ''; cityGov = '';
   areaName = ''; areaCity = ''; areaTransport = false;
 
@@ -334,19 +354,42 @@ export class SetupComponent {
     (obs as { subscribe: Function }).subscribe({ next: () => { this.busy.set(false); onOk(); }, error: () => this.busy.set(false) });
   }
 
-  startEdit(id: string, name: string, realName: string | null = null): void { this.editId.set(id); this.editName = name; this.editRealName = realName ?? ''; }
+  startEdit(id: string, name: string, realName: string | null = null, from: number | null = null, to: number | null = null): void {
+    this.editId.set(id); this.editName = name; this.editRealName = realName ?? ''; this.editFrom = from; this.editTo = to;
+  }
   startEditCity(c: City): void { this.editId.set(c.id); this.editName = c.name; this.editGov = c.governorate; this.editRealName = c.realName ?? ''; }
   startEditArea(a: Area): void { this.editId.set(a.id); this.editName = a.name; this.editCityId = a.cityId; this.editTransport = a.transportationRequired; this.editRealName = a.realName ?? ''; }
-  cancelEdit(): void { this.editId.set(null); this.editName = ''; this.editGov = ''; this.editCityId = ''; this.editTransport = false; this.editRealName = ''; }
+  cancelEdit(): void { this.editId.set(null); this.editName = ''; this.editGov = ''; this.editCityId = ''; this.editTransport = false; this.editRealName = ''; this.editFrom = null; this.editTo = null; }
 
   // Reference items (single Name → code + nameEn)
+  private numOrNull(v: number | null): number | null {
+    return (v === null || v === undefined || (v as unknown) === '' || Number.isNaN(v as number)) ? null : Number(v);
+  }
   addRef(): void {
     const name = this.newName.trim();
-    this.run(this.api.post('/setup/refs', { type: this.type(), code: name, nameEn: name, nameAr: null, sortOrder: 0 }),
-      () => { this.newName = ''; this.reloadRefs(); });
+    const body: Record<string, unknown> = { type: this.type(), code: name, nameEn: name, nameAr: null, sortOrder: 0 };
+    if (this.tab() === 'segments') { body['targetIncomeFrom'] = this.numOrNull(this.newFrom); body['targetIncomeTo'] = this.numOrNull(this.newTo); }
+    this.run(this.api.post('/setup/refs', body), () => { this.newName = ''; this.newFrom = null; this.newTo = null; this.reloadRefs(); });
   }
-  saveRef(r: RefItem): void { this.run(this.api.put(`/setup/refs/${r.id}`, { name: this.editName.trim(), realName: this.editRealName.trim() || null }), () => { this.cancelEdit(); this.reloadRefs(); }); }
+  saveRef(r: RefItem): void {
+    const body: Record<string, unknown> = { name: this.editName.trim(), realName: this.editRealName.trim() || null };
+    if (this.tab() === 'segments') { body['targetIncomeFrom'] = this.numOrNull(this.editFrom); body['targetIncomeTo'] = this.numOrNull(this.editTo); }
+    this.run(this.api.put(`/setup/refs/${r.id}`, body), () => { this.cancelEdit(); this.reloadRefs(); });
+  }
   delRef(r: RefItem): void { if (confirm(`Delete "${r.nameEn}"?`)) this.run(this.api.delete(`/setup/refs/${r.id}`), () => this.reloadRefs()); }
+
+  assignSegments(): void {
+    this.busy.set(true);
+    this.api.post<{ ran: boolean; status: string; month: string; labsEvaluated: number; labsReassigned: number; perSegment: Record<string, number> }>('/setup/segments/assign', {}).subscribe({
+      next: (r) => {
+        this.busy.set(false);
+        if (!r.ran) { this.toast.warning(`Assignment skipped (${r.status}). Configure segment income bands first.`); return; }
+        const dist = Object.entries(r.perSegment).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `${k}: ${v}`).join(', ');
+        this.toast.success(`Segments assigned for ${r.month}: ${r.labsReassigned} of ${r.labsEvaluated} labs changed (${dist}).`);
+      },
+      error: () => this.busy.set(false),
+    });
+  }
 
   // Cities
   addCity(): void { this.run(this.api.post('/setup/cities', { name: this.cityName.trim(), governorate: this.cityGov }), () => { this.cityName = ''; this.cityGov = ''; this.reloadCities(); }); }

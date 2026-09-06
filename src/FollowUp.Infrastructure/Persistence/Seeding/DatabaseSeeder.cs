@@ -90,12 +90,21 @@ public sealed class DatabaseSeeder
         if (!await _db.RefItems.AnyAsync(ct))
             _db.RefItems.AddRange(ReferenceItems());
 
-        // Segments are configurable reference data (RefType.Segment). Back-fill the A/B/C defaults on any
-        // database that predates the feature so existing labs' segments stay valid and are editable.
+        // Segments are configurable reference data (RefType.Segment). Seed the default tiers with their monthly
+        // target-income bands (EGP): C 0–3000, B 3001–6000, A 6001–10000, VIP >10000 (unbounded top tier).
         if (!await _db.RefItems.AnyAsync(r => r.Type == RefType.Segment, ct))
         {
+            var defaults = new (string Code, decimal From, decimal? To)[]
+            {
+                ("C", 0m, 3000m), ("B", 3001m, 6000m), ("A", 6001m, 10000m), ("VIP", 10001m, null),
+            };
             var s = 0;
-            _db.RefItems.AddRange(new[] { "A", "B", "C" }.Select(x => RefItem.Create(RefType.Segment, x, x, null, s++)));
+            foreach (var (code, from, to) in defaults)
+            {
+                var item = RefItem.Create(RefType.Segment, code, code, null, s++);
+                item.SetTargetIncome(from, to);
+                _db.RefItems.Add(item);
+            }
         }
 
         await _db.SaveChangesAsync(ct);

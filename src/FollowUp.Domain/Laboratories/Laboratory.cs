@@ -146,6 +146,15 @@ public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAudit
         PreferredChannel = preferredChannel;
     }
 
+    /// <summary>Reassigns only the commercial segment (e.g. the monthly income-based auto-assignment job). Segment
+    /// codes are configurable reference data (RefType.Segment), validated at the application layer.</summary>
+    public void ReassignSegment(string segment)
+    {
+        if (string.IsNullOrWhiteSpace(segment))
+            throw new DomainException("Segment is required.");
+        Segment = segment.Trim();
+    }
+
     public void PlaceInHierarchy(string? branch, string? governorate, string? city, string? area)
     {
         // Normalized like Name/Segment — sample-tracking rows key on the exact Area string.

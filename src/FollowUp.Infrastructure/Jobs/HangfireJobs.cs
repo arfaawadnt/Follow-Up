@@ -1,4 +1,5 @@
 using FollowUp.Application.Common.Abstractions;
+using FollowUp.Domain.Common;
 using Hangfire;
 
 namespace FollowUp.Infrastructure.Jobs;
@@ -64,4 +65,23 @@ public sealed class RetentionJob
     private readonly RetentionService _service;
     public RetentionJob(RetentionService service) => _service = service;
     public Task RunAsync(CancellationToken ct) => _service.PurgeAsync(ct);
+}
+
+/// <summary>
+/// Month-start segment auto-assignment — reassigns every lab to the segment whose target-income band contains the
+/// lab's achieved income for the just-ended calendar month. Runs after the month's final nightly stats pull so the
+/// previous month is fully synced. Timeout covers loading and updating the full lab set.
+/// </summary>
+[DisableConcurrentExecution(timeoutInSeconds: 600)]
+public sealed class MonthlySegmentAssignmentJob
+{
+    private readonly ISegmentAssignmentRunner _runner;
+    private readonly IClock _clock;
+    public MonthlySegmentAssignmentJob(ISegmentAssignmentRunner runner, IClock clock) { _runner = runner; _clock = clock; }
+    public Task RunAsync(CancellationToken ct)
+    {
+        // Evaluate the previous calendar month (the one that just ended).
+        var lastDayOfPrevMonth = new DateOnly(_clock.CairoToday.Year, _clock.CairoToday.Month, 1).AddDays(-1);
+        return _runner.RunAsync(YearMonth.From(lastDayOfPrevMonth), manual: false, ct);
+    }
 }

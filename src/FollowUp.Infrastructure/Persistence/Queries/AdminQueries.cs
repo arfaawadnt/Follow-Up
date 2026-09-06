@@ -69,7 +69,8 @@ internal sealed class SetupQueries : ISetupQueries
             q = q.Where(x => x.Type == refType);
         }
         var rows = await q.OrderBy(x => x.SortOrder).ThenBy(x => x.NameEn).ToListAsync(ct);
-        return rows.Select(x => new RefItemDto(x.Id.Value, x.Type.Name, x.Code, x.NameEn, x.NameAr, x.RealName, x.SortOrder, x.Source.ToString())).ToList();
+        return rows.Select(x => new RefItemDto(x.Id.Value, x.Type.Name, x.Code, x.NameEn, x.NameAr, x.RealName, x.SortOrder, x.Source.ToString(),
+            x.TargetIncomeFrom, x.TargetIncomeTo)).ToList();
     }
 
     public async Task<IReadOnlyList<CityDto>> GetCitiesAsync(CancellationToken ct)

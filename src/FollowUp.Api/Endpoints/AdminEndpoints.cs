@@ -46,9 +46,12 @@ public static class AdminEndpoints
         api.MapPost("/setup/refs", async (CreateRefItemCommand cmd, IMediator m, CancellationToken ct) =>
         { var id = await m.Send(cmd, ct); return Results.Created($"/api/v1/setup/refs/{id}", new { id }); }).WithTags("Setup");
         api.MapPut("/setup/refs/{id:guid}", async (Guid id, RefNameBody b, IMediator m, CancellationToken ct) =>
-        { await m.Send(new UpdateRefItemCommand(id, b.Name, b.RealName), ct); return Results.NoContent(); }).WithTags("Setup");
+        { await m.Send(new UpdateRefItemCommand(id, b.Name, b.RealName, b.TargetIncomeFrom, b.TargetIncomeTo), ct); return Results.NoContent(); }).WithTags("Setup");
         api.MapDelete("/setup/refs/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>
         { await m.Send(new DeleteRefItemCommand(id), ct); return Results.NoContent(); }).WithTags("Setup");
+        // Manual trigger for the income-based segment auto-assignment (default: previous calendar month).
+        api.MapPost("/setup/segments/assign", async (AssignSegmentsBody? b, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new AssignLabSegmentsCommand(b?.Month), ct))).WithTags("Setup");
 
         api.MapGet("/setup/cities", async (IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetCitiesQuery(), ct))).WithTags("Setup");
@@ -72,7 +75,8 @@ public static class AdminEndpoints
     public sealed record SettingBody(string? Value, bool IsSecret);
     public sealed record RetentionBody(int Days);
     public sealed record ChangeRoleBody(Guid RoleId);
-    public sealed record RefNameBody(string Name, string? RealName = null);
+    public sealed record RefNameBody(string Name, string? RealName = null, decimal? TargetIncomeFrom = null, decimal? TargetIncomeTo = null);
+    public sealed record AssignSegmentsBody(string? Month = null);
     public sealed record CityBody(string Name, string Governorate, string? RealName = null);
     public sealed record AreaBody(string Name, Guid CityId, bool TransportationRequired, string? RealName = null);
 
