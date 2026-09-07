@@ -1,4 +1,5 @@
 using FollowUp.Domain.Common;
+using FollowUp.Domain.Identity;
 
 namespace FollowUp.Domain.Emailing;
 
@@ -67,6 +68,9 @@ public sealed class StatsEmailSubscription : AggregateRoot<StatsEmailSubscriptio
     private StatsEmailSubscription(StatsEmailSubscriptionId id, string name) : base(id) { Name = name; }
 
     public string Name { get; private set; } = string.Empty;
+    /// <summary>The org scope the report is rendered under (finding B-7) — the creating admin's scope. The report
+    /// content is limited to this scope so a scoped admin's report can never egress company-wide data.</summary>
+    public OrgScope Scope { get; private set; } = OrgScope.Global;
     public bool IncludeLabStats { get; private set; }
     public bool IncludeTestStats { get; private set; }
     public bool IncludeAreaStats { get; private set; }
@@ -88,10 +92,10 @@ public sealed class StatsEmailSubscription : AggregateRoot<StatsEmailSubscriptio
     public DateTimeOffset? UpdatedAt { get; private set; }
     public string? UpdatedBy { get; private set; }
 
-    public static StatsEmailSubscription Create(string name)
+    public static StatsEmailSubscription Create(string name, OrgScope scope)
     {
         if (string.IsNullOrWhiteSpace(name)) throw new DomainException("Report name is required.");
-        return new StatsEmailSubscription(StatsEmailSubscriptionId.New(), name.Trim());
+        return new StatsEmailSubscription(StatsEmailSubscriptionId.New(), name.Trim()) { Scope = scope };
     }
 
     public void Rename(string name) =>

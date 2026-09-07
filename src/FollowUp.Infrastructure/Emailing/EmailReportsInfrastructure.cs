@@ -201,9 +201,9 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
     {
         var dateTag = to.ToString("yyyy-MM-dd");
         var sections = new List<ReportSection>();
-        if (sub.IncludeLabStats) sections.Add(await RenderLabAsync(dateTag, from, to, f, ct));
-        if (sub.IncludeTestStats) sections.Add(await RenderTestAsync(dateTag, from, to, f, ct));
-        if (sub.IncludeAreaStats) sections.Add(await RenderAreaAsync(dateTag, from, to, f, ct));
+        if (sub.IncludeLabStats) sections.Add(await RenderLabAsync(dateTag, from, to, f, sub.Scope, ct));
+        if (sub.IncludeTestStats) sections.Add(await RenderTestAsync(dateTag, from, to, f, sub.Scope, ct));
+        if (sub.IncludeAreaStats) sections.Add(await RenderAreaAsync(dateTag, from, to, f, sub.Scope, ct));
         if (sub.IncludeNoLab) sections.Add(await RenderNoLabAsync(dateTag, from, to, ct));
 
         var sb = new StringBuilder();
@@ -250,10 +250,10 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
 
     /// <summary>Lab Statistics as a daily pivot (one column per day in the window, like the on-screen page): per-lab
     /// rows with the selected metric (count or income) in each day column, plus Total tests + Total income.</summary>
-    private async Task<ReportSection> RenderLabAsync(string dateTag, DateOnly from, DateOnly to, Filters f, CancellationToken ct)
+    private async Task<ReportSection> RenderLabAsync(string dateTag, DateOnly from, DateOnly to, Filters f, OrgScope scope, CancellationToken ct)
     {
         var income = IsIncome(f);
-        var rows = (await _labStats.ListAsync(from, to, OrgScope.Global, ct))
+        var rows = (await _labStats.ListAsync(from, to, scope, ct))
             .Where(r => Match(f.Governorates, r.Governorate) && Match(f.Cities, r.City) && Match(f.Areas, r.Area)
                      && Match(f.Categories, r.Category) && Match(f.Segments, r.Segment)).ToList();
         var periods = rows.Select(r => r.Date).Distinct().OrderBy(d => d).ToList();
@@ -297,12 +297,10 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
 
     /// <summary>Test Statistics as a daily pivot (one column per day), per-test rows with the selected metric per day,
     /// plus Total count + Total income.</summary>
-    private async Task<ReportSection> RenderTestAsync(string dateTag, DateOnly from, DateOnly to, Filters f, CancellationToken ct)
+    private async Task<ReportSection> RenderTestAsync(string dateTag, DateOnly from, DateOnly to, Filters f, OrgScope scope, CancellationToken ct)
     {
         var income = IsIncome(f);
-        // Company-wide report job (the recipient-scoping of email reports is finding B-7); pass global scope
-        // so the branch filter added for B-6 does not narrow the emailed report here.
-        var rows = (await _testStats.GetTestStatsAsync(from, to, OrgScope.Global, ct))
+        var rows = (await _testStats.GetTestStatsAsync(from, to, scope, ct))
             .Where(r => Match(f.Groups, r.GroupName)).ToList();
         var periods = rows.Select(r => r.Date).Distinct().OrderBy(d => d).ToList();
 
@@ -379,14 +377,14 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
     /// governorate bands (light fill, bold) each followed by its areas, with per-day columns flagged green when the
     /// day beats the reference month's daily average and red when it falls short (daily view over the window).
     /// </summary>
-    private async Task<ReportSection> RenderAreaAsync(string dateTag, DateOnly from, DateOnly to, Filters f, CancellationToken ct)
+    private async Task<ReportSection> RenderAreaAsync(string dateTag, DateOnly from, DateOnly to, Filters f, OrgScope scope, CancellationToken ct)
     {
         var income = IsIncome(f);
         bool Geo(AreaStatDto r) => Match(f.Governorates, r.Governorate) && Match(f.Cities, r.City) && Match(f.Areas, r.Area);
-        var rows = (await _areaStats.ListAsync(from, to, OrgScope.Global, ct)).Where(Geo).ToList();
+        var rows = (await _areaStats.ListAsync(from, to, scope, ct)).Where(Geo).ToList();
 
         var (refFrom, refTo, refDays) = RefWindow(to, f.RefMonth);
-        var refRows = (await _areaStats.ListAsync(refFrom, refTo, OrgScope.Global, ct)).Where(Geo).ToList();
+        var refRows = (await _areaStats.ListAsync(refFrom, refTo, scope, ct)).Where(Geo).ToList();
 
         // Reference-month totals (count + income) per governorate and per (governorate|area).
         var refByGov = new Dictionary<string, DayCell>();

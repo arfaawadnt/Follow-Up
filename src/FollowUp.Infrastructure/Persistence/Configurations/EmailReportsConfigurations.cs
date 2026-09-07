@@ -36,6 +36,10 @@ internal sealed class StatsEmailSubscriptionConfiguration : IEntityTypeConfigura
         b.MapAuditable();
 
         b.Property(x => x.Name).HasMaxLength(200).IsRequired();
+        b.Property(x => x.Scope)
+            .HasColumnName("scope").HasColumnType("jsonb")
+            .HasConversion<OrgScopeConverter>(new OrgScopeComparer())
+            .IsRequired();
         b.Property(x => x.IncludeLabStats);
         b.Property(x => x.IncludeTestStats);
         b.Property(x => x.IncludeAreaStats);

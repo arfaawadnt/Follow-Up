@@ -157,13 +157,16 @@ public sealed class CreateStatsEmailSubscriptionHandler : ICommandHandler<Create
 {
     private readonly IStatsEmailSubscriptionRepository _repo;
     private readonly IStatsEmailScheduler _scheduler;
-    public CreateStatsEmailSubscriptionHandler(IStatsEmailSubscriptionRepository repo, IStatsEmailScheduler scheduler)
-    { _repo = repo; _scheduler = scheduler; }
+    private readonly ICurrentUser _user;
+    public CreateStatsEmailSubscriptionHandler(IStatsEmailSubscriptionRepository repo, IStatsEmailScheduler scheduler, ICurrentUser user)
+    { _repo = repo; _scheduler = scheduler; _user = user; }
 
     public Task<Guid> Handle(CreateStatsEmailSubscriptionCommand r, CancellationToken ct)
     {
         var i = r.Input;
-        var sub = StatsEmailSubscription.Create(i.Name);
+        // The report is rendered under the creator's org scope so its content can never exceed what the creating
+        // admin may see (finding B-7).
+        var sub = StatsEmailSubscription.Create(i.Name, _user.Scope);
         Apply(sub, i);
         _repo.Add(sub);
         _scheduler.Schedule(sub);
