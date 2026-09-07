@@ -18,7 +18,8 @@ public static class OperationsEndpoints
     public sealed record ManualVisitBody(Guid LaboratoryId, int SampleCount, Guid? CollectorRepId = null,
         int? TotalRequired = null, int? RequestCount = null, int? OutsourceCount = null, string? Notes = null,
         IReadOnlyList<Guid>? AttachmentIds = null);
-    public sealed record OutsourceUpdateBody(int Quantity, string? DestinationLab, string? Notes);
+    public sealed record OutsourceUpdateBody(int Quantity, string? DestinationLab, string? Notes,
+        IReadOnlyList<FollowUp.Application.Features.Outsource.OutsourceTestInput>? Tests = null);
     public sealed record VerifyBody(bool Verified);
     public sealed record OutsourceStatusBody(string Status);
     public sealed record AdvanceStepBody(string Step);
@@ -99,12 +100,16 @@ public static class OperationsEndpoints
         // Outsource (FR-9)
         api.MapGet("/outsource-samples", async (DateOnly? start, DateOnly? end, DateOnly? date, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetOutsourceSamplesQuery(start ?? date, end ?? date), ct))).WithTags("Outsource");
+        api.MapGet("/outsource-samples/tracking", async (DateOnly from, DateOnly to, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetOutsourceTrackingQuery(from, to), ct))).WithTags("Outsource");
+        api.MapGet("/test-lookup", async (IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetTestLookupQuery(), ct))).WithTags("Outsource");
         api.MapPost("/outsource-samples", async (CreateOutsourceSampleCommand cmd, IMediator m, CancellationToken ct) =>
         { var id = await m.Send(cmd, ct); return Results.Created($"/api/v1/outsource-samples/{id}", new { id }); }).WithTags("Outsource");
         api.MapPost("/outsource-samples/{id:guid}/status", async (Guid id, OutsourceStatusBody b, IMediator m, CancellationToken ct) =>
         { await m.Send(new AdvanceOutsourceStatusCommand(id, b.Status), ct); return Results.NoContent(); }).WithTags("Outsource");
         api.MapPut("/outsource-samples/{id:guid}", async (Guid id, OutsourceUpdateBody b, IMediator m, CancellationToken ct) =>
-        { await m.Send(new UpdateOutsourceSampleCommand(id, b.Quantity, b.DestinationLab, b.Notes), ct); return Results.NoContent(); }).WithTags("Outsource");
+        { await m.Send(new UpdateOutsourceSampleCommand(id, b.Quantity, b.DestinationLab, b.Notes) { Tests = b.Tests }, ct); return Results.NoContent(); }).WithTags("Outsource");
         api.MapDelete("/outsource-samples/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>
         { await m.Send(new DeleteOutsourceSampleCommand(id), ct); return Results.NoContent(); }).WithTags("Outsource");
 

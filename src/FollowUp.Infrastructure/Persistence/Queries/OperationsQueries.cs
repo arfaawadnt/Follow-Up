@@ -264,17 +264,52 @@ internal sealed class OutsourceQueries : IOutsourceQueries
 
     public async Task<IReadOnlyList<OutsourceSampleDto>> ListAsync(DateOnly start, DateOnly end, OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
     {
-        var scopedLabs = _db.Laboratories.ApplyScope(scope).Select(l => l.Id);
-        var q = from o in _db.OutsourceSamples.AsNoTracking()
-                where scopedLabs.Contains(o.LaboratoryId) && o.VisitDate >= start && o.VisitDate <= end
-                join l in _db.Laboratories.AsNoTracking() on o.LaboratoryId equals l.Id
-                orderby o.VisitDate descending
-                select new { o.Id, o.LaboratoryId, l.Code, l.IsEncrypted, l.Name, o.VisitDate, o.DestinationLab, o.Quantity, o.Status, o.Notes };
-        var rows = await q.ToListAsync(ct);
-        return rows.Select(r => new OutsourceSampleDto(
-            r.Id.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, r.IsEncrypted, canSeeEncrypted), r.Name, r.VisitDate,
-            r.DestinationLab, r.Quantity, r.Status.Name, r.Notes)).ToList();
+        var (samples, labs) = await LoadScopedAsync(start, end, scope, ct);
+        return samples.OrderByDescending(s => s.VisitDate).Select(s =>
+        {
+            var lab = labs[s.LaboratoryId];
+            return new OutsourceSampleDto(
+                s.Id.Value, s.LaboratoryId.Value, DisplayCode.For(lab.Code.Value, lab.IsEncrypted, canSeeEncrypted), lab.Name,
+                s.VisitDate, s.DestinationLab, s.Quantity, s.Status.Name, s.Notes,
+                s.Tests.Select(t => new OutsourceTestDto(t.Id.Value, t.TestCode, t.TestName, t.SampleVolume,
+                    t.TestFees.Amount, t.OutsourceFees.Amount, t.NetRevenue.Amount)).ToList());
+        }).ToList();
     }
+
+    public async Task<IReadOnlyList<OutsourceTrackingRowDto>> TrackingAsync(DateOnly start, DateOnly end, OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
+    {
+        var (samples, labs) = await LoadScopedAsync(start, end, scope, ct);
+        var rows = new List<OutsourceTrackingRowDto>();
+        foreach (var s in samples)
+        {
+            if (!labs.TryGetValue(s.LaboratoryId, out var lab)) continue;
+            foreach (var t in s.Tests)
+                rows.Add(new OutsourceTrackingRowDto(
+                    s.VisitDate, s.LaboratoryId.Value, DisplayCode.For(lab.Code.Value, lab.IsEncrypted, canSeeEncrypted), lab.Name,
+                    lab.Branch, lab.Governorate, lab.City, lab.Area,
+                    t.TestCode, t.TestName, t.SampleVolume, t.TestFees.Amount, t.OutsourceFees.Amount, t.NetRevenue.Amount));
+        }
+        return rows.OrderByDescending(r => r.VisitDate).ThenBy(r => r.LabName).ThenBy(r => r.TestName).ToList();
+    }
+
+    // Loads scoped outsource samples (owned Tests auto-included) for a range plus the lab dimensions dictionary.
+    private async Task<(List<Domain.Operations.OutsourceSample> Samples,
+        Dictionary<Domain.Laboratories.LaboratoryId, LabRow> Labs)> LoadScopedAsync(
+        DateOnly start, DateOnly end, OrgScope scope, CancellationToken ct)
+    {
+        var scopedLabs = _db.Laboratories.ApplyScope(scope).Select(l => l.Id);
+        var samples = await _db.OutsourceSamples.AsNoTracking()
+            .Where(o => scopedLabs.Contains(o.LaboratoryId) && o.VisitDate >= start && o.VisitDate <= end)
+            .ToListAsync(ct);
+        var labIds = samples.Select(s => s.LaboratoryId).Distinct().ToList();
+        var labs = (await _db.Laboratories.AsNoTracking().Where(l => labIds.Contains(l.Id))
+            .Select(l => new LabRow(l.Id, l.Code, l.IsEncrypted, l.Name, l.Branch, l.Governorate, l.City, l.Area))
+            .ToListAsync(ct)).ToDictionary(l => l.Id);
+        return (samples, labs);
+    }
+
+    private sealed record LabRow(Domain.Laboratories.LaboratoryId Id, Domain.Laboratories.LabCode Code, bool IsEncrypted,
+        string Name, string? Branch, string? Governorate, string? City, string? Area);
 }
 
 internal sealed class SampleTrackingQueries : ISampleTrackingQueries

@@ -15,6 +15,8 @@ public readonly record struct OutsourceSampleId(Guid Value)
 /// </summary>
 public sealed class OutsourceSample : AggregateRoot<OutsourceSampleId>, IAuditable
 {
+    private readonly List<OutsourceTest> _tests = new();
+
     private OutsourceSample() { } // EF
 
     private OutsourceSample(OutsourceSampleId id, LaboratoryId labId, DateOnly visitDate,
@@ -41,6 +43,9 @@ public sealed class OutsourceSample : AggregateRoot<OutsourceSampleId>, IAuditab
     /// <summary>Free-text notes (reference parity).</summary>
     public string? Notes { get; private set; }
 
+    /// <summary>Per-test line items (test, sample-volume category, fees). Independent of <see cref="Quantity"/>.</summary>
+    public IReadOnlyCollection<OutsourceTest> Tests => _tests.AsReadOnly();
+
     public DateTimeOffset CreatedAt { get; private set; }
     public string CreatedBy { get; private set; } = null!;
     public DateTimeOffset? UpdatedAt { get; private set; }
@@ -57,6 +62,13 @@ public sealed class OutsourceSample : AggregateRoot<OutsourceSampleId>, IAuditab
     }
 
     public void SetNotes(string? notes) => Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+
+    /// <summary>Replaces the test line items (the tests dialog submits the full list).</summary>
+    public void SetTests(IEnumerable<OutsourceTest> tests)
+    {
+        _tests.Clear();
+        _tests.AddRange(tests);
+    }
 
     /// <summary>Inline row edit (reference parity): quantity, destination and notes.</summary>
     public void Update(int quantity, string? destinationLab, string? notes)

@@ -138,9 +138,21 @@ export interface SampleLifecycleRow {
   visitId?: string | null; attachments?: AttachmentRef[];
 }
 
+export interface OutsourceTest {
+  id?: string; testCode: string; testName: string; sampleVolume: string;
+  testFees: number; outsourceFees: number; netRevenue?: number;
+}
 export interface OutsourceSample {
   id: string; laboratoryId: string; labDisplayCode: string; labName: string;
   visitDate: string; destinationLab: string | null; quantity: number; status: string; notes: string | null;
+  tests?: OutsourceTest[];
+}
+export interface TestLookup { code: string; name: string; testType: number; }
+export interface OutsourceTrackingRow {
+  visitDate: string; laboratoryId: string; labDisplayCode: string; labName: string;
+  branch: string | null; governorate: string | null; city: string | null; area: string | null;
+  testCode: string; testName: string; sampleVolume: string;
+  testFees: number; outsourceFees: number; netRevenue: number;
 }
 
 export interface UserLookup { id: string; username: string; }

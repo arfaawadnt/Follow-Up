@@ -48,6 +48,7 @@ public sealed class DailyVisitIdConverter : ValueConverter<DailyVisitId, Guid> {
 public sealed class VisitHistoryIdConverter : ValueConverter<VisitHistoryId, Guid> { public VisitHistoryIdConverter() : base(x => x.Value, v => new VisitHistoryId(v)) { } }
 public sealed class VisitAttachmentIdConverter : ValueConverter<VisitAttachmentId, Guid> { public VisitAttachmentIdConverter() : base(x => x.Value, v => new VisitAttachmentId(v)) { } }
 public sealed class OutsourceSampleIdConverter : ValueConverter<OutsourceSampleId, Guid> { public OutsourceSampleIdConverter() : base(x => x.Value, v => new OutsourceSampleId(v)) { } }
+public sealed class OutsourceTestIdConverter : ValueConverter<OutsourceTestId, Guid> { public OutsourceTestIdConverter() : base(x => x.Value, v => new OutsourceTestId(v)) { } }
 public sealed class SampleTrackingIdConverter : ValueConverter<SampleTrackingId, Guid> { public SampleTrackingIdConverter() : base(x => x.Value, v => new SampleTrackingId(v)) { } }
 public sealed class MarketingVisitIdConverter : ValueConverter<MarketingVisitId, Guid> { public MarketingVisitIdConverter() : base(x => x.Value, v => new MarketingVisitId(v)) { } }
 public sealed class ComplaintIdConverter : ValueConverter<ComplaintId, Guid> { public ComplaintIdConverter() : base(x => x.Value, v => new ComplaintId(v)) { } }

@@ -111,6 +111,7 @@ public sealed class FollowUpDbContext : DbContext
         c.Properties<VisitHistoryId>().HaveConversion<VisitHistoryIdConverter>();
         c.Properties<VisitAttachmentId>().HaveConversion<VisitAttachmentIdConverter>();
         c.Properties<OutsourceSampleId>().HaveConversion<OutsourceSampleIdConverter>();
+        c.Properties<OutsourceTestId>().HaveConversion<OutsourceTestIdConverter>();
         c.Properties<SampleTrackingId>().HaveConversion<SampleTrackingIdConverter>();
         c.Properties<MarketingVisitId>().HaveConversion<MarketingVisitIdConverter>();
         c.Properties<ComplaintId>().HaveConversion<ComplaintIdConverter>();

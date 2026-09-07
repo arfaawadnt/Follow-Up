@@ -31,6 +31,41 @@ public class OutsourceSampleTests
     }
 }
 
+public class OutsourceTestLineTests
+{
+    [Fact]
+    public void Net_revenue_is_test_fees_minus_outsource_fees()
+    {
+        var line = OutsourceTest.Create("CBC", "Complete Blood Count", "Large", 120m, 45m);
+        line.NetRevenue.Amount.Should().Be(75m);
+        line.SampleVolume.Should().Be("Large");
+        line.TestCode.Should().Be("CBC");
+    }
+
+    [Fact]
+    public void Rejects_an_invalid_sample_volume()
+    {
+        var act = () => OutsourceTest.Create("CBC", "Complete Blood Count", "Huge", 10m, 5m);
+        act.Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void Set_tests_replaces_the_line_items()
+    {
+        var os = OutsourceSample.Create(LaboratoryId.New(), new DateOnly(2026, 8, 15), "External Lab", 3);
+        os.SetTests(new[]
+        {
+            OutsourceTest.Create("CBC", "Complete Blood Count", "Small", 100m, 40m),
+            OutsourceTest.Create("TSH", "Thyroid", "Medium", 200m, 90m),
+        });
+        os.Tests.Should().HaveCount(2);
+        os.Tests.Sum(t => t.NetRevenue.Amount).Should().Be(170m); // (100-40)+(200-90)
+
+        os.SetTests(new[] { OutsourceTest.Create("CBC", "Complete Blood Count", "Small", 100m, 40m) });
+        os.Tests.Should().ContainSingle();
+    }
+}
+
 public class SampleTrackingTests
 {
     private static readonly DateTimeOffset Now = new(2026, 8, 15, 9, 0, 0, TimeSpan.FromHours(2));

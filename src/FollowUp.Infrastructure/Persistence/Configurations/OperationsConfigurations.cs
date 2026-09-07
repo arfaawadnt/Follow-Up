@@ -117,6 +117,22 @@ internal sealed class OutsourceSampleConfiguration : IEntityTypeConfiguration<Ou
         b.Property(x => x.Quantity);
         b.Property(x => x.Notes).HasMaxLength(1000);
 
+        // Per-test line items (owned child table, mirrors Laboratory.Contacts). Money fees auto-map to
+        // numeric(18,2) via the global convention; NetRevenue is derived (ignored).
+        b.OwnsMany(x => x.Tests, t =>
+        {
+            t.ToTable("outsource_sample_test");
+            t.WithOwner().HasForeignKey("outsource_sample_id");
+            t.HasKey(x => x.Id);
+            t.Property(x => x.TestCode).HasMaxLength(32).IsRequired();
+            t.Property(x => x.TestName).HasMaxLength(200).IsRequired();
+            t.Property(x => x.SampleVolume).HasMaxLength(16).IsRequired();
+            t.Property(x => x.TestFees);
+            t.Property(x => x.OutsourceFees);
+            t.Ignore(x => x.NetRevenue);
+        });
+        b.Navigation(x => x.Tests).UsePropertyAccessMode(PropertyAccessMode.Field);
+
         b.HasOne<Laboratory>().WithMany().HasForeignKey(x => x.LaboratoryId).OnDelete(DeleteBehavior.Cascade);
         // Unique per (visit_date, lab) — SRS FR-9.
         b.HasIndex(x => new { x.VisitDate, x.LaboratoryId }).IsUnique();
