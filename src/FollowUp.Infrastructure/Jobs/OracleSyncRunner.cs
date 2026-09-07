@@ -541,7 +541,17 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
             to.AddDays(1).ToDateTime(TimeOnly.MinValue));
         var rows = await _reader.ExecuteAsync("DetailedStats", window, ct);
 
-        // Window replace: clear the range, then insert the freshly read lines.
+        // Guard against wiping the window on an empty/failed read: the reader returns Array.Empty when the
+        // Oracle provider is unconfigured or on a transient outage — that is NOT a real "zero registrations".
+        // Deleting first would permanently lose the window's fee-bearing lines (finding B-1 / STAT-001); match
+        // the empty-rows guard every sibling upsert already has.
+        if (rows.Count == 0)
+            return new OracleSyncResult(true, "no-rows", LabsUpserted: 0, StatsUpserted: 0);
+
+        // Window replace, atomically: delete the range and insert the freshly read lines inside one
+        // transaction, so a failure between the (immediately-committing) delete and the insert can never
+        // leave the window emptied.
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
         await _detailed.DeleteRangeAsync(from, to, ct);
         var mapped = new List<DetailedRegistration>(rows.Count);
         foreach (var row in rows)
@@ -556,6 +566,7 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
         }
         _detailed.AddRange(mapped);
         await _db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
 
         _logger.LogInformation("DetailedStats sync ({Mode}) {From:yyyy-MM-dd}..{To:yyyy-MM-dd}: {Rows} lines",
             manual ? "manual" : "scheduled", from, to, mapped.Count);
