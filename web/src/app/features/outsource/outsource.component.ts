@@ -158,6 +158,16 @@ interface TestRow { id?: string; testCode: string; testName: string; sampleVolum
 
     <!-- Shared searchable test-lines editor (bound to testRows) -->
     <ng-template #testEditor>
+      @if (testRows.length) {
+        <div class="trow thead">
+          <div class="tsearch">{{ 'test_name' | t : 'Test' }}</div>
+          <div style="width:110px">{{ 'sample_volume' | t : 'Sample Volume' }}</div>
+          <div style="width:100px">{{ 'test_fees' | t : 'Test Fees' }}</div>
+          <div style="width:110px">{{ 'outsource_fees' | t : 'Outsource Fees' }}</div>
+          <div class="net" style="text-align:right">{{ 'net_revenue' | t : 'Net Revenue' }}</div>
+          <div style="width:26px"></div>
+        </div>
+      }
       @for (row of testRows; track $index) {
         <div class="trow">
           <div class="tsearch">
@@ -243,6 +253,8 @@ interface TestRow { id?: string; testCode: string; testName: string; sampleVolum
     .topt{padding:7px 10px;cursor:pointer;font-size:12.5px;border-bottom:1px solid var(--slate-100,#f3f2f1)}
     .topt:hover{background:var(--slate-50,#faf9f8)}
     .net{width:90px;text-align:right;font-weight:700}
+    .thead{margin-bottom:2px}
+    .thead > div{font-size:11px;font-weight:600;color:var(--slate-600)}
     .lbl{font-size:11px;color:var(--slate-600)}
   `],
 })
@@ -420,9 +432,21 @@ export class OutsourceComponent {
     });
   });
 
+  // Flatten the grouped report into export rows, keeping the on-screen per-lab subtotals + grand total.
   private reportRows(): (string | number | null)[][] {
-    return this.reportF().map((r) => [ddmy(r.visitDate), r.labName, r.labDisplayCode, r.governorate, r.city, r.area,
-      r.testName, r.testCode, r.sampleVolume, r.testFees, r.outsourceFees, r.netRevenue]);
+    const rows: (string | number | null)[][] = [];
+    for (const dg of this.reportGroups()) {
+      for (const lg of dg.labs) {
+        for (const r of lg.rows) {
+          rows.push([ddmy(r.visitDate), r.labName, r.labDisplayCode, r.governorate, r.city, r.area,
+            r.testName, r.testCode, r.sampleVolume, r.testFees, r.outsourceFees, r.netRevenue]);
+        }
+        rows.push(['', lg.labName + ' — subtotal', '', '', '', '', '', '', '', lg.totals.testFees, lg.totals.outsourceFees, lg.totals.netRevenue]);
+      }
+    }
+    const g = this.grand();
+    rows.push(['', 'GRAND TOTAL', '', '', '', '', '', '', '', g.testFees, g.outsourceFees, g.netRevenue]);
+    return rows;
   }
   private static readonly REPORT_HEADER = ['Date', 'Lab', 'Code', 'Governorate', 'City', 'Area', 'Test', 'Test code', 'Sample volume', 'Test fees', 'Outsource fees', 'Net revenue'];
   exportReport(): void { exportXlsx('outsource-tracking.xlsx', OutsourceComponent.REPORT_HEADER, this.reportRows()); }
