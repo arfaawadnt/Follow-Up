@@ -314,5 +314,19 @@ Api 13 = 276 passed / 0 failed / 0 skipped; build 0W/0E; migrations apply single
 proven by making an architecture ratchet strict (removing the pinned exception) rather than adding a bespoke
 test — the detector itself now guards the fix.
 
-Still open by design: **M-JOB / ADR-0004**, plus the schema/secret-migration Majors (M-11, M-14, M-15/16,
-M-7), the bigger reliability/observability Majors (M-9, M-13, M-18, M-19), and the remaining Minors/Opinions.
+### Phase 4 (cont.) — Majors tranche C (schema / concurrency)
+
+| ID | Fix | Migration | Test |
+|---|---|---|---|
+| **M-11** | `OutsourceSample` is now `IVersioned` (xmin token) — concurrent advance/update/delete conflict (409) instead of silent last-writer-wins | `AddOutsourceConcurrencyToken` (xmin = system column, no-op DDL) | `OutsourceConcurrencyTests` (deterministic two-context conflict) |
+| **M-14** | Lab FKs on `outsource_sample`, `complaint`, `marketing_visit` changed Cascade→Restrict, so deleting a lab can't silently destroy financial/regulated records | `RestrictLabCascadeDeletes` | `LabDeleteRestrictTests` |
+| **M-7** | Stats import/sync require new `AddLabStats`/`AddAreaStats` write privileges (not `View*`), so a read-only user can't overwrite stats or trigger destructive syncs | `GrantStatsWritePrivileges` (data: grants the built-in OperationsManager on existing DBs; Admin via the All-backfill; seeder grants new installs) | `StatsWritePrivilegeTests` |
+
+**Verification after tranche C (fresh DB): Domain 76 · Application 109 · Architecture 22 · Integration 61 ·
+Api 13 = 281 passed / 0 failed / 0 skipped; build 0W/0E; 40 migrations apply single-pass; no EF drift.**
+Behaviour note (M-7): after deploy, only Admin and OperationsManager (the built-in roles) retain manual
+stats sync/import; any *custom* read-only role that relied on `ViewReports` for it must be granted the new
+write privileges explicitly — the intended tightening.
+
+Still open by design: **M-JOB / ADR-0004**, the secret-at-rest Majors (**M-15/M-16**), the reliability/
+observability Majors (**M-9, M-13, M-18, M-19**), and the remaining Minors/Opinions.
