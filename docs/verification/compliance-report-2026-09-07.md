@@ -296,6 +296,23 @@ genuine creates-fresh-record exception, not a dodge. No opportunistic refactorin
 Domain 76 · Application 106 · Architecture 22 · Integration 57 · Api 13 = 274 passed / 0 failed / 0 skipped.**
 
 **All 7 Blockers and the 4 scope Majors in the approved scope are now fixed and committed** (branch
-`remediation/cycle3-scope-and-blockers`, one atomic commit per finding). Still open by design:
-**M-JOB / ADR-0004** (you chose not to act this session), plus the remaining ~23 Majors / ~30 Minors /
-~8 Opinions from the register.
+`remediation/cycle3-scope-and-blockers`, one atomic commit per finding).
+
+### Phase 4 (cont.) — Majors tranche B (authorization + correctness)
+
+| ID | Fix | Test / proof |
+|---|---|---|
+| **M-6** | Encrypted lab's `MappingCode` (which mirrors the real code for Oracle labs) is withheld from non-privileged callers, like `DisplayCode` | `EncryptedMappingCodeTests` |
+| **M-5** | `GetLaboratoriesQuery`/`GetLaboratoryByIdQuery` now declare `IAuthorizedRequest` (authenticated-only — the labs directory is open to all staff, protected by scope + masking); removed from the ratchet | arch ratchet enforces the declaration |
+| **M-22** | `Complaint.Resolve`'s e-signature gate is now a required argument (no fail-open default) | compile-enforced; existing `false`-case test |
+| **M-12** | Complaint (and marketing-visit) numbering serialized with a transaction-scoped `pg_advisory_xact_lock` — concurrent creation no longer collides on the unique number | `ComplaintNumberingTests` (6-way concurrency) |
+| **M-20** | `GET /labs/nextcode` routed through a query (`NextCodeAsync` moved to the read side); no repository in the endpoint | endpoint-purity arch ratchet made strict |
+| **M-21** | `GetRetentionHandler`/`GetIntegrationConfigHandler` read via projections (`ISettingsQueries`/`IIntegrationQueries`), not write-side repositories | query-handler-repo ratchet (both un-pinned) |
+
+**Verification after tranche B (fresh DB): Domain 76 · Application 106 · Architecture 22 · Integration 59 ·
+Api 13 = 276 passed / 0 failed / 0 skipped; build 0W/0E; migrations apply single-pass.** Four of these are
+proven by making an architecture ratchet strict (removing the pinned exception) rather than adding a bespoke
+test — the detector itself now guards the fix.
+
+Still open by design: **M-JOB / ADR-0004**, plus the schema/secret-migration Majors (M-11, M-14, M-15/16,
+M-7), the bigger reliability/observability Majors (M-9, M-13, M-18, M-19), and the remaining Minors/Opinions.
