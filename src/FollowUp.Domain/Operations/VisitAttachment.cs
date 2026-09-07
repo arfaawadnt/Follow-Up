@@ -58,6 +58,11 @@ public sealed class VisitAttachment : AggregateRoot<VisitAttachmentId>, IAuditab
     /// <summary>Binds a pending attachment to the visit it was recorded with.</summary>
     public void BindTo(Guid visitId, LaboratoryId laboratoryId)
     {
+        // An attachment binds once, to the visit it was recorded with. Refuse to re-point an already-bound
+        // attachment at a different visit/lab (finding M-1 / OPS-003) so a foreign attachment can never be
+        // rewritten into another visit's scope.
+        if (VisitId is not null && VisitId != visitId)
+            throw new DomainException("This attachment is already bound to another visit.");
         VisitId = visitId;
         LaboratoryId = laboratoryId;
     }

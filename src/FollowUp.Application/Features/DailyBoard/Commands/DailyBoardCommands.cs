@@ -27,14 +27,17 @@ internal static class VisitActionSupport
         return (visit, lab);
     }
 
-    /// <summary>Binds the pending (just-uploaded) attachments to the visit they were recorded with.</summary>
+    /// <summary>Binds the pending (just-uploaded) attachments to the visit they were recorded with. Only the
+    /// caller's OWN still-pending uploads are bound — never another user's attachment or an already-bound one
+    /// (finding M-1 / OPS-003), so a supplied attachment id cannot adopt a foreign document into this scope.</summary>
     public static async Task BindAttachmentsAsync(IReadOnlyCollection<Guid> attachmentIds, Guid visitId,
-        LaboratoryId labId, IVisitAttachmentRepository attachments, CancellationToken ct)
+        LaboratoryId labId, IVisitAttachmentRepository attachments, string currentUser, CancellationToken ct)
     {
         if (attachmentIds is null || attachmentIds.Count == 0) return;
         var ids = attachmentIds.Distinct().Select(g => new VisitAttachmentId(g)).ToList();
         foreach (var a in await attachments.GetByIdsAsync(ids, ct))
-            a.BindTo(visitId, labId);
+            if (a.VisitId is null && string.Equals(a.CreatedBy, currentUser, StringComparison.Ordinal))
+                a.BindTo(visitId, labId);
     }
 }
 
@@ -108,7 +111,7 @@ public sealed class CheckInVisitHandler : ICommandHandler<CheckInVisitCommand>
             _outsource.Add(Domain.Operations.OutsourceSample.Create(
                 visit.LaboratoryId, visit.VisitDate, null, request.OutsourceCount.Value, visit.Notes));
 
-        await VisitActionSupport.BindAttachmentsAsync(request.AttachmentIds, visit.Id.Value, lab.Id, _attachments, ct);
+        await VisitActionSupport.BindAttachmentsAsync(request.AttachmentIds, visit.Id.Value, lab.Id, _attachments, _user.Username, ct);
         return Unit.Value;
     }
 }
@@ -186,7 +189,7 @@ public sealed class RecordManualVisitHandler : ICommandHandler<RecordManualVisit
         if (request.OutsourceCount is > 0 && !await _outsource.ExistsForAsync(lab.Id, today, ct))
             _outsource.Add(Domain.Operations.OutsourceSample.Create(lab.Id, today, null, request.OutsourceCount.Value, request.Notes));
 
-        await VisitActionSupport.BindAttachmentsAsync(request.AttachmentIds, visit.Id.Value, lab.Id, _attachments, ct);
+        await VisitActionSupport.BindAttachmentsAsync(request.AttachmentIds, visit.Id.Value, lab.Id, _attachments, _user.Username, ct);
         return visit.Id.Value;
     }
 }
