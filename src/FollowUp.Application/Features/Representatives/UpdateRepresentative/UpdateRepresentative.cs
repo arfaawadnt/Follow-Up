@@ -1,6 +1,8 @@
+using FollowUp.Application.Common.Abstractions;
 using FollowUp.Application.Common.Abstractions.Persistence;
 using FollowUp.Application.Common.Exceptions;
 using FollowUp.Application.Common.Messaging;
+using FollowUp.Application.Common.Security;
 using FollowUp.Domain.Common;
 using FollowUp.Domain.Identity;
 using FollowUp.Domain.Representatives;
@@ -44,13 +46,21 @@ public sealed class UpdateRepresentativeValidator : AbstractValidator<UpdateRepr
 public sealed class UpdateRepresentativeHandler : ICommandHandler<UpdateRepresentativeCommand>
 {
     private readonly IRepresentativeRepository _repository;
+    private readonly ICurrentUser _user;
 
-    public UpdateRepresentativeHandler(IRepresentativeRepository repository) => _repository = repository;
+    public UpdateRepresentativeHandler(IRepresentativeRepository repository, ICurrentUser user)
+    {
+        _repository = repository; _user = user;
+    }
 
     public async Task<Unit> Handle(UpdateRepresentativeCommand request, CancellationToken ct)
     {
         var rep = await _repository.GetByIdAsync(new RepresentativeId(request.Id), ct)
             ?? throw new NotFoundException("Representative", request.Id);
+
+        // Record-scope check: the UpdateReps/ManageReps privilege alone must not authorize mutating a rep in
+        // another org scope (finding B-3) — the lab handlers already guard this way.
+        _user.EnsureInScope(rep);
 
         if (rep.RowVersion != request.RowVersion)
             throw new ConflictException("The representative was modified by someone else. Reload and try again.");
