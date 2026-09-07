@@ -225,7 +225,7 @@ internal sealed class TestCatalogueQueries : ITestCatalogueQueries
         }).ToList();
     }
 
-    public async Task<IReadOnlyList<TestStatDto>> GetTestStatsAsync(DateOnly from, DateOnly to, CancellationToken ct)
+    public async Task<IReadOnlyList<TestStatDto>> GetTestStatsAsync(DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct)
     {
         var rows = await _db.TestStatistics.AsNoTracking().Where(t => t.Date >= from && t.Date <= to)
             .OrderBy(t => t.Date).ThenBy(t => t.TestCode).ThenBy(t => t.TestType).ToListAsync(ct);
@@ -245,14 +245,26 @@ internal sealed class TestCatalogueQueries : ITestCatalogueQueries
                 .Select(r => new { r.Code, r.NameEn }).ToListAsync(ct))
             .GroupBy(r => r.Code).ToDictionary(g => g.Key, g => g.First().NameEn, StringComparer.OrdinalIgnoreCase);
 
-        return rows.Select(t =>
+        // Scope on the Branch dimension (finding B-6). TestStatistic.Branch is a branch CODE while the role
+        // scope holds branch NAMES, so resolve the code to its name before matching. A row whose branch does
+        // not resolve to a name (or has no branch) is visible only to a branch-unrestricted caller.
+        var branchGlobal = scope.Branches.Contains(OrgScope.Wildcard);
+
+        var result = new List<TestStatDto>(rows.Count);
+        foreach (var t in rows)
         {
+            var resolvedBranch = string.IsNullOrEmpty(t.Branch) ? null
+                : (branchName.TryGetValue(t.Branch, out var bn) ? bn : null);
+            if (!branchGlobal && (resolvedBranch is null || !scope.Branches.Contains(resolvedBranch)))
+                continue;
+
             setups.TryGetValue((t.TestCode, t.TestType), out var s);
             string? groupName = null;
             if (s?.GroupId is { } gid) groups.TryGetValue(gid, out groupName);
-            var branch = string.IsNullOrEmpty(t.Branch) ? null : (branchName.TryGetValue(t.Branch, out var bn) ? bn : t.Branch);
-            return new TestStatDto(t.Date, t.TestCode, t.TestType, s?.NameEn, groupName, branch, t.Count, t.Income.Amount);
-        }).ToList();
+            var branch = string.IsNullOrEmpty(t.Branch) ? null : (resolvedBranch ?? t.Branch);
+            result.Add(new TestStatDto(t.Date, t.TestCode, t.TestType, s?.NameEn, groupName, branch, t.Count, t.Income.Amount));
+        }
+        return result;
     }
 }
 

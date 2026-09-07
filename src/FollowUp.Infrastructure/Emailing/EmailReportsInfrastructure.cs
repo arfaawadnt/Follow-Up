@@ -300,7 +300,9 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
     private async Task<ReportSection> RenderTestAsync(string dateTag, DateOnly from, DateOnly to, Filters f, CancellationToken ct)
     {
         var income = IsIncome(f);
-        var rows = (await _testStats.GetTestStatsAsync(from, to, ct))
+        // Company-wide report job (the recipient-scoping of email reports is finding B-7); pass global scope
+        // so the branch filter added for B-6 does not narrow the emailed report here.
+        var rows = (await _testStats.GetTestStatsAsync(from, to, OrgScope.Global, ct))
             .Where(r => Match(f.Groups, r.GroupName)).ToList();
         var periods = rows.Select(r => r.Date).Distinct().OrderBy(d => d).ToList();
 

@@ -21,7 +21,7 @@ public interface ITestCatalogueQueries
 {
     Task<IReadOnlyList<TestGroupDto>> GetGroupsAsync(CancellationToken ct);
     Task<IReadOnlyList<TestSetupDto>> GetSetupsAsync(CancellationToken ct);
-    Task<IReadOnlyList<TestStatDto>> GetTestStatsAsync(DateOnly from, DateOnly to, CancellationToken ct);
+    Task<IReadOnlyList<TestStatDto>> GetTestStatsAsync(DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct);
 }
 
 public sealed record GetTestGroupsQuery : IQuery<IReadOnlyList<TestGroupDto>>, IAuthorizedRequest
@@ -53,8 +53,12 @@ public sealed record GetTestStatsQuery(DateOnly From, DateOnly To) : IQuery<IRea
 public sealed class GetTestStatsHandler : IQueryHandler<GetTestStatsQuery, IReadOnlyList<TestStatDto>>
 {
     private readonly ITestCatalogueQueries _q;
-    public GetTestStatsHandler(ITestCatalogueQueries q) => _q = q;
-    public Task<IReadOnlyList<TestStatDto>> Handle(GetTestStatsQuery r, CancellationToken ct) => _q.GetTestStatsAsync(r.From, r.To, ct);
+    private readonly ICurrentUser _user;
+    public GetTestStatsHandler(ITestCatalogueQueries q, ICurrentUser user) { _q = q; _user = user; }
+    // Scope test statistics on the caller's Branch dimension (finding B-6): the query resolves each row's
+    // branch code to its name and withholds rows outside a branch-restricted caller's scope.
+    public Task<IReadOnlyList<TestStatDto>> Handle(GetTestStatsQuery r, CancellationToken ct) =>
+        _q.GetTestStatsAsync(r.From, r.To, _user.Scope, ct);
 }
 
 /// <summary>One test that is counted in Test Statistics but not in Lab Statistics (its registration resolves to no lab).</summary>
