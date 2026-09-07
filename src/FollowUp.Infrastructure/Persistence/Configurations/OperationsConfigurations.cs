@@ -111,6 +111,7 @@ internal sealed class OutsourceSampleConfiguration : IEntityTypeConfiguration<Ou
         b.HasKey(x => x.Id);
         b.IgnoreDomainEvents();
         b.MapAuditable();
+        b.Property(x => x.RowVersion).IsRowVersion().HasColumnName("xmin").HasColumnType("xid"); // xmin optimistic concurrency (M-11)
 
         b.Property(x => x.VisitDate);
         b.Property(x => x.DestinationLab).HasMaxLength(200);
@@ -133,7 +134,9 @@ internal sealed class OutsourceSampleConfiguration : IEntityTypeConfiguration<Ou
         });
         b.Navigation(x => x.Tests).UsePropertyAccessMode(PropertyAccessMode.Field);
 
-        b.HasOne<Laboratory>().WithMany().HasForeignKey(x => x.LaboratoryId).OnDelete(DeleteBehavior.Cascade);
+        // Restrict lab deletion so financial outsource records (and their fee lines) can't be silently
+        // cascade-deleted (finding M-14 / BIZ-003).
+        b.HasOne<Laboratory>().WithMany().HasForeignKey(x => x.LaboratoryId).OnDelete(DeleteBehavior.Restrict);
         // Unique per (visit_date, lab) — SRS FR-9.
         b.HasIndex(x => new { x.VisitDate, x.LaboratoryId }).IsUnique();
     }

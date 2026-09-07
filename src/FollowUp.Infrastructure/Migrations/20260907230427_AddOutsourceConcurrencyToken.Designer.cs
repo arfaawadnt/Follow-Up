@@ -3,6 +3,7 @@ using System;
 using FollowUp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace FollowUp.Infrastructure.Migrations
 {
     [DbContext(typeof(FollowUpDbContext))]
-    partial class FollowUpDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260907230427_AddOutsourceConcurrencyToken")]
+    partial class AddOutsourceConcurrencyToken
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2624,7 +2627,7 @@ namespace FollowUp.Infrastructure.Migrations
                     b.HasOne("FollowUp.Domain.Laboratories.Laboratory", null)
                         .WithMany()
                         .HasForeignKey("LaboratoryId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_complaint_laboratories_laboratory_id");
                 });
@@ -2772,7 +2775,7 @@ namespace FollowUp.Infrastructure.Migrations
                     b.HasOne("FollowUp.Domain.Laboratories.Laboratory", null)
                         .WithMany()
                         .HasForeignKey("LaboratoryId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_marketing_visit_laboratory_laboratory_id");
 
@@ -2865,7 +2868,7 @@ namespace FollowUp.Infrastructure.Migrations
                     b.HasOne("FollowUp.Domain.Laboratories.Laboratory", null)
                         .WithMany()
                         .HasForeignKey("LaboratoryId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_outsource_sample_laboratory_laboratory_id");
 

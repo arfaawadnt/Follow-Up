@@ -13,9 +13,13 @@ public readonly record struct OutsourceSampleId(Guid Value)
 /// A sample forwarded to an external destination lab (SRS FR-9, Workflows §6). Unique per
 /// (visit date, lab). Advances strictly Collected → Sent → Received. Often auto-created at check-in.
 /// </summary>
-public sealed class OutsourceSample : AggregateRoot<OutsourceSampleId>, IAuditable
+public sealed class OutsourceSample : AggregateRoot<OutsourceSampleId>, IAuditable, IVersioned
 {
     private readonly List<OutsourceTest> _tests = new();
+
+    /// <summary>Optimistic-concurrency token (Postgres xmin) — the sample is edited by several concurrent paths
+    /// (advance/update/set-tests/delete), so conflicting writes must surface as 409, not last-writer-wins (M-11).</summary>
+    public uint RowVersion { get; private set; }
 
     private OutsourceSample() { } // EF
 

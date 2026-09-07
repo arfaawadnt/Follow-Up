@@ -27,7 +27,8 @@ internal sealed class MarketingVisitConfiguration : IEntityTypeConfiguration<Mar
         b.Property(x => x.CancellationReason).HasMaxLength(500);
         b.Property(x => x.CompletedAt);
 
-        b.HasOne<Laboratory>().WithMany().HasForeignKey(x => x.LaboratoryId).OnDelete(DeleteBehavior.Cascade);
+        // Restrict lab deletion so marketing-visit history can't be silently cascade-deleted (finding M-14).
+        b.HasOne<Laboratory>().WithMany().HasForeignKey(x => x.LaboratoryId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne<Representative>().WithMany().HasForeignKey(x => x.RepresentativeId).OnDelete(DeleteBehavior.Restrict);
 
         b.HasIndex(x => x.LaboratoryId);
@@ -64,7 +65,8 @@ internal sealed class ComplaintConfiguration : IEntityTypeConfiguration<Complain
         b.Property(x => x.ResolutionSummary).HasMaxLength(2000);
         b.MapAuditable(); // the shared IAuditable mapping, not a hand-inlined copy (CMP-18)
 
-        b.HasOne<Laboratory>().WithMany().HasForeignKey(x => x.LaboratoryId).OnDelete(DeleteBehavior.Cascade);
+        // Restrict lab deletion so regulated complaint records (FR-11) can't be silently cascade-deleted (finding M-14).
+        b.HasOne<Laboratory>().WithMany().HasForeignKey(x => x.LaboratoryId).OnDelete(DeleteBehavior.Restrict);
         b.HasIndex(x => x.LaboratoryId);
         b.HasIndex(x => x.Status);
     }
