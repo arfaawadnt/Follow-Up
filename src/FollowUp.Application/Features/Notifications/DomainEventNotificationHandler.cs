@@ -61,13 +61,20 @@ public sealed class DomainEventNotificationHandler : INotificationHandler<Domain
             // Resolve lab code (real for the in-app feed; masked ENC alias before external egress).
             string labReal = plan.Vars.TryGetValue("lab", out var l) ? l : string.Empty;
             string labMasked = labReal;
+            Domain.Laboratories.Laboratory? eventLab = null;
             if (plan.LabId is { } labId)
             {
-                var lab = await _labs.GetByIdAsync(labId, ct);
-                if (lab is not null) { labReal = lab.Code.Value; labMasked = lab.Code.ToEncryptedAlias(); }
+                eventLab = await _labs.GetByIdAsync(labId, ct);
+                if (eventLab is not null) { labReal = eventLab.Code.Value; labMasked = eventLab.Code.ToEncryptedAlias(); }
             }
 
             var recipients = await _recipients.ForPrivilegeAsync(plan.Privilege, ct);
+            // Withhold a lab-scoped notification — and the real lab code it carries in the feed — from users
+            // whose org scope does not include the event's lab (finding M-3 / MSG-002). Lab-less events
+            // (eventLab is null) are not scope-filtered.
+            if (eventLab is not null)
+                recipients = recipients.Where(r => r.Scope.Allows(
+                    eventLab.Branch, eventLab.Governorate, eventLab.City, eventLab.Area, eventLab.Category, eventLab.Segment)).ToList();
             foreach (var r in recipients)
             {
                 var pref = await _preferences.GetAsync(new AppUserId(r.UserId), plan.EventKey, ct);

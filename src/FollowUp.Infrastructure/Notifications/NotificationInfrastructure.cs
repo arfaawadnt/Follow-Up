@@ -27,14 +27,17 @@ internal sealed class NotificationRecipients : INotificationRecipients
     public async Task<IReadOnlyList<NotificationRecipient>> ForPrivilegeAsync(string privilege, CancellationToken ct)
     {
         var roles = await _db.Roles.AsNoTracking().ToListAsync(ct);
-        var roleIds = roles.Where(r => r.Has(privilege)).Select(r => r.Id).ToList();
-        if (roleIds.Count == 0) return Array.Empty<NotificationRecipient>();
+        var scopeByRole = roles.Where(r => r.Has(privilege)).ToDictionary(r => r.Id, r => r.Scope);
+        if (scopeByRole.Count == 0) return Array.Empty<NotificationRecipient>();
 
+        var roleIds = scopeByRole.Keys.ToList();
         var users = await _db.Users.AsNoTracking()
             .Where(u => u.IsActive && roleIds.Contains(u.RoleId))
             .ToListAsync(ct);
 
-        return users.Select(u => new NotificationRecipient(u.Id.Value, u.Language, u.Email, u.Phone)).ToList();
+        // Carry each recipient's org scope (inherited from their role) so the handler can withhold a
+        // lab-scoped notification from out-of-scope users (finding M-3 / MSG-002).
+        return users.Select(u => new NotificationRecipient(u.Id.Value, u.Language, u.Email, u.Phone, scopeByRole[u.RoleId])).ToList();
     }
 }
 
