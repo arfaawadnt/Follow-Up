@@ -92,9 +92,8 @@ public class CqrsConventionTests
     private static readonly IReadOnlySet<string> AnonymousOrUnprivilegedRequests = new HashSet<string>(StringComparer.Ordinal)
     {
         "LoginCommand", // anonymous by design — the only unauthenticated endpoint
-        // FINDINGS (2026-08-27): authenticated but not privilege-checked; see the compliance report.
-        "GetLaboratoriesQuery",
-        "GetLaboratoryByIdQuery",
+        // GetLaboratoriesQuery / GetLaboratoryByIdQuery now declare IAuthorizedRequest (authenticated-only,
+        // empty privileges — the labs directory is open to all staff, protected by scope + masking) — finding M-5.
     };
 
     [Fact]

@@ -6,8 +6,13 @@ using FollowUp.Domain.Identity;
 
 namespace FollowUp.Application.Features.Laboratories.GetLaboratoryById;
 
-/// <summary>Returns one laboratory's detail if it is within the caller's scope (SRS FR-3).</summary>
-public sealed record GetLaboratoryByIdQuery(Guid Id) : IQuery<LabDetailDto>;
+/// <summary>Returns one laboratory's detail if it is within the caller's scope (SRS FR-3). Authenticated-only,
+/// like the list — the labs directory carries no view privilege; scope and encrypted-code masking protect it
+/// (finding M-5). Declared <see cref="IAuthorizedRequest"/> so authentication is explicitly pipeline-enforced.</summary>
+public sealed record GetLaboratoryByIdQuery(Guid Id) : IQuery<LabDetailDto>, IAuthorizedRequest
+{
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = System.Array.Empty<string>();
+}
 
 public sealed class GetLaboratoryByIdHandler : IQueryHandler<GetLaboratoryByIdQuery, LabDetailDto>
 {

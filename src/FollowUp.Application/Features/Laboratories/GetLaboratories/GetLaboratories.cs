@@ -6,8 +6,11 @@ using FollowUp.Domain.Identity;
 
 namespace FollowUp.Application.Features.Laboratories.GetLaboratories;
 
-/// <summary>Lists laboratories within the caller's scope (SRS FR-3; ScopedOnly — no privilege gate, scope applies).</summary>
-public sealed record GetLaboratoriesQuery : IQuery<PagedResult<LabListItemDto>>
+/// <summary>Lists laboratories within the caller's scope (SRS FR-3). The labs directory is available to any
+/// authenticated staff member (the UI exposes it with no privilege gate); confidentiality is enforced by the
+/// OrgScope filter and the encrypted-code masking, not a view privilege. Declared as an authenticated-only
+/// <see cref="IAuthorizedRequest"/> so the authorization posture is explicit and pipeline-enforced (finding M-5).</summary>
+public sealed record GetLaboratoriesQuery : IQuery<PagedResult<LabListItemDto>>, IAuthorizedRequest
 {
     public int Page { get; init; } = 1;
     public int PageSize { get; init; } = 50;
@@ -15,6 +18,8 @@ public sealed record GetLaboratoriesQuery : IQuery<PagedResult<LabListItemDto>>
     public string? Status { get; init; }
     public string? Segment { get; init; }
     public string? Governorate { get; init; }
+
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = System.Array.Empty<string>();
 }
 
 public sealed class GetLaboratoriesHandler : IQueryHandler<GetLaboratoriesQuery, PagedResult<LabListItemDto>>
