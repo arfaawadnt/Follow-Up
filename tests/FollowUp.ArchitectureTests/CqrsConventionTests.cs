@@ -145,6 +145,51 @@ public class CqrsConventionTests
         stale.Should().BeEmpty("these reviewed exceptions no longer exist — remove them from the allowlist");
     }
 
+    // Repositories for aggregates that carry an org scope (OrgScope dimensions). A command handler that loads
+    // one of these by id can act on another scope's record unless it also resolves ICurrentUser to call a
+    // ScopeGuard method — the defect class behind findings B-2/B-3/M-2/M-4. This structural rule fails a NEW
+    // handler that injects a scoped-aggregate repository without ICurrentUser.
+    private static readonly IReadOnlySet<string> ScopedAggregateRepositories = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "ILaboratoryRepository", "IRepresentativeRepository", "IOutsourceSampleRepository",
+        "IMarketingVisitRepository", "IDailyVisitRepository", "IComplaintRepository",
+        "ISampleTrackingRepository", "IVisitAttachmentRepository",
+    };
+
+    // Verified exceptions: command handlers that touch a scoped-aggregate repository but legitimately need no
+    // ICurrentUser (e.g. they only create a brand-new record whose attribution is validated elsewhere, or run
+    // as a background/system use case). Do not add entries to dodge a real scope check — fix the handler.
+    private static readonly IReadOnlySet<string> HandlersWithoutCurrentUserYet = new HashSet<string>(StringComparer.Ordinal)
+    {
+        // Creates a fresh, UNBOUND attachment (no owning lab/visit yet), so there is no record scope to enforce
+        // at upload time; the audit interceptor stamps the uploader, and BindAttachmentsAsync enforces owner +
+        // scope when the attachment is later bound to a visit (finding M-1). Reviewed exception, not a gap.
+        "UploadVisitAttachmentHandler",
+    };
+
+    [Fact]
+    public void Command_handlers_touching_a_scoped_aggregate_can_enforce_record_scope_ratchet()
+    {
+        var handlers = Application.GetTypes().Where(t => t is { IsClass: true, IsAbstract: false }
+            && (ImplementsOpenInterface(t, typeof(ICommandHandler<>)) || ImplementsOpenInterface(t, typeof(ICommandHandler<,>))));
+
+        var offenders = new List<string>();
+        foreach (var t in handlers)
+        {
+            var ctorParams = t.GetConstructors().SelectMany(c => c.GetParameters())
+                .Select(p => p.ParameterType.Name).ToHashSet(StringComparer.Ordinal);
+            var touchesScoped = ctorParams.Any(ScopedAggregateRepositories.Contains);
+            var hasUser = ctorParams.Contains("ICurrentUser");
+            if (touchesScoped && !hasUser && !HandlersWithoutCurrentUserYet.Contains(t.Name))
+                offenders.Add(t.Name);
+        }
+        offenders.Should().BeEmpty(
+            "a command handler that loads a scoped aggregate must inject ICurrentUser so it can enforce record scope");
+
+        var stale = HandlersWithoutCurrentUserYet.Where(name => !Application.GetTypes().Any(t => t.Name == name)).ToList();
+        stale.Should().BeEmpty("these allowlisted handlers no longer exist — remove them from the allowlist");
+    }
+
     [Fact]
     public void No_public_contract_returns_IQueryable()
     {
