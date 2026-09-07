@@ -22,24 +22,6 @@ internal sealed class LaboratoryRepository : ILaboratoryRepository
     public Task<bool> CodeExistsAsync(LabCode code, CancellationToken ct) =>
         _db.Laboratories.AnyAsync(x => x.Code == code, ct);
 
-    public async Task<string> NextCodeAsync(CancellationToken ct)
-    {
-        const string prefix = "MGL-";
-        // Bounded at seed scale; extracts the numeric suffix of existing codes and returns the next.
-        var codes = await _db.Laboratories
-            .Select(x => x.Code)
-            .ToListAsync(ct);
-
-        var max = codes
-            .Select(c => c.Value)
-            .Where(v => v.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            .Select(v => int.TryParse(v[prefix.Length..], out var n) ? n : 0)
-            .DefaultIfEmpty(0)
-            .Max();
-
-        return $"{prefix}{max + 1:0000}";
-    }
-
     public async Task<IReadOnlyList<Laboratory>> GetAllAsync(CancellationToken ct) =>
         await _db.Laboratories.ToListAsync(ct);
 

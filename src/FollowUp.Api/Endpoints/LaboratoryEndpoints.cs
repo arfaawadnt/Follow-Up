@@ -3,6 +3,7 @@ using FollowUp.Application.Features.Laboratories.ChangeLaboratoryStatus;
 using FollowUp.Application.Features.Laboratories.CreateLaboratory;
 using FollowUp.Application.Features.Laboratories.GetLaboratories;
 using FollowUp.Application.Features.Laboratories.GetLaboratoryById;
+using FollowUp.Application.Features.Laboratories.NextLabCode;
 using FollowUp.Application.Features.Laboratories.UpdateLaboratory;
 using FollowUp.Application.Features.Laboratories.UploadImage;
 using FollowUp.Application.Features.Representatives.Contracts;
@@ -52,8 +53,8 @@ public static class LaboratoryEndpoints
             return Results.NoContent();
         }).WithTags("Laboratories");
 
-        api.MapGet("/labs/nextcode", async (ILaboratoryRepository repo, CancellationToken ct) =>
-            Results.Ok(new { code = await repo.NextCodeAsync(ct) })).WithTags("Laboratories");
+        api.MapGet("/labs/nextcode", async (IMediator m, CancellationToken ct) =>
+            Results.Ok(new { code = await m.Send(new GetNextLabCodeQuery(), ct) })).WithTags("Laboratories");
 
         api.MapPost("/labs/upload", async (IFormFile file, IMediator m, CancellationToken ct) =>
         {

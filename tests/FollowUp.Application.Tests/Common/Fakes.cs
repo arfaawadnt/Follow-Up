@@ -14,7 +14,6 @@ namespace FollowUp.Application.Tests.Common;
 public sealed class FakeLaboratoryRepository : ILaboratoryRepository
 {
     public readonly List<Laboratory> Store = new();
-    private int _seq;
 
     public Task<Laboratory?> GetByIdAsync(LaboratoryId id, CancellationToken ct) =>
         Task.FromResult(Store.FirstOrDefault(l => l.Id == id));
@@ -27,9 +26,6 @@ public sealed class FakeLaboratoryRepository : ILaboratoryRepository
 
     public Task<bool> CodeExistsAsync(LabCode code, CancellationToken ct) =>
         Task.FromResult(Store.Any(l => l.Code == code));
-
-    public Task<string> NextCodeAsync(CancellationToken ct) =>
-        Task.FromResult($"MGL-{++_seq:0000}");
 
     public Task<IReadOnlyList<Laboratory>> GetAllAsync(CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<Laboratory>>(Store.ToList());

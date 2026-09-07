@@ -34,10 +34,7 @@ public class ApiAndInfrastructureRulesTests
         var result = Types.InAssembly(Api).That().ResideInNamespace("FollowUp.Api.Endpoints")
             .ShouldNot().HaveDependencyOn("FollowUp.Application.Common.Abstractions.Persistence")
             .GetResult();
-        var failing = (result.FailingTypeNames ?? Array.Empty<string>())
-            // FINDING (2026-08-27): GET /labs/nextcode injects ILaboratoryRepository; see the compliance report.
-            .Where(n => !n.Contains("LaboratoryEndpoints"))
-            .ToList();
+        var failing = (result.FailingTypeNames ?? Array.Empty<string>()).ToList();
         failing.Should().BeEmpty("reads go through query interfaces via MediatR, never repositories in endpoints");
     }
 

@@ -92,6 +92,20 @@ internal sealed class LaboratoryQueries : ILaboratoryQueries
             lab.RowVersion);
     }
 
+    public async Task<string> NextCodeAsync(CancellationToken ct)
+    {
+        const string prefix = "MGL-";
+        // Bounded at seed scale; extracts the numeric suffix of existing codes and returns the next.
+        var codes = await _db.Laboratories.AsNoTracking().Select(x => x.Code).ToListAsync(ct);
+        var max = codes
+            .Select(c => c.Value)
+            .Where(v => v.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            .Select(v => int.TryParse(v[prefix.Length..], out var n) ? n : 0)
+            .DefaultIfEmpty(0)
+            .Max();
+        return $"{prefix}{max + 1:0000}";
+    }
+
     private async Task<Dictionary<Domain.Representatives.RepresentativeId, string>> ResolveRepNamesAsync(
         IEnumerable<Domain.Representatives.RepresentativeId> ids, CancellationToken ct)
     {
