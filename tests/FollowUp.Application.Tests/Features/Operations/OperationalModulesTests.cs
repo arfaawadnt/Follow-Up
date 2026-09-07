@@ -104,6 +104,10 @@ public class OperationalModulesTests
         var visits = new FakeDailyVisitRepository();
         var attachments = new FakeVisitAttachmentRepository();
         var att = VisitAttachment.CreatePending("stored.pdf", "form.pdf", "application/pdf", 1234);
+        // Simulate the audit interceptor stamping the uploader (CreatedBy) on the prior upload request, so the
+        // owner-check in BindAttachmentsAsync (finding M-1) binds the caller's own pending attachment.
+        typeof(VisitAttachment).GetProperty(nameof(VisitAttachment.CreatedBy))!
+            .SetValue(att, "tester"); // FakeCurrentUser default username
         attachments.Store.Add(att);
 
         var handler = new RecordManualVisitHandler(visits, labs, new FakeOutsourceSampleRepository(),
@@ -182,7 +186,7 @@ public class OperationalModulesTests
         repo.Store[0].ScheduledTime.Should().Be(new TimeOnly(11, 0));
         repo.Store[0].Plan.Should().Be("bring the new brochure");
 
-        var completeHandler = new CompleteMarketingVisitHandler(repo, new FakeClock(Now));
+        var completeHandler = new CompleteMarketingVisitHandler(repo, labs, new FakeCurrentUser(), new FakeClock(Now));
         await completeHandler.Handle(new CompleteMarketingVisitCommand(id, "Signed renewal"), CancellationToken.None);
 
         repo.Store[0].Status.Should().Be(MarketingVisitStatus.Completed);

@@ -137,17 +137,25 @@ public sealed class CompleteMarketingVisitValidator : AbstractValidator<Complete
 public sealed class CompleteMarketingVisitHandler : ICommandHandler<CompleteMarketingVisitCommand>
 {
     private readonly IMarketingVisitRepository _repository;
+    private readonly ILaboratoryRepository _labs;
+    private readonly ICurrentUser _user;
     private readonly IClock _clock;
 
-    public CompleteMarketingVisitHandler(IMarketingVisitRepository repository, IClock clock)
+    public CompleteMarketingVisitHandler(IMarketingVisitRepository repository, ILaboratoryRepository labs,
+        ICurrentUser user, IClock clock)
     {
-        _repository = repository; _clock = clock;
+        _repository = repository; _labs = labs; _user = user; _clock = clock;
     }
 
     public async Task<Unit> Handle(CompleteMarketingVisitCommand request, CancellationToken ct)
     {
         var visit = await _repository.GetByIdAsync(new MarketingVisitId(request.Id), ct)
             ?? throw new NotFoundException("Marketing visit", request.Id);
+        // Record-scope check: the UpdateMarketing privilege alone must not authorize completing another
+        // scope's visit (finding M-4 / MSG-005) — mirror Schedule.
+        var lab = await _labs.GetByIdAsync(visit.LaboratoryId, ct)
+            ?? throw new NotFoundException("Laboratory", visit.LaboratoryId.Value);
+        _user.EnsureInScope(lab);
         visit.Complete(request.Outcome, _clock.UtcNow);
         return Unit.Value;
     }
@@ -163,13 +171,23 @@ public sealed record CancelMarketingVisitCommand(Guid Id, string? Reason) : ICom
 public sealed class CancelMarketingVisitHandler : ICommandHandler<CancelMarketingVisitCommand>
 {
     private readonly IMarketingVisitRepository _repository;
+    private readonly ILaboratoryRepository _labs;
+    private readonly ICurrentUser _user;
 
-    public CancelMarketingVisitHandler(IMarketingVisitRepository repository) => _repository = repository;
+    public CancelMarketingVisitHandler(IMarketingVisitRepository repository, ILaboratoryRepository labs, ICurrentUser user)
+    {
+        _repository = repository; _labs = labs; _user = user;
+    }
 
     public async Task<Unit> Handle(CancelMarketingVisitCommand request, CancellationToken ct)
     {
         var visit = await _repository.GetByIdAsync(new MarketingVisitId(request.Id), ct)
             ?? throw new NotFoundException("Marketing visit", request.Id);
+        // Record-scope check: the UpdateMarketing privilege alone must not authorize cancelling another
+        // scope's visit (finding M-4 / MSG-005) — mirror Schedule.
+        var lab = await _labs.GetByIdAsync(visit.LaboratoryId, ct)
+            ?? throw new NotFoundException("Laboratory", visit.LaboratoryId.Value);
+        _user.EnsureInScope(lab);
         visit.Cancel(request.Reason);
         return Unit.Value;
     }
