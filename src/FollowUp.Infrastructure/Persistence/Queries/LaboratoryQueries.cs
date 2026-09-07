@@ -78,7 +78,10 @@ internal sealed class LaboratoryQueries : ILaboratoryQueries
         return new LabDetailDto(
             lab.Id.Value, DisplayCode.For(lab.Code.Value, lab.IsEncrypted, canSeeEncrypted), lab.Name, lab.Segment, lab.Status.Name,
             lab.Branch, lab.Governorate, lab.City, lab.Area, lab.Category, lab.Address,
-            lab.MappingCode, lab.IsEncrypted, lab.ImagePaths.ToList(), lab.Payer, lab.ContractType,
+            // MappingCode mirrors the real lab code for Oracle-synced labs (ApplyOracleMaster), so it must be
+            // withheld from a non-privileged caller on an encrypted lab or it leaks the code that DisplayCode
+            // masks (finding M-6 / LAB-005).
+            lab.IsEncrypted && !canSeeEncrypted ? null : lab.MappingCode, lab.IsEncrypted, lab.ImagePaths.ToList(), lab.Payer, lab.ContractType,
             lab.LicenseNo, lab.LicenseDate, lab.AvgMonthlySamples, lab.PreferredChannel,
             canSeeLocation ? lab.Location?.Latitude : null, canSeeLocation ? lab.Location?.Longitude : null,
             lab.MonthlyTarget, lab.LoyaltyPoints, lab.LoyaltyTier,
