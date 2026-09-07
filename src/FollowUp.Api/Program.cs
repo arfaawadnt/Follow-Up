@@ -91,7 +91,8 @@ await using (var scope = app.Services.CreateAsyncScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<FollowUpDbContext>();
     await db.Database.MigrateAsync();
-    var adminPassword = Environment.GetEnvironmentVariable("FOLLOWUP_ADMIN_PASSWORD") ?? "ChangeMe_Admin_2026!";
+    // No source-visible default: the seeder fails fast if this is unset on a fresh DB (finding B-4).
+    var adminPassword = Environment.GetEnvironmentVariable("FOLLOWUP_ADMIN_PASSWORD");
     var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
     var created = await seeder.SeedAsync(adminPassword);
     if (created is not null)

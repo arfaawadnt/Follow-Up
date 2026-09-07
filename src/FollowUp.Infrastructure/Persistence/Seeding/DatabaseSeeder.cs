@@ -28,8 +28,11 @@ public sealed class DatabaseSeeder
         _hasher = hasher;
     }
 
-    /// <summary>Seeds baseline data. Returns the admin username if a new admin account was created.</summary>
-    public async Task<string?> SeedAsync(string adminPassword, CancellationToken ct = default)
+    /// <summary>Seeds baseline data. Returns the admin username if a new admin account was created.
+    /// <paramref name="adminPassword"/> is required only when the built-in admin is actually seeded (a fresh
+    /// user table); a missing value then fails fast rather than falling back to a source-visible default
+    /// (finding B-4 / IDN — mirrors the FOLLOWUP_AUTH_SECRET fail-fast).</summary>
+    public async Task<string?> SeedAsync(string? adminPassword, CancellationToken ct = default)
     {
         // Serialize concurrent seeders (multiple app instances starting against a fresh DB, or parallel test
         // hosts sharing one DB) so the check-then-insert of the uniquely-named baseline rows below can't race
@@ -67,6 +70,10 @@ public sealed class DatabaseSeeder
 
         if (!await _db.Users.AnyAsync(ct))
         {
+            if (string.IsNullOrWhiteSpace(adminPassword))
+                throw new InvalidOperationException(
+                    "FOLLOWUP_ADMIN_PASSWORD is not configured — refusing to seed the built-in admin with a " +
+                    "default password (fail-fast, finding B-4). Set the environment variable and restart.");
             var admin = AppUser.Create("admin", _hasher.Hash(adminPassword), adminRole.Id);
             admin.SetProfile("admin@megalab.local", null);
             admin.MarkAsBuiltIn(); // protected from deletion/demotion (IDN-6)
