@@ -285,13 +285,17 @@ Prohibited "fixes" avoided: no analyzer/test suppression; the new arch test's si
 genuine creates-fresh-record exception, not a dodge. No opportunistic refactoring beyond genericizing the
 `ScopeFilter.Dim` helper (behavior-identical for labs — verified: the added Segment null-check is vacuous).
 
-### Not remediated — escalated (need a decision before code changes)
-- **B-6 (test-statistics scope)** — RAISED AS A DEEPER FINDING during remediation: `TestStatistic` carries
-  **only** a branch dimension and no lab linkage, so a governorate/city/area-scoped user cannot be mapped
-  onto it at all. Scoping it safely is a **design decision**, not a mechanical filter — implementing a guess
-  would either leave the leak or hide all test-stats from scoped users on a live system. Left as-is pending
-  your direction.
-- **B-7 (email-report scope)** — needs a schema column on `StatsEmailSubscription` + a backfill + a product
-  decision on whether org-wide reporting is intended. Not touched.
-- Everything else in the register (the other ~23 Majors, ~30 Minors, ~8 Opinions) was outside the approved
-  remediation scope and remains open.
+### Escalated Blockers — resolved with your decisions
+
+| ID | Decision | Fix | Test |
+|---|---|---|---|
+| **B-6** | Filter by the branch dimension (branch-restricted users see only their branches; others see all) | `GetTestStatsAsync` takes the caller's OrgScope; the branch **code** is resolved to its **name** before matching the name-based role scope (the vocabularies differ — a naive match would have hidden all test-stats). Company-wide email passes global scope. | `TestStatsScopeTests` |
+| **B-7** | Org-wide reporting is not intended → scope reports to their creator | `StatsEmailSubscription` stores the creator's OrgScope; the report renders at it. Migration adds the column nullable → backfills each row from its creator's role scope → NOT NULL. | `CreateStatsEmailSubscriptionScopeTests` |
+
+**Final verification after B-6 + B-7 (fresh DB, 37 migrations applied single-pass, no EF drift): Build 0W/0E ·
+Domain 76 · Application 106 · Architecture 22 · Integration 57 · Api 13 = 274 passed / 0 failed / 0 skipped.**
+
+**All 7 Blockers and the 4 scope Majors in the approved scope are now fixed and committed** (branch
+`remediation/cycle3-scope-and-blockers`, one atomic commit per finding). Still open by design:
+**M-JOB / ADR-0004** (you chose not to act this session), plus the remaining ~23 Majors / ~30 Minors /
+~8 Opinions from the register.
