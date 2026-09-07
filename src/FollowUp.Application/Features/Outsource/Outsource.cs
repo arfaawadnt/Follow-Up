@@ -186,17 +186,25 @@ public sealed record AdvanceOutsourceStatusCommand(Guid Id, string Status) : ICo
 public sealed class AdvanceOutsourceStatusHandler : ICommandHandler<AdvanceOutsourceStatusCommand>
 {
     private readonly IOutsourceSampleRepository _repository;
+    private readonly ILaboratoryRepository _labs;
+    private readonly ICurrentUser _user;
     private readonly IClock _clock;
 
-    public AdvanceOutsourceStatusHandler(IOutsourceSampleRepository repository, IClock clock)
+    public AdvanceOutsourceStatusHandler(IOutsourceSampleRepository repository, ILaboratoryRepository labs,
+        ICurrentUser user, IClock clock)
     {
-        _repository = repository; _clock = clock;
+        _repository = repository; _labs = labs; _user = user; _clock = clock;
     }
 
     public async Task<Unit> Handle(AdvanceOutsourceStatusCommand request, CancellationToken ct)
     {
         var sample = await _repository.GetByIdAsync(new OutsourceSampleId(request.Id), ct)
             ?? throw new NotFoundException("Outsource sample", request.Id);
+        // Record-scope check: the privilege alone does not authorize acting on another org-scope's sample
+        // (finding B-2) — mirror the Create/Update handlers.
+        var lab = await _labs.GetByIdAsync(sample.LaboratoryId, ct)
+            ?? throw new NotFoundException("Laboratory", sample.LaboratoryId.Value);
+        _user.EnsureInScope(lab);
         sample.AdvanceTo(Enumeration.FromName<OutsourceStatus>(request.Status), _clock.UtcNow);
         return Unit.Value;
     }
@@ -212,13 +220,23 @@ public sealed record DeleteOutsourceSampleCommand(Guid Id) : ICommand, IAuthoriz
 public sealed class DeleteOutsourceSampleHandler : ICommandHandler<DeleteOutsourceSampleCommand>
 {
     private readonly IOutsourceSampleRepository _repository;
+    private readonly ILaboratoryRepository _labs;
+    private readonly ICurrentUser _user;
 
-    public DeleteOutsourceSampleHandler(IOutsourceSampleRepository repository) => _repository = repository;
+    public DeleteOutsourceSampleHandler(IOutsourceSampleRepository repository, ILaboratoryRepository labs, ICurrentUser user)
+    {
+        _repository = repository; _labs = labs; _user = user;
+    }
 
     public async Task<Unit> Handle(DeleteOutsourceSampleCommand request, CancellationToken ct)
     {
         var sample = await _repository.GetByIdAsync(new OutsourceSampleId(request.Id), ct)
             ?? throw new NotFoundException("Outsource sample", request.Id);
+        // Record-scope check before a destructive delete: the privilege alone does not authorize deleting
+        // another org-scope's sample + its fee lines (finding B-2) — mirror the Create/Update handlers.
+        var lab = await _labs.GetByIdAsync(sample.LaboratoryId, ct)
+            ?? throw new NotFoundException("Laboratory", sample.LaboratoryId.Value);
+        _user.EnsureInScope(lab);
         _repository.Remove(sample);
         return Unit.Value;
     }
