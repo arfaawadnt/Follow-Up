@@ -36,7 +36,7 @@ public sealed class GetLabStatsHandler : IQueryHandler<GetLabStatsQuery, IReadOn
 /// <summary>Imports daily lab statistics from an xlsx workbook, upserting by (date, lab code) (SRS FR-13).</summary>
 public sealed record ImportLabStatsCommand(byte[] Content) : ICommand<ImportSummary>, IAuthorizedRequest
 {
-    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ViewLabStats };
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.AddLabStats };
 }
 
 public sealed class ImportLabStatsHandler : ICommandHandler<ImportLabStatsCommand, ImportSummary>
@@ -98,7 +98,7 @@ public sealed class ImportLabStatsHandler : ICommandHandler<ImportLabStatsComman
 /// </summary>
 public sealed record SyncLabStatsCommand(DateOnly From, DateOnly To) : ICommand<OracleSyncResult>, IAuthorizedRequest
 {
-    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ViewLabStats };
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.AddLabStats };
 }
 
 public sealed class SyncLabStatsValidator : AbstractValidator<SyncLabStatsCommand>

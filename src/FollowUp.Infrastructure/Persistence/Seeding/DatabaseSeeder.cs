@@ -52,6 +52,9 @@ public sealed class DatabaseSeeder
                 Privileges.ViewDashboard, Privileges.VerifyDailyFollowup, Privileges.ResolveComplaints,
                 Privileges.ViewReports, Privileges.ViewLabLocation, Privileges.SampleTracking,
                 Privileges.OutsourceSamples, Privileges.SetupRefs,
+                // Stats import/sync write privileges (finding M-7) — the built-in operational role keeps its
+                // manual sync ability, now via explicit write privileges rather than the View* it reads with.
+                Privileges.AddLabStats, Privileges.AddAreaStats,
             }, "en", "light", OrgScope.Global);
             var collector = Role.Create("Collector", new[] { Privileges.ViewDashboard }, "en", "light", OrgScope.Global);
             var marketing = Role.Create("Marketing", new[] { Privileges.ViewDashboard }, "en", "light", OrgScope.Global);

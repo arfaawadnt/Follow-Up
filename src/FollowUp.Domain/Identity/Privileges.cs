@@ -67,6 +67,10 @@ public static class Privileges
     public const string UpdateTestsetup = nameof(UpdateTestsetup);
     public const string DeleteTestsetup = nameof(DeleteTestsetup);
     public const string AddTeststats = nameof(AddTeststats);
+    // Write privileges for the destructive lab/area stats import + Oracle sync (finding M-7) — the read pages
+    // keep their View* privileges; these gate the operations that overwrite statistics.
+    public const string AddLabStats = nameof(AddLabStats);
+    public const string AddAreaStats = nameof(AddAreaStats);
 
     // Administration
     public const string ManageUsers = nameof(ManageUsers);
@@ -89,7 +93,7 @@ public static class Privileges
         ViewComplaints, AddComplaints, UpdateComplaints, ResolveComplaints, ManageComplaints,
         ManageLoyalty, ManageCommissions,
         ViewLabStats, ViewTeststats, ViewAreaStats, ViewDetailedStats, AddGroups, UpdateGroups, DeleteGroups,
-        AddTestsetup, UpdateTestsetup, DeleteTestsetup, AddTeststats,
+        AddTestsetup, UpdateTestsetup, DeleteTestsetup, AddTeststats, AddLabStats, AddAreaStats,
         ManageUsers, OracleIntegration, ManageEmailReports, SetupRefs, SetupCities, SetupAreas,
     };
 

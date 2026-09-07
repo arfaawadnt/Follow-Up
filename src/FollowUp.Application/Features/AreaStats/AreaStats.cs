@@ -44,7 +44,7 @@ public sealed class GetAreaStatsHandler : IQueryHandler<GetAreaStatsQuery, IRead
 /// </summary>
 public sealed record SyncAreaStatsCommand(DateOnly From, DateOnly To) : ICommand<OracleSyncResult>, IAuthorizedRequest
 {
-    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ViewAreaStats };
+    public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.AddAreaStats };
 }
 
 public sealed class SyncAreaStatsValidator : AbstractValidator<SyncAreaStatsCommand>
