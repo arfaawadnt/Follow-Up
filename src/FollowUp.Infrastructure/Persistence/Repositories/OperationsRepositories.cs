@@ -68,8 +68,13 @@ internal sealed class MarketingVisitRepository : IMarketingVisitRepository
     public MarketingVisitRepository(FollowUpDbContext db) => _db = db;
     public Task<MarketingVisit?> GetByIdAsync(MarketingVisitId id, CancellationToken ct) =>
         _db.MarketingVisits.FirstOrDefaultAsync(x => x.Id == id, ct);
-    public async Task<int> NextNumberAsync(CancellationToken ct) =>
-        (await _db.MarketingVisits.MaxAsync(x => (int?)x.Number, ct) ?? 0) + 1;
+    // Transaction-scoped advisory lock key for gap-free marketing-visit numbering (same race as M-12).
+    private const long NumberLockKey = 811002;
+    public async Task<int> NextNumberAsync(CancellationToken ct)
+    {
+        await _db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({NumberLockKey})", ct);
+        return (await _db.MarketingVisits.MaxAsync(x => (int?)x.Number, ct) ?? 0) + 1;
+    }
     public void Add(MarketingVisit visit) => _db.MarketingVisits.Add(visit);
 }
 
@@ -79,7 +84,15 @@ internal sealed class ComplaintRepository : IComplaintRepository
     public ComplaintRepository(FollowUpDbContext db) => _db = db;
     public Task<Complaint?> GetByIdAsync(ComplaintId id, CancellationToken ct) =>
         _db.Complaints.FirstOrDefaultAsync(x => x.Id == id, ct);
-    public async Task<int> NextNumberAsync(CancellationToken ct) =>
-        (await _db.Complaints.MaxAsync(x => (int?)x.Number, ct) ?? 0) + 1;
+    // Transaction-scoped advisory lock key for gap-free complaint numbering (finding M-12 / CMP-7).
+    private const long NumberLockKey = 811001;
+    public async Task<int> NextNumberAsync(CancellationToken ct)
+    {
+        // Serialize concurrent creation so read-max-plus-one can't hand two inserts the same Number (which would
+        // violate ix_complaint_number and surface as a raw 500). The lock is held until the command's transaction
+        // commits, so the reserved number is safely inserted before any other creator proceeds.
+        await _db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({NumberLockKey})", ct);
+        return (await _db.Complaints.MaxAsync(x => (int?)x.Number, ct) ?? 0) + 1;
+    }
     public void Add(Complaint complaint) => _db.Complaints.Add(complaint);
 }
