@@ -234,8 +234,8 @@ interface TestRow { id?: string; testCode: string; testName: string; sampleVolum
     .tab { background:var(--white); border:1px solid var(--slate-300); color:var(--slate-700); border-radius:var(--r-btn,8px); padding:8px 16px; font:600 12.5px var(--ui); cursor:pointer }
     .tab.on { background:var(--primary-blue,#0078d4); color:#fff; border-color:var(--primary-blue,#0078d4) }
     .actions{display:flex;gap:6px}.btn-d{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
-    .overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:1000}
-    .dlg{background:var(--white,#fff);border-radius:12px;padding:22px;width:min(94vw,760px);max-height:90vh;overflow-y:auto;box-shadow:0 16px 48px rgba(0,0,0,.25)}
+    .overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:flex-start;justify-content:center;z-index:1000;overflow-y:auto;padding:40px 12px}
+    .dlg{background:var(--white,#fff);border-radius:12px;padding:22px;width:min(94vw,760px);box-shadow:0 16px 48px rgba(0,0,0,.25)}
     .trow{display:flex;gap:8px;align-items:center;margin-bottom:8px}
     .tsearch{flex:1;position:relative;min-width:180px}
     .picked{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--slate-200,#e5e7eb);border-radius:8px}
