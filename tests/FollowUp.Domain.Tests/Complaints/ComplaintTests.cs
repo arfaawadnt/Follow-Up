@@ -31,7 +31,7 @@ public class ComplaintTests
         complaint.Start();
         complaint.Status.Should().Be(ComplaintStatus.InProgress);
 
-        complaint.Resolve("manager", Now);
+        complaint.Resolve("manager", Now, eSignatureSatisfied: true);
         complaint.Status.Should().Be(ComplaintStatus.Resolved);
         complaint.DomainEvents.OfType<ComplaintResolved>().Should().ContainSingle();
     }
@@ -62,7 +62,7 @@ public class ComplaintTests
     {
         var complaint = NewComplaint();
         complaint.SetResolutionSummary("closed after contacting the lab");
-        complaint.Resolve("manager", Now); // Open -> Resolved (direct)
+        complaint.Resolve("manager", Now, eSignatureSatisfied: true); // Open -> Resolved (direct)
         complaint.Reopen();
 
         complaint.Status.Should().Be(ComplaintStatus.Open);
@@ -103,7 +103,7 @@ public class ComplaintTests
     public void Resolved_complaint_narrative_is_frozen()
     {
         var complaint = NewComplaint();
-        complaint.Resolve("manager", Now); // Open -> Resolved (direct)
+        complaint.Resolve("manager", Now, eSignatureSatisfied: true); // Open -> Resolved (direct)
 
         // No stage edit is permitted once the complaint is closed (CMP-2).
         var investigate = () => complaint.RecordInvestigation("late edit");
@@ -193,7 +193,7 @@ public class ComplaintTests
         complaint.Start();
 
         complaint.SetResolutionSummary("credited the affected order");
-        complaint.Resolve("manager", Now);
+        complaint.Resolve("manager", Now, eSignatureSatisfied: true);
 
         complaint.ResolutionSummary.Should().Be("credited the affected order");
         complaint.Status.Should().Be(ComplaintStatus.Resolved);

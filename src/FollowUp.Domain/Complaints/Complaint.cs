@@ -175,7 +175,7 @@ public sealed class Complaint : AggregateRoot<ComplaintId>, IVersioned, IAuditab
     /// application layer verifies a bound signature and passes <paramref name="eSignatureSatisfied"/>;
     /// the aggregate refuses to resolve otherwise so the gate cannot be skipped.
     /// </summary>
-    public void Resolve(string actor, DateTimeOffset when, bool eSignatureSatisfied = true)
+    public void Resolve(string actor, DateTimeOffset when, bool eSignatureSatisfied)
     {
         Status.EnsureCanTransitionTo(ComplaintStatus.Resolved);
         if (!eSignatureSatisfied)
