@@ -18,7 +18,7 @@ public sealed record RepDetailDto(
 public interface IRepresentativeQueries
 {
     Task<PagedResult<RepListItemDto>> SearchAsync(RepSearchCriteria criteria, OrgScope scope, CancellationToken ct);
-    Task<RepDetailDto?> GetByIdAsync(Guid id, CancellationToken ct);
+    Task<RepDetailDto?> GetByIdAsync(Guid id, OrgScope scope, CancellationToken ct);
 }
 
 public sealed record RepSearchCriteria : ListQuery

@@ -52,7 +52,13 @@ public sealed record GetRepresentativeByIdQuery(Guid Id) : IQuery<RepDetailDto?>
 public sealed class GetRepresentativeByIdHandler : IQueryHandler<GetRepresentativeByIdQuery, RepDetailDto?>
 {
     private readonly IRepresentativeQueries _queries;
-    public GetRepresentativeByIdHandler(IRepresentativeQueries queries) => _queries = queries;
+    private readonly ICurrentUser _currentUser;
+    public GetRepresentativeByIdHandler(IRepresentativeQueries queries, ICurrentUser currentUser)
+    {
+        _queries = queries; _currentUser = currentUser;
+    }
+    // Scope the by-id read so an out-of-scope rep id returns null → 404 (finding B-5), never another
+    // scope's salary/PII by GUID.
     public Task<RepDetailDto?> Handle(GetRepresentativeByIdQuery request, CancellationToken ct) =>
-        _queries.GetByIdAsync(request.Id, ct);
+        _queries.GetByIdAsync(request.Id, _currentUser.Scope, ct);
 }

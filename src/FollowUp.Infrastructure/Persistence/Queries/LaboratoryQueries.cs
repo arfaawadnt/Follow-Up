@@ -107,7 +107,9 @@ internal sealed class RepresentativeQueries : IRepresentativeQueries
     public async Task<PagedResult<Application.Features.Representatives.Contracts.RepListItemDto>> SearchAsync(
         Application.Features.Representatives.Contracts.RepSearchCriteria criteria, OrgScope scope, CancellationToken ct)
     {
-        var query = _db.Representatives.AsNoTracking();
+        // Enforce the caller's org scope on the rep directory (finding B-5) before any counting/pagination —
+        // reps carry Branch/Governorate/City/Area attribution and must not leak cross-scope salary/PII.
+        var query = _db.Representatives.AsNoTracking().ApplyScope(scope);
 
         if (!string.IsNullOrWhiteSpace(criteria.Type))
             query = query.Where(r => r.Type == Enumeration.FromName<Domain.Representatives.RepresentativeType>(criteria.Type));
@@ -141,9 +143,11 @@ internal sealed class RepresentativeQueries : IRepresentativeQueries
             .Create(items, total, criteria.Page, criteria.PageSize);
     }
 
-    public async Task<Application.Features.Representatives.Contracts.RepDetailDto?> GetByIdAsync(Guid id, CancellationToken ct)
+    public async Task<Application.Features.Representatives.Contracts.RepDetailDto?> GetByIdAsync(Guid id, OrgScope scope, CancellationToken ct)
     {
-        var r = await _db.Representatives.AsNoTracking().FirstOrDefaultAsync(x => x.Id == new Domain.Representatives.RepresentativeId(id), ct);
+        // Scope the by-id read (finding B-5): an out-of-scope id resolves to null → 404, never another scope's rep.
+        var r = await _db.Representatives.AsNoTracking().ApplyScope(scope)
+            .FirstOrDefaultAsync(x => x.Id == new Domain.Representatives.RepresentativeId(id), ct);
         return r is null ? null : new Application.Features.Representatives.Contracts.RepDetailDto(
             r.Id.Value, r.FullName, r.Type.Name, r.GoalDuration.Name, r.GoalType, r.Metric,
             r.Salary.Amount, r.Target.Amount, r.Phone, r.Branch, r.Governorate, r.City, r.Area,
