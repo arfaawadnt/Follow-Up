@@ -119,6 +119,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Features.SampleTracking.ISampleTrackingQueries, Persistence.Queries.SampleTrackingQueries>();
         services.AddScoped<Application.Features.Complaints.Contracts.IComplaintQueries, Persistence.Queries.ComplaintQueries>();
         services.AddScoped<Application.Features.Marketing.IMarketingQueries, Persistence.Queries.MarketingQueries>();
+        services.AddScoped<Application.Features.Integration.IIntegrationQueries, Persistence.Queries.IntegrationQueries>();
         services.AddScoped<Application.Features.UserAdmin.Queries.IUserAdminQueries, Persistence.Queries.UserAdminQueries>();
         services.AddScoped<Application.Features.Setup.ISetupQueries, Persistence.Queries.SetupQueries>();
         services.AddScoped<Application.Features.Audit.IAuditQueries, Persistence.Queries.AuditQueries>();

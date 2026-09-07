@@ -16,4 +16,11 @@ internal sealed class SettingsQueries : ISettingsQueries
             .Select(s => new SettingDto(s.Key, s.IsSecret ? "********" : s.Value, s.IsSecret))
             .ToList();
     }
+
+    public async Task<int?> GetRetentionDaysAsync(CancellationToken ct)
+    {
+        var value = await _db.Settings.AsNoTracking().Where(s => s.Id == "retention.days")
+            .Select(s => s.Value).FirstOrDefaultAsync(ct);
+        return int.TryParse(value, out var days) ? days : null;
+    }
 }

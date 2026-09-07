@@ -15,6 +15,13 @@ public sealed record OracleConfigDto(
     bool Enabled, int IntervalHours, IReadOnlyList<string> AllowListedQueries,
     DateTimeOffset? LastSyncAt, string? LastStatus);
 
+/// <summary>Read-side projection of the Oracle integration config (never exposes the connection string) so the
+/// query handler need not touch the write-side aggregate repository (finding M-21).</summary>
+public interface IIntegrationQueries
+{
+    Task<OracleConfigDto?> GetConfigAsync(CancellationToken ct);
+}
+
 /// <summary>Reads the Oracle integration config (SRS FR-17). The connection string is never returned.</summary>
 public sealed record GetIntegrationConfigQuery : IQuery<OracleConfigDto>, IAuthorizedRequest
 {
@@ -23,16 +30,13 @@ public sealed record GetIntegrationConfigQuery : IQuery<OracleConfigDto>, IAutho
 
 public sealed class GetIntegrationConfigHandler : IQueryHandler<GetIntegrationConfigQuery, OracleConfigDto>
 {
-    private readonly IOracleConfigRepository _repo;
-    public GetIntegrationConfigHandler(IOracleConfigRepository repo) => _repo = repo;
+    private readonly IIntegrationQueries _queries;
+    public GetIntegrationConfigHandler(IIntegrationQueries queries) => _queries = queries;
 
-    public async Task<OracleConfigDto> Handle(GetIntegrationConfigQuery r, CancellationToken ct)
-    {
-        var cfg = await _repo.GetAsync(ct)
+    // Read via the projection, not the write-side aggregate repository (finding M-21).
+    public async Task<OracleConfigDto> Handle(GetIntegrationConfigQuery r, CancellationToken ct) =>
+        await _queries.GetConfigAsync(ct)
             ?? throw new NotFoundException("Oracle configuration has not been provisioned.");
-        return new OracleConfigDto(cfg.Enabled, cfg.IntervalHours,
-            cfg.Queries.Select(q => q.Name).ToArray(), cfg.LastSyncAt, cfg.LastStatus);
-    }
 }
 
 // ---- Update config (enable + interval ONLY) ----

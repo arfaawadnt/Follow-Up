@@ -113,16 +113,14 @@ public class CqrsConventionTests
         stale.Should().BeEmpty("these requests now declare privileges — remove them from the allowlist");
     }
 
-    // Reviewed exceptions (2026-08-27):
+    // Reviewed exceptions:
     // - VerifySignatureHandler loads the ElectronicSignature aggregate to evaluate its StillValidFor(...)
     //   domain behavior — a projection would duplicate that rule outside Domain.
-    // - GetRetentionHandler / GetIntegrationConfigHandler read config via aggregate repositories; FINDINGS
-    //   in the compliance report — move them to ISettingsQueries/projection reads, then remove them here.
+    // (GetRetentionHandler / GetIntegrationConfigHandler now read via ISettingsQueries / IIntegrationQueries
+    //  projections — finding M-21 fixed — so they are no longer pinned here.)
     private static readonly IReadOnlySet<string> ReviewedQueryHandlerRepositoryUse = new HashSet<string>(StringComparer.Ordinal)
     {
         "VerifySignatureHandler",
-        "GetRetentionHandler",
-        "GetIntegrationConfigHandler",
     };
 
     [Fact]

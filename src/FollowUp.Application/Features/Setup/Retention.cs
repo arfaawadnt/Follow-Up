@@ -23,13 +23,14 @@ public sealed record GetRetentionQuery : IQuery<RetentionDto>, IAuthorizedReques
 
 public sealed class GetRetentionHandler : IQueryHandler<GetRetentionQuery, RetentionDto>
 {
-    private readonly IAppSettingRepository _settings;
-    public GetRetentionHandler(IAppSettingRepository settings) => _settings = settings;
+    private readonly ISettingsQueries _queries;
+    public GetRetentionHandler(ISettingsQueries queries) => _queries = queries;
 
+    // Read via the settings projection, not the write-side repository (finding M-21).
     public async Task<RetentionDto> Handle(GetRetentionQuery request, CancellationToken ct)
     {
-        var setting = await _settings.GetAsync("retention.days", ct);
-        return int.TryParse(setting?.Value, out var days) ? new RetentionDto(days, true) : new RetentionDto(null, false);
+        var days = await _queries.GetRetentionDaysAsync(ct);
+        return days is { } d ? new RetentionDto(d, true) : new RetentionDto(null, false);
     }
 }
 

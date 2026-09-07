@@ -12,6 +12,9 @@ public sealed record SettingDto(string Key, string? Value, bool IsSecret);
 public interface ISettingsQueries
 {
     Task<IReadOnlyList<SettingDto>> ListAsync(CancellationToken ct);
+
+    /// <summary>The configured retention window in days, or null when unset (read-only projection, finding M-21).</summary>
+    Task<int?> GetRetentionDaysAsync(CancellationToken ct);
 }
 
 /// <summary>Lists application settings (admin); secrets masked.</summary>

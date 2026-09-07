@@ -54,16 +54,25 @@ public class OracleIntegrationTests
         repo.Config.IntervalHours.Should().Be(12);
     }
 
+    private sealed class FakeIntegrationQueries : IIntegrationQueries
+    {
+        private readonly OracleConfigDto? _dto;
+        public FakeIntegrationQueries(OracleConfigDto? dto) => _dto = dto;
+        public Task<OracleConfigDto?> GetConfigAsync(CancellationToken ct) => Task.FromResult(_dto);
+    }
+
     [Fact]
     public async Task Get_config_never_exposes_connection_string()
     {
-        var repo = new FakeOracleConfigRepository();
         var cfg = Domain.Integration.OracleConfig.Create(true, 24);
         cfg.ApplyManagedConfig("Host=secret;Password=hunter2",
             new[] { Domain.Integration.AllowListedQuery.Create("Labs", "SELECT code FROM labs") });
-        repo.Add(cfg);
+        // The projection builds the DTO without ever selecting the connection string (mirrors IntegrationQueries).
+        var projected = new OracleConfigDto(cfg.Enabled, cfg.IntervalHours,
+            cfg.Queries.Select(q => q.Name).ToArray(), cfg.LastSyncAt, cfg.LastStatus);
 
-        var dto = await new GetIntegrationConfigHandler(repo).Handle(new GetIntegrationConfigQuery(), CancellationToken.None);
+        var dto = await new GetIntegrationConfigHandler(new FakeIntegrationQueries(projected))
+            .Handle(new GetIntegrationConfigQuery(), CancellationToken.None);
 
         dto.AllowListedQueries.Should().ContainSingle().Which.Should().Be("Labs");
         // The DTO has no connection-string field at all — it cannot leak.
