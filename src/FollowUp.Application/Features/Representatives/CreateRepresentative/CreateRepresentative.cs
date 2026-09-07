@@ -1,5 +1,7 @@
+using FollowUp.Application.Common.Abstractions;
 using FollowUp.Application.Common.Abstractions.Persistence;
 using FollowUp.Application.Common.Messaging;
+using FollowUp.Application.Common.Security;
 using FollowUp.Domain.Common;
 using FollowUp.Domain.Identity;
 using FollowUp.Domain.Representatives;
@@ -45,8 +47,12 @@ public sealed class CreateRepresentativeValidator : AbstractValidator<CreateRepr
 public sealed class CreateRepresentativeHandler : ICommandHandler<CreateRepresentativeCommand, Guid>
 {
     private readonly IRepresentativeRepository _repository;
+    private readonly ICurrentUser _user;
 
-    public CreateRepresentativeHandler(IRepresentativeRepository repository) => _repository = repository;
+    public CreateRepresentativeHandler(IRepresentativeRepository repository, ICurrentUser user)
+    {
+        _repository = repository; _user = user;
+    }
 
     public Task<Guid> Handle(CreateRepresentativeCommand request, CancellationToken ct)
     {
@@ -59,6 +65,9 @@ public sealed class CreateRepresentativeHandler : ICommandHandler<CreateRepresen
 
         rep.SetContact(request.Phone);
         rep.AssignScope(request.Branch, request.Governorate, request.Area, request.City);
+        // A scoped caller must not plant a rep outside their org scope (finding M-2 / LAB-004); validate the
+        // target attribution with the same rep-scope semantics the update/read paths use.
+        _user.EnsureInScope(rep);
         rep.SetAppointedOn(request.AppointedOn);
         rep.SetEmployment(request.EmploymentType);
         if (request.GoalType is not null || request.Metric is not null)
