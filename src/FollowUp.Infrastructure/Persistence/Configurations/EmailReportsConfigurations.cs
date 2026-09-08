@@ -20,7 +20,8 @@ internal sealed class SmtpConfigConfiguration : IEntityTypeConfiguration<SmtpCon
         b.Property(x => x.UseSsl);
         b.Property(x => x.FromAddress).HasMaxLength(255);
         b.Property(x => x.User).HasMaxLength(255);
-        b.Property(x => x.Password).HasColumnType("text"); // secret — masked by the API
+        b.Property(x => x.Password).HasColumnType("text") // secret — masked by the API
+            .HasConversion<EncryptedStringConverter>(); // encrypted at rest (finding M-16)
         b.Ignore(x => x.HasPassword);
     }
 }

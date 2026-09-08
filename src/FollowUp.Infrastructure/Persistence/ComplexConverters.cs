@@ -174,3 +174,15 @@ public sealed class AllowListedQueryListComparer : ValueComparer<IReadOnlyCollec
         v => v.ToList())
     { }
 }
+
+// ---- Encrypted secrets at rest (Oracle connection string M-15, SMTP password M-16) ----
+
+/// <summary>Encrypts a secret string column at rest via <see cref="Security.SecretProtector"/>. A legacy
+/// plaintext value is read transparently until it is re-encrypted (see the startup re-encryption).</summary>
+public sealed class EncryptedStringConverter : ValueConverter<string, string>
+{
+    public EncryptedStringConverter() : base(
+        v => Security.SecretProtector.Protect(v)!,
+        v => Security.SecretProtector.Unprotect(v)!)
+    { }
+}

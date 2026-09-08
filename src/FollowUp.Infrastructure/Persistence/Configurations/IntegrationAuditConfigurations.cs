@@ -17,7 +17,8 @@ internal sealed class OracleConfigConfiguration : IEntityTypeConfiguration<Oracl
 
         b.Property(x => x.Enabled);
         b.Property(x => x.IntervalHours);
-        b.Property(x => x.ConnectionString).HasColumnType("text"); // never returned by the API
+        b.Property(x => x.ConnectionString).HasColumnType("text") // never returned by the API
+            .HasConversion<EncryptedStringConverter>(); // encrypted at rest (finding M-15)
         b.Property(x => x.LastStatus).HasMaxLength(500);
         b.Property(x => x.LastSyncAt);
 

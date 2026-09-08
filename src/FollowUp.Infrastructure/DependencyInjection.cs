@@ -36,6 +36,11 @@ public static class DependencyInjection
             : authOptions.SigningSecret;
         services.AddSingleton(authOptions);
 
+        // Configure the at-rest secret encryptor (findings M-15/M-16) before any DbContext use. A dedicated
+        // FOLLOWUP_SECRET_KEY is used if set, else the key is derived from the signing secret (domain-separated).
+        Security.SecretProtector.Configure(
+            Environment.GetEnvironmentVariable("FOLLOWUP_SECRET_KEY") ?? authOptions.SigningSecret);
+
         // Persistence — DbContext is the unit of work (ADR-0005).
         services.AddScoped<AuditAndOutboxInterceptor>();
         services.AddDbContext<FollowUpDbContext>((sp, options) =>

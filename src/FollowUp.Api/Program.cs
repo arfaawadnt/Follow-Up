@@ -142,6 +142,9 @@ await using (var scope = app.Services.CreateAsyncScope())
         Log.Information("Oracle integration provisioned (enabled={Enabled}, interval={Interval}h, feeds={Feeds}).",
             cfg.Enabled, cfg.IntervalHours, string.Join(",", queries.Select(q => q.Name)));
     }
+
+    // Encrypt any secrets that predate the at-rest converter (findings M-15/M-16).
+    await FollowUp.Infrastructure.Security.SecretsReencryptor.RunAsync(db);
 }
 
 // Pipeline (order matters — architect request-pipeline).
