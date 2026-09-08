@@ -347,5 +347,19 @@ Api 13 = 285 passed / 0 failed / 0 skipped; build 0W/0E; 40 migrations apply sin
 Deployment note: the key derives from `FOLLOWUP_SECRET_KEY` if set, else `FOLLOWUP_AUTH_SECRET` — so no new
 required env var; changing that secret makes existing ciphertext undecryptable, so rotate deliberately.
 
-Still open by design: **M-JOB / ADR-0004**, the reliability/observability Majors (**M-9, M-13, M-18, M-19**),
-and the remaining Minors/Opinions.
+### Phase 4 (cont.) — Majors tranche E (reliability / observability)
+
+| ID | Fix | Test |
+|---|---|---|
+| **M-18** | SignalR `dataChange` no longer carries the committing command's type name (a content-free refetch hint) — removes the cross-scope activity side-channel; the Angular client already ignored the payload | compile-enforced (signature dropped) |
+| **M-9** | Each outbox message is dispatched in its own scope + transaction, so a failing handler's partial writes roll back and a retry can't duplicate side effects | `OutboxRetryTests` |
+| **M-19** | Real OTel spans: a `TracingBehavior` emits one span per MediatR request under the (previously dead) `FollowUp` source, and Npgsql's `ActivitySource` is registered for DB spans | `TracingBehaviorTests` |
+| **M-13** | Failed notification deliveries are actually retried: the log stores the rendered content, a shared `INotificationDispatcher` sends for both fan-out and retry, and a recurring `NotificationDeliveryRetryRunner` (every 5 min, attempt-bounded) re-sends | `NotificationRetryTests` |
+
+**Verification after tranche E (fresh DB): Domain 76 · Application 110 · Architecture 22 · Integration 67 ·
+Api 13 = 288 passed / 0 failed / 0 skipped; build 0W/0E; 41 migrations apply single-pass; no EF drift.**
+
+### Cumulative status across cycle-3 remediation
+All **7 Blockers** and **19 Majors** are fixed and committed on `remediation/cycle3-scope-and-blockers`
+(one atomic commit per finding, nothing pushed). Still open by design: **M-JOB / ADR-0004** (the job-services
+pattern — refactor vs. record as an accepted exception), and the register's remaining **Minors and Opinions**.
