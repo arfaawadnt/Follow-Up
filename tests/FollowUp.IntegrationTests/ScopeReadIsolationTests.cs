@@ -112,8 +112,12 @@ public sealed class ScopeReadIsolationTests
         var everyDay = new[] { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
         var labId = await Send(new CreateLaboratoryCommand
         {
-            Code = "MGL-BRD5", Name = "Cairo Lab", Segment = "A", Governorate = "Cairo",
-            WorkDays = everyDay, VisitTimes = new[] { "09:00" },
+            Code = "MGL-BRD5",
+            Name = "Cairo Lab",
+            Segment = "A",
+            Governorate = "Cairo",
+            WorkDays = everyDay,
+            VisitTimes = new[] { "09:00" },
         });
 
         Guid visitId;

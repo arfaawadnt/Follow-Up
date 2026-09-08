@@ -40,13 +40,22 @@ public sealed class EncryptedCodeReadPathTests
         var everyDay = new[] { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
         var plain = await Send(new CreateLaboratoryCommand
         {
-            Code = $"MGL-{tag}P", Name = "Plain Lab", Segment = "A", Governorate = "Cairo",
-            WorkDays = everyDay, VisitTimes = new[] { "09:00" },
+            Code = $"MGL-{tag}P",
+            Name = "Plain Lab",
+            Segment = "A",
+            Governorate = "Cairo",
+            WorkDays = everyDay,
+            VisitTimes = new[] { "09:00" },
         });
         var enc = await Send(new CreateLaboratoryCommand
         {
-            Code = $"MGL-{tag}E", Name = "Secret Lab", Segment = "A", Governorate = "Cairo", IsEncrypted = true,
-            WorkDays = everyDay, VisitTimes = new[] { "09:00" },
+            Code = $"MGL-{tag}E",
+            Name = "Secret Lab",
+            Segment = "A",
+            Governorate = "Cairo",
+            IsEncrypted = true,
+            WorkDays = everyDay,
+            VisitTimes = new[] { "09:00" },
         });
         return (plain, enc);
     }

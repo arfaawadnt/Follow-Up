@@ -100,11 +100,17 @@ public sealed class NotificationFanoutTests
             var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
             var labId = await mediator.Send(new CreateLaboratoryCommand
             {
-                Code = "MGL-SCOPE", Name = "Cairo Notify Lab", Segment = "A", Governorate = "Cairo",
+                Code = "MGL-SCOPE",
+                Name = "Cairo Notify Lab",
+                Segment = "A",
+                Governorate = "Cairo",
             });
             await mediator.Send(new LogComplaintCommand
             {
-                LaboratoryId = labId, Category = "TAT", ViaChannel = "Phone", Details = "late results",
+                LaboratoryId = labId,
+                Category = "TAT",
+                ViaChannel = "Phone",
+                Details = "late results",
             });
         }
 

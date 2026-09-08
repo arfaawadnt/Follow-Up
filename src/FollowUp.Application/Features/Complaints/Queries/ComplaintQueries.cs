@@ -32,8 +32,11 @@ public sealed class GetComplaintsHandler : IQueryHandler<GetComplaintsQuery, Pag
     {
         var criteria = new ComplaintSearchCriteria
         {
-            Page = request.Page, PageSize = request.PageSize,
-            Status = request.Status, Category = request.Category, LaboratoryId = request.LaboratoryId,
+            Page = request.Page,
+            PageSize = request.PageSize,
+            Status = request.Status,
+            Category = request.Category,
+            LaboratoryId = request.LaboratoryId,
         };
         return _queries.SearchAsync(criteria, _user.Scope, _user.Has(Privileges.ShowEncryptedLabs), ct);
     }

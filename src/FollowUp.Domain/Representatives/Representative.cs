@@ -87,7 +87,7 @@ public sealed class Representative : AggregateRoot<RepresentativeId>, IVersioned
         if (string.IsNullOrWhiteSpace(fullName)) throw new DomainException("Representative name is required.");
         return new Representative(RepresentativeId.New(), fullName.Trim(),
             RepresentativeType.Collector, GoalDuration.Monthly, Money.Zero, Money.Zero)
-            { SourceCode = sourceCode.Trim(), Source = RecordSource.Oracle };
+        { SourceCode = sourceCode.Trim(), Source = RecordSource.Oracle };
     }
 
     /// <summary>Applies the latest Oracle name and marks the record Oracle-owned (mirror update; app keeps the rest).</summary>

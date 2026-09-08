@@ -23,8 +23,12 @@ public sealed class JobsTests
         // A lab scheduled on Sundays at two times.
         await Send(new CreateLaboratoryCommand
         {
-            Code = "MGL-JOB1", Name = "Job Lab", Segment = "A", Governorate = "Cairo",
-            WorkDays = new[] { "Sunday" }, VisitTimes = new[] { "09:00", "12:00" },
+            Code = "MGL-JOB1",
+            Name = "Job Lab",
+            Segment = "A",
+            Governorate = "Cairo",
+            WorkDays = new[] { "Sunday" },
+            VisitTimes = new[] { "09:00", "12:00" },
         });
 
         var sunday = new DateOnly(2026, 8, 16); // a Sunday
@@ -122,8 +126,12 @@ public sealed class JobsTests
         var everyDay = new[] { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
         var labId = new Domain.Laboratories.LaboratoryId(await Send(new CreateLaboratoryCommand
         {
-            Code = "MGL-STRAG", Name = "Straggler Lab", Segment = "A", Governorate = "Cairo",
-            WorkDays = everyDay, VisitTimes = new[] { "09:00" },
+            Code = "MGL-STRAG",
+            Name = "Straggler Lab",
+            Segment = "A",
+            Governorate = "Cairo",
+            WorkDays = everyDay,
+            VisitTimes = new[] { "09:00" },
         }));
 
         DateOnly stragglerDate;
@@ -207,7 +215,10 @@ public sealed class JobsTests
         // A lab scheduled every day at two times, so "today" is always a work day (BR-3 is date-agnostic here).
         var labId = new Domain.Laboratories.LaboratoryId(await Send(new CreateLaboratoryCommand
         {
-            Code = "MGL-BR3", Name = "Intra-day Lab", Segment = "A", Governorate = "Cairo",
+            Code = "MGL-BR3",
+            Name = "Intra-day Lab",
+            Segment = "A",
+            Governorate = "Cairo",
             WorkDays = new[] { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" },
             VisitTimes = new[] { "09:00", "12:00" },
         }));
@@ -245,8 +256,12 @@ public sealed class JobsTests
         var everyDay = new[] { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
         var labId = new Domain.Laboratories.LaboratoryId(await Send(new CreateLaboratoryCommand
         {
-            Code = "MGL-PRUNE", Name = "Prune Lab", Segment = "A", Governorate = "Cairo",
-            WorkDays = everyDay, VisitTimes = new[] { "09:00", "12:00" },
+            Code = "MGL-PRUNE",
+            Name = "Prune Lab",
+            Segment = "A",
+            Governorate = "Cairo",
+            WorkDays = everyDay,
+            VisitTimes = new[] { "09:00", "12:00" },
         }));
 
         DateOnly today;

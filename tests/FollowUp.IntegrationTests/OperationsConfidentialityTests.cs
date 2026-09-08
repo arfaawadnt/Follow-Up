@@ -118,13 +118,22 @@ public sealed class OperationsConfidentialityTests
         var everyDay = new[] { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
         var encId = await Send(new CreateLaboratoryCommand
         {
-            Code = EncryptedCode, Name = "Confidential Lab", Segment = "A", Governorate = "Cairo",
-            IsEncrypted = true, WorkDays = everyDay, VisitTimes = new[] { "09:00" },
+            Code = EncryptedCode,
+            Name = "Confidential Lab",
+            Segment = "A",
+            Governorate = "Cairo",
+            IsEncrypted = true,
+            WorkDays = everyDay,
+            VisitTimes = new[] { "09:00" },
         });
         var plainId = await Send(new CreateLaboratoryCommand
         {
-            Code = PlainCode, Name = "Open Lab", Segment = "B", Governorate = "Giza",
-            WorkDays = everyDay, VisitTimes = new[] { "10:00" },
+            Code = PlainCode,
+            Name = "Open Lab",
+            Segment = "B",
+            Governorate = "Giza",
+            WorkDays = everyDay,
+            VisitTimes = new[] { "10:00" },
         });
 
         DateOnly today;

@@ -59,8 +59,26 @@ internal sealed class DailyBoardQueries : IDailyBoardQueries
         }
         var live = await (from v in q
                           join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
-                          select new { v.Id, v.LaboratoryId, l.Code, l.IsEncrypted, l.Name, l.Branch, l.Governorate, l.City, l.Area,
-                              v.CollectorRepId, v.VisitDate, v.ScheduledTime, v.Status, v.SampleCount, v.CheckedInAt, v.AdminChecked, v.TransferConfirmedAt })
+                          select new
+                          {
+                              v.Id,
+                              v.LaboratoryId,
+                              l.Code,
+                              l.IsEncrypted,
+                              l.Name,
+                              l.Branch,
+                              l.Governorate,
+                              l.City,
+                              l.Area,
+                              v.CollectorRepId,
+                              v.VisitDate,
+                              v.ScheduledTime,
+                              v.Status,
+                              v.SampleCount,
+                              v.CheckedInAt,
+                              v.AdminChecked,
+                              v.TransferConfirmedAt
+                          })
                          .ToListAsync(ct);
 
         // Archived days (rolled off the live board into visit_history) — read-only history.
@@ -77,8 +95,26 @@ internal sealed class DailyBoardQueries : IDailyBoardQueries
         }
         var archived = await (from h in hq
                               join l in _db.Laboratories.AsNoTracking() on h.LaboratoryId equals l.Id
-                              select new { h.OriginalVisitId, h.LaboratoryId, l.Code, l.IsEncrypted, l.Name, l.Branch, l.Governorate, l.City, l.Area,
-                                  h.CollectorRepId, h.VisitDate, h.ScheduledTime, h.Status, h.SampleCount, h.CheckedInAt, h.AdminChecked, h.TransferConfirmedAt })
+                              select new
+                              {
+                                  h.OriginalVisitId,
+                                  h.LaboratoryId,
+                                  l.Code,
+                                  l.IsEncrypted,
+                                  l.Name,
+                                  l.Branch,
+                                  l.Governorate,
+                                  l.City,
+                                  l.Area,
+                                  h.CollectorRepId,
+                                  h.VisitDate,
+                                  h.ScheduledTime,
+                                  h.Status,
+                                  h.SampleCount,
+                                  h.CheckedInAt,
+                                  h.AdminChecked,
+                                  h.TransferConfirmedAt
+                              })
                              .ToListAsync(ct);
 
         var repIds = live.Where(r => r.CollectorRepId != null).Select(r => r.CollectorRepId!.Value)
@@ -137,18 +173,52 @@ internal sealed class TransferQueries : ITransferQueries
         var live = await (from v in _db.DailyVisits.AsNoTracking()
                           where v.Status == visited && v.VisitDate >= start && v.VisitDate <= end && scopedLabs.Contains(v.LaboratoryId)
                           join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
-                          select new { v.Id, v.LaboratoryId, l.Code, l.IsEncrypted, l.Name, l.Branch, l.Governorate, l.City, l.Area,
-                              v.VisitDate, Time = (TimeOnly?)v.ScheduledTime, v.CollectorRepId, v.SampleCount, v.TransferConfirmedAt,
-                              v.TransferRepId, v.Transfer })
+                          select new
+                          {
+                              v.Id,
+                              v.LaboratoryId,
+                              l.Code,
+                              l.IsEncrypted,
+                              l.Name,
+                              l.Branch,
+                              l.Governorate,
+                              l.City,
+                              l.Area,
+                              v.VisitDate,
+                              Time = (TimeOnly?)v.ScheduledTime,
+                              v.CollectorRepId,
+                              v.SampleCount,
+                              v.TransferConfirmedAt,
+                              v.TransferRepId,
+                              v.Transfer
+                          })
                          .ToListAsync(ct);
 
         // Archived (rolled-off days) — read-only history.
         var archived = await (from h in _db.VisitHistory.AsNoTracking()
                               where h.Status == VisitStatus.Visited.Name && h.VisitDate >= start && h.VisitDate <= end && scopedLabs.Contains(h.LaboratoryId)
                               join l in _db.Laboratories.AsNoTracking() on h.LaboratoryId equals l.Id
-                              select new { Id = h.OriginalVisitId, h.LaboratoryId, l.Code, l.IsEncrypted, l.Name, l.Branch, l.Governorate, l.City, l.Area,
-                                  h.VisitDate, Time = h.ScheduledTime, h.CollectorRepId, h.SampleCount, h.TransferConfirmedAt,
-                                  h.TransferRepId, h.DriverName, h.DriverMobile, h.CarPlate })
+                              select new
+                              {
+                                  Id = h.OriginalVisitId,
+                                  h.LaboratoryId,
+                                  l.Code,
+                                  l.IsEncrypted,
+                                  l.Name,
+                                  l.Branch,
+                                  l.Governorate,
+                                  l.City,
+                                  l.Area,
+                                  h.VisitDate,
+                                  Time = h.ScheduledTime,
+                                  h.CollectorRepId,
+                                  h.SampleCount,
+                                  h.TransferConfirmedAt,
+                                  h.TransferRepId,
+                                  h.DriverName,
+                                  h.DriverMobile,
+                                  h.CarPlate
+                              })
                              .ToListAsync(ct);
 
         var repIds = live.SelectMany(r => new[] { r.CollectorRepId, r.TransferRepId })
@@ -193,9 +263,26 @@ internal sealed class LabCheckInQueries : ILabCheckInQueries
                           where v.TransferConfirmedAt != null && (v.Status == visited || v.Status == received)
                                 && v.VisitDate >= start && v.VisitDate <= end && scopedLabs.Contains(v.LaboratoryId)
                           join l in _db.Laboratories.AsNoTracking() on v.LaboratoryId equals l.Id
-                          select new { v.Id, v.LaboratoryId, l.Code, l.IsEncrypted, l.Name, l.Branch, l.Governorate, l.City, l.Area,
-                              v.VisitDate, Time = (TimeOnly?)v.ScheduledTime, v.CollectorRepId, v.SampleCount, IsReceived = v.Status == received, v.TransferRepId,
-                              v.TransferConfirmedAt, v.ReceivedAt })
+                          select new
+                          {
+                              v.Id,
+                              v.LaboratoryId,
+                              l.Code,
+                              l.IsEncrypted,
+                              l.Name,
+                              l.Branch,
+                              l.Governorate,
+                              l.City,
+                              l.Area,
+                              v.VisitDate,
+                              Time = (TimeOnly?)v.ScheduledTime,
+                              v.CollectorRepId,
+                              v.SampleCount,
+                              IsReceived = v.Status == received,
+                              v.TransferRepId,
+                              v.TransferConfirmedAt,
+                              v.ReceivedAt
+                          })
                          .ToListAsync(ct);
 
         // Archived (rolled-off days) — read-only history.
@@ -203,9 +290,26 @@ internal sealed class LabCheckInQueries : ILabCheckInQueries
                               where h.TransferConfirmedAt != null && (h.Status == VisitStatus.Visited.Name || h.Status == VisitStatus.Received.Name)
                                     && h.VisitDate >= start && h.VisitDate <= end && scopedLabs.Contains(h.LaboratoryId)
                               join l in _db.Laboratories.AsNoTracking() on h.LaboratoryId equals l.Id
-                              select new { Id = h.OriginalVisitId, h.LaboratoryId, l.Code, l.IsEncrypted, l.Name, l.Branch, l.Governorate, l.City, l.Area,
-                                  h.VisitDate, Time = h.ScheduledTime, h.CollectorRepId, h.SampleCount, IsReceived = h.Status == VisitStatus.Received.Name, h.TransferRepId,
-                                  h.TransferConfirmedAt, h.ReceivedAt })
+                              select new
+                              {
+                                  Id = h.OriginalVisitId,
+                                  h.LaboratoryId,
+                                  l.Code,
+                                  l.IsEncrypted,
+                                  l.Name,
+                                  l.Branch,
+                                  l.Governorate,
+                                  l.City,
+                                  l.Area,
+                                  h.VisitDate,
+                                  Time = h.ScheduledTime,
+                                  h.CollectorRepId,
+                                  h.SampleCount,
+                                  IsReceived = h.Status == VisitStatus.Received.Name,
+                                  h.TransferRepId,
+                                  h.TransferConfirmedAt,
+                                  h.ReceivedAt
+                              })
                              .ToListAsync(ct);
 
         var repIds = live.SelectMany(r => new[] { r.TransferRepId, r.CollectorRepId })
@@ -359,20 +463,66 @@ internal sealed class SampleTrackingQueries : ISampleTrackingQueries
         var live = (await (from v in _db.DailyVisits.AsNoTracking()
                            where v.VisitDate >= start && v.VisitDate <= end && v.SampleCount != null
                            join l in _db.Laboratories.ApplyScope(scope).AsNoTracking() on v.LaboratoryId equals l.Id
-                           select new { VisitId = v.Id.Value, l.Code, l.IsEncrypted, l.Name, l.Area, v.VisitDate, Time = (TimeOnly?)v.ScheduledTime,
-                               v.SampleCount, v.CheckedInAt, v.TransferConfirmedAt, v.ReceivedAt,
-                               v.CollectorRepId, v.TransferRepId, v.Transfer })
+                           select new
+                           {
+                               VisitId = v.Id.Value,
+                               l.Code,
+                               l.IsEncrypted,
+                               l.Name,
+                               l.Area,
+                               v.VisitDate,
+                               Time = (TimeOnly?)v.ScheduledTime,
+                               v.SampleCount,
+                               v.CheckedInAt,
+                               v.TransferConfirmedAt,
+                               v.ReceivedAt,
+                               v.CollectorRepId,
+                               v.TransferRepId,
+                               v.Transfer
+                           })
                           .ToListAsync(ct))
-            .Select(v => new { v.VisitId, v.Code, v.IsEncrypted, v.Name, v.Area, v.VisitDate, v.Time, v.SampleCount, v.CheckedInAt,
-                v.TransferConfirmedAt, v.ReceivedAt, v.CollectorRepId, v.TransferRepId,
-                DriverName = v.Transfer?.DriverName, DriverMobile = v.Transfer?.DriverMobile, CarPlate = v.Transfer?.CarPlate });
+            .Select(v => new
+            {
+                v.VisitId,
+                v.Code,
+                v.IsEncrypted,
+                v.Name,
+                v.Area,
+                v.VisitDate,
+                v.Time,
+                v.SampleCount,
+                v.CheckedInAt,
+                v.TransferConfirmedAt,
+                v.ReceivedAt,
+                v.CollectorRepId,
+                v.TransferRepId,
+                DriverName = v.Transfer?.DriverName,
+                DriverMobile = v.Transfer?.DriverMobile,
+                CarPlate = v.Transfer?.CarPlate
+            });
 
         var archived = await (from h in _db.VisitHistory.AsNoTracking()
                               where h.VisitDate >= start && h.VisitDate <= end && h.SampleCount != null
                               join l in _db.Laboratories.ApplyScope(scope).AsNoTracking() on h.LaboratoryId equals l.Id
-                              select new { VisitId = h.OriginalVisitId.Value, l.Code, l.IsEncrypted, l.Name, l.Area, h.VisitDate, Time = h.ScheduledTime,
-                                  h.SampleCount, h.CheckedInAt, h.TransferConfirmedAt, h.ReceivedAt,
-                                  h.CollectorRepId, h.TransferRepId, h.DriverName, h.DriverMobile, h.CarPlate })
+                              select new
+                              {
+                                  VisitId = h.OriginalVisitId.Value,
+                                  l.Code,
+                                  l.IsEncrypted,
+                                  l.Name,
+                                  l.Area,
+                                  h.VisitDate,
+                                  Time = h.ScheduledTime,
+                                  h.SampleCount,
+                                  h.CheckedInAt,
+                                  h.TransferConfirmedAt,
+                                  h.ReceivedAt,
+                                  h.CollectorRepId,
+                                  h.TransferRepId,
+                                  h.DriverName,
+                                  h.DriverMobile,
+                                  h.CarPlate
+                              })
                              .ToListAsync(ct);
 
         var rows = live.Concat(archived).ToList();

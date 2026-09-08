@@ -25,7 +25,11 @@ public class LogComplaintHandlerTests
 
     private static LogComplaintCommand Cmd(Guid labId, Guid? repId) => new()
     {
-        LaboratoryId = labId, Category = "Result Quality", ViaChannel = "Phone", Details = "d", RepresentativeId = repId,
+        LaboratoryId = labId,
+        Category = "Result Quality",
+        ViaChannel = "Phone",
+        Details = "d",
+        RepresentativeId = repId,
     };
 
     [Fact]

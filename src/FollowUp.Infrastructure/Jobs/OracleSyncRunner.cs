@@ -48,8 +48,17 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
     // Feeds run in dependency order: geography/reference before the records that resolve against them.
     private static readonly Dictionary<string, int> FeedOrder = new()
     {
-        ["Governorates"] = 0, ["LabCategories"] = 1, ["Branches"] = 2, ["Cities"] = 3, ["Areas"] = 4,
-        ["Reps"] = 5, ["Groups"] = 6, ["Tests"] = 7, ["Labs"] = 8, ["LabStats"] = 9, ["TestStats"] = 10,
+        ["Governorates"] = 0,
+        ["LabCategories"] = 1,
+        ["Branches"] = 2,
+        ["Cities"] = 3,
+        ["Areas"] = 4,
+        ["Reps"] = 5,
+        ["Groups"] = 6,
+        ["Tests"] = 7,
+        ["Labs"] = 8,
+        ["LabStats"] = 9,
+        ["TestStats"] = 10,
     };
 
     private readonly IOracleConfigRepository _configRepo;
@@ -123,15 +132,15 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
             (int up, int rem) r = query.Name switch
             {
                 "Governorates" => await MirrorRefItemsAsync(rows, RefType.Governorate, "GOVERNCATE_CODE", "GOVERNCATE_NAME", ct),
-                "Branches"     => await MirrorRefItemsAsync(rows, RefType.Branch, "BRANCH_CODE", "BRANCH_NAME", ct),
-                "LabCategories"=> await MirrorRefItemsAsync(rows, RefType.LabCategory, "CATEGORY_ID", "CATEGORY_NAME", ct),
-                "Cities"       => await MirrorCitiesAsync(rows, ct),
-                "Areas"        => await MirrorAreasAsync(rows, ct),
-                "Reps"         => await MirrorRepsAsync(rows, ct),
-                "Labs"         => await MirrorLabsAsync(rows, ct),
-                "Groups"       => await MirrorGroupsAsync(rows, ct),
-                "Tests"        => await MirrorTestsAsync(rows, ct),
-                _              => (0, 0),
+                "Branches" => await MirrorRefItemsAsync(rows, RefType.Branch, "BRANCH_CODE", "BRANCH_NAME", ct),
+                "LabCategories" => await MirrorRefItemsAsync(rows, RefType.LabCategory, "CATEGORY_ID", "CATEGORY_NAME", ct),
+                "Cities" => await MirrorCitiesAsync(rows, ct),
+                "Areas" => await MirrorAreasAsync(rows, ct),
+                "Reps" => await MirrorRepsAsync(rows, ct),
+                "Labs" => await MirrorLabsAsync(rows, ct),
+                "Groups" => await MirrorGroupsAsync(rows, ct),
+                "Tests" => await MirrorTestsAsync(rows, ct),
+                _ => (0, 0),
             };
             upserts[query.Name] = r.up;
             removes[query.Name] = r.rem;

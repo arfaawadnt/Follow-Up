@@ -111,7 +111,8 @@ public sealed class TestSetup : AggregateRoot<TestSetupId>, IAuditable
         if (string.IsNullOrWhiteSpace(code)) throw new DomainException("Test code is required.");
         if (string.IsNullOrWhiteSpace(nameEn)) throw new DomainException("Test name is required.");
         return new TestSetup(TestSetupId.New(), code.Trim().ToUpperInvariant(), nameEn.Trim(), nameAr?.Trim(),
-            groupId, testType, cost ?? Money.Zero) { Source = CatalogueSource.Manual };
+            groupId, testType, cost ?? Money.Zero)
+        { Source = CatalogueSource.Manual };
     }
 
     /// <summary>Creates an Oracle-sourced test (mirrored by the sync).</summary>
@@ -120,7 +121,7 @@ public sealed class TestSetup : AggregateRoot<TestSetupId>, IAuditable
         if (string.IsNullOrWhiteSpace(code)) throw new DomainException("Test code is required.");
         var name = string.IsNullOrWhiteSpace(nameEn) ? code.Trim() : nameEn.Trim();
         return new TestSetup(TestSetupId.New(), code.Trim().ToUpperInvariant(), name, null, groupId, testType, cost)
-            { Source = CatalogueSource.Oracle };
+        { Source = CatalogueSource.Oracle };
     }
 
     public void Update(string nameEn, string? nameAr, TestGroupId? groupId, int testType = 0, Money? cost = null)

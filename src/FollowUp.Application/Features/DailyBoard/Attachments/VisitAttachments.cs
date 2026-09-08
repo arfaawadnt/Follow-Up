@@ -63,9 +63,9 @@ public sealed class UploadVisitAttachmentHandler : ICommandHandler<UploadVisitAt
     // Type from the leading bytes only (NFR-SEC-6): PDF (%PDF), JPEG, PNG.
     private static (string Extension, string ContentType)? Sniff(byte[] b) => b switch
     {
-        [0x25, 0x50, 0x44, 0x46, ..] => (".pdf", "application/pdf"),
-        [0xFF, 0xD8, 0xFF, ..] => (".jpg", "image/jpeg"),
-        [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, ..] => (".png", "image/png"),
+    [0x25, 0x50, 0x44, 0x46, ..] => (".pdf", "application/pdf"),
+    [0xFF, 0xD8, 0xFF, ..] => (".jpg", "image/jpeg"),
+    [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, ..] => (".png", "image/png"),
         _ => null,
     };
 

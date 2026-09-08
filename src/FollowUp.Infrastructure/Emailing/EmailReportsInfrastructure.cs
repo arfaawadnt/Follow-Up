@@ -107,7 +107,8 @@ internal sealed class StatsEmailScheduler : IStatsEmailScheduler
         foreach (var id in new[] { "Africa/Cairo", "Egypt Standard Time" })
         {
             try { return TimeZoneInfo.FindSystemTimeZoneById(id); }
-            catch (TimeZoneNotFoundException) { } catch (InvalidTimeZoneException) { }
+            catch (TimeZoneNotFoundException) { }
+            catch (InvalidTimeZoneException) { }
         }
         return TimeZoneInfo.Utc;
     }

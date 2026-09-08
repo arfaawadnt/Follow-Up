@@ -30,8 +30,13 @@ public static class ServiceEndpoints
         {
             var r = await m.Send(new LogComplaintCommand
             {
-                LaboratoryId = b.LaboratoryId, Category = b.Category, ViaChannel = b.ViaChannel,
-                AssignedTeam = b.AssignedTeam, Details = b.Details, RepresentativeId = b.RepresentativeId, ReceivedAt = b.ReceivedAt,
+                LaboratoryId = b.LaboratoryId,
+                Category = b.Category,
+                ViaChannel = b.ViaChannel,
+                AssignedTeam = b.AssignedTeam,
+                Details = b.Details,
+                RepresentativeId = b.RepresentativeId,
+                ReceivedAt = b.ReceivedAt,
             }, ct);
             return Results.Created($"/api/v1/complaints/{r.Id}", r); // resource URI carries the new id (CMP-13)
         }).WithTags("Complaints");

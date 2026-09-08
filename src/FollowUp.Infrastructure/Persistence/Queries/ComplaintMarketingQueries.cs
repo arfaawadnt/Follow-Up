@@ -34,8 +34,26 @@ internal sealed class ComplaintQueries : IComplaintQueries
         var rows = await (from cp in q
                           join l in _db.Laboratories.AsNoTracking() on cp.LaboratoryId equals l.Id
                           orderby cp.Number descending
-                          select new { cp.Id, cp.Number, cp.LaboratoryId, l.Code, l.IsEncrypted, l.Name, LabCategory = l.Category, cp.Category, cp.ViaChannel,
-                              cp.AssignedTeam, cp.Details, cp.Status, cp.Stage, cp.ResolvedBy, cp.ResolvedAt, cp.ResolutionSummary, cp.CreatedAt })
+                          select new
+                          {
+                              cp.Id,
+                              cp.Number,
+                              cp.LaboratoryId,
+                              l.Code,
+                              l.IsEncrypted,
+                              l.Name,
+                              LabCategory = l.Category,
+                              cp.Category,
+                              cp.ViaChannel,
+                              cp.AssignedTeam,
+                              cp.Details,
+                              cp.Status,
+                              cp.Stage,
+                              cp.ResolvedBy,
+                              cp.ResolvedAt,
+                              cp.ResolutionSummary,
+                              cp.CreatedAt
+                          })
                          .Skip(criteria.Skip).Take(criteria.PageSize).ToListAsync(ct);
 
         var todayNum = DateOnly.FromDateTime(DateTime.UtcNow).DayNumber;

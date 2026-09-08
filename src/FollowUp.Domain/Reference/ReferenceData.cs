@@ -152,7 +152,7 @@ public sealed class City : AggregateRoot<CityId>, IAuditable
     {
         if (string.IsNullOrWhiteSpace(name)) throw new DomainException("City name is required.");
         return new City(CityId.New(), name.Trim(), string.IsNullOrWhiteSpace(governorate) ? "-" : governorate.Trim())
-            { SourceCode = sourceCode.Trim(), Source = RecordSource.Oracle };
+        { SourceCode = sourceCode.Trim(), Source = RecordSource.Oracle };
     }
 
     public void ApplyOracle(string name, string governorate)

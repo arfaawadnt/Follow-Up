@@ -21,8 +21,12 @@ public class OutsourceScopeTests
         var creator = new FakeCurrentUser { Privileges = new HashSet<string> { Privileges.AddLabs } }; // Global scope
         await new CreateLaboratoryHandler(labs, creator, new FakeSetupQueries()).Handle(new CreateLaboratoryCommand
         {
-            Code = "MGL-9001", Name = "Cairo Lab", Segment = "B", Governorate = "Cairo",
-            WorkDays = new[] { "Monday" }, VisitTimes = new[] { "09:00" },
+            Code = "MGL-9001",
+            Name = "Cairo Lab",
+            Segment = "B",
+            Governorate = "Cairo",
+            WorkDays = new[] { "Monday" },
+            VisitTimes = new[] { "09:00" },
         }, CancellationToken.None);
 
         var samples = new FakeOutsourceSampleRepository();
