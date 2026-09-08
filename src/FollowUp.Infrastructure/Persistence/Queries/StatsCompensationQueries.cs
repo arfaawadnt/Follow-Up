@@ -271,11 +271,14 @@ internal sealed class TestCatalogueQueries : ITestCatalogueQueries
 internal sealed class CompensationQueries : ICompensationQueries
 {
     private readonly FollowUpDbContext _db;
-    public CompensationQueries(FollowUpDbContext db) => _db = db;
+    private readonly IClock _clock;
+    public CompensationQueries(FollowUpDbContext db, IClock clock) { _db = db; _clock = clock; }
 
     public async Task<IReadOnlyList<LoyaltyRowDto>> GetLoyaltySummaryAsync(OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        // Month-to-date is anchored on the Cairo business day, not UTC — otherwise on the 1st in the early Cairo
+        // hours (UTC still the previous month) MTD would show last month's samples (finding BIZ-010, M-4 family).
+        var today = _clock.CairoToday;
         var thisYm = new YearMonth(today.Year, today.Month);
         var labs = await _db.Laboratories.ApplyScope(scope).AsNoTracking()
             .Select(l => new { l.Id, l.Code, l.IsEncrypted, l.Name, l.Branch, l.City, l.MonthlyTarget, l.LoyaltyPoints, l.LoyaltyTier }).ToListAsync(ct);
