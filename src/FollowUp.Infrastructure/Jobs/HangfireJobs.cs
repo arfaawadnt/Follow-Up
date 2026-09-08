@@ -32,6 +32,15 @@ public sealed class NotificationDispatchJob
     public Task RunAsync(CancellationToken ct) => _dispatcher.DispatchAsync(ct);
 }
 
+/// <summary>Re-sends failed notification deliveries from their stored content (finding M-13).</summary>
+[DisableConcurrentExecution(timeoutInSeconds: 120)]
+public sealed class NotificationDeliveryRetryJob
+{
+    private readonly NotificationDeliveryRetryRunner _runner;
+    public NotificationDeliveryRetryJob(NotificationDeliveryRetryRunner runner) => _runner = runner;
+    public Task RunAsync(CancellationToken ct) => _runner.RunAsync(ct);
+}
+
 [DisableConcurrentExecution(timeoutInSeconds: 300)]
 public sealed class OracleSyncJob
 {

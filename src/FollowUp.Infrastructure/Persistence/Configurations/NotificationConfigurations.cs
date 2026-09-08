@@ -71,6 +71,9 @@ internal sealed class NotificationDeliveryLogConfiguration : IEntityTypeConfigur
 
         b.Property(x => x.Recipient).HasMaxLength(200);
         b.Property(x => x.EventKey).HasMaxLength(100);
+        b.Property(x => x.Subject).HasColumnType("text");         // rendered content for re-send (M-13)
+        b.Property(x => x.Body).HasColumnType("text");
+        b.Property(x => x.ParametersJson).HasColumnType("text");
         b.Property(x => x.Status).HasMaxLength(20);
         b.Property(x => x.Attempts);
         b.Property(x => x.LastError).HasColumnType("text");

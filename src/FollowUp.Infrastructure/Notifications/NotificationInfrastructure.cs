@@ -41,6 +41,26 @@ internal sealed class NotificationRecipients : INotificationRecipients
     }
 }
 
+/// <summary>Sends a rendered notification over the requested external channel — the single per-channel send
+/// site shared by the fan-out and the retry job (finding M-13).</summary>
+internal sealed class NotificationDispatcher : INotificationDispatcher
+{
+    private readonly IEmailSender _email;
+    private readonly IWhatsAppSender _whatsApp;
+    public NotificationDispatcher(IEmailSender email, IWhatsAppSender whatsApp)
+    {
+        _email = email; _whatsApp = whatsApp;
+    }
+
+    public Task SendAsync(NotificationChannel channel, string recipient, string eventKey,
+        string? subject, string? body, IReadOnlyList<string> parameters, CancellationToken ct)
+    {
+        if (channel == NotificationChannel.Mail) return _email.SendAsync(recipient, subject ?? string.Empty, body ?? string.Empty, ct);
+        if (channel == NotificationChannel.WhatsApp) return _whatsApp.SendAsync(recipient, eventKey, parameters, ct);
+        return Task.CompletedTask; // System channel is the in-app feed, not an external send
+    }
+}
+
 /// <summary>No-op realtime notifier for jobs/tests without a SignalR hub; the API overrides with the real one.</summary>
 public sealed class NullRealtimeNotifier : IRealtimeNotifier
 {

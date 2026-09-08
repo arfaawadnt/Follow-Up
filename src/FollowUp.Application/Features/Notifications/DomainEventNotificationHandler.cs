@@ -28,8 +28,7 @@ public sealed class DomainEventNotificationHandler : INotificationHandler<Domain
     private readonly ISystemNotificationRepository _feed;
     private readonly INotificationDeliveryLogRepository _deliveries;
     private readonly ILaboratoryRepository _labs;
-    private readonly IEmailSender _email;
-    private readonly IWhatsAppSender _whatsApp;
+    private readonly INotificationDispatcher _dispatcher;
     private readonly IRealtimeNotifier _realtime;
     private readonly IClock _clock;
     private readonly ILogger<DomainEventNotificationHandler> _logger;
@@ -38,11 +37,11 @@ public sealed class DomainEventNotificationHandler : INotificationHandler<Domain
         INotificationRecipients recipients, INotificationTemplateRepository templates,
         INotificationPreferenceRepository preferences, ISystemNotificationRepository feed,
         INotificationDeliveryLogRepository deliveries, ILaboratoryRepository labs,
-        IEmailSender email, IWhatsAppSender whatsApp, IRealtimeNotifier realtime, IClock clock,
+        INotificationDispatcher dispatcher, IRealtimeNotifier realtime, IClock clock,
         ILogger<DomainEventNotificationHandler> logger)
     {
         _recipients = recipients; _templates = templates; _preferences = preferences; _feed = feed;
-        _deliveries = deliveries; _labs = labs; _email = email; _whatsApp = whatsApp;
+        _deliveries = deliveries; _labs = labs; _dispatcher = dispatcher;
         _realtime = realtime; _clock = clock; _logger = logger;
     }
 
@@ -93,15 +92,13 @@ public sealed class DomainEventNotificationHandler : INotificationHandler<Domain
                 // External channels — mask the lab code before egress.
                 vars["lab"] = labMasked;
                 if ((pref?.Mail ?? false) && !string.IsNullOrWhiteSpace(r.Email))
-                    await SendAsync(NotificationChannel.Mail, r.Email!, plan.EventKey, () =>
-                    {
-                        var (subject, body) = Render(template, r.Language, vars, htmlEscape: true);
-                        return _email.SendAsync(r.Email!, subject, body, ct);
-                    }, ct);
+                {
+                    var (subject, body) = Render(template, r.Language, vars, htmlEscape: true);
+                    await DeliverAsync(NotificationChannel.Mail, r.Email!, plan.EventKey, subject, body, Array.Empty<string>(), ct);
+                }
 
                 if ((pref?.WhatsApp ?? false) && !string.IsNullOrWhiteSpace(r.Phone))
-                    await SendAsync(NotificationChannel.WhatsApp, r.Phone!, plan.EventKey, () =>
-                        _whatsApp.SendAsync(r.Phone!, plan.EventKey, vars.Values.ToList(), ct), ct);
+                    await DeliverAsync(NotificationChannel.WhatsApp, r.Phone!, plan.EventKey, null, null, vars.Values.ToList(), ct);
             }
         }
         catch (Exception ex)
@@ -110,12 +107,23 @@ public sealed class DomainEventNotificationHandler : INotificationHandler<Domain
         }
     }
 
-    private async Task SendAsync(NotificationChannel channel, string recipient, string eventKey, Func<Task> send, CancellationToken ct)
+    // Sends over one external channel and records the rendered content on the delivery log, so a failed
+    // delivery can be re-sent by the retry job without re-rendering (finding M-13).
+    private async Task DeliverAsync(NotificationChannel channel, string recipient, string eventKey,
+        string? subject, string? body, IReadOnlyList<string> parameters, CancellationToken ct)
     {
-        var log = NotificationDeliveryLog.Queue(channel, recipient, eventKey, _clock.UtcNow);
+        var log = NotificationDeliveryLog.Queue(channel, recipient, eventKey, subject, body,
+            parameters.Count == 0 ? null : System.Text.Json.JsonSerializer.Serialize(parameters), _clock.UtcNow);
         _deliveries.Add(log);
-        try { await send(); log.MarkSent(_clock.UtcNow); }
-        catch (Exception ex) { log.MarkFailed(ex.Message, _clock.UtcNow); } // dispatcher retries (JOBS-006)
+        try
+        {
+            await _dispatcher.SendAsync(channel, recipient, eventKey, subject, body, parameters, ct);
+            log.MarkSent(_clock.UtcNow);
+        }
+        catch (Exception ex)
+        {
+            log.MarkFailed(ex.Message, _clock.UtcNow); // the retry job re-attempts from the stored content (finding M-13)
+        }
     }
 
     private static (string Title, string Body) Render(NotificationTemplate t, string lang, IDictionary<string, string> vars, bool htmlEscape)

@@ -160,11 +160,14 @@ public sealed class NotificationDeliveryLog : AggregateRoot<NotificationDelivery
     private NotificationDeliveryLog() { } // EF
 
     private NotificationDeliveryLog(NotificationDeliveryLogId id, NotificationChannel channel, string recipient,
-        string eventKey, DateTimeOffset queuedAt) : base(id)
+        string eventKey, string? subject, string? body, string? parametersJson, DateTimeOffset queuedAt) : base(id)
     {
         Channel = channel;
         Recipient = recipient;
         EventKey = eventKey;
+        Subject = subject;
+        Body = body;
+        ParametersJson = parametersJson;
         QueuedAt = queuedAt;
         Status = "Pending";
     }
@@ -172,6 +175,12 @@ public sealed class NotificationDeliveryLog : AggregateRoot<NotificationDelivery
     public NotificationChannel Channel { get; private set; } = null!;
     public string Recipient { get; private set; } = null!;
     public string EventKey { get; private set; } = null!;
+    /// <summary>Rendered email subject (Mail channel), captured so a failed delivery can be re-sent (finding M-13).</summary>
+    public string? Subject { get; private set; }
+    /// <summary>Rendered email body (Mail channel), captured for re-send (finding M-13).</summary>
+    public string? Body { get; private set; }
+    /// <summary>Serialized positional WhatsApp template parameters, captured for re-send (finding M-13).</summary>
+    public string? ParametersJson { get; private set; }
     public DateTimeOffset QueuedAt { get; private set; }
     public string Status { get; private set; } = null!;   // Pending | Sent | Failed
     public int Attempts { get; private set; }
@@ -179,8 +188,8 @@ public sealed class NotificationDeliveryLog : AggregateRoot<NotificationDelivery
     public DateTimeOffset? LastAttemptAt { get; private set; }
 
     public static NotificationDeliveryLog Queue(NotificationChannel channel, string recipient, string eventKey,
-        DateTimeOffset queuedAt) =>
-        new(NotificationDeliveryLogId.New(), channel, recipient, eventKey, queuedAt);
+        string? subject, string? body, string? parametersJson, DateTimeOffset queuedAt) =>
+        new(NotificationDeliveryLogId.New(), channel, recipient, eventKey, subject, body, parametersJson, queuedAt);
 
     public void MarkSent(DateTimeOffset when)
     {

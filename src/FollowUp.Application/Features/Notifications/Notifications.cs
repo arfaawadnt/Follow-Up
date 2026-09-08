@@ -164,7 +164,7 @@ public sealed class RetryDeliveryHandler : ICommandHandler<RetryDeliveryCommand>
     {
         var log = await _repo.GetByIdAsync(new NotificationDeliveryLogId(r.Id), ct)
             ?? throw new NotFoundException("Delivery log", r.Id);
-        log.RequeueForRetry(); // dispatcher re-attempts on its next 10s cycle (JOBS-006)
+        log.RequeueForRetry(); // the delivery-retry job re-attempts it on its next run (finding M-13)
         return Unit.Value;
     }
 }

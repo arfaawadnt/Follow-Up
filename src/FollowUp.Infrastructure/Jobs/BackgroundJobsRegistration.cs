@@ -35,6 +35,8 @@ public static class BackgroundJobsRegistration
         services.AddScoped<BoardRolloverJob>();
         services.AddScoped<MissedSweepJob>();
         services.AddScoped<NotificationDispatchJob>();
+        services.AddScoped<NotificationDeliveryRetryRunner>();
+        services.AddScoped<NotificationDeliveryRetryJob>();
         services.AddScoped<OracleSyncJob>();
         services.AddScoped<NightlyStatsSyncJob>();
         services.AddScoped<RetentionJob>();
@@ -70,6 +72,7 @@ public sealed class RecurringJobsInitializer : IHostedService
         _jobs.AddOrUpdate<BoardRolloverJob>("board-rollover", j => j.RunAsync(CancellationToken.None), "0 0 * * *", cairoOptions);
         // Notification dispatcher (outbox drain) — frequent; retention nightly; oracle hourly (runner gates on interval).
         _jobs.AddOrUpdate<NotificationDispatchJob>("notification-dispatcher", j => j.RunAsync(CancellationToken.None), "*/1 * * * *");
+        _jobs.AddOrUpdate<NotificationDeliveryRetryJob>("notification-delivery-retry", j => j.RunAsync(CancellationToken.None), "*/5 * * * *");
         _jobs.AddOrUpdate<OracleSyncJob>("oracle-sync", j => j.RunAsync(CancellationToken.None), "0 * * * *");
         // Statistics: one nightly job pulls the previous day from Oracle for Test, Lab and Detailed stats over the
         // SAME window in one pass, so the three pages can never drift on coverage or snapshot timing (full history

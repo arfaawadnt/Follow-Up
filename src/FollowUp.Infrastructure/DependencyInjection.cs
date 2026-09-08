@@ -86,6 +86,7 @@ public static class DependencyInjection
         // Outbound gateways.
         services.AddScoped<IEmailSender, Gateways.SmtpEmailSender>();
         services.AddScoped<IWhatsAppSender, Gateways.WhatsAppSender>();
+        services.AddScoped<INotificationDispatcher, Notifications.NotificationDispatcher>();
         services.AddScoped<IMapLinkResolver, Gateways.MapLinkResolver>();
         services.AddSingleton<ISpreadsheetReader, Gateways.XlsxSpreadsheetReader>();
         services.AddScoped<IRecordHasher, Gateways.RecordHasher>();
