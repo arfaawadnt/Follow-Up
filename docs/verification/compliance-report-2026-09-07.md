@@ -398,9 +398,26 @@ Api 18 = 294 passed / 0 failed / 0 skipped; build 0W/0E; 41 migrations single-pa
 the seeded admin, so ApiTests' `AuthReady`-gated cases skip unless ApiTests run on a freshly-seeded DB — a test
 harness characteristic, not a product issue.)
 
+### Phase 4 (cont.) — Minors tranche H (code-only correctness)
+
+| ID | Fix | Test |
+|---|---|---|
+| **BIZ-010** | Loyalty month-to-date anchored on `IClock.CairoToday`, not `DateTime.UtcNow` — no last-month bleed on the 1st in early Cairo hours | mirrors the tested Cairo-clock convention |
+| **OPS-006** | Manual visits take the next free whole-second slot (`TakenSlotsAsync`) instead of colliding on the (lab, date, time) unique index | `OperationalModulesTests` |
+| **IAM-007** | `/user/change-password` throttled (per-IP `login` limiter); wrong old password now counts toward lockout and is blocked while locked, cleared on success | `ChangeOwnPasswordHandlerTests` ×2 |
+| **OPS-008** | The retention run sweeps unbound attachments (VisitId null) older than 24h — file + row — independent of the retention window; new `IAttachmentStorage.DeleteAsync` | `JobsTests` |
+
+**Verification after tranche H (fresh DB): Domain 76 · Application 113 · Architecture 22 · Integration 68 ·
+Api 18 = 297 passed / 0 failed / 0 skipped; build 0W/0E; 41 migrations single-pass; no EF drift.**
+
+**Deferred from this batch:** **STAT-011** (date-scoped Oracle runners never record a sync result) — done properly
+it needs a `LastStatsSyncAt`/status column pair kept separate from the general sync's due-gate timestamp, i.e. a
+schema migration, so it belongs in the schema batch rather than code-only. The date-scoped runs already log their
+outcomes meanwhile.
+
 ### Cumulative status across cycle-3 remediation
 All **7 Blockers** and **19 Majors** are fixed and committed on `remediation/cycle3-scope-and-blockers`
-(one atomic commit per finding, nothing pushed), plus two **Minors** batches (Gate-3 TS4111 + C# format, PLT-013,
-IAM-006, OPS-007, STAT-012, OPS-009, IAM-010).
+(one atomic commit per finding, nothing pushed), plus three **Minors** batches: Gate-3 (TS4111 + C# format), PLT-013,
+IAM-006, OPS-007, STAT-012, OPS-009, IAM-010, BIZ-010, OPS-006, IAM-007, OPS-008.
 Still open by design: **M-JOB / ADR-0004** (the job-services pattern — refactor vs. record as an accepted
 exception), the C#-format / MSG-008 / BIZ-009 decisions above, and the register's remaining **Minors and Opinions**.
