@@ -12,27 +12,6 @@ using Microsoft.Extensions.Logging;
 namespace FollowUp.Infrastructure.Jobs;
 
 /// <summary>
-/// Read-only Oracle reader (SRS FR-17). A real deployment supplies the Oracle driver + connection; in its
-/// absence this returns no rows so the sync reports "did not run" rather than failing. The connection string
-/// is config-managed and never surfaced.
-/// </summary>
-public sealed class ConfiguredOracleReader : IOracleReader
-{
-    private readonly ILogger<ConfiguredOracleReader> _logger;
-    public ConfiguredOracleReader(ILogger<ConfiguredOracleReader> logger) => _logger = logger;
-
-    public Task<IReadOnlyList<OracleRow>> ExecuteAsync(string queryName, CancellationToken ct)
-    {
-        // No Oracle provider wired in this environment; the runner treats an empty result as "did not run".
-        _logger.LogInformation("Oracle query {Query} skipped — no Oracle provider configured", queryName);
-        return Task.FromResult<IReadOnlyList<OracleRow>>(Array.Empty<OracleRow>());
-    }
-
-    public Task<IReadOnlyList<OracleRow>> ExecuteAsync(string queryName, OracleDateWindow window, CancellationToken ct) =>
-        ExecuteAsync(queryName, ct);
-}
-
-/// <summary>
 /// Orchestrates the allow-listed, read-only Oracle sync (SRS FR-17). Gates on enabled + due, re-validates the
 /// allow-list at run time, executes the three SELECTs, upserts labs/stats, and records an audited status.
 /// Scheduled and manual paths both audit their mutations (closes JOBS-002 — audit via SaveChanges interceptor).
