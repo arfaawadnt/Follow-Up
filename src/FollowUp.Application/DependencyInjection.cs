@@ -19,6 +19,7 @@ public static class DependencyInjection
 
             // Behavior order matters: authorize → validate → log/time → (Infrastructure adds
             // transaction/idempotency/audit closest to the handler during its own registration).
+            cfg.AddOpenBehavior(typeof(TracingBehavior<,>)); // outermost: one span per request (M-19)
             cfg.AddOpenBehavior(typeof(AuthorizationBehavior<,>));
             cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
             cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));

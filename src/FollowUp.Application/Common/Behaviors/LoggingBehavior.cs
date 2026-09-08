@@ -8,8 +8,8 @@ namespace FollowUp.Application.Common.Behaviors;
 /// <summary>
 /// Structured request logging + performance timing (SRS NFR-OBS-1/2; architect observability). Enriches
 /// each use-case with correlation id, user, operation name and duration/outcome. Request bodies are never
-/// logged (they may carry sensitive data). Tracing spans are added by OpenTelemetry auto-instrumentation of
-/// MediatR in Infrastructure; this behavior emits the correlated structured log line.
+/// logged (they may carry sensitive data). Tracing spans are emitted by TracingBehavior under the "FollowUp"
+/// OpenTelemetry source; this behavior emits the correlated structured log line.
 /// </summary>
 public sealed class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull

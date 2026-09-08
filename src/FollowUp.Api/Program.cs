@@ -82,7 +82,8 @@ builder.Services.AddOpenTelemetry()
     .WithTracing(t => t
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
-        .AddSource("FollowUp"));
+        .AddSource("Npgsql")     // EF/PostgreSQL command spans (Npgsql's built-in ActivitySource) — finding M-19
+        .AddSource("FollowUp")); // one span per MediatR request, emitted by TracingBehavior — finding M-19
 
 var app = builder.Build();
 
