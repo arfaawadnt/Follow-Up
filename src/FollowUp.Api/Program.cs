@@ -77,6 +77,11 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
     .WithOrigins(builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? new[] { "http://localhost:4200" })
     .AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
 
+// Honour X-Forwarded-For/Proto from declared proxies so the per-IP rate limiters and IP audit see the
+// real client, not the proxy (finding IAM-006). Safe loopback-only default when unconfigured.
+builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(
+    o => FollowUp.Api.Middleware.ForwardedHeadersSetup.Configure(o, builder.Configuration));
+
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(r => r.AddService("FollowUp"))
     .WithTracing(t => t
@@ -150,6 +155,9 @@ await using (var scope = app.Services.CreateAsyncScope())
 
 // Pipeline (order matters — architect request-pipeline).
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+// Resolve the real client IP from a trusted proxy before anything reads it — correlation, request
+// logging and the per-IP rate limiter all downstream (finding IAM-006).
+app.UseForwardedHeaders();
 app.UseMiddleware<CorrelationMiddleware>();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseSerilogRequestLogging();
