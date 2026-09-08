@@ -57,7 +57,7 @@ public sealed class TransactionBehavior<TRequest, TResponse> : IPipelineBehavior
         }
 
         // Post-commit refetch hint to connected clients (Workflows §2.1). Best-effort — never fail the command.
-        try { await _realtime.DataChangedAsync(typeof(TRequest).Name, ct); } catch { /* hints are best-effort */ }
+        try { await _realtime.DataChangedAsync(ct); } catch { /* hints are best-effort */ }
         return response;
     }
 }

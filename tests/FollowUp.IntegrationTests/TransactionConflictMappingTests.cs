@@ -25,7 +25,7 @@ public sealed class TransactionConflictMappingTests
 
     private sealed class NoopRealtime : IRealtimeNotifier
     {
-        public Task DataChangedAsync(string entityType, CancellationToken ct = default) => Task.CompletedTask;
+        public Task DataChangedAsync(CancellationToken ct = default) => Task.CompletedTask;
         public Task NotifyUserAsync(Guid userId, string message, CancellationToken ct = default) => Task.CompletedTask;
     }
 

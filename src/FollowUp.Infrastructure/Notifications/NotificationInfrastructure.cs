@@ -44,6 +44,6 @@ internal sealed class NotificationRecipients : INotificationRecipients
 /// <summary>No-op realtime notifier for jobs/tests without a SignalR hub; the API overrides with the real one.</summary>
 public sealed class NullRealtimeNotifier : IRealtimeNotifier
 {
-    public Task DataChangedAsync(string entityType, CancellationToken ct = default) => Task.CompletedTask;
+    public Task DataChangedAsync(CancellationToken ct = default) => Task.CompletedTask;
     public Task NotifyUserAsync(Guid userId, string title, CancellationToken ct = default) => Task.CompletedTask;
 }

@@ -7,8 +7,10 @@ namespace FollowUp.Application.Common.Abstractions;
 /// </summary>
 public interface IRealtimeNotifier
 {
-    /// <summary>Broadcasts a "something changed, refetch" hint (entity-type label) to all connected clients.</summary>
-    Task DataChangedAsync(string entityType, CancellationToken ct = default);
+    /// <summary>Broadcasts a content-free "something changed, refetch" hint to connected clients. It carries no
+    /// entity/command detail so it can't leak activity across org scopes (finding M-18); each client re-fetches
+    /// through its own scope-enforced queries.</summary>
+    Task DataChangedAsync(CancellationToken ct = default);
 
     /// <summary>Pushes an in-app notification to a single user's group.</summary>
     Task NotifyUserAsync(Guid userId, string title, CancellationToken ct = default);

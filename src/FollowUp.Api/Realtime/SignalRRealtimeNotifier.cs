@@ -12,8 +12,8 @@ public sealed class SignalRRealtimeNotifier : IRealtimeNotifier
     private readonly IHubContext<NotificationsHub> _hub;
     public SignalRRealtimeNotifier(IHubContext<NotificationsHub> hub) => _hub = hub;
 
-    public Task DataChangedAsync(string entityType, CancellationToken ct = default) =>
-        _hub.Clients.All.SendAsync("dataChange", entityType, ct);
+    public Task DataChangedAsync(CancellationToken ct = default) =>
+        _hub.Clients.All.SendAsync("dataChange", ct);
 
     public Task NotifyUserAsync(Guid userId, string title, CancellationToken ct = default) =>
         _hub.Clients.Group(NotificationsHub.UserGroup(userId)).SendAsync("notification", title, ct);
