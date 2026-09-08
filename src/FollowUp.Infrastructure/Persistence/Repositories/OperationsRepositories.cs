@@ -13,6 +13,11 @@ internal sealed class DailyVisitRepository : IDailyVisitRepository
     public DailyVisitRepository(FollowUpDbContext db) => _db = db;
     public Task<DailyVisit?> GetByIdAsync(DailyVisitId id, CancellationToken ct) =>
         _db.DailyVisits.FirstOrDefaultAsync(x => x.Id == id, ct);
+    public async Task<IReadOnlyList<TimeOnly>> TakenSlotsAsync(LaboratoryId labId, DateOnly date, CancellationToken ct) =>
+        await _db.DailyVisits.AsNoTracking()
+            .Where(v => v.LaboratoryId == labId && v.VisitDate == date)
+            .Select(v => v.ScheduledTime)
+            .ToListAsync(ct);
     public void Add(DailyVisit visit) => _db.DailyVisits.Add(visit);
 }
 

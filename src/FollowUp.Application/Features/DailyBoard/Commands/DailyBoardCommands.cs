@@ -179,8 +179,15 @@ public sealed class RecordManualVisitHandler : ICommandHandler<RecordManualVisit
         }
 
         var today = _clock.CairoToday;
-        var now = TimeOnly.FromTimeSpan(_clock.CairoNow.TimeOfDay); // distinct slot per record (second precision)
-        var visit = DailyVisit.Schedule(lab.Id, collector, today, now);
+        // Auto-assign a free whole-second slot. Manual entries don't choose their own time, so rather than 409 on
+        // the (lab, date, time) unique index when two land in the same second, advance to the next free one (OPS-006).
+        var cairo = _clock.CairoNow.TimeOfDay;
+        var slot = new TimeOnly(cairo.Hours, cairo.Minutes, cairo.Seconds);
+        var taken = (await _visits.TakenSlotsAsync(lab.Id, today, ct))
+            .Select(t => new TimeOnly(t.Hour, t.Minute, t.Second)).ToHashSet();
+        while (taken.Contains(slot))
+            slot = slot.Add(TimeSpan.FromSeconds(1));
+        var visit = DailyVisit.Schedule(lab.Id, collector, today, slot);
         visit.CheckIn(request.SampleCount, _user.Username, _clock.UtcNow,
             request.TotalRequired, request.RequestCount, request.OutsourceCount, request.Notes);
         lab.DeriveActiveFromActivity(); // BR-5

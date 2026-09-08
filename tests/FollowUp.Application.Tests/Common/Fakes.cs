@@ -99,6 +99,9 @@ public sealed class FakeDailyVisitRepository : IDailyVisitRepository
     public readonly List<DailyVisit> Store = new();
     public Task<DailyVisit?> GetByIdAsync(DailyVisitId id, CancellationToken ct) =>
         Task.FromResult(Store.FirstOrDefault(v => v.Id == id));
+    public Task<IReadOnlyList<TimeOnly>> TakenSlotsAsync(Domain.Laboratories.LaboratoryId labId, DateOnly date, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<TimeOnly>>(
+            Store.Where(v => v.LaboratoryId == labId && v.VisitDate == date).Select(v => v.ScheduledTime).ToList());
     public void Add(DailyVisit visit) => Store.Add(visit);
 }
 

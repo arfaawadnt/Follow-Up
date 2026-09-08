@@ -6,6 +6,9 @@ namespace FollowUp.Application.Common.Abstractions.Persistence;
 public interface IDailyVisitRepository
 {
     Task<DailyVisit?> GetByIdAsync(DailyVisitId id, CancellationToken ct);
+    /// <summary>The scheduled-time slots already taken for a lab on a date (the unique-slot key), so a manual
+    /// entry can pick a free slot instead of colliding with the (lab, date, time) unique index (finding OPS-006).</summary>
+    Task<IReadOnlyList<TimeOnly>> TakenSlotsAsync(Domain.Laboratories.LaboratoryId labId, DateOnly date, CancellationToken ct);
     void Add(DailyVisit visit);
 }
 

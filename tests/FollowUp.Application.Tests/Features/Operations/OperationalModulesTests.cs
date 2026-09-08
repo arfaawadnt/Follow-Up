@@ -126,6 +126,26 @@ public class OperationalModulesTests
     }
 
     [Fact]
+    public async Task Manual_record_advances_to_the_next_free_slot_when_the_second_is_taken()
+    {
+        // OPS-006: manual entries auto-assign a whole-second slot; when that second is already taken they must
+        // advance to the next free one rather than collide on the (lab, date, time) unique index.
+        var (labs, lab) = SeedLab();
+        var clock = new FakeClock(Now);
+        var occupied = new TimeOnly(clock.CairoNow.TimeOfDay.Hours, clock.CairoNow.TimeOfDay.Minutes, clock.CairoNow.TimeOfDay.Seconds);
+        var visits = new FakeDailyVisitRepository();
+        visits.Store.Add(DailyVisit.Schedule(lab.Id, null, clock.CairoToday, occupied)); // slot already taken
+
+        var handler = new RecordManualVisitHandler(visits, labs, new FakeOutsourceSampleRepository(),
+            new FakeRepresentativeRepository(), new FakeVisitAttachmentRepository(), new FakeCurrentUser(), clock);
+
+        var id = await handler.Handle(new RecordManualVisitCommand(lab.Id.Value, 3), CancellationToken.None);
+
+        var created = visits.Store.Single(v => v.Id.Value == id);
+        created.ScheduledTime.Should().Be(occupied.Add(TimeSpan.FromSeconds(1)));
+    }
+
+    [Fact]
     public async Task Confirm_receipt_receives_and_derives_active()
     {
         var (labs, lab) = SeedLab();
