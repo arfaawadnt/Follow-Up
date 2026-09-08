@@ -304,6 +304,55 @@ public sealed class JobsTests
         }
     }
 
+    [SkippableFact]
+    public async Task Retention_sweeps_orphaned_unbound_attachments_older_than_the_window()
+    {
+        // OPS-008: a pending upload never bound to a visit (VisitId null) accumulates forever. The retention run
+        // now sweeps ones older than the grace window — deleting both the row and its bytes — while leaving
+        // recent unbound uploads (still mid-flow) alone.
+        Skip.IfNot(_fx.DatabaseAvailable, "FOLLOWUP_DB not set.");
+        await _fx.ResetAsync();
+
+        Guid oldOrphanId, recentOrphanId;
+        string oldStoredName;
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var sp = scope.ServiceProvider;
+            var db = sp.GetRequiredService<FollowUpDbContext>();
+            var storage = sp.GetRequiredService<FollowUp.Application.Common.Abstractions.IAttachmentStorage>();
+
+            oldStoredName = await storage.SaveAsync(new byte[] { 1, 2, 3 }, ".pdf", default);
+            var oldOrphan = Domain.Operations.VisitAttachment.CreatePending(oldStoredName, "old.pdf", "application/pdf", 3);
+            var recentOrphan = Domain.Operations.VisitAttachment.CreatePending(
+                await storage.SaveAsync(new byte[] { 4, 5 }, ".pdf", default), "recent.pdf", "application/pdf", 2);
+            db.VisitAttachments.Add(oldOrphan);
+            db.VisitAttachments.Add(recentOrphan);
+            await db.SaveChangesAsync(); // CreatedAt stamped to now by the audit interceptor
+            oldOrphanId = oldOrphan.Id.Value;
+            recentOrphanId = recentOrphan.Id.Value;
+
+            // Backdate the old orphan past the 24h sweep window.
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE visit_attachment SET created_at = {DateTimeOffset.UtcNow.AddDays(-2)} WHERE id = {oldOrphanId}");
+        }
+
+        using (var scope = _fx.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<RetentionService>().PurgeAsync();
+
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var sp = scope.ServiceProvider;
+            var db = sp.GetRequiredService<FollowUpDbContext>();
+            var storage = sp.GetRequiredService<FollowUp.Application.Common.Abstractions.IAttachmentStorage>();
+
+            (await db.VisitAttachments.AnyAsync(a => a.Id == new Domain.Operations.VisitAttachmentId(oldOrphanId)))
+                .Should().BeFalse("the abandoned upload older than the window is swept");
+            (await storage.ReadAsync(oldStoredName, default)).Should().BeNull("its bytes are reclaimed from the volume");
+            (await db.VisitAttachments.AnyAsync(a => a.Id == new Domain.Operations.VisitAttachmentId(recentOrphanId)))
+                .Should().BeTrue("a recent unbound upload is still within the grace window");
+        }
+    }
+
     private async Task<Guid> Send(CreateLaboratoryCommand cmd)
     {
         using var scope = _fx.Services.CreateScope();

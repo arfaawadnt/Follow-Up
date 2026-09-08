@@ -15,21 +15,31 @@ namespace FollowUp.Infrastructure.Jobs;
 /// </summary>
 public sealed class RetentionService : IRetentionRunner
 {
+    // A pending attachment is bound to its visit within the same upload→record flow (seconds/minutes). One left
+    // unbound for this long is an abandoned upload whose bytes can be reclaimed (finding OPS-008).
+    private static readonly TimeSpan OrphanAttachmentMaxAge = TimeSpan.FromHours(24);
+
     private readonly FollowUpDbContext _db;
     private readonly IAppSettingRepository _settings;
+    private readonly IAttachmentStorage _attachments;
     private readonly IClock _clock;
     private readonly ILogger<RetentionService> _logger;
 
-    public RetentionService(FollowUpDbContext db, IAppSettingRepository settings, IClock clock, ILogger<RetentionService> logger)
+    public RetentionService(FollowUpDbContext db, IAppSettingRepository settings, IAttachmentStorage attachments,
+        IClock clock, ILogger<RetentionService> logger)
     {
         _db = db;
         _settings = settings;
+        _attachments = attachments;
         _clock = clock;
         _logger = logger;
     }
 
     public async Task<int> PurgeAsync(CancellationToken ct = default)
     {
+        // Always sweep abandoned uploads, independent of whether a retention window is configured.
+        await SweepOrphanAttachmentsAsync(ct);
+
         var setting = await _settings.GetAsync("retention.days", ct);
         if (!int.TryParse(setting?.Value, out var days))
         {
@@ -54,5 +64,29 @@ DELETE FROM audit_entry WHERE occurred_at < {cutoff};", ct);
 
         _logger.LogInformation("Retention purge removed {Count} rows older than {Cutoff:O}", affected, cutoff);
         return affected;
+    }
+
+    /// <summary>
+    /// Deletes visit attachments that were uploaded but never bound to a visit (VisitId null) and are older than
+    /// <see cref="OrphanAttachmentMaxAge"/> — abandoned uploads whose bytes would otherwise accumulate on the
+    /// private volume forever (finding OPS-008). Removes the file first (best-effort), then the row.
+    /// </summary>
+    private async Task<int> SweepOrphanAttachmentsAsync(CancellationToken ct)
+    {
+        var cutoff = _clock.UtcNow - OrphanAttachmentMaxAge;
+        var orphans = await _db.VisitAttachments
+            .Where(a => a.VisitId == null && a.CreatedAt < cutoff)
+            .ToListAsync(ct);
+        if (orphans.Count == 0) return 0;
+
+        foreach (var orphan in orphans)
+        {
+            await _attachments.DeleteAsync(orphan.StoredName, ct);
+            _db.VisitAttachments.Remove(orphan);
+        }
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation("Swept {Count} orphaned (never-bound) visit attachments older than {Cutoff:O}", orphans.Count, cutoff);
+        return orphans.Count;
     }
 }

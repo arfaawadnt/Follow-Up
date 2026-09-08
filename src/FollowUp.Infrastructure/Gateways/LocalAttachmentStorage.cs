@@ -33,4 +33,15 @@ public sealed class LocalAttachmentStorage : IAttachmentStorage
         var path = Path.Combine(_root, storedName);
         return File.Exists(path) ? await File.ReadAllBytesAsync(path, ct) : null;
     }
+
+    public Task DeleteAsync(string storedName, CancellationToken ct)
+    {
+        // Same path-safety guard as ReadAsync: only a bare GUID file name may be deleted.
+        if (!string.IsNullOrWhiteSpace(storedName) && !storedName.Contains('/') && !storedName.Contains('\\') && !storedName.Contains(".."))
+        {
+            var path = Path.Combine(_root, storedName);
+            if (File.Exists(path)) File.Delete(path);
+        }
+        return Task.CompletedTask;
+    }
 }

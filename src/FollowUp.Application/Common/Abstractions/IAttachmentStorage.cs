@@ -12,4 +12,8 @@ public interface IAttachmentStorage
 
     /// <summary>Reads the bytes for a stored name, or null if the file is missing.</summary>
     Task<byte[]?> ReadAsync(string storedName, CancellationToken ct);
+
+    /// <summary>Deletes a stored file if present (best-effort; a missing file is not an error). Used to reclaim
+    /// the bytes of abandoned, never-bound uploads (finding OPS-008).</summary>
+    Task DeleteAsync(string storedName, CancellationToken ct);
 }
