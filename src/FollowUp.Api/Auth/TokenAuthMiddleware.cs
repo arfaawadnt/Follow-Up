@@ -31,6 +31,10 @@ public sealed class TokenAuthMiddleware
         if (header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
             return header["Bearer ".Length..].Trim();
         // SignalR/EventSource can't set headers — accept the token from the query string for the hub only.
+        // The token then rides in the request URL, which is why Microsoft.AspNetCore request logging is kept at
+        // Warning (appsettings Serilog override) so the framework's "Request starting <url>" line — which would
+        // carry ?access_token=… — is never emitted. UseSerilogRequestLogging logs RequestPath only, without the
+        // query (finding IAM-010). ForwardedHeadersSetupTests-style guard: LogsExcludeAccessTokenTests.
         if (context.Request.Path.StartsWithSegments("/hubs"))
             return context.Request.Query["access_token"].ToString() is { Length: > 0 } q ? q : null;
         return null;
