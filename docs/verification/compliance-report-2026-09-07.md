@@ -328,5 +328,24 @@ Behaviour note (M-7): after deploy, only Admin and OperationsManager (the built-
 stats sync/import; any *custom* read-only role that relied on `ViewReports` for it must be granted the new
 write privileges explicitly — the intended tightening.
 
-Still open by design: **M-JOB / ADR-0004**, the secret-at-rest Majors (**M-15/M-16**), the reliability/
-observability Majors (**M-9, M-13, M-18, M-19**), and the remaining Minors/Opinions.
+### Phase 4 (cont.) — Majors tranche D (secrets at rest)
+
+| ID | Fix | Test |
+|---|---|---|
+| **M-15** | Oracle connection string encrypted at rest (AES-GCM) | `SecretsAtRestTests` (raw column is ciphertext, read decrypts) |
+| **M-16** | SMTP password encrypted at rest | `SecretProtectorTests` + `SecretsAtRestTests` reconcile |
+
+An `EncryptedStringConverter` (backed by an AES-GCM `SecretProtector` whose key is derived from the app's
+master secret, domain-separated from HMAC signing) is applied to `oracle_config.connection_string` and
+`smtp_config.password`. Ciphertext carries a `enc:v1:` version prefix so a legacy plaintext value is detected
+and read transparently until re-encrypted. **No schema migration** — the converter is transparent to the
+`text` column; instead a startup `SecretsReencryptor` re-encrypts any legacy plaintext rows (the Oracle
+string also re-encrypts naturally via its per-boot re-provisioning).
+
+**Verification after tranche D (fresh DB): Domain 76 · Application 109 · Architecture 22 · Integration 65 ·
+Api 13 = 285 passed / 0 failed / 0 skipped; build 0W/0E; 40 migrations apply single-pass; no EF drift.**
+Deployment note: the key derives from `FOLLOWUP_SECRET_KEY` if set, else `FOLLOWUP_AUTH_SECRET` — so no new
+required env var; changing that secret makes existing ciphertext undecryptable, so rotate deliberately.
+
+Still open by design: **M-JOB / ADR-0004**, the reliability/observability Majors (**M-9, M-13, M-18, M-19**),
+and the remaining Minors/Opinions.
