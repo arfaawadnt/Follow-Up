@@ -78,6 +78,7 @@ public sealed class ConfirmReceiptHandler : ICommandHandler<ConfirmReceiptComman
             ?? throw new NotFoundException("Laboratory", visit.LaboratoryId.Value);
 
         _user.EnsureInScope(lab);
+        _user.EnsureOwnedIfRepLinked(visit.CollectorRepId); // parity with Confirm/BatchTransfer (finding OPS-007)
 
         visit.ReceiveAtLab(_clock.UtcNow);
         lab.DeriveActiveFromActivity(); // BR-5: receipt derives lab status
@@ -125,6 +126,7 @@ public sealed class ConfirmReceiptsBatchHandler : ICommandHandler<ConfirmReceipt
                 ?? throw new NotFoundException("Laboratory", visit.LaboratoryId.Value);
 
             _user.EnsureInScope(lab);
+            _user.EnsureOwnedIfRepLinked(visit.CollectorRepId); // parity with Confirm/BatchTransfer (finding OPS-007)
 
             visit.ReceiveAtLab(_clock.UtcNow);
             lab.DeriveActiveFromActivity(); // BR-5

@@ -143,6 +143,29 @@ public class OperationalModulesTests
     }
 
     [Fact]
+    public async Task Confirm_receipt_rejects_a_rep_linked_caller_who_did_not_collect_the_visit()
+    {
+        // OPS-007: ConfirmReceipt only checked lab scope, unlike Confirm/BatchTransfer which also enforce
+        // owner-if-rep-linked. A rep-linked account may only act on visits it collected.
+        var (labs, lab) = SeedLab();
+        var collector = RepresentativeId.New();
+        var visit = DailyVisit.Schedule(lab.Id, collector, Today, new TimeOnly(9, 0));
+        visit.CheckIn(5, "c", Now);
+        visit.ConfirmTransfer(RepresentativeId.New(), new TransferDetails("A", "0100", null), Now);
+        var visits = new FakeDailyVisitRepository();
+        visits.Store.Add(visit);
+
+        // Caller is linked to a different representative than the collector.
+        var caller = new FakeCurrentUser { RepresentativeId = RepresentativeId.New() };
+        var handler = new ConfirmReceiptHandler(visits, labs, caller, new FakeClock(Now));
+
+        var act = () => handler.Handle(new ConfirmReceiptCommand(visit.Id.Value), CancellationToken.None);
+
+        await act.Should().ThrowAsync<ForbiddenException>();
+        visit.Status.Should().NotBe(VisitStatus.Received); // receipt did not happen
+    }
+
+    [Fact]
     public async Task Outsource_rejects_duplicate_for_same_lab_and_date()
     {
         var (labs, lab) = SeedLab();
