@@ -382,8 +382,25 @@ Api 17 = 292 passed / 0 failed / 0 skipped; build 0W/0E; 41 migrations single-pa
   `TargetIncomeFrom` changes monthly segmentation math and can *introduce* gaps if configured bands aren't perfectly
   contiguous. A business-semantics decision (what happens to gap income), not a safe mechanical fix.
 
+### Phase 4 (cont.) — Minors tranche G (safe batch + C# format)
+
+| ID | Fix | Test / proof |
+|---|---|---|
+| **Gate-3 (C# format)** | `dotnet format` applied solution-wide (whitespace/style only; anonymous-object initializers → one property per line) — the gate now passes | `dotnet format --verify-no-changes` clean |
+| **OPS-007** | `ConfirmReceipt`/batch now call `EnsureOwnedIfRepLinked` like the transfer handlers — a rep-linked account can't receive a visit it didn't collect | `OperationalModulesTests` (rejection case) |
+| **STAT-012** | Deleted the dead `ConfiguredOracleReader` (never registered; `IOracleReader`→`OracleDbReader`) | compile + no reference |
+| **OPS-009** | Named the display-only `"Transferred"` literal in the check-in projection | build |
+| **IAM-010** | Documented that the hub `?access_token` rides in the URL and is kept out of logs by the `Microsoft.AspNetCore: Warning` override; added a config-regression guard test | `LogsExcludeAccessTokenTests` |
+
+**Verification after tranche G (fresh DB): Domain 76 · Application 111 · Architecture 22 · Integration 67 ·
+Api 18 = 294 passed / 0 failed / 0 skipped; build 0W/0E; 41 migrations single-pass; no EF drift.**
+(Cross-project note: IntegrationTests and ApiTests share one DB and the integration admin-password tests mutate
+the seeded admin, so ApiTests' `AuthReady`-gated cases skip unless ApiTests run on a freshly-seeded DB — a test
+harness characteristic, not a product issue.)
+
 ### Cumulative status across cycle-3 remediation
 All **7 Blockers** and **19 Majors** are fixed and committed on `remediation/cycle3-scope-and-blockers`
-(one atomic commit per finding, nothing pushed), plus the first **Minors** batch (Gate-3 TS4111, PLT-013, IAM-006).
+(one atomic commit per finding, nothing pushed), plus two **Minors** batches (Gate-3 TS4111 + C# format, PLT-013,
+IAM-006, OPS-007, STAT-012, OPS-009, IAM-010).
 Still open by design: **M-JOB / ADR-0004** (the job-services pattern — refactor vs. record as an accepted
 exception), the C#-format / MSG-008 / BIZ-009 decisions above, and the register's remaining **Minors and Opinions**.
