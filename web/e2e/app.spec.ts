@@ -1,7 +1,7 @@
 import { test, expect, Page } from '@playwright/test';
 
-const ADMIN = process.env.E2E_ADMIN_USER ?? 'admin';
-const PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'Seed_Admin_2026!';
+const ADMIN = process.env['E2E_ADMIN_USER'] ?? 'admin';
+const PASSWORD = process.env['E2E_ADMIN_PASSWORD'] ?? 'Seed_Admin_2026!';
 
 async function signIn(page: Page, password = PASSWORD): Promise<void> {
   await page.fill('input[name="username"]', ADMIN);

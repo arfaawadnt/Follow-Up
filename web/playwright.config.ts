@@ -20,7 +20,7 @@ export default defineConfig({
   retries: 0,
   reporter: 'list',
   use: {
-    baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:5088',
+    baseURL: process.env['E2E_BASE_URL'] ?? 'http://localhost:5088',
     headless: true,
     trace: 'retain-on-failure',
   },
