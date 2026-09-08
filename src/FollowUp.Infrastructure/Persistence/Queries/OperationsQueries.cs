@@ -319,12 +319,13 @@ internal sealed class LabCheckInQueries : ILabCheckInQueries
             .Select(r => new { r.Id, r.FullName }).ToListAsync(ct)).ToDictionary(r => r.Id, r => r.FullName);
         string? Name(RepresentativeId? id) => id != null && repName.TryGetValue(id.Value, out var n) ? n : null;
         // "Transferred" is a display-only status (no VisitStatus member); "Received" is bound to the enum (BRD-11).
+        const string transferredDisplay = "Transferred";
         ReceivingItemDto Map(Guid vid, Guid labId, FollowUp.Domain.Laboratories.LabCode code, bool enc, string name,
             string? br, string? gov, string? city, string? area, DateOnly date, TimeOnly? time, RepresentativeId? collector,
             int? samples, bool isReceived, RepresentativeId? tRep, DateTimeOffset? tConf, DateTimeOffset? recv, bool archivedRow) =>
             new(vid, labId, DisplayCode.For(code.Value, enc, canSeeEncrypted), name, br, gov, city, area,
                 date, time != null ? time.Value.ToString("HH:mm") : "—", Name(collector), samples,
-                isReceived ? VisitStatus.Received.Name : "Transferred", Name(tRep),
+                isReceived ? VisitStatus.Received.Name : transferredDisplay, Name(tRep),
                 tConf?.ToString("o"), recv?.ToString("o"), Archived: archivedRow);
 
         var liveDtos = live.Select(r => Map(r.Id.Value, r.LaboratoryId.Value, r.Code, r.IsEncrypted, r.Name, r.Branch, r.Governorate, r.City, r.Area,
