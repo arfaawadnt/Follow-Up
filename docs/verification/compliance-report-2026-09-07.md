@@ -359,7 +359,31 @@ required env var; changing that secret makes existing ciphertext undecryptable, 
 **Verification after tranche E (fresh DB): Domain 76 · Application 110 · Architecture 22 · Integration 67 ·
 Api 13 = 288 passed / 0 failed / 0 skipped; build 0W/0E; 41 migrations apply single-pass; no EF drift.**
 
+### Phase 4 (cont.) — Minors tranche F (first Minors batch)
+
+| ID | Fix | Test |
+|---|---|---|
+| **Gate-3 (TS4111)** | `process.env.X` → bracket access in `web/e2e/app.spec.ts` + `web/playwright.config.ts` (index-signature type) | `tsc --noEmit` clean on both |
+| **PLT-013** | Security + correlation response headers moved to `OnStarting`, so they survive `ExceptionHandlingMiddleware.Response.Clear()` and appear on 4xx/5xx | `SecurityHeadersOnErrorTests` |
+| **IAM-006** | Config-gated `UseForwardedHeaders` (X-Forwarded-For/Proto) so the per-IP rate limiters and IP audit see the real client behind a proxy; loopback-only safe default, widened only by declared proxies | `ForwardedHeadersSetupTests` ×3 |
+
+**Verification after tranche F (fresh DB): Domain 76 · Application 110 · Architecture 22 · Integration 67 ·
+Api 17 = 292 passed / 0 failed / 0 skipped; build 0W/0E; 41 migrations single-pass; no EF drift.**
+
+**Deferred deliberately (surfaced, not silently changed):**
+- **Gate-3 (C# `dotnet format`)** — the full formatter reflows the author's intentionally-compact anonymous-object
+  initializers into one-property-per-line (~200-line churn in `OperationsQueries.cs` alone) plus object-initializer
+  brace re-indentation across ~20 files. That is a house-style policy decision (accept the formatter's output, or
+  tune `.editorconfig` to preserve the compact style), so it is left for the author rather than blast-reformatted.
+- **MSG-008** — `SendTestEmailHandler` returning the raw SMTP error is admin-gated (`ManageEmailReports`) and
+  intended ("surface the SMTP failure to the operator instead of a generic 500"); sanitising it removes the
+  diagnostic the operator needs. Weak finding; behaviour is defensible.
+- **BIZ-009** — the segment matcher uses only the upper bound so contiguous tiers have no gaps; honouring
+  `TargetIncomeFrom` changes monthly segmentation math and can *introduce* gaps if configured bands aren't perfectly
+  contiguous. A business-semantics decision (what happens to gap income), not a safe mechanical fix.
+
 ### Cumulative status across cycle-3 remediation
 All **7 Blockers** and **19 Majors** are fixed and committed on `remediation/cycle3-scope-and-blockers`
-(one atomic commit per finding, nothing pushed). Still open by design: **M-JOB / ADR-0004** (the job-services
-pattern — refactor vs. record as an accepted exception), and the register's remaining **Minors and Opinions**.
+(one atomic commit per finding, nothing pushed), plus the first **Minors** batch (Gate-3 TS4111, PLT-013, IAM-006).
+Still open by design: **M-JOB / ADR-0004** (the job-services pattern — refactor vs. record as an accepted
+exception), the C#-format / MSG-008 / BIZ-009 decisions above, and the register's remaining **Minors and Opinions**.
