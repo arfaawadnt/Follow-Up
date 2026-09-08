@@ -36,7 +36,7 @@ public static class AuthEndpoints
         {
             await m.Send(new ChangeOwnPasswordCommand(req.OldPassword, req.NewPassword), ct);
             return Results.NoContent();
-        }).WithTags("Auth");
+        }).WithTags("Auth").RequireRateLimiting("login"); // old-password re-auth is guessable — throttle per IP (IAM-007)
 
         api.MapPut("/user/language", async (LanguageRequest req, IMediator m, CancellationToken ct) =>
         {

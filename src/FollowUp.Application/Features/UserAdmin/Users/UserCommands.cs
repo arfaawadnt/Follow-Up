@@ -233,26 +233,40 @@ public sealed class ChangeOwnPasswordHandler : ICommandHandler<ChangeOwnPassword
     private readonly ICurrentUser _caller;
     private readonly IPasswordHasher _hasher;
     private readonly IClock _clock;
+    private readonly IAuthPolicy _policy;
+    private readonly IFailedLoginRecorder _failedLogins;
 
     public ChangeOwnPasswordHandler(IAppUserRepository users, IUserSessionRepository sessions,
-        ICurrentUser caller, IPasswordHasher hasher, IClock clock)
+        ICurrentUser caller, IPasswordHasher hasher, IClock clock, IAuthPolicy policy, IFailedLoginRecorder failedLogins)
     {
         _users = users; _sessions = sessions; _caller = caller; _hasher = hasher; _clock = clock;
+        _policy = policy; _failedLogins = failedLogins;
     }
 
     public async Task<Unit> Handle(ChangeOwnPasswordCommand request, CancellationToken ct)
     {
+        var now = _clock.UtcNow;
         var user = await _users.GetByIdAsync(_caller.UserId, ct)
             ?? throw new NotFoundException("User", _caller.UserId);
 
-        if (!_hasher.Verify(request.OldPassword, user.Password))
-            throw new ForbiddenException("The current password is incorrect.");
+        // Re-authenticating the old password is a password guess, so it counts toward the same lockout as login
+        // (finding IAM-007): reject while locked, and record each miss durably so the counter survives the
+        // transaction rollback below (as login does, IDN-1).
+        if (user.IsLockedOut(now))
+            throw new UnauthorizedException("The account is temporarily locked. Try again later.");
 
+        if (!_hasher.Verify(request.OldPassword, user.Password))
+        {
+            user.RegisterFailedLogin(_policy.MaxFailedAttempts, _policy.LockoutWindow, now);
+            await _failedLogins.RecordAsync(user.Id, ct);
+            throw new ForbiddenException("The current password is incorrect.");
+        }
+
+        user.RegisterSuccessfulLogin(); // a correct old password clears any accumulated failure/lockout state
         user.SetPassword(_hasher.Hash(request.NewPassword));
 
         // Evict the user's other sessions so a stolen bearer token cannot outlive the password change
         // (finding IDN-5); keep the caller's current session so they are not logged out mid-change.
-        var now = _clock.UtcNow;
         foreach (var session in await _sessions.GetActiveByUserAsync(_caller.UserId, ct))
             if (session.Id != _caller.SessionId)
                 session.Revoke(now);
