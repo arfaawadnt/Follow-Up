@@ -110,13 +110,16 @@ public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAudit
     /// Mirror-update from Oracle: sets ONLY the master fields Oracle owns (name, geography, category, address,
     /// the assigned COLLECTOR rep from LAB_REP, mapping code) and marks the record Oracle-owned. Never touches
     /// app-managed lifecycle (status, schedule, loyalty, targets, segment, contacts, marketing rep).
+    /// <para>Serving <see cref="Branch"/> is operator-managed (derived once from registration history / set on
+    /// the Labs page), NOT sourced from Oracle — the sync passes null for it. So a null/blank incoming branch
+    /// PRESERVES the current value rather than clearing it; only a non-blank branch would overwrite.</para>
     /// </summary>
     public void ApplyOracleMaster(string name, string? category, string? branch, string? governorate,
         string? city, string? area, string? address, RepresentativeId? collectorRepId)
     {
         if (!string.IsNullOrWhiteSpace(name)) Name = name.Trim();
         Category = string.IsNullOrWhiteSpace(category) ? null : category.Trim();
-        Branch = branch;
+        if (!string.IsNullOrWhiteSpace(branch)) Branch = branch.Trim();
         Governorate = governorate;
         City = city;
         Area = area;
