@@ -415,9 +415,26 @@ it needs a `LastStatsSyncAt`/status column pair kept separate from the general s
 schema migration, so it belongs in the schema batch rather than code-only. The date-scoped runs already log their
 outcomes meanwhile.
 
+### Phase 4 (cont.) — Minors tranche I (reliability / consistency)
+
+| ID | Fix | Test |
+|---|---|---|
+| **MSG-010** | The Gateways screen reads the Mail gateway's enabled state from `smtp_config` (enabled + host present), not legacy `IsSecret` app_setting rows | build |
+| **PLT-014** | Outbox stamps `ProcessedAt` from `IClock` (not wall clock); a message that reaches `MaxAttempts` is logged at Error (dead-letter surfaced) instead of dropped silently | `OutboxRetryTests` (dead-letter cap) |
+| **MSG-009** | An orphaned stats-email recurring job (left by a rolled-back create) removes itself when it fires and finds no subscription, instead of a daily no-op forever | `StatsEmailSelfHealTests` ×2 |
+
+**Verification after tranche I (fresh DB): Domain 76 · Application 113 · Architecture 22 · Integration 71 ·
+Api 18 = 300 passed / 0 failed / 0 skipped; build 0W/0E; no EF drift.**
+
+*MSG-009 note:* the complete transactional fix routes the schedule change through the outbox; the shipped fix
+eliminates the orphan the finding names, and the rarer update/delete-rollback schedule drift self-corrects at
+startup via `SyncAllAsync` (reconciles every schedule from the DB). **IAM-009** (DeleteUser hard-delete →
+`Deactivate()`) is held for a product decision on delete semantics.
+
 ### Cumulative status across cycle-3 remediation
 All **7 Blockers** and **19 Majors** are fixed and committed on `remediation/cycle3-scope-and-blockers`
-(one atomic commit per finding, nothing pushed), plus three **Minors** batches: Gate-3 (TS4111 + C# format), PLT-013,
-IAM-006, OPS-007, STAT-012, OPS-009, IAM-010, BIZ-010, OPS-006, IAM-007, OPS-008.
+(one atomic commit per finding, nothing pushed), plus four **Minors** batches: Gate-3 (TS4111 + C# format), PLT-013,
+IAM-006, OPS-007, STAT-012, OPS-009, IAM-010, BIZ-010, OPS-006, IAM-007, OPS-008, MSG-010, PLT-014, MSG-009.
 Still open by design: **M-JOB / ADR-0004** (the job-services pattern — refactor vs. record as an accepted
-exception), the C#-format / MSG-008 / BIZ-009 decisions above, and the register's remaining **Minors and Opinions**.
+exception), the C#-format / MSG-008 / BIZ-009 / IAM-009 decisions above, STAT-011 (schema batch), and the
+register's remaining **Minors and Opinions**.
