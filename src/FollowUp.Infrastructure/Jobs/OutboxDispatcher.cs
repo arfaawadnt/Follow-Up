@@ -1,4 +1,5 @@
 using System.Text.Json;
+using FollowUp.Application.Common.Abstractions;
 using FollowUp.Application.Common.Messaging;
 using FollowUp.Domain.Common;
 using FollowUp.Infrastructure.Persistence;
@@ -50,6 +51,7 @@ public sealed class OutboxDispatcher
             using var scope = _scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<FollowUpDbContext>();
             var publisher = scope.ServiceProvider.GetRequiredService<IPublisher>();
+            var clock = scope.ServiceProvider.GetRequiredService<IClock>();
 
             var message = await db.OutboxMessages.FirstOrDefaultAsync(m => m.Id == id, ct);
             if (message is null || message.ProcessedAt is not null) continue; // already handled by a prior run
@@ -63,7 +65,7 @@ public sealed class OutboxDispatcher
                     if (type is not null && JsonSerializer.Deserialize(message.Content, type) is IDomainEvent domainEvent)
                         await publisher.Publish(new DomainEventNotification(domainEvent), ct);
 
-                    message.ProcessedAt = DateTimeOffset.UtcNow;
+                    message.ProcessedAt = clock.UtcNow;
                     await db.SaveChangesAsync(ct);
                     await tx.CommitAsync(ct);
                     dispatched++;
@@ -88,9 +90,26 @@ public sealed class OutboxDispatcher
                     failed.Attempts++;
                     failed.Error = failure.Message;
                     await db.SaveChangesAsync(ct);
+
+                    // Surface the dead-letter: at MaxAttempts the message is excluded from every future batch, so
+                    // without this the queue would drop it silently and no one would know (finding PLT-014).
+                    if (failed.Attempts >= MaxAttempts)
+                    {
+                        _logger.LogError(failure,
+                            "Outbox message {Id} ({Type}) dead-lettered after {Attempts} attempts and will NOT be retried",
+                            id, message.Type, failed.Attempts);
+                    }
+                    else
+                    {
+                        _logger.LogWarning(failure, "Outbox message {Id} ({Type}) failed (attempt {Attempts})",
+                            id, message.Type, failed.Attempts);
+                    }
                 }
-                _logger.LogWarning(failure, "Outbox message {Id} ({Type}) failed (attempt {Attempts})",
-                    id, message.Type, message.Attempts + 1);
+                else
+                {
+                    _logger.LogWarning(failure, "Outbox message {Id} ({Type}) failed but could not be re-read to record the attempt",
+                        id, message.Type);
+                }
             }
         }
 

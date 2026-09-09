@@ -54,4 +54,36 @@ public sealed class OutboxRetryTests
             msg.Error.Should().NotBeNullOrEmpty();
         }
     }
+
+    [SkippableFact]
+    public async Task A_message_stops_being_retried_once_it_reaches_the_attempt_limit()
+    {
+        // Finding PLT-014: after MaxAttempts (5) a poison message is dead-lettered — excluded from every future
+        // batch (and logged at Error) rather than retried forever. Its attempt count caps and it stays unprocessed.
+        Skip.IfNot(_fx.DatabaseAvailable, "FOLLOWUP_DB not set.");
+        await _fx.ResetAsync();
+
+        Guid msgId;
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FollowUpDbContext>();
+            var msg = new OutboxMessage { Type = "ComplaintLogged", Content = "[]", OccurredOn = DateTimeOffset.UtcNow };
+            db.OutboxMessages.Add(msg);
+            await db.SaveChangesAsync();
+            msgId = msg.Id;
+        }
+
+        // Run the dispatcher more times than the limit; each run fails and bumps Attempts until it caps.
+        for (var i = 0; i < 7; i++)
+            using (var scope = _fx.Services.CreateScope())
+                await scope.ServiceProvider.GetRequiredService<OutboxDispatcher>().DispatchAsync();
+
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FollowUpDbContext>();
+            var msg = await db.OutboxMessages.FirstAsync(m => m.Id == msgId);
+            msg.Attempts.Should().Be(5, "the message stops being retried at MaxAttempts");
+            msg.ProcessedAt.Should().BeNull("a dead-lettered message is never marked processed");
+        }
+    }
 }
