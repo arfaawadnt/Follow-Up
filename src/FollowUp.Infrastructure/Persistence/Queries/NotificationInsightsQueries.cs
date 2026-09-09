@@ -33,10 +33,21 @@ internal sealed class NotificationQueries : INotificationQueries
     public async Task<IReadOnlyList<GatewayDto>> GetGatewaysAsync(CancellationToken ct)
     {
         // Secrets are never returned in clear (SRS NFR-SEC-7) — always masked here.
+        // Mail's live enabled state is the smtp_config row (the operator-editable Mail Gateway screen), NOT the
+        // legacy IsSecret app_setting rows, which no longer drive SMTP (finding MSG-010). WhatsApp still reflects
+        // whether its secret config is present.
+        var smtp = await _db.SmtpConfigs.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == FollowUp.Domain.Emailing.SmtpConfig.SingletonId, ct);
+        var mailEnabled = smtp is not null && smtp.Enabled && !string.IsNullOrWhiteSpace(smtp.Host);
+
         var settings = await _db.Settings.AsNoTracking().Where(s => s.IsSecret).ToListAsync(ct);
-        return new[] { "Mail", "WhatsApp" }
-            .Select(name => new GatewayDto(name, settings.Any(s => s.Id.StartsWith(name, StringComparison.OrdinalIgnoreCase)), "********"))
-            .ToList();
+        var whatsAppEnabled = settings.Any(s => s.Id.StartsWith("WhatsApp", StringComparison.OrdinalIgnoreCase));
+
+        return new[]
+        {
+            new GatewayDto("Mail", mailEnabled, "********"),
+            new GatewayDto("WhatsApp", whatsAppEnabled, "********"),
+        };
     }
 
     public async Task<IReadOnlyList<DeliveryLogDto>> GetLogsAsync(CancellationToken ct) =>
