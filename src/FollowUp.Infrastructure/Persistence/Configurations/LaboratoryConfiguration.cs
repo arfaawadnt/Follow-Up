@@ -112,7 +112,9 @@ internal sealed class RepresentativeConfiguration : IEntityTypeConfiguration<Rep
         b.Property(x => x.IsActive).HasDefaultValue(true);
         b.Property(x => x.SourceCode).HasMaxLength(64);
         b.Property(x => x.Source).HasDefaultValue(FollowUp.Domain.Common.RecordSource.Manual);
-        b.HasIndex(x => x.SourceCode);
+        // An Oracle SourceCode identifies exactly one rep — enforce it (partial: manual reps carry a null
+        // SourceCode and are unconstrained). Prevents the mirror ever creating a duplicate (finding LAB-009).
+        b.HasIndex(x => x.SourceCode).IsUnique().HasFilter("source_code IS NOT NULL");
 
         b.Property(x => x.RowVersion).IsRowVersion();
     }

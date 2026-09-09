@@ -41,7 +41,9 @@ internal sealed class CityConfiguration : IEntityTypeConfiguration<City>
         b.Property(x => x.SourceCode).HasMaxLength(64);
         b.Property(x => x.Source).HasDefaultValue(FollowUp.Domain.Common.RecordSource.Manual);
         b.HasIndex(x => new { x.Governorate, x.Name });
-        b.HasIndex(x => x.SourceCode);
+        // An Oracle SourceCode identifies exactly one record — enforce it (partial: manual records carry a null
+        // SourceCode and are unconstrained). Prevents the mirror ever creating a duplicate (finding LAB-009).
+        b.HasIndex(x => x.SourceCode).IsUnique().HasFilter("source_code IS NOT NULL");
     }
 }
 
@@ -59,7 +61,9 @@ internal sealed class AreaConfiguration : IEntityTypeConfiguration<Area>
         b.Property(x => x.RealName).HasMaxLength(200);
         b.Property(x => x.SourceCode).HasMaxLength(64);
         b.Property(x => x.Source).HasDefaultValue(FollowUp.Domain.Common.RecordSource.Manual);
-        b.HasIndex(x => x.SourceCode);
+        // An Oracle SourceCode identifies exactly one record — enforce it (partial: manual records carry a null
+        // SourceCode and are unconstrained). Prevents the mirror ever creating a duplicate (finding LAB-009).
+        b.HasIndex(x => x.SourceCode).IsUnique().HasFilter("source_code IS NOT NULL");
 
         b.Property(x => x.TransferReps)
             .HasColumnName("transfer_reps")
@@ -67,7 +71,9 @@ internal sealed class AreaConfiguration : IEntityTypeConfiguration<Area>
             .UsePropertyAccessMode(PropertyAccessMode.Field)
             .HasConversion<RepIdListConverter>(new RepIdListComparer());
 
-        b.HasOne<City>().WithMany().HasForeignKey(x => x.CityId).OnDelete(DeleteBehavior.Cascade);
+        // Restrict city deletion so removing a city can't silently cascade-delete its areas (and orphan the labs
+        // and reps that reference those areas by name) — deletion must be a deliberate, area-by-area act (finding LAB-010).
+        b.HasOne<City>().WithMany().HasForeignKey(x => x.CityId).OnDelete(DeleteBehavior.Restrict);
         b.HasIndex(x => x.CityId);
     }
 }
