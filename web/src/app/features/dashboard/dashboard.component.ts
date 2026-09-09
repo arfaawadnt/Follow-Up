@@ -8,13 +8,18 @@ import { ToastService } from '../../core/toast.service';
 import { IconsService } from '../../core/icons.service';
 import { PagedResult, RepListItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
+import { RecordVisitContext, RecordVisitDialogComponent } from '../../shared/record-visit-dialog.component';
 
 interface Kpis {
   activeLabs: number; totalLabs: number; done: number; totalVisits: number; pending: number; missed: number;
   samplesToday: number; openComplaints: number; inProgress: number; resolved: number;
   mtd: number; target: number; monthName: string;
 }
-interface DashSchedule { id: string; time: string; lab: string; area: string | null; rep: string; status: string; samples: number | null; transferDone: boolean; }
+interface DashSchedule {
+  id: string; time: string; lab: string; area: string | null; rep: string; status: string; samples: number | null; transferDone: boolean;
+  /** Carried for the record dialog: prefill the assigned collector and offer only the lab's assigned collectors. */
+  laboratoryId: string; collectorRepId: string | null; collectorRepIds: string[];
+}
 interface DashComplaint { id: string; lab: string; description: string; category: string; age: number; }
 interface DashRepProg { name: string; detail: string; pct: number; }
 interface DashTopLab { name: string; area: string | null; gov: string | null; v: number; }
@@ -31,7 +36,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [DecimalPipe, SlicePipe, FormsModule, TranslatePipe],
+  imports: [DecimalPipe, SlicePipe, FormsModule, TranslatePipe, RecordVisitDialogComponent],
   template: `
     @if (d(); as d) {
       <div class="pagehead">
@@ -127,42 +132,9 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
       </div>
     } @else if (loading()) { <div class="empty">{{ 'loading' | t : 'Loading…' }}</div> }
 
-    <!-- Record-visit popup, same flow as the daily board (the reference records straight from the dashboard). -->
+    <!-- Record-visit popup: the SAME shared dialog the daily board uses, so the two flows can never drift. -->
     @if (recording(); as v) {
-      <div class="overlay" (click)="closeRecord()">
-        <div class="dlg" (click)="$event.stopPropagation()">
-          <h3 style="margin:0 0 4px">{{ 'record_visit' | t : 'Record visit' }}</h3>
-          <div class="small muted" style="margin-bottom:12px">{{ v.lab }} · {{ 'scheduled_2' | t : 'Scheduled' }} {{ v.time }} · {{ v.area ?? '—' }}</div>
-          <div class="field">
-            <label>{{ 'collector_rep' | t : 'Collector Rep' }}</label>
-            <select class="select" [(ngModel)]="recordRep" style="width:100%">
-              <option value="">—</option>
-              @for (r of collectorReps(); track r.id) { <option [value]="r.id">{{ r.fullName }}</option> }
-            </select>
-          </div>
-          <div class="field" style="margin-top:10px">
-            <label>{{ 'samples' | t : 'Samples collected' }} *</label>
-            <input type="number" min="0" class="input" [(ngModel)]="recordCount" style="width:100%">
-            @if (suggested() !== null) { <div class="small muted" style="margin-top:4px">Suggested: {{ suggested() }} (last recorded count for this lab)</div> }
-          </div>
-          <div class="grid2" style="margin-top:10px">
-            <div class="field"><label>{{ 'total_required' | t : 'Total Required' }}</label><input type="number" min="0" class="input" [(ngModel)]="recordTotalRequired"></div>
-            <div class="field"><label>{{ 'no_of_requests' | t : 'No of Requests' }}</label><input type="number" min="0" class="input" [(ngModel)]="recordRequests"></div>
-          </div>
-          <div class="field" style="margin-top:10px">
-            <label>{{ 'no_of_outsource_samples' | t : 'No of Outsource Samples' }}</label>
-            <input type="number" min="0" class="input" [(ngModel)]="recordOutsource" style="width:100%">
-          </div>
-          <div class="field" style="margin-top:10px">
-            <label>{{ 'notes_optional' | t : 'Notes (optional)' }}</label>
-            <textarea class="input" rows="2" [(ngModel)]="recordNotes" style="width:100%"></textarea>
-          </div>
-          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
-            <button class="btn btn-s" (click)="closeRecord()">{{ 'cancel' | t : 'Cancel' }}</button>
-            <button class="btn btn-p" [disabled]="busy()" (click)="confirmRecord()">{{ 'confirm' | t : 'Confirm visit' }}</button>
-          </div>
-        </div>
-      </div>
+      <app-record-visit-dialog [ctx]="recordCtx(v)" [reps]="reps()" source="dashboard" (saved)="onRecorded()" (closed)="closeRecord()" />
     }
   `,
   styles: [`
@@ -182,10 +154,6 @@ export class DashboardComponent {
   readonly d = signal<DashboardData | null>(null);
   readonly reps = signal<RepListItem[]>([]);
   readonly recording = signal<DashSchedule | null>(null);
-  readonly suggested = signal<number | null>(null);
-  recordRep = ''; recordCount: number | null = null;
-  recordTotalRequired: number | null = null; recordRequests: number | null = null;
-  recordOutsource: number | null = null; recordNotes = '';
 
   constructor() {
     this.load();
@@ -200,36 +168,19 @@ export class DashboardComponent {
     });
   }
 
-  collectorReps(): RepListItem[] { return this.reps().filter((r) => r.type === 'Collector' || r.type === 'Scanning'); }
-
   openRecord(v: DashSchedule): void {
+    // Reps are loaded lazily on first use (the dashboard doesn't otherwise need them).
     if (this.reps().length === 0)
       this.api.get<PagedResult<RepListItem>>('/reps', { pageSize: 500 }).subscribe({ next: (r) => this.reps.set(r.items) });
     this.recording.set(v);
-    this.recordRep = ''; this.recordCount = null;
-    this.recordTotalRequired = null; this.recordRequests = null; this.recordOutsource = null; this.recordNotes = '';
-    this.suggested.set(null);
-    this.api.get<{ suggested: number | null }>(`/daily/${v.id}/suggested-count`).subscribe({
-      next: (r) => { this.suggested.set(r.suggested); if (this.recordCount === null && r.suggested !== null) this.recordCount = r.suggested; },
-    });
   }
   closeRecord(): void { this.recording.set(null); }
-  confirmRecord(): void {
-    const v = this.recording();
-    if (!v) return;
-    if (this.recordCount === null || this.recordCount < 0) { this.toast.warning('Enter a valid sample count.'); return; }
-    this.busy.set(true);
-    this.api.post(`/daily/${v.id}/checkin?source=dashboard`, {
-      sampleCount: this.recordCount,
-      collectorRepId: this.recordRep || null,
-      totalRequired: this.recordTotalRequired,
-      requestCount: this.recordRequests,
-      outsourceCount: this.recordOutsource,
-      notes: this.recordNotes.trim() || null,
-    }).subscribe({
-      next: () => { this.toast.success('Record confirmed.'); this.busy.set(false); this.recording.set(null); this.load(); },
-      error: () => this.busy.set(false),
-    });
+  onRecorded(): void { this.recording.set(null); this.load(); }
+  recordCtx(v: DashSchedule): RecordVisitContext {
+    return {
+      visitId: v.id, lab: v.lab, labDisplayCode: null, scheduledTime: v.time, area: v.area, repName: v.rep || null,
+      collectorRepId: v.collectorRepId ?? null, collectorRepIds: v.collectorRepIds ?? [],
+    };
   }
 
   go(path: string): void { void this.router.navigateByUrl(path); }

@@ -25,7 +25,7 @@ export interface LabListItem {
   branch: string | null; governorate: string | null; city: string | null; area: string | null;
   category: string | null; avgMonthlySamples: number | null;
   latitude: number | null; longitude: number | null;
-  collectors: string[]; marketing: string | null; encrypted: boolean; source: string;
+  collectors: string[]; collectorRepIds: string[]; marketing: string | null; encrypted: boolean; source: string;
 }
 
 export interface ContactDto { id: string; name: string; role: string; phone: string | null; birthday: string | null; }
@@ -79,6 +79,8 @@ export interface AttachmentRef { id: string; fileName: string; contentType: stri
 export interface BoardItem {
   visitId: string; laboratoryId: string; labDisplayCode: string; lab: string;
   collectorRepId: string | null; rep: string | null;
+  /** The lab's assigned collectors — the record dialog offers only these (falls back to all when empty). */
+  collectorRepIds: string[];
   branch: string | null; governorate: string | null; city: string | null; area: string | null;
   visitDate: string; scheduledTime: string;
   status: string; samples: number | null; markedAt: string | null; adminChecked: boolean; transferDone: boolean;

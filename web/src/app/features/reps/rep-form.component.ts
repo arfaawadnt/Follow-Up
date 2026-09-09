@@ -12,7 +12,7 @@ interface Ref { nameEn: string; }
 interface City { id: string; name: string; governorate: string; }
 interface Area { id: string; name: string; cityId: string; }
 
-const TYPES = ['Collector', 'Marketing', 'Transfer', 'Scanning'];
+const TYPES = ['Collector', 'Marketing', 'Transfer', 'Scanning', 'AreaResponsible', 'AreaManager'];
 const EMPLOYMENT = ['Full-time', 'Part-time', 'Contract'];
 const GOAL_TYPES = ['Samples Collected', 'Visit Completion', 'New Lab Contracts', 'Samples Growth', 'Lab Reactivations'];
 const METRICS = ['Samples', 'visits %', 'Labs', '% growth', 'EGP'];
