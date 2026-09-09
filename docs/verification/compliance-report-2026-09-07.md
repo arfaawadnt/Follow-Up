@@ -435,10 +435,22 @@ instead of hard-deleting, retaining the user as the audit subject of their past 
 and labs are retired. Accepted trade-off: the username stays reserved and the row remains visible flagged
 inactive. Verified: Domain 76 · Application 114 · Architecture 22 · Integration 71 · Api 18 = 301 passed.
 
+### Phase 4 (cont.) — Minors tranche J (Oracle-sync consistency)
+
+| ID | Fix | Test |
+|---|---|---|
+| **STAT-009** | The feed allow-list, hand-maintained and drifted between `OracleDbReader` (tamper guard) and `OracleSyncRunner` (general-sync feeds), is single-sourced in `OracleFeeds` (`All` vs `GeneralSync`); the runner's redundant `FeedOrder` + stats exclusion are retired. Behaviour-identical | `OracleFeedsTests` ×2 |
+| **STAT-008** | The scattered Oracle column-alias literals are hoisted to named constants in `OracleColumns`, each cross-checked against the feed SQL's `AS` clause. Pure rename | build (compile-checked references) |
+
+**Verification after tranche J (fresh DB): Domain 76 · Application 114 · Architecture 22 · Integration 73 ·
+Api 18 = 303 passed / 0 failed / 0 skipped; build 0W/0E; format gate clean; no EF drift.** (STAT-008/009 share
+one commit — they touch `OracleSyncRunner` in interleaved regions.)
+
 ### Cumulative status across cycle-3 remediation
 All **7 Blockers** and **19 Majors** are fixed and committed on `remediation/cycle3-scope-and-blockers`
-(one atomic commit per finding, nothing pushed), plus four **Minors** batches: Gate-3 (TS4111 + C# format), PLT-013,
-IAM-006, OPS-007, STAT-012, OPS-009, IAM-010, BIZ-010, OPS-006, IAM-007, OPS-008, MSG-010, PLT-014, MSG-009.
+(one atomic commit per finding, nothing pushed), plus five **Minors** batches: Gate-3 (TS4111 + C# format), PLT-013,
+IAM-006, OPS-007, STAT-012, OPS-009, IAM-010, BIZ-010, OPS-006, IAM-007, OPS-008, MSG-010, PLT-014, MSG-009,
+IAM-009 (soft-delete), STAT-009, STAT-008.
 Still open by design: **M-JOB / ADR-0004** (the job-services pattern — refactor vs. record as an accepted
-exception), the C#-format / MSG-008 / BIZ-009 / IAM-009 decisions above, STAT-011 (schema batch), and the
-register's remaining **Minors and Opinions**.
+exception), the MSG-008 / BIZ-009 decisions (recommended as-is), the schema-migration Minors
+(LAB-009, LAB-010, BIZ-008, PLT-012, STAT-011), and the register's remaining **Opinions**.
