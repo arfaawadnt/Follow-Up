@@ -70,6 +70,7 @@ internal sealed class DailyBoardQueries : IDailyBoardQueries
                               l.Governorate,
                               l.City,
                               l.Area,
+                              l.CollectorRepIds,
                               v.CollectorRepId,
                               v.VisitDate,
                               v.ScheduledTime,
@@ -106,6 +107,7 @@ internal sealed class DailyBoardQueries : IDailyBoardQueries
                                   l.Governorate,
                                   l.City,
                                   l.Area,
+                                  l.CollectorRepIds,
                                   h.CollectorRepId,
                                   h.VisitDate,
                                   h.ScheduledTime,
@@ -128,13 +130,15 @@ internal sealed class DailyBoardQueries : IDailyBoardQueries
             r.CollectorRepId != null ? r.CollectorRepId.Value.Value : (Guid?)null, RepOf(r.CollectorRepId),
             r.Branch, r.Governorate, r.City, r.Area,
             r.VisitDate, r.ScheduledTime.ToString("HH:mm"), r.Status.Name, r.SampleCount,
-            r.CheckedInAt?.ToString("o"), r.AdminChecked, r.TransferConfirmedAt != null, Archived: false));
+            r.CheckedInAt?.ToString("o"), r.AdminChecked, r.TransferConfirmedAt != null, Archived: false,
+            CollectorRepIds: r.CollectorRepIds.Select(c => c.Value).ToList()));
         var archDtos = archived.Select(r => new BoardItemDto(
             r.OriginalVisitId.Value, r.LaboratoryId.Value, DisplayCode.For(r.Code.Value, r.IsEncrypted, canSeeEncrypted), r.Name,
             r.CollectorRepId != null ? r.CollectorRepId.Value.Value : (Guid?)null, RepOf(r.CollectorRepId),
             r.Branch, r.Governorate, r.City, r.Area,
             r.VisitDate, r.ScheduledTime != null ? r.ScheduledTime.Value.ToString("HH:mm") : "—", r.Status, r.SampleCount,
-            r.CheckedInAt?.ToString("o"), r.AdminChecked, r.TransferConfirmedAt != null, Archived: true));
+            r.CheckedInAt?.ToString("o"), r.AdminChecked, r.TransferConfirmedAt != null, Archived: true,
+            CollectorRepIds: r.CollectorRepIds.Select(c => c.Value).ToList()));
 
         var result = liveDtos.Concat(archDtos).OrderBy(d => d.VisitDate).ThenBy(d => d.ScheduledTime).ToList();
         var atts = await AttachmentEnricher.LoadAsync(_db, result.Select(d => d.VisitId), ct);

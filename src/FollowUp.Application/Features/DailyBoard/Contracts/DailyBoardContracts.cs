@@ -25,7 +25,9 @@ public sealed record BoardItemDto(
     bool TransferDone,
     IReadOnlyList<AttachmentRefDto>? Attachments = null,
     /// <summary>True for rows read from the archive (past days rolled off the live board) — the UI shows these read-only.</summary>
-    bool Archived = false);
+    bool Archived = false,
+    /// <summary>The lab's assigned collectors — the record dialog offers only these (falls back to all when empty).</summary>
+    IReadOnlyList<Guid>? CollectorRepIds = null);
 
 /// <summary>The outcome of a lab-scoped board reconcile — visits added and stale Pending visits pruned.</summary>
 public readonly record struct BoardReconciliation(int Added, int Pruned);

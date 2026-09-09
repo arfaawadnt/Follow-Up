@@ -1234,6 +1234,15 @@ export const TRANSLATIONS = {
     priv_cities: "Cities",
     priv_areas: "Areas",
     priv_integration: "Integration",
+    /* --- Area management roles + shared record-visit dialog --- */
+    area_manager: "Area Manager",
+    area_responsible: "Area Responsible",
+    search_managers: "Search managers…",
+    search_responsibles: "Search responsibles…",
+    no_assigned_collectors: "This lab has no assigned collectors — showing all.",
+    suggested: "Suggested",
+    last_recorded_count: "last recorded count for this lab",
+    outsource_hint: "A value > 0 creates an outsource-sample row automatically.",
   },
   ar: {
     /* --- UI-003: folded from inline bilingual ternaries --- */
@@ -2458,6 +2467,15 @@ export const TRANSLATIONS = {
     priv_references: "البيانات المرجعية",
     priv_cities: "المدن",
     priv_areas: "المناطق",
-    priv_integration: "التكامل"
+    priv_integration: "التكامل",
+    /* --- Area management roles + shared record-visit dialog --- */
+    area_manager: "مدير المنطقة",
+    area_responsible: "مسؤول المنطقة",
+    search_managers: "ابحث عن مدير…",
+    search_responsibles: "ابحث عن مسؤول…",
+    no_assigned_collectors: "لا يوجد مندوبون جامعون معيّنون لهذا المعمل — يتم عرض الجميع.",
+    suggested: "المقترح",
+    last_recorded_count: "آخر عدد مسجّل لهذا المعمل",
+    outsource_hint: "أي قيمة أكبر من 0 تُنشئ سجل عينة خارجية تلقائيًا.",
   }
 };

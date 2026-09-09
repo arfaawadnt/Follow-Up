@@ -94,6 +94,18 @@ public sealed class FakeRepresentativeRepository : IRepresentativeRepository
     public void Add(Representative representative) => Store.Add(representative);
 }
 
+/// <summary>In-memory area repository for setup-handler tests.</summary>
+public sealed class FakeAreaRepository : IAreaRepository
+{
+    public readonly List<Domain.Reference.Area> Store = new();
+    public Task<Domain.Reference.Area?> GetByIdAsync(Domain.Reference.AreaId id, CancellationToken ct) =>
+        Task.FromResult(Store.FirstOrDefault(a => a.Id == id));
+    public Task<IReadOnlyList<Domain.Reference.Area>> GetAllAsync(CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Domain.Reference.Area>>(Store.ToList());
+    public void Add(Domain.Reference.Area area) => Store.Add(area);
+    public void Remove(Domain.Reference.Area area) => Store.Remove(area);
+}
+
 public sealed class FakeDailyVisitRepository : IDailyVisitRepository
 {
     public readonly List<DailyVisit> Store = new();

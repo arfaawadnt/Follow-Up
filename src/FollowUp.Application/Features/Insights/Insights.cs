@@ -24,7 +24,10 @@ public sealed record DashboardKpisDto(
     long Mtd, long Target, string MonthName);
 
 public sealed record DashboardBirthdayDto(string Text);
-public sealed record DashScheduleDto(Guid Id, string Time, string Lab, string? Area, string Rep, string Status, int? Samples, bool TransferDone);
+public sealed record DashScheduleDto(Guid Id, string Time, string Lab, string? Area, string Rep, string Status, int? Samples, bool TransferDone,
+    // Carried so the dashboard's record-visit dialog can prefill the assigned collector and offer only the lab's
+    // assigned collectors — the same information the daily board already exposes (parity).
+    Guid LaboratoryId = default, Guid? CollectorRepId = null, IReadOnlyList<Guid>? CollectorRepIds = null);
 public sealed record DashComplaintDto(string Id, string Lab, string Description, string Category, int Age);
 public sealed record DashRepProgDto(string Name, string Detail, int Pct);
 public sealed record DashTopLabDto(string Name, string? Area, string? Gov, int V);

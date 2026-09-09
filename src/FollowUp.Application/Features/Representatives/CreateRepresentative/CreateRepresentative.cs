@@ -32,7 +32,7 @@ public sealed record CreateRepresentativeCommand : ICommand<Guid>, IAuthorizedRe
 
 public sealed class CreateRepresentativeValidator : AbstractValidator<CreateRepresentativeCommand>
 {
-    private static readonly string[] Types = { "Collector", "Marketing", "Transfer", "Scanning" };
+    private static readonly string[] Types = { "Collector", "Marketing", "Transfer", "Scanning", "AreaResponsible", "AreaManager" };
 
     public CreateRepresentativeValidator()
     {

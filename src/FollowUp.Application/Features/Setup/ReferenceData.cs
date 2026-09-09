@@ -1,3 +1,4 @@
+using FollowUp.Application.Common.Abstractions;
 using FollowUp.Application.Common.Abstractions.Persistence;
 using FollowUp.Application.Common.Exceptions;
 using FollowUp.Application.Common.Messaging;
@@ -15,7 +16,8 @@ namespace FollowUp.Application.Features.Setup;
 public sealed record RefItemDto(Guid Id, string Type, string Code, string NameEn, string? NameAr, string? RealName, int SortOrder, string Source,
     decimal? TargetIncomeFrom = null, decimal? TargetIncomeTo = null);
 public sealed record CityDto(Guid Id, string Name, string Governorate, string? RealName, string Source);
-public sealed record AreaDto(Guid Id, string Name, Guid CityId, bool TransportationRequired, IReadOnlyList<Guid> TransferReps, string? RealName, string Source);
+public sealed record AreaDto(Guid Id, string Name, Guid CityId, bool TransportationRequired, IReadOnlyList<Guid> TransferReps, string? RealName, string Source,
+    Guid? AreaManagerId = null, Guid? AreaResponsibleId = null);
 
 public interface ISetupQueries
 {
@@ -235,7 +237,32 @@ public sealed class UpdateCityHandler : ICommandHandler<UpdateCityCommand>
 
 // ---- Area write ----
 
-public sealed record CreateAreaCommand(string Name, Guid CityId, bool TransportationRequired, IReadOnlyList<Guid> TransferReps, string? RealName = null)
+/// <summary>
+/// Resolves an optional area-role assignment: the representative must exist and be of the expected type
+/// (<c>AreaManager</c> for the manager, <c>AreaResponsible</c> for the responsible) — the UI pickers are bound to
+/// those types and the server enforces the same rule. Returns null when no assignment was supplied.
+/// </summary>
+internal static class AreaRoleSupport
+{
+    public static async Task<RepresentativeId?> ResolveAsync(Guid? repId, Domain.Representatives.RepresentativeType expected,
+        string field, IRepresentativeRepository reps, ICurrentUser user, CancellationToken ct)
+    {
+        if (repId is not { } id) return null;
+        var rep = await reps.GetByIdAsync(new RepresentativeId(id), ct)
+            ?? throw new NotFoundException("Representative", id);
+        // Record-level scope (ADR-0002): a caller may only assign a representative within their own org-scope.
+        FollowUp.Application.Common.Security.ScopeGuard.EnsureInScope(user, rep);
+        if (rep.Type != expected)
+            throw new Common.Exceptions.ValidationException(new Dictionary<string, string[]>
+            {
+                [field] = new[] { $"The selected representative must be of type {expected.Name}." },
+            });
+        return rep.Id;
+    }
+}
+
+public sealed record CreateAreaCommand(string Name, Guid CityId, bool TransportationRequired, IReadOnlyList<Guid> TransferReps, string? RealName = null,
+    Guid? AreaManagerId = null, Guid? AreaResponsibleId = null)
     : ICommand<Guid>, IAuthorizedRequest
 {
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.SetupAreas };
@@ -244,15 +271,22 @@ public sealed record CreateAreaCommand(string Name, Guid CityId, bool Transporta
 public sealed class CreateAreaHandler : ICommandHandler<CreateAreaCommand, Guid>
 {
     private readonly IAreaRepository _repository;
-    public CreateAreaHandler(IAreaRepository repository) => _repository = repository;
+    private readonly IRepresentativeRepository _reps;
+    private readonly ICurrentUser _user;
+    public CreateAreaHandler(IAreaRepository repository, IRepresentativeRepository reps, ICurrentUser user)
+    { _repository = repository; _reps = reps; _user = user; }
 
-    public Task<Guid> Handle(CreateAreaCommand request, CancellationToken ct)
+    public async Task<Guid> Handle(CreateAreaCommand request, CancellationToken ct)
     {
         var area = Area.Create(request.Name, new CityId(request.CityId), request.TransportationRequired);
         area.SetTransferReps(request.TransferReps.Select(r => new RepresentativeId(r)));
         area.SetRealName(request.RealName);
+        area.AssignManager(await AreaRoleSupport.ResolveAsync(request.AreaManagerId,
+            Domain.Representatives.RepresentativeType.AreaManager, nameof(request.AreaManagerId), _reps, _user, ct));
+        area.AssignResponsible(await AreaRoleSupport.ResolveAsync(request.AreaResponsibleId,
+            Domain.Representatives.RepresentativeType.AreaResponsible, nameof(request.AreaResponsibleId), _reps, _user, ct));
         _repository.Add(area);
-        return Task.FromResult(area.Id.Value);
+        return area.Id.Value;
     }
 }
 
@@ -275,7 +309,8 @@ public sealed class DeleteAreaHandler : ICommandHandler<DeleteAreaCommand>
     }
 }
 
-public sealed record UpdateAreaCommand(Guid Id, string Name, Guid CityId, bool TransportationRequired, string? RealName = null)
+public sealed record UpdateAreaCommand(Guid Id, string Name, Guid CityId, bool TransportationRequired, string? RealName = null,
+    Guid? AreaManagerId = null, Guid? AreaResponsibleId = null)
     : ICommand, IAuthorizedRequest
 {
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.SetupAreas };
@@ -294,7 +329,10 @@ public sealed class UpdateAreaValidator : AbstractValidator<UpdateAreaCommand>
 public sealed class UpdateAreaHandler : ICommandHandler<UpdateAreaCommand>
 {
     private readonly IAreaRepository _repository;
-    public UpdateAreaHandler(IAreaRepository repository) => _repository = repository;
+    private readonly IRepresentativeRepository _reps;
+    private readonly ICurrentUser _user;
+    public UpdateAreaHandler(IAreaRepository repository, IRepresentativeRepository reps, ICurrentUser user)
+    { _repository = repository; _reps = reps; _user = user; }
 
     public async Task<Unit> Handle(UpdateAreaCommand request, CancellationToken ct)
     {
@@ -304,6 +342,10 @@ public sealed class UpdateAreaHandler : ICommandHandler<UpdateAreaCommand>
         area.SetCity(new CityId(request.CityId));
         area.SetTransportation(request.TransportationRequired);
         area.SetRealName(request.RealName);
+        area.AssignManager(await AreaRoleSupport.ResolveAsync(request.AreaManagerId,
+            Domain.Representatives.RepresentativeType.AreaManager, nameof(request.AreaManagerId), _reps, _user, ct));
+        area.AssignResponsible(await AreaRoleSupport.ResolveAsync(request.AreaResponsibleId,
+            Domain.Representatives.RepresentativeType.AreaResponsible, nameof(request.AreaResponsibleId), _reps, _user, ct));
         return Unit.Value;
     }
 }

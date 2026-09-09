@@ -84,7 +84,8 @@ internal sealed class SetupQueries : ISetupQueries
         var rows = await _db.Areas.AsNoTracking().OrderBy(a => a.Name).ToListAsync(ct);
         return rows.Select(a => new AreaDto(
             a.Id.Value, a.Name, a.CityId.Value, a.TransportationRequired,
-            a.TransferReps.Select(r => r.Value).ToList(), a.RealName, a.Source.ToString())).ToList();
+            a.TransferReps.Select(r => r.Value).ToList(), a.RealName, a.Source.ToString(),
+            a.AreaManagerId?.Value, a.AreaResponsibleId?.Value)).ToList();
     }
 }
 

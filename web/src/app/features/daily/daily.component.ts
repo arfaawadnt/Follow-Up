@@ -12,13 +12,14 @@ import { exportXlsx, printTable, localToday, localTime, localDateTime, ddmy } fr
 import { AppDatePipe } from '../../shared/app-date.pipe';
 import { ToastService } from '../../core/toast.service';
 import { AttachmentService } from '../../core/attachment.service';
+import { RecordVisitContext, RecordVisitDialogComponent } from '../../shared/record-visit-dialog.component';
 
 const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
 
 @Component({
   selector: 'app-daily',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, TranslatePipe, AppDatePipe, DateInputComponent, FilterSelectComponent],
+  imports: [FormsModule, DecimalPipe, TranslatePipe, AppDatePipe, DateInputComponent, FilterSelectComponent, RecordVisitDialogComponent],
   template: `
     <div class="pagehead" style="display:flex;justify-content:space-between;align-items:center">
       <div><div class="breadcrumbs">Home / {{ 'daily' | t }}</div><h1>{{ 'daily_followup_board' | t : 'Daily Follow-up Board' }}</h1></div>
@@ -121,54 +122,9 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
       }
     </div>
 
-    <!-- Record-visit popup (SRS FR-5): visit context + sample count prefilled with the suggested value. -->
+    <!-- Record-visit popup (SRS FR-5): the shared dialog — identical fields on the daily board and the dashboard. -->
     @if (recording(); as v) {
-      <div class="overlay" (click)="closeRecord()">
-        <div class="dlg" (click)="$event.stopPropagation()">
-          <h3 style="margin:0 0 4px">{{ 'record_visit' | t : 'Record visit' }}</h3>
-          <div class="small muted" style="margin-bottom:14px">{{ v.lab }} · {{ v.labDisplayCode }}</div>
-          <div class="small muted" style="margin-bottom:12px">Scheduled {{ v.scheduledTime }} · {{ v.area ?? '—' }} · {{ v.rep ?? '—' }}</div>
-          <div class="field">
-            <label>{{ 'collector_rep' | t : 'Collector Rep' }}</label>
-            <select class="select" [(ngModel)]="recordRep" style="width:100%">
-              <option value="">—</option>
-              @for (r of collectorReps(); track r.id) { <option [value]="r.id">{{ r.fullName }}</option> }
-            </select>
-          </div>
-          <div class="field" style="margin-top:10px">
-            <label>{{ 'samples' | t : 'Samples collected' }} *</label>
-            <input type="number" min="0" class="input" [(ngModel)]="recordCount" style="width:100%">
-            @if (suggested() !== null) { <div class="small muted" style="margin-top:4px">Suggested: {{ suggested() }} (last recorded count for this lab)</div> }
-          </div>
-          <div class="grid2" style="margin-top:10px">
-            <div class="field"><label>Total Required</label><input type="number" min="0" class="input" [(ngModel)]="recordTotalRequired"></div>
-            <div class="field"><label>No of Requests</label><input type="number" min="0" class="input" [(ngModel)]="recordRequests"></div>
-          </div>
-          <div class="field" style="margin-top:10px">
-            <label>No of Outsource Samples</label>
-            <input type="number" min="0" class="input" [(ngModel)]="recordOutsource" style="width:100%">
-            <div class="small muted" style="margin-top:2px">A value &gt; 0 creates an outsource-sample row automatically.</div>
-          </div>
-          <div class="field" style="margin-top:10px">
-            <label>Notes (optional)</label>
-            <textarea class="input" rows="2" [(ngModel)]="recordNotes" style="width:100%"></textarea>
-          </div>
-          <div class="field" style="margin-top:10px">
-            <label>{{ 'documents_optional' | t : 'Documents (optional)' }}</label>
-            <input type="file" multiple accept=".pdf,image/png,image/jpeg" (change)="onAttach($event, recordAtt)">
-            <div class="small muted" style="margin-top:2px">PDF, JPG or PNG · up to 10 MB each</div>
-            @for (a of recordAtt(); track a.id) {
-              <div class="att-row"><span>📎 {{ a.fileName }}</span>
-                <button type="button" class="btn btn-mini btn-s" (click)="removeAtt(a.id, recordAtt)">✕</button></div>
-            }
-            @if (uploading()) { <div class="small muted">{{ 'uploading' | t : 'Uploading…' }}</div> }
-          </div>
-          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
-            <button class="btn btn-s" (click)="closeRecord()">{{ 'cancel' | t : 'Cancel' }}</button>
-            <button class="btn btn-p" [disabled]="busy() || uploading()" (click)="confirmRecord()">{{ 'confirm' | t : 'Confirm visit' }}</button>
-          </div>
-        </div>
-      </div>
+      <app-record-visit-dialog [ctx]="recordCtx(v)" [reps]="reps()" source="daily" (saved)="onRecorded()" (closed)="closeRecord()" />
     }
 
     <!-- Manual record: pick any lab (any status) and record a Collected visit for today. -->
@@ -199,7 +155,7 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
             <label>{{ 'collector_rep' | t : 'Collector Rep' }}</label>
             <select class="select" [(ngModel)]="manualRep" style="width:100%">
               <option value="">—</option>
-              @for (r of collectorReps(); track r.id) { <option [value]="r.id">{{ r.fullName }}</option> }
+              @for (r of manualCollectorReps(); track r.id) { <option [value]="r.id">{{ r.fullName }}</option> }
             </select>
           </div>
           <div class="field" style="margin-top:10px">
@@ -261,14 +217,6 @@ export class DailyComponent {
   readonly page = signal(1);
   readonly pageSize = signal(25);
   readonly recording = signal<BoardItem | null>(null);
-  readonly suggested = signal<number | null>(null);
-  recordCount: number | null = null;
-  recordRep = '';
-  recordTotalRequired: number | null = null;
-  recordRequests: number | null = null;
-  recordOutsource: number | null = null;
-  recordNotes = '';
-  readonly recordAtt = signal<AttachmentRef[]>([]);
   readonly uploading = signal(false);
 
   // Manual-record dialog state
@@ -286,6 +234,14 @@ export class DailyComponent {
   readonly manualAtt = signal<AttachmentRef[]>([]);
 
   readonly collectorReps = computed(() => this.reps().filter((r) => r.type === 'Collector' || r.type === 'Scanning'));
+  /** Manual-visit collector picker: only the picked lab's assigned collectors; a lab with none falls back to all. */
+  manualCollectorReps(): RepListItem[] {
+    const all = this.collectorReps();
+    const ids = new Set(this.manualLab?.collectorRepIds ?? []);
+    if (ids.size === 0) return all;
+    const assigned = all.filter((r) => ids.has(r.id));
+    return assigned.length ? assigned : all;
+  }
 
   private readonly today = localToday();
   start = this.today; end = this.today;
@@ -337,40 +293,16 @@ export class DailyComponent {
   setStatus(s: string): void { this.status.set(s); this.load(); }
   reset(): void { this.start = this.today; this.end = this.today; this.branch = this.rep = 'All'; this.gov = []; this.city = []; this.area = []; this.query = ''; this.status.set('All'); this.load(); }
 
-  // ---- Record-visit popup (SRS FR-5) ----
+  // ---- Record-visit popup (SRS FR-5) — rendered by the shared RecordVisitDialogComponent ----
 
-  openRecord(v: BoardItem): void {
-    this.recording.set(v);
-    this.recordCount = null;
-    this.recordRep = v.collectorRepId ?? '';
-    this.recordTotalRequired = null;
-    this.recordRequests = null;
-    this.recordOutsource = null;
-    this.recordNotes = '';
-    this.recordAtt.set([]);
-    this.suggested.set(null);
-    this.api.get<{ suggested: number | null }>(`/daily/${v.visitId}/suggested-count`).subscribe({
-      next: (r) => { this.suggested.set(r.suggested); if (this.recordCount === null && r.suggested !== null) this.recordCount = r.suggested; },
-    });
-  }
+  openRecord(v: BoardItem): void { this.recording.set(v); }
   closeRecord(): void { this.recording.set(null); }
-  confirmRecord(): void {
-    const v = this.recording();
-    if (!v) return;
-    if (this.recordCount === null || this.recordCount < 0) { this.toast.warning('Enter a valid sample count.'); return; }
-    this.busy.set(true);
-    this.api.post(`/daily/${v.visitId}/checkin?source=daily`, {
-      sampleCount: this.recordCount,
-      collectorRepId: this.recordRep || null,
-      totalRequired: this.recordTotalRequired,
-      requestCount: this.recordRequests,
-      outsourceCount: this.recordOutsource,
-      notes: this.recordNotes.trim() || null,
-      attachmentIds: this.recordAtt().map((a) => a.id),
-    }).subscribe({
-      next: () => { this.toast.success('Follow-up recorded.'); this.busy.set(false); this.recording.set(null); this.load(); },
-      error: () => this.busy.set(false),
-    });
+  onRecorded(): void { this.recording.set(null); this.load(); }
+  recordCtx(v: BoardItem): RecordVisitContext {
+    return {
+      visitId: v.visitId, lab: v.lab, labDisplayCode: v.labDisplayCode, scheduledTime: v.scheduledTime,
+      area: v.area, repName: v.rep, collectorRepId: v.collectorRepId, collectorRepIds: v.collectorRepIds ?? [],
+    };
   }
 
   // ---- Attachments (shared by the record + manual dialogs) ----
@@ -407,7 +339,7 @@ export class DailyComponent {
       next: (r) => { this.manualLabResults.set(r.items); this.manualSearched.set(true); },
     });
   }
-  pickManualLab(l: LabListItem): void { this.manualLab = l; this.manualLabResults.set([]); }
+  pickManualLab(l: LabListItem): void { this.manualLab = l; this.manualLabResults.set([]); this.manualRep = ''; /* the collector list is per-lab */ }
   confirmManual(): void {
     if (!this.manualLab) { this.toast.warning('Select a laboratory.'); return; }
     if (this.manualCount === null || this.manualCount < 0) { this.toast.warning('Enter a valid sample count.'); return; }

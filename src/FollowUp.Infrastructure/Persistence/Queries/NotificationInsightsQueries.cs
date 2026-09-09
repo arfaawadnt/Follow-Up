@@ -141,7 +141,9 @@ internal sealed class InsightsQueries : IInsightsQueries
         var schedule = visits.OrderBy(v => v.ScheduledTime).Take(9)
             .Select(v => new DashScheduleDto(v.Id.Value, v.ScheduledTime.ToString("HH:mm"),
                 labById.TryGetValue(v.LaboratoryId, out var l) ? l.Name : "—", l?.Area, RepOf(v.CollectorRepId),
-                v.Status.Name, v.SampleCount, v.TransferConfirmedAt != null)).ToList();
+                v.Status.Name, v.SampleCount, v.TransferConfirmedAt != null,
+                v.LaboratoryId.Value, v.CollectorRepId is { } cr ? cr.Value : (Guid?)null,
+                l?.CollectorRepIds.Select(c => c.Value).ToList() ?? new List<Guid>())).ToList();
 
         var complaints = cRaw.Select(c => new DashComplaintDto($"CMP-{c.Number}",
             labById.TryGetValue(c.LaboratoryId, out var l) ? l.Name : "—", c.Details, c.Category,

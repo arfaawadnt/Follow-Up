@@ -14,6 +14,20 @@ namespace FollowUp.Application.Features.DailyBoard.Commands;
 /// <summary>Shared loading + Layer-3 authorization for a board action on a single visit.</summary>
 internal static class VisitActionSupport
 {
+    /// <summary>
+    /// A recorded collector must be one of the lab's assigned collectors — the record dialogs offer only those, and
+    /// this is the server-side half of that rule. Policy: a lab with NO assigned collectors accepts any collector
+    /// (so recording is never blocked by an unconfigured lab); the check applies only once collectors are assigned.
+    /// </summary>
+    public static void EnsureCollectorAssignedToLab(Laboratory lab, Domain.Representatives.RepresentativeId collector)
+    {
+        if (lab.CollectorRepIds.Count > 0 && !lab.CollectorRepIds.Contains(collector))
+            throw new Common.Exceptions.ValidationException(new Dictionary<string, string[]>
+            {
+                ["collectorRepId"] = new[] { "The selected collector is not assigned to this laboratory." },
+            });
+    }
+
     public static async Task<(DailyVisit visit, Laboratory lab)> LoadAuthorizedAsync(
         Guid visitId, IDailyVisitRepository visits, ILaboratoryRepository labs, ICurrentUser user, CancellationToken ct)
     {
@@ -99,6 +113,7 @@ public sealed class CheckInVisitHandler : ICommandHandler<CheckInVisitCommand>
             var collectorRepId = new Domain.Representatives.RepresentativeId(repId);
             if (!await _reps.ExistsAsync(collectorRepId, ct))
                 throw new NotFoundException("Representative", repId);
+            VisitActionSupport.EnsureCollectorAssignedToLab(lab, collectorRepId);
             visit.ReassignCollector(collectorRepId);
         }
 
@@ -176,6 +191,7 @@ public sealed class RecordManualVisitHandler : ICommandHandler<RecordManualVisit
             collector = new Domain.Representatives.RepresentativeId(repId);
             if (!await _reps.ExistsAsync(collector.Value, ct))
                 throw new NotFoundException("Representative", repId);
+            VisitActionSupport.EnsureCollectorAssignedToLab(lab, collector.Value);
         }
 
         var today = _clock.CairoToday;
