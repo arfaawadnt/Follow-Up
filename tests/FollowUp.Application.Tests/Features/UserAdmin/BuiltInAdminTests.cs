@@ -38,11 +38,37 @@ public class BuiltInAdminTests
         var admin = BuiltInAdmin();
         var users = new FakeAppUserRepository();
         users.Store.Add(admin);
-        var handler = new DeleteUserHandler(users, new FakeCurrentUser()); // a different ManageUsers holder
+        var handler = new DeleteUserHandler(users, new FakeUserSessionRepository(), new FakeCurrentUser(),
+            new FakeClock(Now)); // a different ManageUsers holder
 
         var act = () => handler.Handle(new DeleteUserCommand(admin.Id.Value), CancellationToken.None);
 
         await act.Should().ThrowAsync<ConflictException>();
         users.Store.Should().Contain(admin);
+        admin.IsActive.Should().BeTrue("the built-in admin is neither deleted nor deactivated");
     }
+
+    [Fact]
+    public async Task Deleting_a_user_deactivates_it_and_revokes_its_sessions()
+    {
+        // IAM-009: delete is a soft-delete — the row is retained (audit subject) but the account is deactivated
+        // and its live sessions revoked, rather than hard-deleted.
+        var user = AppUser.Create("bob", new FakePasswordHasher().Hash("pw12345678"), RoleId.New());
+        var users = new FakeAppUserRepository();
+        users.Store.Add(user);
+
+        var sessions = new FakeUserSessionRepository();
+        var session = UserSession.Issue(UserSessionId.New(), user.Id, "hash", Now, Now.AddHours(10), null, null);
+        sessions.Store.Add(session);
+
+        var handler = new DeleteUserHandler(users, sessions, new FakeCurrentUser(), new FakeClock(Now.AddMinutes(5)));
+
+        await handler.Handle(new DeleteUserCommand(user.Id.Value), CancellationToken.None);
+
+        users.Store.Should().Contain(user, "a soft-deleted user is retained for audit history");
+        user.IsActive.Should().BeFalse("delete deactivates the account");
+        session.IsActive(Now.AddHours(1)).Should().BeFalse("the user's live sessions are revoked");
+    }
+
+    private static readonly DateTimeOffset Now = new(2026, 8, 15, 9, 0, 0, TimeSpan.Zero);
 }

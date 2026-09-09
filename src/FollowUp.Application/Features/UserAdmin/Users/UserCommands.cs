@@ -173,9 +173,12 @@ public sealed record DeleteUserCommand(Guid Id) : ICommand, IAuthorizedRequest
 public sealed class DeleteUserHandler : ICommandHandler<DeleteUserCommand>
 {
     private readonly IAppUserRepository _users;
+    private readonly IUserSessionRepository _sessions;
     private readonly ICurrentUser _caller;
+    private readonly IClock _clock;
 
-    public DeleteUserHandler(IAppUserRepository users, ICurrentUser caller) { _users = users; _caller = caller; }
+    public DeleteUserHandler(IAppUserRepository users, IUserSessionRepository sessions, ICurrentUser caller, IClock clock)
+    { _users = users; _sessions = sessions; _caller = caller; _clock = clock; }
 
     public async Task<Unit> Handle(DeleteUserCommand request, CancellationToken ct)
     {
@@ -187,7 +190,13 @@ public sealed class DeleteUserHandler : ICommandHandler<DeleteUserCommand>
         if (user.IsBuiltIn)
             throw new ConflictException("The built-in administrator account cannot be deleted.");
 
-        _users.Remove(user);
+        // Soft-delete (finding IAM-009): deactivating retains the user as the audit subject of their past
+        // actions (a hard delete erased it) and matches how representatives and labs are retired. Revoke the
+        // user's live sessions so their bearer tokens stop working immediately (belt to the IsActive gate).
+        user.Deactivate();
+        var now = _clock.UtcNow;
+        foreach (var session in await _sessions.GetActiveByUserAsync(user.Id, ct))
+            session.Revoke(now);
         return Unit.Value;
     }
 }
