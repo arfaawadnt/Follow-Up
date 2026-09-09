@@ -479,5 +479,19 @@ not use the MediatR pipeline (no user/auth/validation; audit via the SaveChanges
 transactions; tracing via the ActivitySources; structured outcomes). No code changed; the substantive rule stays
 test-enforced.
 
-Still open by design: the **MSG-008 / BIZ-009** decisions (recommended as-is) and the register's remaining
-**Opinions** — no code-level Blockers, Majors, or Minors remain.
+**Opinions — disposition.** The deliberate design choices among the Opinions are now recorded as ADRs:
+- **IAM-008 + PLT-015** (token has no rotation/refresh; bearer in `localStorage`) → **ADR-0013** (auth token
+  lifecycle & storage).
+- **PLT-016** (background principal = `Privileges.All`/`OrgScope.Global`) → **ADR-0014** (system principal
+  authority).
+- **STAT-013** (sync suppresses `LaboratoryStatusChanged` to avoid outbox flood) → **ADR-0015** (suppress
+  sync-derived domain events).
+
+The remaining Opinions do not warrant a standalone ADR: **STAT-014** (four Angular stats components duplicate a
+rollup) is a front-end refactoring backlog item, not a decision; **BIZ-012/013** (segment/loyalty orchestration
+in Infra runners) is the same job→service pattern already covered by **ADR-0004**; **LAB-012** (single-field lab
+setters) the auditor itself marked "encapsulation intact, no violation" — nothing to decide. The ADR index
+(`docs/adr/README.md`) was also brought current (it had drifted, omitting 0008–0012).
+
+Still open by design: only the **MSG-008 / BIZ-009** decisions (recommended as-is). **No code-level Blockers,
+Majors, or Minors remain, and every architectural Opinion is now recorded.**
