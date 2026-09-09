@@ -21,6 +21,8 @@ internal sealed class OracleConfigConfiguration : IEntityTypeConfiguration<Oracl
             .HasConversion<EncryptedStringConverter>(); // encrypted at rest (finding M-15)
         b.Property(x => x.LastStatus).HasMaxLength(500);
         b.Property(x => x.LastSyncAt);
+        b.Property(x => x.LastStatsStatus).HasMaxLength(500);
+        b.Property(x => x.LastStatsSyncAt);
 
         b.Property(x => x.Queries)
             .HasColumnName("queries")

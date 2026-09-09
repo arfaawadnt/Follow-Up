@@ -395,6 +395,7 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
         var rows = await _reader.ExecuteAsync("TestStats", window, ct);
 
         var upserted = await UpsertTestStatsAsync(rows, from, to, ct);
+        config.RecordStatsSyncResult($"teststats:ok:{upserted} [{from:yyyy-MM-dd}..{to:yyyy-MM-dd}]", _clock.UtcNow); // finding STAT-011
         await _db.SaveChangesAsync(ct); // stat mutations audited by the interceptor (JOBS-002)
 
         _logger.LogInformation("TestStats sync ({Mode}) {From:yyyy-MM-dd}..{To:yyyy-MM-dd}: {Rows} rows, {Upserted} upserted",
@@ -483,6 +484,7 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
 
         // Re-derive every lab's lifecycle status from the (now updated) full statistics history.
         var restatused = await DeriveLabStatusesAsync(ct);
+        config.RecordStatsSyncResult($"labstats:ok:{upserted},status:{restatused} [{from:yyyy-MM-dd}..{to:yyyy-MM-dd}]", _clock.UtcNow); // finding STAT-011
         await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("LabStats sync ({Mode}) {From:yyyy-MM-dd}..{To:yyyy-MM-dd}: {Rows} rows, {Upserted} upserted, {Restatused} labs restatused",
@@ -532,6 +534,7 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
                 Str(row, OracleColumns.SampleStatus), Str(row, OracleColumns.TestStatus)));
         }
         _detailed.AddRange(mapped);
+        config.RecordStatsSyncResult($"detailedstats:ok:{mapped.Count} [{from:yyyy-MM-dd}..{to:yyyy-MM-dd}]", _clock.UtcNow); // finding STAT-011
         await _db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 

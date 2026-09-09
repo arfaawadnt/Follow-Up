@@ -70,6 +70,11 @@ public sealed class OracleConfig : AggregateRoot<string>
     public DateTimeOffset? LastSyncAt { get; private set; }
     public string? LastStatus { get; private set; }
 
+    // Outcome of the date-scoped statistics sync (nightly job / page buttons), tracked separately so those runs
+    // never advance LastSyncAt and disturb the general hourly sync's due-gate (finding STAT-011).
+    public DateTimeOffset? LastStatsSyncAt { get; private set; }
+    public string? LastStatsStatus { get; private set; }
+
     public static OracleConfig Create(bool enabled, int intervalHours) =>
         new(SingletonId, enabled, ValidInterval(intervalHours));
 
@@ -95,6 +100,17 @@ public sealed class OracleConfig : AggregateRoot<string>
     {
         LastStatus = status;
         LastSyncAt = when;
+    }
+
+    /// <summary>
+    /// Records the outcome of a date-scoped statistics sync WITHOUT touching <see cref="LastSyncAt"/> — the
+    /// statistics feeds run on their own windows (nightly job / page buttons) and must not shift the general
+    /// hourly sync's due-gate (finding STAT-011).
+    /// </summary>
+    public void RecordStatsSyncResult(string status, DateTimeOffset when)
+    {
+        LastStatsStatus = status;
+        LastStatsSyncAt = when;
     }
 
     private static int ValidInterval(int hours) =>
