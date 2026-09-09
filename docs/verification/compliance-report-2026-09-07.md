@@ -446,11 +446,30 @@ inactive. Verified: Domain 76 · Application 114 · Architecture 22 · Integrati
 Api 18 = 303 passed / 0 failed / 0 skipped; build 0W/0E; format gate clean; no EF drift.** (STAT-008/009 share
 one commit — they touch `OracleSyncRunner` in interleaved regions.)
 
+### Phase 4 (cont.) — Minors tranche K (schema-migration group)
+
+Five migrations, each reversible (Down defined) and applied single-pass on a fresh throwaway DB (46 total).
+
+| ID | Fix | Test |
+|---|---|---|
+| **LAB-010** | `city→area` FK Cascade→Restrict — deleting a city no longer silently deletes its areas | `SchemaConstraintsTests` (23503) |
+| **LAB-009** | Partial-unique index on Oracle `source_code` for representative/city/area (nulls unconstrained) — the mirror can't create duplicates | `SchemaConstraintsTests` |
+| **BIZ-008** | CHECK constraints on the outsource/segment tables (`quantity > 0`; segment income band non-negative + upper≥lower), matching the domain invariants | `SchemaConstraintsTests` (23514) |
+| **PLT-012** | Retention run purges idempotency records past a 7-day window; a `created_at` index supports it | `JobsTests` |
+| **STAT-011** | Date-scoped stats runners record their outcome in a dedicated `LastStatsStatus`/`LastStatsSyncAt` column pair — never touching the general sync's due-gate `LastSyncAt` | `OracleConfigTests` |
+
+**Verification after tranche K (fresh DB): Api 18 · Domain 77 · Application 114 · Architecture 22 · Integration 77
+= 308 passed / 0 failed / 0 skipped; build 0W/0E; format gate clean; 46 migrations single-pass; no EF drift.**
+
+**Pre-deploy note for LAB-009:** the unique-index build fails if prod holds duplicate non-null `source_code`
+values — verify none exist first (a duplicate is itself a data problem to resolve). The other four are unconditional.
+(LAB-009/LAB-010/BIZ-008 share one commit — they touch `ReferenceConfigurations` and the constraint test file.)
+
 ### Cumulative status across cycle-3 remediation
 All **7 Blockers** and **19 Majors** are fixed and committed on `remediation/cycle3-scope-and-blockers`
-(one atomic commit per finding, nothing pushed), plus five **Minors** batches: Gate-3 (TS4111 + C# format), PLT-013,
+(one atomic commit per finding, nothing pushed), plus six **Minors** batches: Gate-3 (TS4111 + C# format), PLT-013,
 IAM-006, OPS-007, STAT-012, OPS-009, IAM-010, BIZ-010, OPS-006, IAM-007, OPS-008, MSG-010, PLT-014, MSG-009,
-IAM-009 (soft-delete), STAT-009, STAT-008.
+IAM-009 (soft-delete), STAT-009, STAT-008, LAB-009, LAB-010, BIZ-008, PLT-012, STAT-011.
 Still open by design: **M-JOB / ADR-0004** (the job-services pattern — refactor vs. record as an accepted
 exception), the MSG-008 / BIZ-009 decisions (recommended as-is), the schema-migration Minors
 (LAB-009, LAB-010, BIZ-008, PLT-012, STAT-011), and the register's remaining **Opinions**.
