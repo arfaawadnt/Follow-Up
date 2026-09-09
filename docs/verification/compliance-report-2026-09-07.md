@@ -470,6 +470,14 @@ All **7 Blockers** and **19 Majors** are fixed and committed on `remediation/cyc
 (one atomic commit per finding, nothing pushed), plus six **Minors** batches: Gate-3 (TS4111 + C# format), PLT-013,
 IAM-006, OPS-007, STAT-012, OPS-009, IAM-010, BIZ-010, OPS-006, IAM-007, OPS-008, MSG-010, PLT-014, MSG-009,
 IAM-009 (soft-delete), STAT-009, STAT-008, LAB-009, LAB-010, BIZ-008, PLT-012, STAT-011.
-Still open by design: **M-JOB / ADR-0004** (the job-services pattern — refactor vs. record as an accepted
-exception), the MSG-008 / BIZ-009 decisions (recommended as-is), the schema-migration Minors
-(LAB-009, LAB-010, BIZ-008, PLT-012, STAT-011), and the register's remaining **Opinions**.
+
+**M-JOB / ADR-0004 — resolved (decision: record the design).** The job→service delegation was a doc↔code
+contradiction: ADR-0004's prose said jobs "resolve a MediatR command", but they delegate to Infrastructure job
+services (which the architecture test already accepts — "delegate to a use case/service; never own persistence").
+ADR-0004 has been revised to record the actual, deliberate design and the rationale for why system batch jobs do
+not use the MediatR pipeline (no user/auth/validation; audit via the SaveChanges interceptor; explicit
+transactions; tracing via the ActivitySources; structured outcomes). No code changed; the substantive rule stays
+test-enforced.
+
+Still open by design: the **MSG-008 / BIZ-009** decisions (recommended as-is) and the register's remaining
+**Opinions** — no code-level Blockers, Majors, or Minors remain.
