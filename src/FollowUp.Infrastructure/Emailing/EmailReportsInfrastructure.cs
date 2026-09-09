@@ -73,8 +73,18 @@ internal sealed class StatsEmailSubscriptionQueries : IStatsEmailSubscriptionQue
 public sealed class StatsEmailJobRunner
 {
     private readonly IStatsEmailRunner _runner;
-    public StatsEmailJobRunner(IStatsEmailRunner runner) => _runner = runner;
-    public Task RunAsync(Guid subscriptionId, CancellationToken ct) => _runner.RunAsync(new StatsEmailSubscriptionId(subscriptionId), ct);
+    private readonly IRecurringJobManager _jobs;
+    public StatsEmailJobRunner(IStatsEmailRunner runner, IRecurringJobManager jobs) { _runner = runner; _jobs = jobs; }
+
+    public async Task RunAsync(Guid subscriptionId, CancellationToken ct)
+    {
+        var result = await _runner.RunAsync(new StatsEmailSubscriptionId(subscriptionId), ct);
+        // Self-heal an orphaned schedule: the Hangfire job and the subscription row are a dual write, so a
+        // rolled-back create can leave a recurring job whose subscription never persisted (finding MSG-009).
+        // When the job fires and finds no subscription, it removes itself instead of firing a no-op forever.
+        if (result.Status == "not-found")
+            _jobs.RemoveIfExists(StatsEmailScheduler.JobId(subscriptionId));
+    }
 }
 
 internal sealed class StatsEmailScheduler : IStatsEmailScheduler
@@ -84,7 +94,7 @@ internal sealed class StatsEmailScheduler : IStatsEmailScheduler
     private static readonly TimeZoneInfo Cairo = ResolveCairo();
     public StatsEmailScheduler(IRecurringJobManager jobs, IStatsEmailSubscriptionRepository repo) { _jobs = jobs; _repo = repo; }
 
-    private static string JobId(Guid id) => $"stats-email-{id}";
+    internal static string JobId(Guid id) => $"stats-email-{id}";
 
     public void Schedule(StatsEmailSubscription s)
     {
