@@ -18,28 +18,6 @@ namespace FollowUp.Infrastructure.Jobs;
 /// </summary>
 public sealed class OracleSyncRunner : IOracleSyncRunner
 {
-    private static readonly string[] AllowList =
-    {
-        "LabStats", "TestStats", "Groups", "Tests",
-        "Governorates", "Cities", "Areas", "LabCategories", "Branches", "Reps", "Labs",
-    };
-
-    // Feeds run in dependency order: geography/reference before the records that resolve against them.
-    private static readonly Dictionary<string, int> FeedOrder = new()
-    {
-        ["Governorates"] = 0,
-        ["LabCategories"] = 1,
-        ["Branches"] = 2,
-        ["Cities"] = 3,
-        ["Areas"] = 4,
-        ["Reps"] = 5,
-        ["Groups"] = 6,
-        ["Tests"] = 7,
-        ["Labs"] = 8,
-        ["LabStats"] = 9,
-        ["TestStats"] = 10,
-    };
-
     private readonly IOracleConfigRepository _configRepo;
     private readonly IOracleReader _reader;
     private readonly ITestStatisticRepository _testStats;
@@ -89,12 +67,13 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
         if (!manual && !config.IsDue(_clock.UtcNow))
             return new OracleSyncResult(false, "not-due", 0, 0);
 
-        // Re-validate the allow-list at run time; run feeds in dependency order (groups before tests).
-        // TestStats and LabStats are excluded here — each runs on its own date-scoped path (nightly "yesterday"
-        // job + a page button), so the general sync never pulls the multi-year statistics history.
+        // Run only the general-sync (reference/catalogue) feeds, in their declared dependency order. The
+        // statistics feeds (TestStats/LabStats/DetailedStats/NoLabTests) are excluded by construction — each runs
+        // on its own date-scoped path (nightly "yesterday" job + page buttons), so the general sync never pulls
+        // the multi-year statistics history (single-sourced in OracleFeeds — finding STAT-009).
         var runnable = config.Queries
-            .Where(q => AllowList.Contains(q.Name) && q.Name != "TestStats" && q.Name != "LabStats")
-            .OrderBy(q => FeedOrder.TryGetValue(q.Name, out var o) ? o : 99)
+            .Where(q => OracleFeeds.GeneralSync.Contains(q.Name))
+            .OrderBy(q => Array.IndexOf(OracleFeeds.GeneralSync, q.Name))
             .ToList();
         if (runnable.Count == 0)
         {
@@ -110,9 +89,9 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
             var rows = await _reader.ExecuteAsync(query.Name, ct);
             (int up, int rem) r = query.Name switch
             {
-                "Governorates" => await MirrorRefItemsAsync(rows, RefType.Governorate, "GOVERNCATE_CODE", "GOVERNCATE_NAME", ct),
-                "Branches" => await MirrorRefItemsAsync(rows, RefType.Branch, "BRANCH_CODE", "BRANCH_NAME", ct),
-                "LabCategories" => await MirrorRefItemsAsync(rows, RefType.LabCategory, "CATEGORY_ID", "CATEGORY_NAME", ct),
+                "Governorates" => await MirrorRefItemsAsync(rows, RefType.Governorate, OracleColumns.GovernorateCode, OracleColumns.GovernorateName, ct),
+                "Branches" => await MirrorRefItemsAsync(rows, RefType.Branch, OracleColumns.BranchCode, OracleColumns.BranchName, ct),
+                "LabCategories" => await MirrorRefItemsAsync(rows, RefType.LabCategory, OracleColumns.CategoryId, OracleColumns.CategoryName, ct),
                 "Cities" => await MirrorCitiesAsync(rows, ct),
                 "Areas" => await MirrorAreasAsync(rows, ct),
                 "Reps" => await MirrorRepsAsync(rows, ct),
@@ -158,9 +137,9 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
 
         foreach (var row in rows)
         {
-            var code = Str(row, "GROUP_CODE");
+            var code = Str(row, OracleColumns.GroupCode);
             if (string.IsNullOrWhiteSpace(code)) continue;
-            var name = Str(row, "GROUP_NAME");
+            var name = Str(row, OracleColumns.GroupName);
             seen.Add(code);
             if (existing.TryGetValue(code, out var group)) group.ApplyOracle(name);
             else _groups.Add(TestGroup.FromOracle(code, name));
@@ -194,16 +173,16 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
 
         foreach (var row in rows)
         {
-            var code = Str(row, "TEST_CODE")?.Trim().ToUpperInvariant();
+            var code = Str(row, OracleColumns.TestCode)?.Trim().ToUpperInvariant();
             if (string.IsNullOrWhiteSpace(code)) continue;
-            var type = Int(row, "TEST_TYPE");
-            var name = Str(row, "TEST_NAME");
-            var cost = new Money(Math.Max(0m, Dec(row, "COST")));
+            var type = Int(row, OracleColumns.TestType);
+            var name = Str(row, OracleColumns.TestName);
+            var cost = new Money(Math.Max(0m, Dec(row, OracleColumns.Cost)));
 
             // Resolve the group by Oracle group_code, but ONLY to an active (synced) group. Tests whose group
             // is hidden/absent are left unlinked so the Groups page stays strictly VISIBLE=1.
             TestGroupId? groupId = null;
-            var groupCode = Str(row, "GROUP_CODE");
+            var groupCode = Str(row, OracleColumns.GroupCode);
             if (!string.IsNullOrWhiteSpace(groupCode) && groupsByCode.TryGetValue(groupCode, out var grp))
                 groupId = grp.Id;
 
@@ -259,10 +238,10 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
         var up = 0;
         foreach (var row in rows)
         {
-            var code = Str(row, "CITY_CODE");
+            var code = Str(row, OracleColumns.CityCode);
             if (string.IsNullOrWhiteSpace(code)) continue;
-            var name = Str(row, "CITY_NAME") ?? code;
-            var gov = Lookup(govName, Str(row, "GOVERNCATE_CODE")) ?? "-";
+            var name = Str(row, OracleColumns.CityName) ?? code;
+            var gov = Lookup(govName, Str(row, OracleColumns.GovernorateCode)) ?? "-";
             seen.Add(code);
             if (existing.TryGetValue(code, out var city)) city.ApplyOracle(name, gov);
             else _cities.Add(City.FromOracle(code, name, gov));
@@ -286,11 +265,11 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
         var up = 0;
         foreach (var row in rows)
         {
-            var code = Str(row, "AREA_CODE");
+            var code = Str(row, OracleColumns.AreaCode);
             if (string.IsNullOrWhiteSpace(code)) continue;
-            var cityCode = Str(row, "CITY_CODE");
+            var cityCode = Str(row, OracleColumns.CityCode);
             if (cityCode is null || !cityIdByCode.TryGetValue(cityCode, out var cityId)) continue; // needs a resolvable city
-            var name = Str(row, "AREA_NAME") ?? code;
+            var name = Str(row, OracleColumns.AreaName) ?? code;
             seen.Add(code);
             if (existing.TryGetValue(code, out var area)) area.ApplyOracle(name, cityId);
             else _areas.Add(Area.FromOracle(code, name, cityId));
@@ -313,9 +292,9 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
         var up = 0;
         foreach (var row in rows)
         {
-            var code = Str(row, "REP_CODE");
+            var code = Str(row, OracleColumns.RepCode);
             if (string.IsNullOrWhiteSpace(code)) continue;
-            var name = Str(row, "REP_NAME") ?? code;
+            var name = Str(row, OracleColumns.RepName) ?? code;
             seen.Add(code);
             if (existing.TryGetValue(code, out var rep)) rep.ApplyOracle(name);
             else _repsRepo.Add(Representative.FromOracle(code, name));
@@ -347,17 +326,17 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
         var up = 0;
         foreach (var row in rows)
         {
-            var raw = Str(row, "LAB_CODE");
+            var raw = Str(row, OracleColumns.LabCode);
             if (string.IsNullOrWhiteSpace(raw)) continue;
             var code = raw.Trim().ToUpperInvariant();
-            var name = Str(row, "LAB_NAME") ?? code;
-            var gov = Lookup(govName, Str(row, "GOVERNCATE"));
-            var city = Lookup(cityName, Str(row, "CITY"));
-            var area = Lookup(areaName, Str(row, "AREA"));
-            var category = Lookup(catName, Str(row, "CATEGORY_ID"));
-            var address = Str(row, "ADDRESS");
+            var name = Str(row, OracleColumns.LabName) ?? code;
+            var gov = Lookup(govName, Str(row, OracleColumns.Governorate));
+            var city = Lookup(cityName, Str(row, OracleColumns.City));
+            var area = Lookup(areaName, Str(row, OracleColumns.Area));
+            var category = Lookup(catName, Str(row, OracleColumns.CategoryId));
+            var address = Str(row, OracleColumns.Address);
             RepresentativeId? collectorRepId = null;
-            var repCode = Str(row, "COLLECTOR_REP_CODE");
+            var repCode = Str(row, OracleColumns.CollectorRepCode);
             if (repCode is not null && repIdByCode.TryGetValue(repCode, out var rid)) collectorRepId = rid;
 
             seen.Add(code);
@@ -440,17 +419,17 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
         foreach (var row in rows)
         {
             var v = row.Values;
-            if (!v.TryGetValue("THE_DATE", out var dateObj) || dateObj is null)
+            if (!v.TryGetValue(OracleColumns.TheDate, out var dateObj) || dateObj is null)
                 continue;
-            var code = (v.TryGetValue("TEST_CODE", out var codeObj) ? Convert.ToString(codeObj) : null)?.Trim();
+            var code = (v.TryGetValue(OracleColumns.TestCode, out var codeObj) ? Convert.ToString(codeObj) : null)?.Trim();
             if (string.IsNullOrWhiteSpace(code))
                 continue;
 
             var date = DateOnly.FromDateTime(Convert.ToDateTime(dateObj));
-            var testType = v.TryGetValue("TEST_TYPE", out var typeObj) && typeObj is not null ? Convert.ToInt32(typeObj) : 0;
-            var branch = ((v.TryGetValue("BRANCH", out var brObj) && brObj is not null ? Convert.ToString(brObj) : null) ?? "").Trim();
-            var count = v.TryGetValue("TEST_COUNT", out var cntObj) && cntObj is not null ? Convert.ToInt32(cntObj) : 0;
-            var incomeAmount = v.TryGetValue("TEST_INCOME", out var incObj) && incObj is not null ? Convert.ToDecimal(incObj) : 0m;
+            var testType = v.TryGetValue(OracleColumns.TestType, out var typeObj) && typeObj is not null ? Convert.ToInt32(typeObj) : 0;
+            var branch = ((v.TryGetValue(OracleColumns.Branch, out var brObj) && brObj is not null ? Convert.ToString(brObj) : null) ?? "").Trim();
+            var count = v.TryGetValue(OracleColumns.TestCount, out var cntObj) && cntObj is not null ? Convert.ToInt32(cntObj) : 0;
+            var incomeAmount = v.TryGetValue(OracleColumns.TestIncome, out var incObj) && incObj is not null ? Convert.ToDecimal(incObj) : 0m;
             var income = new Money(incomeAmount < 0m ? 0m : incomeAmount);
             var testCode = code.ToUpperInvariant();
 
@@ -544,13 +523,13 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
         var mapped = new List<DetailedRegistration>(rows.Count);
         foreach (var row in rows)
         {
-            if (!row.Values.TryGetValue("REG_DT", out var dObj) || dObj is null) continue;
+            if (!row.Values.TryGetValue(OracleColumns.RegDate, out var dObj) || dObj is null) continue;
             var date = DateOnly.FromDateTime(Convert.ToDateTime(dObj));
             mapped.Add(DetailedRegistration.Create(
-                date, Str(row, "LAB_CODE"), Str(row, "REG_BRANCH_CODE"), Str(row, "ACC_NO"), Str(row, "PATIENT_NAME"),
-                Str(row, "TEST_CODE"), Int(row, "TEST_TYPE"), Str(row, "TEST_NAME"),
-                Dec(row, "PATIENT_FEE"), Dec(row, "INSURANCE_FEE"),
-                Str(row, "SAMPLE_STATUS"), Str(row, "TEST_STATUS")));
+                date, Str(row, OracleColumns.LabCode), Str(row, OracleColumns.RegBranchCode), Str(row, OracleColumns.AccessionNo), Str(row, OracleColumns.PatientName),
+                Str(row, OracleColumns.TestCode), Int(row, OracleColumns.TestType), Str(row, OracleColumns.TestName),
+                Dec(row, OracleColumns.PatientFee), Dec(row, OracleColumns.InsuranceFee),
+                Str(row, OracleColumns.SampleStatus), Str(row, OracleColumns.TestStatus)));
         }
         _detailed.AddRange(mapped);
         await _db.SaveChangesAsync(ct);
@@ -651,17 +630,17 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
         foreach (var row in rows)
         {
             var v = row.Values;
-            if (!v.TryGetValue("THE_DATE", out var dateObj) || dateObj is null)
+            if (!v.TryGetValue(OracleColumns.TheDate, out var dateObj) || dateObj is null)
                 continue;
-            var code = (v.TryGetValue("LAB_CODE", out var codeObj) ? Convert.ToString(codeObj) : null)?.Trim();
+            var code = (v.TryGetValue(OracleColumns.LabCode, out var codeObj) ? Convert.ToString(codeObj) : null)?.Trim();
             if (string.IsNullOrWhiteSpace(code))
                 continue;
 
             var date = DateOnly.FromDateTime(Convert.ToDateTime(dateObj));
             var labCode = code.ToUpperInvariant();
-            var reg = v.TryGetValue("REG_COUNT", out var rc) && rc is not null ? Convert.ToInt32(rc) : 0;
-            var test = v.TryGetValue("TEST_COUNT", out var tc) && tc is not null ? Convert.ToInt32(tc) : 0;
-            var inc = v.TryGetValue("INCOME", out var ic) && ic is not null ? Convert.ToDecimal(ic) : 0m;
+            var reg = v.TryGetValue(OracleColumns.RegCount, out var rc) && rc is not null ? Convert.ToInt32(rc) : 0;
+            var test = v.TryGetValue(OracleColumns.TestCount, out var tc) && tc is not null ? Convert.ToInt32(tc) : 0;
+            var inc = v.TryGetValue(OracleColumns.Income, out var ic) && ic is not null ? Convert.ToDecimal(ic) : 0m;
 
             var key = (date, labCode);
             var cur = agg.TryGetValue(key, out var x) ? x : default;

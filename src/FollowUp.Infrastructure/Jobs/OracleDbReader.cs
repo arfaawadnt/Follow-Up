@@ -171,12 +171,6 @@ public static class OracleDefaultQueries
 /// </summary>
 public sealed class OracleDbReader : IOracleReader
 {
-    private static readonly string[] AllowList =
-    {
-        "LabStats", "TestStats", "NoLabTests", "DetailedStats", "Groups", "Tests",
-        "Governorates", "Cities", "Areas", "LabCategories", "Branches", "Reps", "Labs",
-    };
-
     private readonly IOracleConfigRepository _configRepo;
     private readonly ILogger<OracleDbReader> _logger;
 
@@ -204,7 +198,7 @@ public sealed class OracleDbReader : IOracleReader
         }
 
         // Re-validate the allow-list and the SQL fingerprint at run time (tamper guard, SRS FR-17).
-        if (!AllowList.Contains(queryName))
+        if (!OracleFeeds.All.Contains(queryName))
             throw new InvalidOperationException($"Query '{queryName}' is not allow-listed.");
         var q = cfg.Queries.FirstOrDefault(x => x.Name == queryName);
         if (q is null)
