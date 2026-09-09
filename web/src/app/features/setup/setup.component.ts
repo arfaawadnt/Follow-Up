@@ -6,6 +6,7 @@ import { AuthService } from '../../core/auth.service';
 import { ToastService } from '../../core/toast.service';
 import { PagedResult, RepListItem } from '../../core/models';
 import { FilterSelectComponent } from '../../shared/filter-select.component';
+import { TranslatePipe } from '../../core/i18n';
 
 interface RefItem { id: string; type: string; code: string; nameEn: string; nameAr: string | null; realName: string | null; sortOrder: number; source: string; targetIncomeFrom: number | null; targetIncomeTo: number | null; }
 interface City { id: string; name: string; governorate: string; realName: string | null; source: string; }
@@ -42,7 +43,7 @@ const TABS: { key: Tab; label: string }[] = [
 @Component({
   selector: 'app-setup',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, FilterSelectComponent],
+  imports: [FormsModule, DecimalPipe, FilterSelectComponent, TranslatePipe],
   template: `
     <div class="pagehead" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
       <div><div class="breadcrumbs">Home / Setup & Configuration</div><h1>Setup &amp; Configuration</h1></div>
@@ -178,17 +179,17 @@ const TABS: { key: Tab; label: string }[] = [
           <select class="select" [(ngModel)]="areaCity" [disabled]="!canEdit()">
             <option value="">—</option>@for (c of cities(); track c.id) { <option [value]="c.id">{{ c.name }}</option> }
           </select>
-          <label class="lbl" style="margin-top:10px">Area Manager</label>
-          <app-filter-select [(ngModel)]="areaManager" [options]="managerOptions()" [clearable]="true" placeholder="—" searchPlaceholder="Search managers…" [disabled]="!canEdit()"></app-filter-select>
-          <label class="lbl" style="margin-top:10px">Area Responsible</label>
-          <app-filter-select [(ngModel)]="areaResponsible" [options]="responsibleOptions()" [clearable]="true" placeholder="—" searchPlaceholder="Search responsibles…" [disabled]="!canEdit()"></app-filter-select>
+          <label class="lbl" style="margin-top:10px">{{ 'area_manager' | t : 'Area Manager' }}</label>
+          <app-filter-select [(ngModel)]="areaManager" [options]="managerOptions()" [clearable]="true" placeholder="—" [searchPlaceholder]="'search_managers' | t : 'Search managers…'" [disabled]="!canEdit()"></app-filter-select>
+          <label class="lbl" style="margin-top:10px">{{ 'area_responsible' | t : 'Area Responsible' }}</label>
+          <app-filter-select [(ngModel)]="areaResponsible" [options]="responsibleOptions()" [clearable]="true" placeholder="—" [searchPlaceholder]="'search_responsibles' | t : 'Search responsibles…'" [disabled]="!canEdit()"></app-filter-select>
           <label class="chk" style="margin-top:10px"><input type="checkbox" [(ngModel)]="areaTransport" [disabled]="!canEdit()"> Transportation required</label>
           <button class="btn btn-p" style="margin-top:14px" [disabled]="!areaName.trim() || !areaCity || busy() || !canEdit()" (click)="addArea()">Add</button>
         </div>
         <div class="card panel">
           <div class="setup-toolbar"><h3 style="margin:0">Current Items</h3><input class="input srch" [ngModel]="q()" (ngModelChange)="q.set($event)" placeholder="Search…"><span class="cnt">{{ areasF().length }}/{{ areas().length }}</span></div>
           <table class="items">
-            <thead><tr><th>Area</th><th>City</th><th>Real Name</th><th>Area Manager</th><th>Area Responsible</th><th>Transport</th><th style="width:80px">Source</th><th class="ar">Actions</th></tr></thead>
+            <thead><tr><th>Area</th><th>City</th><th>Real Name</th><th>{{ 'area_manager' | t : 'Area Manager' }}</th><th>{{ 'area_responsible' | t : 'Area Responsible' }}</th><th>Transport</th><th style="width:80px">Source</th><th class="ar">Actions</th></tr></thead>
             <tbody>
               @for (a of areasF(); track a.id) {
                 <tr>
@@ -199,8 +200,8 @@ const TABS: { key: Tab; label: string }[] = [
                     } @else { {{ cityName2(a.cityId) }} }
                   </td>
                   <td>@if (editId() === a.id) { <input class="input" [(ngModel)]="editRealName" placeholder="optional real name"> } @else { {{ a.realName || '—' }} }</td>
-                  <td>@if (editId() === a.id) { <app-filter-select [(ngModel)]="editManager" [options]="managerOptions()" [clearable]="true" placeholder="—" searchPlaceholder="Search managers…"></app-filter-select> } @else { {{ repName(a.areaManagerId) }} }</td>
-                  <td>@if (editId() === a.id) { <app-filter-select [(ngModel)]="editResponsible" [options]="responsibleOptions()" [clearable]="true" placeholder="—" searchPlaceholder="Search responsibles…"></app-filter-select> } @else { {{ repName(a.areaResponsibleId) }} }</td>
+                  <td>@if (editId() === a.id) { <app-filter-select [(ngModel)]="editManager" [options]="managerOptions()" [clearable]="true" placeholder="—" [searchPlaceholder]="'search_managers' | t : 'Search managers…'"></app-filter-select> } @else { {{ repName(a.areaManagerId) }} }</td>
+                  <td>@if (editId() === a.id) { <app-filter-select [(ngModel)]="editResponsible" [options]="responsibleOptions()" [clearable]="true" placeholder="—" [searchPlaceholder]="'search_responsibles' | t : 'Search responsibles…'"></app-filter-select> } @else { {{ repName(a.areaResponsibleId) }} }</td>
                   <td>
                     @if (editId() === a.id) { <input type="checkbox" [(ngModel)]="editTransport"> }
                     @else { {{ a.transportationRequired ? 'Yes' : 'No' }} }
