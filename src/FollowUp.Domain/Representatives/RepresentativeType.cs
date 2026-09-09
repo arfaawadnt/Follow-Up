@@ -17,6 +17,12 @@ public sealed class RepresentativeType : Enumeration
     /// <summary>Discovers and onboards new client labs.</summary>
     public static readonly RepresentativeType Scanning = new(4, nameof(Scanning));
 
+    /// <summary>Day-to-day owner of an area's operations; assignable as an <see cref="Reference.Area"/>'s responsible.</summary>
+    public static readonly RepresentativeType AreaResponsible = new(5, nameof(AreaResponsible));
+
+    /// <summary>Manages an area's team and results; assignable as an <see cref="Reference.Area"/>'s manager.</summary>
+    public static readonly RepresentativeType AreaManager = new(6, nameof(AreaManager));
+
     private RepresentativeType(int id, string name) : base(id, name) { }
 }
 

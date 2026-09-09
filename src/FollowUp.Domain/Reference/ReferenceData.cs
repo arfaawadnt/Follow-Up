@@ -199,6 +199,10 @@ public sealed class Area : AggregateRoot<AreaId>, IAuditable
     public CityId CityId { get; private set; }
     public bool TransportationRequired { get; private set; }
     public IReadOnlyCollection<RepresentativeId> TransferReps => _transferReps.AsReadOnly();
+    /// <summary>The representative (type <c>AreaManager</c>) who manages this area; null when unassigned.</summary>
+    public RepresentativeId? AreaManagerId { get; private set; }
+    /// <summary>The representative (type <c>AreaResponsible</c>) responsible for this area day to day; null when unassigned.</summary>
+    public RepresentativeId? AreaResponsibleId { get; private set; }
     /// <summary>An operator-maintained "real" display name, never touched by the Oracle sync (SRS FR-18).</summary>
     public string? RealName { get; private set; }
     /// <summary>Oracle AREA_CODE for records mirrored from Oracle; null for manual entries.</summary>
@@ -242,6 +246,12 @@ public sealed class Area : AggregateRoot<AreaId>, IAuditable
         _transferReps.Clear();
         _transferReps.AddRange(reps.Distinct());
     }
+
+    /// <summary>Assigns (or clears, with null) the area's manager. Type/existence is validated by the caller.</summary>
+    public void AssignManager(RepresentativeId? repId) => AreaManagerId = repId;
+
+    /// <summary>Assigns (or clears, with null) the area's responsible. Type/existence is validated by the caller.</summary>
+    public void AssignResponsible(RepresentativeId? repId) => AreaResponsibleId = repId;
 
     /// <summary>Sets the operator-maintained real name. Independent of Oracle sync (never overwritten by ApplyOracle).</summary>
     public void SetRealName(string? realName) => RealName = string.IsNullOrWhiteSpace(realName) ? null : realName.Trim();
