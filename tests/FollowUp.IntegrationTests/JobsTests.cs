@@ -353,6 +353,37 @@ public sealed class JobsTests
         }
     }
 
+    [SkippableFact]
+    public async Task Retention_purges_expired_idempotency_records()
+    {
+        // PLT-012: idempotency records had no retention. The retention run now deletes ones past the 7-day window
+        // while keeping recent ones (so an in-flight client retry still returns the first result).
+        Skip.IfNot(_fx.DatabaseAvailable, "FOLLOWUP_DB not set.");
+        await _fx.ResetAsync();
+
+        var oldKey = "idem-old-" + Guid.NewGuid().ToString("N");
+        var freshKey = "idem-new-" + Guid.NewGuid().ToString("N");
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FollowUpDbContext>();
+            db.IdempotencyRecords.Add(new FollowUp.Infrastructure.Persistence.Idempotency.IdempotencyRecord
+            { Key = oldKey, RequestType = "X", CreatedAt = DateTimeOffset.UtcNow.AddDays(-30) });
+            db.IdempotencyRecords.Add(new FollowUp.Infrastructure.Persistence.Idempotency.IdempotencyRecord
+            { Key = freshKey, RequestType = "X", CreatedAt = DateTimeOffset.UtcNow });
+            await db.SaveChangesAsync();
+        }
+
+        using (var scope = _fx.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<RetentionService>().PurgeAsync();
+
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<FollowUpDbContext>();
+            (await db.IdempotencyRecords.AnyAsync(r => r.Key == oldKey)).Should().BeFalse("older than the 7-day window");
+            (await db.IdempotencyRecords.AnyAsync(r => r.Key == freshKey)).Should().BeTrue("within the retention window");
+        }
+    }
+
     private async Task<Guid> Send(CreateLaboratoryCommand cmd)
     {
         using var scope = _fx.Services.CreateScope();

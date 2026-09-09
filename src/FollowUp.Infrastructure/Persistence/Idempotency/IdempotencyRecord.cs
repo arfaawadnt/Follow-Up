@@ -25,5 +25,7 @@ internal sealed class IdempotencyRecordConfiguration : IEntityTypeConfiguration<
         b.Property(x => x.RequestType).HasMaxLength(200);
         b.Property(x => x.ResponseJson).HasColumnType("jsonb");
         b.Property(x => x.CreatedAt);
+        // Supports the retention purge of expired keys (finding PLT-012).
+        b.HasIndex(x => x.CreatedAt);
     }
 }

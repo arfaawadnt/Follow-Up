@@ -19,6 +19,9 @@ public sealed class RetentionService : IRetentionRunner
     // unbound for this long is an abandoned upload whose bytes can be reclaimed (finding OPS-008).
     private static readonly TimeSpan OrphanAttachmentMaxAge = TimeSpan.FromHours(24);
 
+    // Idempotency records only need to outlive a client's retry window; a week is generous (finding PLT-012).
+    private static readonly TimeSpan IdempotencyRetention = TimeSpan.FromDays(7);
+
     private readonly FollowUpDbContext _db;
     private readonly IAppSettingRepository _settings;
     private readonly IAttachmentStorage _attachments;
@@ -37,8 +40,9 @@ public sealed class RetentionService : IRetentionRunner
 
     public async Task<int> PurgeAsync(CancellationToken ct = default)
     {
-        // Always sweep abandoned uploads, independent of whether a retention window is configured.
+        // Always sweep abandoned uploads and expired idempotency keys, independent of the retention window.
         await SweepOrphanAttachmentsAsync(ct);
+        await PurgeExpiredIdempotencyAsync(ct);
 
         var setting = await _settings.GetAsync("retention.days", ct);
         if (!int.TryParse(setting?.Value, out var days))
@@ -88,5 +92,19 @@ DELETE FROM audit_entry WHERE occurred_at < {cutoff};", ct);
 
         _logger.LogInformation("Swept {Count} orphaned (never-bound) visit attachments older than {Cutoff:O}", orphans.Count, cutoff);
         return orphans.Count;
+    }
+
+    /// <summary>
+    /// Deletes idempotency records past their retention window (finding PLT-012). They exist only to make a
+    /// client retry return the first result; once no client would retry that far back, the row is dead weight.
+    /// </summary>
+    private async Task<int> PurgeExpiredIdempotencyAsync(CancellationToken ct)
+    {
+        var cutoff = _clock.UtcNow - IdempotencyRetention;
+        var removed = await _db.Database.ExecuteSqlInterpolatedAsync(
+            $"DELETE FROM idempotency_record WHERE created_at < {cutoff}", ct);
+        if (removed > 0)
+            _logger.LogInformation("Purged {Count} idempotency records older than {Cutoff:O}", removed, cutoff);
+        return removed;
     }
 }
