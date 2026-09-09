@@ -97,6 +97,81 @@ public class OperationalModulesTests
         visit.CollectorRepId.Should().Be(rep.Id);
     }
 
+    // ---- Collector must be one of the lab's assigned collectors (the record dialogs offer only those) ----
+
+    private static Representative Collector(string name) =>
+        Representative.Register(name, RepresentativeType.Collector, GoalDuration.Monthly, new Domain.Common.Money(0), new Domain.Common.Money(0));
+
+    [Fact]
+    public async Task Check_in_rejects_a_collector_not_assigned_to_the_lab()
+    {
+        var (labs, lab) = SeedLab();
+        var assigned = Collector("Assigned"); var other = Collector("Other");
+        var reps = new FakeRepresentativeRepository(); reps.Store.Add(assigned); reps.Store.Add(other);
+        lab.AssignCollectors(new[] { assigned.Id }); // the lab HAS assigned collectors → the rule applies
+        var visit = DailyVisit.Schedule(lab.Id, assigned.Id, Today, new TimeOnly(9, 0));
+        var visits = new FakeDailyVisitRepository(); visits.Store.Add(visit);
+        var handler = new CheckInVisitHandler(visits, labs, new FakeOutsourceSampleRepository(), reps,
+            new FakeVisitAttachmentRepository(), new FakeCurrentUser(), new FakeClock(Now));
+
+        var act = () => handler.Handle(new CheckInVisitCommand(visit.Id.Value, 5) { CollectorRepId = other.Id.Value }, CancellationToken.None);
+
+        await act.Should().ThrowAsync<FollowUp.Application.Common.Exceptions.ValidationException>();
+        visit.Status.Should().Be(VisitStatus.Pending, "nothing is recorded");
+    }
+
+    [Fact]
+    public async Task Check_in_accepts_an_assigned_collector()
+    {
+        var (labs, lab) = SeedLab();
+        var assigned = Collector("Assigned");
+        var reps = new FakeRepresentativeRepository(); reps.Store.Add(assigned);
+        lab.AssignCollectors(new[] { assigned.Id });
+        var visit = DailyVisit.Schedule(lab.Id, null, Today, new TimeOnly(9, 0));
+        var visits = new FakeDailyVisitRepository(); visits.Store.Add(visit);
+        var handler = new CheckInVisitHandler(visits, labs, new FakeOutsourceSampleRepository(), reps,
+            new FakeVisitAttachmentRepository(), new FakeCurrentUser(), new FakeClock(Now));
+
+        await handler.Handle(new CheckInVisitCommand(visit.Id.Value, 5) { CollectorRepId = assigned.Id.Value }, CancellationToken.None);
+
+        visit.Status.Should().Be(VisitStatus.Visited);
+        visit.CollectorRepId.Should().Be(assigned.Id);
+    }
+
+    [Fact]
+    public async Task Check_in_accepts_any_existing_collector_when_the_lab_has_no_assigned_collectors()
+    {
+        // Fallback policy: an unconfigured lab must never block recording.
+        var (labs, lab) = SeedLab(); // no AssignCollectors → none assigned
+        var any = Collector("Anyone");
+        var reps = new FakeRepresentativeRepository(); reps.Store.Add(any);
+        var visit = DailyVisit.Schedule(lab.Id, null, Today, new TimeOnly(9, 0));
+        var visits = new FakeDailyVisitRepository(); visits.Store.Add(visit);
+        var handler = new CheckInVisitHandler(visits, labs, new FakeOutsourceSampleRepository(), reps,
+            new FakeVisitAttachmentRepository(), new FakeCurrentUser(), new FakeClock(Now));
+
+        await handler.Handle(new CheckInVisitCommand(visit.Id.Value, 5) { CollectorRepId = any.Id.Value }, CancellationToken.None);
+
+        visit.CollectorRepId.Should().Be(any.Id);
+    }
+
+    [Fact]
+    public async Task Manual_record_rejects_a_collector_not_assigned_to_the_lab()
+    {
+        var (labs, lab) = SeedLab();
+        var assigned = Collector("Assigned"); var other = Collector("Other");
+        var reps = new FakeRepresentativeRepository(); reps.Store.Add(assigned); reps.Store.Add(other);
+        lab.AssignCollectors(new[] { assigned.Id });
+        var visits = new FakeDailyVisitRepository();
+        var handler = new RecordManualVisitHandler(visits, labs, new FakeOutsourceSampleRepository(), reps,
+            new FakeVisitAttachmentRepository(), new FakeCurrentUser(), new FakeClock(Now));
+
+        var act = () => handler.Handle(new RecordManualVisitCommand(lab.Id.Value, 3) { CollectorRepId = other.Id.Value }, CancellationToken.None);
+
+        await act.Should().ThrowAsync<FollowUp.Application.Common.Exceptions.ValidationException>();
+        visits.Store.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Manual_record_creates_a_collected_visit_and_binds_attachments()
     {

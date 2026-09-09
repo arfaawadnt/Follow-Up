@@ -65,7 +65,8 @@ internal sealed class LaboratoryQueries : ILaboratoryQueries
             canSeeLocation ? l.Location?.Latitude : null, canSeeLocation ? l.Location?.Longitude : null,
             l.CollectorRepIds.Select(c => repNames.GetValueOrDefault(c, "—")).ToList(),
             l.MarketingRepId is { } m ? repNames.GetValueOrDefault(m) : null,
-            l.IsEncrypted && !canSeeEncrypted, l.Source.ToString())).ToList();
+            l.IsEncrypted && !canSeeEncrypted, l.Source.ToString(),
+            l.CollectorRepIds.Select(c => c.Value).ToList())).ToList();
 
         return PagedResult<LabListItemDto>.Create(items, total, criteria.Page, criteria.PageSize);
     }

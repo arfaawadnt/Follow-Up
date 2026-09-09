@@ -18,7 +18,9 @@ public sealed record LabListItemDto(
     IReadOnlyList<string> Collectors,
     string? Marketing,
     bool Encrypted,
-    string Source = "Manual");
+    string Source = "Manual",
+    /// <summary>Ids of the lab's assigned collectors — the manual-visit dialog filters its collector picker to these.</summary>
+    IReadOnlyList<Guid>? CollectorRepIds = null);
 
 /// <summary>Contact-person projection.</summary>
 public sealed record ContactDto(Guid Id, string Name, string Role, string? Phone, DateOnly? Birthday);
