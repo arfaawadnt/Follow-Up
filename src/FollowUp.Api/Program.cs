@@ -154,13 +154,22 @@ await using (var scope = app.Services.CreateAsyncScope())
 }
 
 // Pipeline (order matters — architect request-pipeline).
-app.UseMiddleware<ExceptionHandlingMiddleware>();
 // Resolve the real client IP from a trusted proxy before anything reads it — correlation, request
 // logging and the per-IP rate limiter all downstream (finding IAM-006).
 app.UseForwardedHeaders();
 app.UseMiddleware<CorrelationMiddleware>();
 app.UseMiddleware<SecurityHeadersMiddleware>();
+// Request logging sits OUTSIDE the exception handler so it observes the mapped 4xx status, not the raw
+// in-flight exception. Serilog's request-logging middleware hardcodes status 500 (and Error level) for any
+// exception that propagates through it, so with the handler outside it, an expected caller error — a
+// wrong-password 401, a 404 — was logged as "responded 500" with a full stack trace. With the handler
+// inside, the exception is caught and mapped before control returns through Serilog, which then logs the
+// real status (e.g. 401 at Information). Genuine faults still surface: the handler logs them at Error with
+// the stack trace, and Serilog then records the 500. The handler still wraps every app middleware below it
+// (auth gate, rate limiter, static files, endpoints); the few framework middlewares above it don't throw
+// domain exceptions, and the security/correlation headers apply via OnStarting so they're order-independent.
 app.UseSerilogRequestLogging();
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseCors();
 app.UseRateLimiter();
 app.UseDefaultFiles();
