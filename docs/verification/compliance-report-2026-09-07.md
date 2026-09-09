@@ -428,8 +428,12 @@ Api 18 = 300 passed / 0 failed / 0 skipped; build 0W/0E; no EF drift.**
 
 *MSG-009 note:* the complete transactional fix routes the schedule change through the outbox; the shipped fix
 eliminates the orphan the finding names, and the rarer update/delete-rollback schedule drift self-corrects at
-startup via `SyncAllAsync` (reconciles every schedule from the DB). **IAM-009** (DeleteUser hard-delete →
-`Deactivate()`) is held for a product decision on delete semantics.
+startup via `SyncAllAsync` (reconciles every schedule from the DB).
+
+**IAM-009** (decided: soft-delete) — `DeleteUser` now deactivates the account and revokes its live sessions
+instead of hard-deleting, retaining the user as the audit subject of their past actions and matching how reps
+and labs are retired. Accepted trade-off: the username stays reserved and the row remains visible flagged
+inactive. Verified: Domain 76 · Application 114 · Architecture 22 · Integration 71 · Api 18 = 301 passed.
 
 ### Cumulative status across cycle-3 remediation
 All **7 Blockers** and **19 Majors** are fixed and committed on `remediation/cycle3-scope-and-blockers`
