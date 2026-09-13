@@ -246,6 +246,7 @@ api.MapCompensationEndpoints();
 api.MapStatsEndpoints();
 api.MapIntegrationEndpoints();
 api.MapEmailReportsEndpoints();
+api.MapAccountingEndpoints();
 
 app.MapHub<NotificationsHub>("/hubs/notifications");
 app.MapHangfireDashboard("/jobs", new DashboardOptions

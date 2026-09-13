@@ -141,6 +141,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Features.Setup.ISettingsQueries, Persistence.Queries.SettingsQueries>();
         services.AddScoped<Application.Features.EmailReports.ISmtpConfigQueries, Emailing.SmtpConfigQueries>();
         services.AddScoped<Application.Features.EmailReports.IStatsEmailSubscriptionQueries, Emailing.StatsEmailSubscriptionQueries>();
+        services.AddScoped<Application.Features.Accounting.IAccountingQueries, Persistence.Queries.AccountingQueries>();
         return services;
     }
 
@@ -175,6 +176,14 @@ public static class DependencyInjection
         services.AddScoped<IOracleConfigRepository, OracleConfigRepository>();
         services.AddScoped<IElectronicSignatureRepository, ElectronicSignatureRepository>();
         services.AddScoped<ICompensationData, CompensationData>();
+        // Accounting
+        services.AddScoped<ITreasuryReasonRepository, TreasuryReasonRepository>();
+        services.AddScoped<ITreasuryRepository, TreasuryRepository>();
+        services.AddScoped<ITreasuryEntryRepository, TreasuryEntryRepository>();
+        services.AddScoped<IPenaltyRecordRepository, PenaltyRecordRepository>();
+        services.AddScoped<IDeductionRepository, DeductionRepository>();
+        services.AddScoped<ICollectionRepository, CollectionRepository>();
+        services.AddScoped<IRepIncomeEntryRepository, RepIncomeEntryRepository>();
         return services;
     }
 }

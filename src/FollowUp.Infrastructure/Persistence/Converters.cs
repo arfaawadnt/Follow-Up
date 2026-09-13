@@ -68,3 +68,11 @@ public sealed class NotificationPreferenceIdConverter : ValueConverter<Notificat
 public sealed class SystemNotificationIdConverter : ValueConverter<SystemNotificationId, Guid> { public SystemNotificationIdConverter() : base(x => x.Value, v => new SystemNotificationId(v)) { } }
 public sealed class NotificationDeliveryLogIdConverter : ValueConverter<NotificationDeliveryLogId, Guid> { public NotificationDeliveryLogIdConverter() : base(x => x.Value, v => new NotificationDeliveryLogId(v)) { } }
 public sealed class StatsEmailSubscriptionIdConverter : ValueConverter<StatsEmailSubscriptionId, Guid> { public StatsEmailSubscriptionIdConverter() : base(x => x.Value, v => new StatsEmailSubscriptionId(v)) { } }
+// Accounting module
+public sealed class TreasuryReasonIdConverter : ValueConverter<FollowUp.Domain.Accounting.TreasuryReasonId, Guid> { public TreasuryReasonIdConverter() : base(x => x.Value, v => new FollowUp.Domain.Accounting.TreasuryReasonId(v)) { } }
+public sealed class TreasuryIdConverter : ValueConverter<FollowUp.Domain.Accounting.TreasuryId, Guid> { public TreasuryIdConverter() : base(x => x.Value, v => new FollowUp.Domain.Accounting.TreasuryId(v)) { } }
+public sealed class TreasuryEntryIdConverter : ValueConverter<FollowUp.Domain.Accounting.TreasuryEntryId, Guid> { public TreasuryEntryIdConverter() : base(x => x.Value, v => new FollowUp.Domain.Accounting.TreasuryEntryId(v)) { } }
+public sealed class PenaltyRecordIdConverter : ValueConverter<FollowUp.Domain.Accounting.PenaltyRecordId, Guid> { public PenaltyRecordIdConverter() : base(x => x.Value, v => new FollowUp.Domain.Accounting.PenaltyRecordId(v)) { } }
+public sealed class DeductionIdConverter : ValueConverter<FollowUp.Domain.Accounting.DeductionId, Guid> { public DeductionIdConverter() : base(x => x.Value, v => new FollowUp.Domain.Accounting.DeductionId(v)) { } }
+public sealed class CollectionIdConverter : ValueConverter<FollowUp.Domain.Accounting.CollectionId, Guid> { public CollectionIdConverter() : base(x => x.Value, v => new FollowUp.Domain.Accounting.CollectionId(v)) { } }
+public sealed class RepIncomeEntryIdConverter : ValueConverter<FollowUp.Domain.Accounting.RepIncomeEntryId, Guid> { public RepIncomeEntryIdConverter() : base(x => x.Value, v => new FollowUp.Domain.Accounting.RepIncomeEntryId(v)) { } }

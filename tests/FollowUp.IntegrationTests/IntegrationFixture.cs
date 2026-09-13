@@ -70,6 +70,13 @@ DELETE FROM monthly_sample;
 DELETE FROM outsource_sample;
 DELETE FROM marketing_visit;
 DELETE FROM complaint;
+-- Accounting ledgers hold Restrict FKs to laboratory / representative / area — clear them before the labs so the
+-- delete below stays FK-safe (treasury + treasury_reason are configuration and, like reference rows, are left in place).
+DELETE FROM penalty_record;
+DELETE FROM collection;
+DELETE FROM deduction;
+DELETE FROM rep_income_entry;
+DELETE FROM treasury_entry;
 DELETE FROM laboratory;
 -- Release the area management-role FKs (Restrict → representative) so a test that then deletes reps stays FK-safe;
 -- reference rows themselves are intentionally left in place.

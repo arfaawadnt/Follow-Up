@@ -74,6 +74,15 @@ public sealed class FollowUpDbContext : DbContext
     public DbSet<SmtpConfig> SmtpConfigs => Set<SmtpConfig>();
     public DbSet<StatsEmailSubscription> StatsEmailSubscriptions => Set<StatsEmailSubscription>();
 
+    // Accounting
+    public DbSet<Domain.Accounting.TreasuryReason> TreasuryReasons => Set<Domain.Accounting.TreasuryReason>();
+    public DbSet<Domain.Accounting.Treasury> Treasuries => Set<Domain.Accounting.Treasury>();
+    public DbSet<Domain.Accounting.TreasuryEntry> TreasuryEntries => Set<Domain.Accounting.TreasuryEntry>();
+    public DbSet<Domain.Accounting.PenaltyRecord> PenaltyRecords => Set<Domain.Accounting.PenaltyRecord>();
+    public DbSet<Domain.Accounting.Deduction> Deductions => Set<Domain.Accounting.Deduction>();
+    public DbSet<Domain.Accounting.Collection> Collections => Set<Domain.Accounting.Collection>();
+    public DbSet<Domain.Accounting.RepIncomeEntry> RepIncomeEntries => Set<Domain.Accounting.RepIncomeEntry>();
+
     // Infrastructure
     public DbSet<Outbox.OutboxMessage> OutboxMessages => Set<Outbox.OutboxMessage>();
     public DbSet<Idempotency.IdempotencyRecord> IdempotencyRecords => Set<Idempotency.IdempotencyRecord>();
@@ -97,6 +106,10 @@ public sealed class FollowUpDbContext : DbContext
         c.Properties<SignatureMeaning>().HaveConversion<EnumerationConverter<SignatureMeaning>>().HaveMaxLength(32);
         c.Properties<RefType>().HaveConversion<EnumerationConverter<RefType>>().HaveMaxLength(32);
         c.Properties<NotificationChannel>().HaveConversion<EnumerationConverter<NotificationChannel>>().HaveMaxLength(32);
+        c.Properties<Domain.Accounting.PenaltyUser>().HaveConversion<EnumerationConverter<Domain.Accounting.PenaltyUser>>().HaveMaxLength(32);
+        c.Properties<Domain.Accounting.DeductionReason>().HaveConversion<EnumerationConverter<Domain.Accounting.DeductionReason>>().HaveMaxLength(32);
+        c.Properties<Domain.Accounting.CollectionType>().HaveConversion<EnumerationConverter<Domain.Accounting.CollectionType>>().HaveMaxLength(32);
+        c.Properties<Domain.Accounting.IbanOption>().HaveConversion<EnumerationConverter<Domain.Accounting.IbanOption>>().HaveMaxLength(32);
 
         // Strongly-typed ids
         c.Properties<AppUserId>().HaveConversion<AppUserIdConverter>();
@@ -130,6 +143,14 @@ public sealed class FollowUpDbContext : DbContext
         c.Properties<NotificationPreferenceId>().HaveConversion<NotificationPreferenceIdConverter>();
         c.Properties<SystemNotificationId>().HaveConversion<SystemNotificationIdConverter>();
         c.Properties<NotificationDeliveryLogId>().HaveConversion<NotificationDeliveryLogIdConverter>();
+        // Accounting
+        c.Properties<Domain.Accounting.TreasuryReasonId>().HaveConversion<TreasuryReasonIdConverter>();
+        c.Properties<Domain.Accounting.TreasuryId>().HaveConversion<TreasuryIdConverter>();
+        c.Properties<Domain.Accounting.TreasuryEntryId>().HaveConversion<TreasuryEntryIdConverter>();
+        c.Properties<Domain.Accounting.PenaltyRecordId>().HaveConversion<PenaltyRecordIdConverter>();
+        c.Properties<Domain.Accounting.DeductionId>().HaveConversion<DeductionIdConverter>();
+        c.Properties<Domain.Accounting.CollectionId>().HaveConversion<CollectionIdConverter>();
+        c.Properties<Domain.Accounting.RepIncomeEntryId>().HaveConversion<RepIncomeEntryIdConverter>();
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

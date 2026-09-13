@@ -106,6 +106,64 @@ public sealed class FakeAreaRepository : IAreaRepository
     public void Remove(Domain.Reference.Area area) => Store.Remove(area);
 }
 
+// ---- Accounting module ----
+
+public sealed class FakeTreasuryReasonRepository : ITreasuryReasonRepository
+{
+    public readonly List<Domain.Accounting.TreasuryReason> Store = new();
+    public Task<IReadOnlyList<Domain.Accounting.TreasuryReason>> GetAllAsync(CancellationToken ct) => Task.FromResult<IReadOnlyList<Domain.Accounting.TreasuryReason>>(Store.ToList());
+    public Task<Domain.Accounting.TreasuryReason?> GetByIdAsync(Domain.Accounting.TreasuryReasonId id, CancellationToken ct) => Task.FromResult(Store.FirstOrDefault(x => x.Id == id));
+    public void Add(Domain.Accounting.TreasuryReason reason) => Store.Add(reason);
+}
+
+public sealed class FakeTreasuryRepository : ITreasuryRepository
+{
+    public readonly List<Domain.Accounting.Treasury> Store = new();
+    public Task<IReadOnlyList<Domain.Accounting.Treasury>> GetAllAsync(CancellationToken ct) => Task.FromResult<IReadOnlyList<Domain.Accounting.Treasury>>(Store.ToList());
+    public Task<Domain.Accounting.Treasury?> GetByIdAsync(Domain.Accounting.TreasuryId id, CancellationToken ct) => Task.FromResult(Store.FirstOrDefault(x => x.Id == id));
+    public void Add(Domain.Accounting.Treasury treasury) => Store.Add(treasury);
+}
+
+public sealed class FakeTreasuryEntryRepository : ITreasuryEntryRepository
+{
+    public readonly List<Domain.Accounting.TreasuryEntry> Store = new();
+    public Task<Domain.Accounting.TreasuryEntry?> GetByIdAsync(Domain.Accounting.TreasuryEntryId id, CancellationToken ct) => Task.FromResult(Store.FirstOrDefault(x => x.Id == id));
+    public void Add(Domain.Accounting.TreasuryEntry entry) => Store.Add(entry);
+    public void Remove(Domain.Accounting.TreasuryEntry entry) => Store.Remove(entry);
+}
+
+public sealed class FakePenaltyRecordRepository : IPenaltyRecordRepository
+{
+    public readonly List<Domain.Accounting.PenaltyRecord> Store = new();
+    public Task<Domain.Accounting.PenaltyRecord?> GetByIdAsync(Domain.Accounting.PenaltyRecordId id, CancellationToken ct) => Task.FromResult(Store.FirstOrDefault(x => x.Id == id));
+    public void Add(Domain.Accounting.PenaltyRecord record) => Store.Add(record);
+    public void Remove(Domain.Accounting.PenaltyRecord record) => Store.Remove(record);
+}
+
+public sealed class FakeDeductionRepository : IDeductionRepository
+{
+    public readonly List<Domain.Accounting.Deduction> Store = new();
+    public Task<Domain.Accounting.Deduction?> GetByIdAsync(Domain.Accounting.DeductionId id, CancellationToken ct) => Task.FromResult(Store.FirstOrDefault(x => x.Id == id));
+    public void Add(Domain.Accounting.Deduction deduction) => Store.Add(deduction);
+    public void Remove(Domain.Accounting.Deduction deduction) => Store.Remove(deduction);
+}
+
+public sealed class FakeCollectionRepository : ICollectionRepository
+{
+    public readonly List<Domain.Accounting.Collection> Store = new();
+    public Task<Domain.Accounting.Collection?> GetByIdAsync(Domain.Accounting.CollectionId id, CancellationToken ct) => Task.FromResult(Store.FirstOrDefault(x => x.Id == id));
+    public void Add(Domain.Accounting.Collection collection) => Store.Add(collection);
+    public void Remove(Domain.Accounting.Collection collection) => Store.Remove(collection);
+}
+
+public sealed class FakeRepIncomeEntryRepository : IRepIncomeEntryRepository
+{
+    public readonly List<Domain.Accounting.RepIncomeEntry> Store = new();
+    public Task<Domain.Accounting.RepIncomeEntry?> GetByIdAsync(Domain.Accounting.RepIncomeEntryId id, CancellationToken ct) => Task.FromResult(Store.FirstOrDefault(x => x.Id == id));
+    public void Add(Domain.Accounting.RepIncomeEntry entry) => Store.Add(entry);
+    public void Remove(Domain.Accounting.RepIncomeEntry entry) => Store.Remove(entry);
+}
+
 public sealed class FakeDailyVisitRepository : IDailyVisitRepository
 {
     public readonly List<DailyVisit> Store = new();
