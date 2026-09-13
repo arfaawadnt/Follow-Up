@@ -26,6 +26,8 @@ export interface LabListItem {
   category: string | null; avgMonthlySamples: number | null;
   latitude: number | null; longitude: number | null;
   collectors: string[]; collectorRepIds: string[]; marketing: string | null; encrypted: boolean; source: string;
+  /** Operator-managed Credit flag; never touched by the Oracle sync. */
+  credit: boolean;
 }
 
 export interface ContactDto { id: string; name: string; role: string; phone: string | null; birthday: string | null; }
@@ -41,6 +43,8 @@ export interface LabDetail {
   loyaltyPoints: number; loyaltyTier: string | null;
   collectorRepIds: string[]; marketingRepId: string | null;
   workDays: string[]; visitTimes: string[]; contacts: ContactDto[]; rowVersion: number;
+  /** Operator-managed Credit flag; never touched by the Oracle sync. */
+  credit: boolean;
 }
 
 export interface ScheduleItem { visitId: string; labDisplayCode: string; labName: string; status: string; time: string; }

@@ -1243,6 +1243,9 @@ export const TRANSLATIONS = {
     suggested: "Suggested",
     last_recorded_count: "last recorded count for this lab",
     outsource_hint: "A value > 0 creates an outsource-sample row automatically.",
+    credit: "Credit",
+    percentage_deal: "Percentage Deal",
+    percentage: "Percentage",
   },
   ar: {
     /* --- UI-003: folded from inline bilingual ternaries --- */
@@ -2477,5 +2480,8 @@ export const TRANSLATIONS = {
     suggested: "المقترح",
     last_recorded_count: "آخر عدد مسجّل لهذا المعمل",
     outsource_hint: "أي قيمة أكبر من 0 تُنشئ سجل عينة خارجية تلقائيًا.",
+    credit: "آجل",
+    percentage_deal: "اتفاق النسبة",
+    percentage: "النسبة",
   }
 };

@@ -205,6 +205,12 @@ public sealed class Area : AggregateRoot<AreaId>, IAuditable
     public RepresentativeId? AreaResponsibleId { get; private set; }
     /// <summary>An operator-maintained "real" display name, never touched by the Oracle sync (SRS FR-18).</summary>
     public string? RealName { get; private set; }
+    /// <summary>Operator-managed "Percentage Deal" flag: the area is settled as a percentage of its income. Never
+    /// touched by the Oracle sync (absent from <see cref="ApplyOracle"/>, like <see cref="RealName"/>). Default false.</summary>
+    public bool PercentageDeal { get; private set; }
+    /// <summary>The deal percentage (0–100), present only while <see cref="PercentageDeal"/> is on; null otherwise.
+    /// Consumed by the Accounting "Deductions" report (deduction = area income × Percentage / 100).</summary>
+    public decimal? Percentage { get; private set; }
     /// <summary>Oracle AREA_CODE for records mirrored from Oracle; null for manual entries.</summary>
     public string? SourceCode { get; private set; }
     public RecordSource Source { get; private set; }
@@ -255,4 +261,20 @@ public sealed class Area : AggregateRoot<AreaId>, IAuditable
 
     /// <summary>Sets the operator-maintained real name. Independent of Oracle sync (never overwritten by ApplyOracle).</summary>
     public void SetRealName(string? realName) => RealName = string.IsNullOrWhiteSpace(realName) ? null : realName.Trim();
+
+    /// <summary>Turns the Percentage Deal on (with a required 0–100 percentage) or off (the percentage is cleared so a
+    /// stale value can never be applied). Independent of the Oracle sync (never overwritten by ApplyOracle).</summary>
+    public void SetPercentageDeal(bool enabled, decimal? percentage)
+    {
+        if (!enabled)
+        {
+            PercentageDeal = false;
+            Percentage = null;
+            return;
+        }
+        if (percentage is null) throw new DomainException("A percentage is required when the Percentage Deal is enabled.");
+        if (percentage is < 0 or > 100) throw new DomainException("The deal percentage must be between 0 and 100.");
+        PercentageDeal = true;
+        Percentage = decimal.Round(percentage.Value, 2, MidpointRounding.ToEven);
+    }
 }

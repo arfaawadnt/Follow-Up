@@ -26,6 +26,8 @@ public sealed record CreateLaboratoryCommand : ICommand<Guid>, IAuthorizedReques
     public string? Address { get; init; }
     public string? MappingCode { get; init; }
     public bool IsEncrypted { get; init; }
+    /// <summary>Operator-managed Credit flag; defaults to false and is never written by the Oracle sync.</summary>
+    public bool Credit { get; init; }
     public IReadOnlyList<string> Images { get; init; } = Array.Empty<string>();
     public string? Payer { get; init; }
     public string? ContractType { get; init; }
@@ -104,6 +106,7 @@ public sealed class CreateLaboratoryHandler : ICommandHandler<CreateLaboratoryCo
         lab.SetAddress(request.Address);
         lab.SetMappingCode(request.MappingCode);
         lab.SetEncrypted(request.IsEncrypted);
+        lab.SetCredit(request.Credit);
         lab.SetImages(request.Images);
 
         if (request.Latitude is { } lat && request.Longitude is { } lng)

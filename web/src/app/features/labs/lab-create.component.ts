@@ -43,6 +43,7 @@ function parseGeo(text: string): { lat: number; lng: number } | null {
         <div class="field"><label>{{ 'lab_category' | t : 'Lab Category' }}</label><select class="select" [(ngModel)]="f.category"><option value="">—</option>@for (c of categories(); track c) { <option [value]="c">{{ c }}</option> }</select></div>
         <div class="field"><label>{{ 'mapping_code' | t : 'Mapping Code' }}</label><input class="input" [(ngModel)]="f.mappingCode"></div>
         <div class="field"><label>{{ 'encrypted' | t : 'Encrypted' }}</label><label class="chip"><input type="checkbox" [(ngModel)]="f.isEncrypted"> {{ 'encrypted' | t : 'Encrypted' }}</label></div>
+        <div class="field"><label>{{ 'credit' | t : 'Credit' }}</label><label class="chip"><input type="checkbox" [(ngModel)]="f.credit"> {{ 'credit' | t : 'Credit' }}</label></div>
         <div class="field"><label>{{ 'serving_branch' | t : 'Serving branch' }}</label><select class="select" [(ngModel)]="f.branch"><option value="">—</option>@for (b of branches(); track b) { <option [value]="b">{{ b }}</option> }</select></div>
         <div class="field"><label>{{ 'license_no' | t : 'License no.' }}</label><input class="input" [(ngModel)]="f.licenseNo"></div>
         <div class="field"><label>{{ 'license_date' | t : 'License date' }}</label><app-date-input [(ngModel)]="f.licenseDate"></app-date-input></div>
@@ -205,7 +206,7 @@ export class LabCreateComponent {
   readonly geoFail = signal(false);
 
   f = {
-    name: '', code: '', segment: 'A', status: 'Scanned', category: '', mappingCode: '', isEncrypted: false, branch: '',
+    name: '', code: '', segment: 'A', status: 'Scanned', category: '', mappingCode: '', isEncrypted: false, credit: false, branch: '',
     licenseNo: '', licenseDate: null as string | null, avgMonthlySamples: null as number | null,
     governorate: '', city: '', area: '', address: '', geo: '',
     payer: '', contractType: '', marketingRepId: '', preferredChannel: '',
@@ -307,7 +308,7 @@ export class LabCreateComponent {
     this.api.post<{ id: string }>('/labs', {
       code: this.f.code, name: this.f.name, segment: this.f.segment, status: this.f.status,
       category: this.f.category || null, branch: this.f.branch || null,
-      mappingCode: this.f.mappingCode || null, isEncrypted: this.f.isEncrypted, images: this.images(),
+      mappingCode: this.f.mappingCode || null, isEncrypted: this.f.isEncrypted, credit: this.f.credit, images: this.images(),
       licenseNo: this.f.licenseNo || null, licenseDate: this.f.licenseDate || null,
       avgMonthlySamples: this.f.avgMonthlySamples, preferredChannel: this.f.preferredChannel || null,
       governorate: this.f.governorate || null, city: this.f.city || null, area: this.f.area || null,

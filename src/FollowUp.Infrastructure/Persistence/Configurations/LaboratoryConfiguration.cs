@@ -60,6 +60,7 @@ internal sealed class LaboratoryConfiguration : IEntityTypeConfiguration<Laborat
 
         b.Property(x => x.MappingCode).HasMaxLength(64);
         b.Property(x => x.IsEncrypted);
+        b.Property(x => x.Credit); // operator-managed; never written by the Oracle mirror
         b.Property(x => x.Source).HasDefaultValue(FollowUp.Domain.Common.RecordSource.Manual);
         b.Property(x => x.ImagePaths)
             .HasColumnName("image_paths")

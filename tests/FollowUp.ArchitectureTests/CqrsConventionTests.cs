@@ -47,7 +47,7 @@ public class CqrsConventionTests
     private static readonly IReadOnlySet<string> CommandsWithoutValidatorYet = new HashSet<string>(StringComparer.Ordinal)
     {
         "AdvanceOutsourceStatusCommand", "AdvanceSampleTrackingCommand", "BatchRecordSampleDataEntryCommand",
-        "CancelMarketingVisitCommand", "ChangeUserRoleCommand", "ConfirmReceiptCommand", "CreateAreaCommand",
+        "CancelMarketingVisitCommand", "ChangeUserRoleCommand", "ConfirmReceiptCommand",
         "CreateCityCommand", "CreateTestGroupCommand", "CreateTestSetupCommand", "DeleteAreaCommand",
         "DeleteCityCommand", "DeleteOutsourceSampleCommand", "DeleteRefItemCommand", "DeleteRoleCommand",
         "DeleteTestGroupCommand", "DeleteTestSetupCommand", "DeleteUserCommand", "ImportLabStatsCommand",

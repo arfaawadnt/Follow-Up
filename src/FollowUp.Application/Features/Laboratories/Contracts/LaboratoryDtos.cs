@@ -20,7 +20,9 @@ public sealed record LabListItemDto(
     bool Encrypted,
     string Source = "Manual",
     /// <summary>Ids of the lab's assigned collectors — the manual-visit dialog filters its collector picker to these.</summary>
-    IReadOnlyList<Guid>? CollectorRepIds = null);
+    IReadOnlyList<Guid>? CollectorRepIds = null,
+    /// <summary>Operator-managed Credit flag (the lab settles on credit); never touched by the Oracle sync.</summary>
+    bool Credit = false);
 
 /// <summary>Contact-person projection.</summary>
 public sealed record ContactDto(Guid Id, string Name, string Role, string? Phone, DateOnly? Birthday);
@@ -57,4 +59,6 @@ public sealed record LabDetailDto(
     IReadOnlyList<string> WorkDays,
     IReadOnlyList<string> VisitTimes,
     IReadOnlyList<ContactDto> Contacts,
-    uint RowVersion);
+    uint RowVersion,
+    /// <summary>Operator-managed Credit flag (the lab settles on credit); never touched by the Oracle sync.</summary>
+    bool Credit = false);

@@ -72,6 +72,12 @@ public static class Privileges
     public const string AddLabStats = nameof(AddLabStats);
     public const string AddAreaStats = nameof(AddAreaStats);
 
+    // Accounting module: the five report pages (Penalty Statement, Deductions, Treasury, Collection, Rep Statement)
+    // are read under ViewAccounting; recording entries and maintaining the treasury/reason configuration needs
+    // ManageAccounting, which implies ViewAccounting (see Expansions).
+    public const string ViewAccounting = nameof(ViewAccounting);
+    public const string ManageAccounting = nameof(ManageAccounting);
+
     // Administration
     public const string ManageUsers = nameof(ManageUsers);
     public const string OracleIntegration = nameof(OracleIntegration);
@@ -95,6 +101,7 @@ public static class Privileges
         ViewLabStats, ViewTeststats, ViewAreaStats, ViewDetailedStats, AddGroups, UpdateGroups, DeleteGroups,
         AddTestsetup, UpdateTestsetup, DeleteTestsetup, AddTeststats, AddLabStats, AddAreaStats,
         ManageUsers, OracleIntegration, ManageEmailReports, SetupRefs, SetupCities, SetupAreas,
+        ViewAccounting, ManageAccounting,
     };
 
     // Coarse → fine-grained expansions, plus documented cross-grants.
@@ -105,6 +112,7 @@ public static class Privileges
         [ManageComplaints] = new[] { ViewComplaints, AddComplaints, UpdateComplaints, ResolveComplaints },
         [ManageTransfers] = new[] { ViewTransfers, ConfirmTransfers },
         [ViewReports] = new[] { ViewLabStats, ViewTeststats, ViewAreaStats, ViewDetailedStats },
+        [ManageAccounting] = new[] { ViewAccounting },
     };
 
     /// <summary>

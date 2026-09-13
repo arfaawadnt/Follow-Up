@@ -17,7 +17,8 @@ public sealed record RefItemDto(Guid Id, string Type, string Code, string NameEn
     decimal? TargetIncomeFrom = null, decimal? TargetIncomeTo = null);
 public sealed record CityDto(Guid Id, string Name, string Governorate, string? RealName, string Source);
 public sealed record AreaDto(Guid Id, string Name, Guid CityId, bool TransportationRequired, IReadOnlyList<Guid> TransferReps, string? RealName, string Source,
-    Guid? AreaManagerId = null, Guid? AreaResponsibleId = null);
+    Guid? AreaManagerId = null, Guid? AreaResponsibleId = null,
+    bool PercentageDeal = false, decimal? Percentage = null);
 
 public interface ISetupQueries
 {
@@ -262,10 +263,23 @@ internal static class AreaRoleSupport
 }
 
 public sealed record CreateAreaCommand(string Name, Guid CityId, bool TransportationRequired, IReadOnlyList<Guid> TransferReps, string? RealName = null,
-    Guid? AreaManagerId = null, Guid? AreaResponsibleId = null)
+    Guid? AreaManagerId = null, Guid? AreaResponsibleId = null,
+    bool PercentageDeal = false, decimal? Percentage = null)
     : ICommand<Guid>, IAuthorizedRequest
 {
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.SetupAreas };
+}
+
+public sealed class CreateAreaValidator : AbstractValidator<CreateAreaCommand>
+{
+    public CreateAreaValidator()
+    {
+        // Percentage Deal invariants (mirrored by Area.SetPercentageDeal and the DB CHECKs): a 0–100 percentage is
+        // required while the deal is on. When the deal is off any incoming percentage is simply discarded by the domain.
+        RuleFor(x => x.Percentage).NotNull().WithMessage("A percentage is required when the Percentage Deal is enabled.")
+            .When(x => x.PercentageDeal);
+        RuleFor(x => x.Percentage).InclusiveBetween(0, 100).When(x => x.PercentageDeal && x.Percentage is not null);
+    }
 }
 
 public sealed class CreateAreaHandler : ICommandHandler<CreateAreaCommand, Guid>
@@ -281,6 +295,7 @@ public sealed class CreateAreaHandler : ICommandHandler<CreateAreaCommand, Guid>
         var area = Area.Create(request.Name, new CityId(request.CityId), request.TransportationRequired);
         area.SetTransferReps(request.TransferReps.Select(r => new RepresentativeId(r)));
         area.SetRealName(request.RealName);
+        area.SetPercentageDeal(request.PercentageDeal, request.Percentage);
         area.AssignManager(await AreaRoleSupport.ResolveAsync(request.AreaManagerId,
             Domain.Representatives.RepresentativeType.AreaManager, nameof(request.AreaManagerId), _reps, _user, ct));
         area.AssignResponsible(await AreaRoleSupport.ResolveAsync(request.AreaResponsibleId,
@@ -310,7 +325,8 @@ public sealed class DeleteAreaHandler : ICommandHandler<DeleteAreaCommand>
 }
 
 public sealed record UpdateAreaCommand(Guid Id, string Name, Guid CityId, bool TransportationRequired, string? RealName = null,
-    Guid? AreaManagerId = null, Guid? AreaResponsibleId = null)
+    Guid? AreaManagerId = null, Guid? AreaResponsibleId = null,
+    bool PercentageDeal = false, decimal? Percentage = null)
     : ICommand, IAuthorizedRequest
 {
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.SetupAreas };
@@ -323,6 +339,10 @@ public sealed class UpdateAreaValidator : AbstractValidator<UpdateAreaCommand>
         RuleFor(x => x.Id).NotEmpty();
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
         RuleFor(x => x.CityId).NotEmpty();
+        // Percentage Deal invariants (mirrored by Area.SetPercentageDeal and the DB CHECKs).
+        RuleFor(x => x.Percentage).NotNull().WithMessage("A percentage is required when the Percentage Deal is enabled.")
+            .When(x => x.PercentageDeal);
+        RuleFor(x => x.Percentage).InclusiveBetween(0, 100).When(x => x.PercentageDeal && x.Percentage is not null);
     }
 }
 
@@ -342,6 +362,7 @@ public sealed class UpdateAreaHandler : ICommandHandler<UpdateAreaCommand>
         area.SetCity(new CityId(request.CityId));
         area.SetTransportation(request.TransportationRequired);
         area.SetRealName(request.RealName);
+        area.SetPercentageDeal(request.PercentageDeal, request.Percentage);
         area.AssignManager(await AreaRoleSupport.ResolveAsync(request.AreaManagerId,
             Domain.Representatives.RepresentativeType.AreaManager, nameof(request.AreaManagerId), _reps, _user, ct));
         area.AssignResponsible(await AreaRoleSupport.ResolveAsync(request.AreaResponsibleId,

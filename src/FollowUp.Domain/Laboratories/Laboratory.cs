@@ -51,6 +51,9 @@ public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAudit
     public string? MappingCode { get; private set; }
     /// <summary>Confidential lab: code is masked for users without ShowEncryptedLabs (BR-7).</summary>
     public bool IsEncrypted { get; private set; }
+    /// <summary>Operator-managed "Credit" flag (the lab settles on credit). Never touched by the Oracle sync — it is
+    /// deliberately absent from <see cref="ApplyOracleMaster"/>, like the serving Branch. Defaults to false.</summary>
+    public bool Credit { get; private set; }
     /// <summary>Origin (Manual vs Oracle). Oracle-mirrored labs are updated/deactivated by the sync; manual labs are left alone.</summary>
     public RecordSource Source { get; private set; }
 
@@ -179,6 +182,9 @@ public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAudit
         MappingCode = string.IsNullOrWhiteSpace(mappingCode) ? null : mappingCode.Trim();
 
     public void SetEncrypted(bool isEncrypted) => IsEncrypted = isEncrypted;
+
+    /// <summary>Sets the operator-managed Credit flag. Independent of the Oracle mirror (never overwritten by it).</summary>
+    public void SetCredit(bool credit) => Credit = credit;
 
     /// <summary>Replaces the attached image paths (uploaded separately, linked on save).</summary>
     public void SetImages(IEnumerable<string> paths)

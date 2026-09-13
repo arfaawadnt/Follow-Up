@@ -59,6 +59,10 @@ internal sealed class AreaConfiguration : IEntityTypeConfiguration<Area>
         b.Property(x => x.Name).HasMaxLength(100).IsRequired();
         b.Property(x => x.TransportationRequired);
         b.Property(x => x.RealName).HasMaxLength(200);
+        // Percentage Deal: operator-managed, never written by the Oracle mirror. numeric(5,2) holds 0.00–100.00; the
+        // 0–100 range and "percentage present iff deal on" invariants are also enforced by raw-SQL CHECKs in the migration.
+        b.Property(x => x.PercentageDeal);
+        b.Property(x => x.Percentage).HasColumnType("numeric(5,2)");
         b.Property(x => x.SourceCode).HasMaxLength(64);
         b.Property(x => x.Source).HasDefaultValue(FollowUp.Domain.Common.RecordSource.Manual);
         // An Oracle SourceCode identifies exactly one record — enforce it (partial: manual records carry a null

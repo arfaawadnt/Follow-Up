@@ -66,7 +66,7 @@ internal sealed class LaboratoryQueries : ILaboratoryQueries
             l.CollectorRepIds.Select(c => repNames.GetValueOrDefault(c, "—")).ToList(),
             l.MarketingRepId is { } m ? repNames.GetValueOrDefault(m) : null,
             l.IsEncrypted && !canSeeEncrypted, l.Source.ToString(),
-            l.CollectorRepIds.Select(c => c.Value).ToList())).ToList();
+            l.CollectorRepIds.Select(c => c.Value).ToList(), l.Credit)).ToList();
 
         return PagedResult<LabListItemDto>.Create(items, total, criteria.Page, criteria.PageSize);
     }
@@ -90,7 +90,7 @@ internal sealed class LaboratoryQueries : ILaboratoryQueries
             lab.Schedule.WorkDays.Select(d => d.ToString()).ToList(),
             lab.Schedule.VisitTimes.Select(t => t.ToString("HH:mm")).ToList(),
             lab.Contacts.Select(c => new ContactDto(c.Id.Value, c.Name, c.Role.ToString(), c.Phone, c.Birthday)).ToList(),
-            lab.RowVersion);
+            lab.RowVersion, lab.Credit);
     }
 
     public async Task<string> NextCodeAsync(CancellationToken ct)
