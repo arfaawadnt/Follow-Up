@@ -34,6 +34,13 @@ export const routes: Routes = [
       { path: 'reports', loadComponent: () => import('./features/reports/reports.component').then((m) => m.ReportsComponent) },
       { path: 'rep-intervals', loadComponent: () => import('./features/repintervals/repintervals.component').then((m) => m.RepIntervalsComponent) },
 
+      // Accounting
+      { path: 'accounting/penalties', loadComponent: () => import('./features/accounting/penalties.component').then((m) => m.PenaltiesComponent) },
+      { path: 'accounting/deductions', loadComponent: () => import('./features/accounting/deductions.component').then((m) => m.DeductionsComponent) },
+      { path: 'accounting/treasury', loadComponent: () => import('./features/accounting/treasury.component').then((m) => m.TreasuryComponent) },
+      { path: 'accounting/collections', loadComponent: () => import('./features/accounting/collections.component').then((m) => m.CollectionsComponent) },
+      { path: 'accounting/rep-statement', loadComponent: () => import('./features/accounting/rep-statement.component').then((m) => m.RepStatementComponent) },
+
       // Field & marketing
       { path: 'marketing', loadComponent: () => import('./features/marketing/marketing.component').then((m) => m.MarketingComponent) },
       { path: 'complaints', loadComponent: () => import('./features/complaints/complaints.component').then((m) => m.ComplaintsComponent) },

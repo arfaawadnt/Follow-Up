@@ -191,3 +191,28 @@ export interface RepPerformanceRow {
   repId: string; name: string; type: string; goalType: string; metric: string | null; goalDuration: string;
   target: number; achieved: number; pct: number; paceLabel: string; onTrack: boolean; salary: number;
 }
+
+// ---- Accounting module ----
+export interface TreasuryReasonDto { id: string; name: string; isActive: boolean; }
+export interface TreasuryDto { id: string; name: string; branches: string[]; isActive: boolean; }
+export interface TreasuryEntryDto {
+  id: string; serial: number; date: string; treasuryId: string; treasuryName: string;
+  debit: number; credit: number; reasonId: string; reasonName: string; notes: string | null;
+}
+export interface PenaltyDto {
+  id: string; serial: number; date: string; laboratoryId: string; labDisplayCode: string; labName: string;
+  accNo: string; patientName: string; wrongTestCode: string; wrongTestName: string; wrongValue: number;
+  rightTestCode: string; rightTestName: string; rightValue: number; penalty: number; user: string;
+}
+export interface DeductionDto {
+  id: string; serial: number; date: string; areaId: string; areaName: string; reason: string; value: number;
+  notes: string | null; periodFrom: string | null; periodTo: string | null;
+}
+export interface DeductionSuggestion { value: number; basis: string; }
+export interface CollectionDto {
+  id: string; serial: number; date: string; laboratoryId: string; labDisplayCode: string; labName: string;
+  type: string; repIds: string[]; repNames: string[]; cash: number; bank: number; total: number;
+  iban: string | null; doneBy: string | null; notes: string | null;
+}
+export interface RepStatementRow { date: string; kind: string; debit: number; credit: number; notes: string | null; balance: number; sourceId: string | null; }
+export interface RepStatement { representativeId: string; repName: string; rows: RepStatementRow[]; totalDebit: number; totalCredit: number; balance: number; }

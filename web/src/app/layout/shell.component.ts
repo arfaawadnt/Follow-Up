@@ -84,7 +84,8 @@ export class ShellComponent implements AfterViewChecked, OnDestroy {
 
   private static readonly COLLAPSE_KEY = 'fu.sidebarCollapsed';
   readonly collapsed = signal(ShellComponent.readCollapsed());
-  private readonly collapsedGroups = signal<Record<number, boolean>>({ 3: true, 4: true });
+  // Groups collapsed by default, by index. The Accounting group (index 2) shifted B2B / System from 3,4 → 4,5.
+  private readonly collapsedGroups = signal<Record<number, boolean>>({ 4: true, 5: true });
 
   private static readCollapsed(): boolean {
     try { return localStorage.getItem(ShellComponent.COLLAPSE_KEY) === '1'; } catch { return false; }
@@ -112,6 +113,14 @@ export class ShellComponent implements AfterViewChecked, OnDestroy {
       { id: 'detailedstats', key: 'detailedstats', icon: 'list', path: '/detailed-statistics', privilege: 'ViewDetailedStats' },
       { id: 'reports', key: 'reports', icon: 'trending-up', path: '/reports', privilege: 'ViewReports' },
       { id: 'rep_intervals', key: 'rep_intervals', icon: 'clock', path: '/rep-intervals', privilege: 'ViewReports' },
+    ]},
+    // Accounting — the five money-ledger report pages (ViewAccounting; recording needs ManageAccounting).
+    { titleKey: 'accounting', items: [
+      { id: 'acc_penalties', key: 'acc_penalties', icon: 'alert-triangle', path: '/accounting/penalties', privilege: 'ViewAccounting' },
+      { id: 'acc_deductions', key: 'acc_deductions', icon: 'minus-circle', path: '/accounting/deductions', privilege: 'ViewAccounting' },
+      { id: 'acc_treasury', key: 'acc_treasury', icon: 'landmark', path: '/accounting/treasury', privilege: 'ViewAccounting' },
+      { id: 'acc_collections', key: 'acc_collections', icon: 'wallet', path: '/accounting/collections', privilege: 'ViewAccounting' },
+      { id: 'acc_rep_statement', key: 'acc_rep_statement', icon: 'file-text', path: '/accounting/rep-statement', privilege: 'ViewAccounting' },
     ]},
     { titleKey: 'field_and_marketing', items: [
       { id: 'marketing', key: 'marketing', icon: 'map-pin', path: '/marketing', privilege: 'ViewMarketing' },
