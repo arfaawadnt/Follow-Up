@@ -511,7 +511,9 @@ tr:hover td {
 }
 .grid-scroll > table { margin: 0; }
 .grid-scroll thead th,
-.grid-scroll > table > tbody > tr:first-child > th {   /* daily / dashboard write the header row without <thead> */
+.grid-scroll > table > tbody > tr:first-child > th,
+.grid-scroll > table > tr:first-child > th {   /* daily / dashboard write the header row without <thead>; Angular
+                                                  appends those <tr>s straight under <table> (no implicit <tbody>) */
   position: sticky;
   top: 0;
   z-index: 2;
@@ -524,7 +526,7 @@ tr:hover td {
 .grid-scroll .gk-cell { outline: 2px solid var(--primary-blue); outline-offset: -2px; border-radius: 2px; }
 @media print {
   .grid-scroll { max-height: none; overflow: visible; }
-  .grid-scroll thead th, .grid-scroll > table > tbody > tr:first-child > th { position: static; }
+  .grid-scroll thead th, .grid-scroll > table > tbody > tr:first-child > th, .grid-scroll > table > tr:first-child > th { position: static; }
   .grid-scroll .gk-cell { outline: none; }
 }
 .mono {

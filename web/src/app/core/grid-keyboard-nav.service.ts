@@ -141,7 +141,7 @@ export class GridKeyboardNavService implements OnDestroy {
       cell.scrollIntoView({ block: 'nearest', inline: 'nearest' });
       // Keep the header from covering the cell we just scrolled to (the header is sticky inside the wrapper).
       const wrap = table.parentElement;
-      const thead = table.tHead ?? (table.tBodies[0]?.rows[0]?.cells[0]?.tagName === 'TH' ? table.tBodies[0].rows[0] : null);
+      const thead = table.tHead ?? this.headerRow(table);
       if (wrap && thead) {
         const hb = thead.getBoundingClientRect().bottom;
         const ct = cell.getBoundingClientRect().top;
@@ -186,15 +186,19 @@ export class GridKeyboardNavService implements OnDestroy {
     return table.querySelector('.' + GridKeyboardNavService.CELL);
   }
 
-  /** Body rows that carry data (skips header rows written into the body, e.g. daily / dashboard). */
+  /**
+   * Rows that carry data — any row with at least one <td>. Uses table.rows (not tBodies) because Angular appends a
+   * template's bare <tr>s straight under <table> with no implicit <tbody> (daily / dashboard), and header rows written
+   * into the body (all <th>) are skipped either way.
+   */
   private dataRows(table: HTMLTableElement): HTMLTableRowElement[] {
-    const rows: HTMLTableRowElement[] = [];
-    for (const body of Array.from(table.tBodies)) {
-      for (const r of Array.from(body.rows)) {
-        if (Array.from(r.cells).some((c) => c.tagName === 'TD')) rows.push(r);
-      }
-    }
-    return rows;
+    return Array.from(table.rows).filter((r) => Array.from(r.cells).some((c) => c.tagName === 'TD'));
+  }
+
+  /** A header row written without <thead>: the first row, when every cell in it is a <th>. */
+  private headerRow(table: HTMLTableElement): HTMLTableRowElement | null {
+    const first = table.rows[0];
+    return first && first.cells.length > 0 && Array.from(first.cells).every((c) => c.tagName === 'TH') ? first : null;
   }
 
   private isEditable(el: Element | null): boolean {

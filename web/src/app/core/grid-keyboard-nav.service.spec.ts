@@ -98,6 +98,25 @@ describe('GridKeyboardNavService', () => {
     expect(document.activeElement).toBe(table);
   });
 
+  it('handles a table whose rows are direct children (Angular renders bare <tr>s with no <tbody>)', async () => {
+    // Build with DOM APIs on purpose: innerHTML would auto-insert a <tbody>, which is exactly what Angular does NOT do.
+    const wrap = document.createElement('div'); wrap.className = 'grid-scroll';
+    const t = document.createElement('table');
+    const mk = (tag: 'th' | 'td', texts: string[]) => { const tr = document.createElement('tr'); for (const s of texts) { const c = document.createElement(tag); c.textContent = s; tr.appendChild(c); } return tr; };
+    t.appendChild(mk('th', ['H1', 'H2']));
+    t.appendChild(mk('td', ['a0', 'a1']));
+    t.appendChild(mk('td', ['b0', 'b1']));
+    wrap.appendChild(t); host.appendChild(wrap);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(t.tBodies.length).toBe(0);
+    expect(t.getAttribute('tabindex')).toBe('0');
+    t.focus();
+    const activeIn = () => t.querySelector('.' + GridKeyboardNavService.CELL) as HTMLTableCellElement;
+    expect(activeIn()).toBe(t.rows[1].cells[0]); // header row skipped
+    key(t, 'ArrowUp'); expect(activeIn()).toBe(t.rows[1].cells[0]); // cannot climb into the header
+    key(t, 'ArrowDown'); key(t, 'End'); expect(activeIn()).toBe(t.rows[2].cells[1]);
+  });
+
   it('clicking a cell makes it the active cell', () => {
     at(2, 1).dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
     expect(active()).toBe(at(2, 1));
