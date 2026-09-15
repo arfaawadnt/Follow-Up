@@ -1,4 +1,5 @@
 using FollowUp.Application.Common.Exceptions;
+using FollowUp.Application.Common.Security;
 using FollowUp.Application.Features.Accounting;
 using FollowUp.Domain.Accounting;
 using FollowUp.Domain.Identity;
@@ -26,17 +27,18 @@ internal sealed class AccountingQueries : IAccountingQueries
         await _db.TreasuryReasons.AsNoTracking().OrderBy(r => r.Name)
             .Select(r => new TreasuryReasonDto(r.Id.Value, r.Name, r.IsActive)).ToListAsync(ct);
 
-    public async Task<IReadOnlyList<TreasuryDto>> TreasuriesAsync(OrgScope scope, CancellationToken ct)
+    public async Task<IReadOnlyList<TreasuryDto>> TreasuriesAsync(OrgScope scope, TreasuryAccessMap access, CancellationToken ct)
     {
+        // Visible = within the caller's Branches scope AND granted View (administrators see everything in scope).
         var all = await _db.Treasuries.AsNoTracking().OrderBy(t => t.Name).ToListAsync(ct);
-        return all.Where(t => TreasuryScope.IsVisible(scope, t.Branches))
-            .Select(t => new TreasuryDto(t.Id.Value, t.Name, t.Branches.ToList(), t.IsActive)).ToList();
+        return all.Where(t => TreasuryScope.IsVisible(scope, t.Branches) && access.CanView(t.Id))
+            .Select(t => new TreasuryDto(t.Id.Value, t.Name, t.Branches.ToList(), t.IsActive, access.CanValidate(t.Id), access.CanUpdate(t.Id))).ToList();
     }
 
-    public async Task<IReadOnlyList<TreasuryEntryDto>> TreasuryEntriesAsync(DateOnly from, DateOnly to, Guid? treasuryId, OrgScope scope, CancellationToken ct)
+    public async Task<IReadOnlyList<TreasuryEntryDto>> TreasuryEntriesAsync(DateOnly from, DateOnly to, Guid? treasuryId, OrgScope scope, TreasuryAccessMap access, CancellationToken ct)
     {
         var treasuries = (await _db.Treasuries.AsNoTracking().ToListAsync(ct))
-            .Where(t => TreasuryScope.IsVisible(scope, t.Branches)).ToDictionary(t => t.Id);
+            .Where(t => TreasuryScope.IsVisible(scope, t.Branches) && access.CanView(t.Id)).ToDictionary(t => t.Id);
         if (treasuryId is { } tid && !treasuries.ContainsKey(new TreasuryId(tid))) return Array.Empty<TreasuryEntryDto>();
         var visibleIds = treasuryId is { } one ? new List<TreasuryId> { new(one) } : treasuries.Keys.ToList();
 
@@ -47,7 +49,21 @@ internal sealed class AccountingQueries : IAccountingQueries
 
         return entries.Select(e => new TreasuryEntryDto(e.Id.Value, e.Serial, e.Date, e.TreasuryId.Value,
             treasuries.TryGetValue(e.TreasuryId, out var t) ? t.Name : "—",
-            e.Debit.Amount, e.Credit.Amount, e.ReasonId.Value, reasons.GetValueOrDefault(e.ReasonId, "—"), e.Notes)).ToList();
+            e.Debit.Amount, e.Credit.Amount, e.ReasonId?.Value,
+            e.ReasonId is { } rid ? reasons.GetValueOrDefault(rid, "—") : "Collection", e.Notes,
+            e.Origin.Name, e.ValidationStatus.Name, e.CollectionId?.Value, e.CollectedCash?.Amount, e.SystemNote,
+            e.ValidatedAt, e.ValidatedBy, e.ValidationNote)).ToList();
+    }
+
+    public async Task<IReadOnlyList<TreasuryGrantDto>> TreasuryGrantsAsync(RoleId roleId, CancellationToken ct)
+    {
+        var treasuries = await _db.Treasuries.AsNoTracking().OrderBy(t => t.Name).ToListAsync(ct);
+        var grants = await _db.TreasuryGrants.AsNoTracking().Where(g => g.RoleId == roleId).ToDictionaryAsync(g => g.TreasuryId, ct);
+        return treasuries.Select(t =>
+        {
+            grants.TryGetValue(t.Id, out var g);
+            return new TreasuryGrantDto(t.Id.Value, t.Name, t.IsActive, g?.CanView ?? false, g?.CanValidate ?? false, g?.CanUpdate ?? false);
+        }).ToList();
     }
 
     // ---- Penalty statement ----

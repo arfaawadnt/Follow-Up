@@ -23,9 +23,18 @@ namespace FollowUp.Application.Features.Accounting;
 // ---- Read side: DTOs ----
 
 public sealed record TreasuryReasonDto(Guid Id, string Name, bool IsActive);
-public sealed record TreasuryDto(Guid Id, string Name, IReadOnlyList<string> Branches, bool IsActive);
+/// <summary>A treasury as the caller sees it: only treasuries the caller may View are listed, with their own rights.</summary>
+public sealed record TreasuryDto(Guid Id, string Name, IReadOnlyList<string> Branches, bool IsActive,
+    bool CanValidate = false, bool CanUpdate = false);
 public sealed record TreasuryEntryDto(Guid Id, long Serial, DateOnly Date, Guid TreasuryId, string TreasuryName,
-    decimal Debit, decimal Credit, Guid ReasonId, string ReasonName, string? Notes);
+    decimal Debit, decimal Credit, Guid? ReasonId, string ReasonName, string? Notes,
+    string Origin = nameof(TreasuryEntryOrigin.Manual), string ValidationStatus = nameof(TreasuryValidationStatus.NotRequired),
+    Guid? CollectionId = null, decimal? CollectedCash = null, string? SystemNote = null,
+    DateTimeOffset? ValidatedAt = null, string? ValidatedBy = null, string? ValidationNote = null);
+
+/// <summary>A role's rights on one treasury, for the Roles page (every treasury is listed, granted or not).</summary>
+public sealed record TreasuryGrantDto(Guid TreasuryId, string TreasuryName, bool IsActive, bool CanView, bool CanValidate, bool CanUpdate);
+public sealed record TreasuryGrantInput(Guid TreasuryId, bool CanView, bool CanValidate, bool CanUpdate);
 
 public sealed record PenaltyDto(Guid Id, long Serial, DateOnly Date, Guid LaboratoryId, string LabDisplayCode, string LabName,
     string AccNo, string PatientName, string WrongTestCode, string WrongTestName, decimal WrongValue,
@@ -59,8 +68,10 @@ public sealed record RepStatementDto(Guid RepresentativeId, string RepName, IRea
 public interface IAccountingQueries
 {
     Task<IReadOnlyList<TreasuryReasonDto>> TreasuryReasonsAsync(CancellationToken ct);
-    Task<IReadOnlyList<TreasuryDto>> TreasuriesAsync(OrgScope scope, CancellationToken ct);
-    Task<IReadOnlyList<TreasuryEntryDto>> TreasuryEntriesAsync(DateOnly from, DateOnly to, Guid? treasuryId, OrgScope scope, CancellationToken ct);
+    Task<IReadOnlyList<TreasuryDto>> TreasuriesAsync(OrgScope scope, TreasuryAccessMap access, CancellationToken ct);
+    Task<IReadOnlyList<TreasuryEntryDto>> TreasuryEntriesAsync(DateOnly from, DateOnly to, Guid? treasuryId, OrgScope scope, TreasuryAccessMap access, CancellationToken ct);
+    /// <summary>Every treasury with the given role's rights on it (for the Roles page).</summary>
+    Task<IReadOnlyList<TreasuryGrantDto>> TreasuryGrantsAsync(RoleId roleId, CancellationToken ct);
     Task<IReadOnlyList<PenaltyDto>> PenaltiesAsync(DateOnly from, DateOnly to, Guid? laboratoryId, OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
     Task<IReadOnlyList<PenaltyActorDto>> PenaltyActorsAsync(PenaltyUser userType, OrgScope scope, CancellationToken ct);
     Task<IReadOnlyList<DeductionDto>> DeductionsAsync(DateOnly from, DateOnly to, Guid? areaId, OrgScope scope, CancellationToken ct);
@@ -113,19 +124,31 @@ public sealed record GetTreasuriesQuery() : IQuery<IReadOnlyList<TreasuryDto>>, 
 { public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ViewAccounting }; }
 public sealed class GetTreasuriesHandler : IQueryHandler<GetTreasuriesQuery, IReadOnlyList<TreasuryDto>>
 {
-    private readonly IAccountingQueries _q; private readonly ICurrentUser _user;
-    public GetTreasuriesHandler(IAccountingQueries q, ICurrentUser user) { _q = q; _user = user; }
-    public Task<IReadOnlyList<TreasuryDto>> Handle(GetTreasuriesQuery r, CancellationToken ct) => _q.TreasuriesAsync(_user.Scope, ct);
+    private readonly IAccountingQueries _q; private readonly ICurrentUser _user; private readonly ITreasuryAccess _access;
+    public GetTreasuriesHandler(IAccountingQueries q, ICurrentUser user, ITreasuryAccess access) { _q = q; _user = user; _access = access; }
+    public async Task<IReadOnlyList<TreasuryDto>> Handle(GetTreasuriesQuery r, CancellationToken ct) =>
+        await _q.TreasuriesAsync(_user.Scope, await _access.ResolveAsync(ct), ct);
 }
 
 public sealed record GetTreasuryEntriesQuery(DateOnly From, DateOnly To, Guid? TreasuryId) : IQuery<IReadOnlyList<TreasuryEntryDto>>, IAuthorizedRequest
 { public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ViewAccounting }; }
 public sealed class GetTreasuryEntriesHandler : IQueryHandler<GetTreasuryEntriesQuery, IReadOnlyList<TreasuryEntryDto>>
 {
-    private readonly IAccountingQueries _q; private readonly ICurrentUser _user;
-    public GetTreasuryEntriesHandler(IAccountingQueries q, ICurrentUser user) { _q = q; _user = user; }
-    public Task<IReadOnlyList<TreasuryEntryDto>> Handle(GetTreasuryEntriesQuery r, CancellationToken ct) =>
-        _q.TreasuryEntriesAsync(r.From, r.To, r.TreasuryId, _user.Scope, ct);
+    private readonly IAccountingQueries _q; private readonly ICurrentUser _user; private readonly ITreasuryAccess _access;
+    public GetTreasuryEntriesHandler(IAccountingQueries q, ICurrentUser user, ITreasuryAccess access) { _q = q; _user = user; _access = access; }
+    public async Task<IReadOnlyList<TreasuryEntryDto>> Handle(GetTreasuryEntriesQuery r, CancellationToken ct) =>
+        await _q.TreasuryEntriesAsync(r.From, r.To, r.TreasuryId, _user.Scope, await _access.ResolveAsync(ct), ct);
+}
+
+/// <summary>Every treasury with a role's View / Validate / Update rights — the Roles page's treasury panel (ManageUsers,
+/// like the rest of role editing).</summary>
+public sealed record GetTreasuryGrantsQuery(Guid RoleId) : IQuery<IReadOnlyList<TreasuryGrantDto>>, IAuthorizedRequest
+{ public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageUsers }; }
+public sealed class GetTreasuryGrantsHandler : IQueryHandler<GetTreasuryGrantsQuery, IReadOnlyList<TreasuryGrantDto>>
+{
+    private readonly IAccountingQueries _q;
+    public GetTreasuryGrantsHandler(IAccountingQueries q) => _q = q;
+    public Task<IReadOnlyList<TreasuryGrantDto>> Handle(GetTreasuryGrantsQuery r, CancellationToken ct) => _q.TreasuryGrantsAsync(new RoleId(r.RoleId), ct);
 }
 
 public sealed record GetPenaltiesQuery(DateOnly From, DateOnly To, Guid? LaboratoryId) : IQuery<IReadOnlyList<PenaltyDto>>, IAuthorizedRequest
@@ -308,14 +331,15 @@ public sealed class CreateTreasuryEntryValidator : AbstractValidator<CreateTreas
 public sealed class CreateTreasuryEntryHandler : ICommandHandler<CreateTreasuryEntryCommand, Guid>
 {
     private readonly ITreasuryEntryRepository _entries; private readonly ITreasuryRepository _treasuries;
-    private readonly ITreasuryReasonRepository _reasons; private readonly ICurrentUser _user;
-    public CreateTreasuryEntryHandler(ITreasuryEntryRepository entries, ITreasuryRepository treasuries, ITreasuryReasonRepository reasons, ICurrentUser user)
-    { _entries = entries; _treasuries = treasuries; _reasons = reasons; _user = user; }
+    private readonly ITreasuryReasonRepository _reasons; private readonly ICurrentUser _user; private readonly ITreasuryAccess _access;
+    public CreateTreasuryEntryHandler(ITreasuryEntryRepository entries, ITreasuryRepository treasuries, ITreasuryReasonRepository reasons, ICurrentUser user, ITreasuryAccess access)
+    { _entries = entries; _treasuries = treasuries; _reasons = reasons; _user = user; _access = access; }
 
     public async Task<Guid> Handle(CreateTreasuryEntryCommand r, CancellationToken ct)
     {
         var treasury = await _treasuries.GetByIdAsync(new TreasuryId(r.TreasuryId), ct) ?? throw new NotFoundException("Treasury", r.TreasuryId);
         TreasuryScope.EnsureInScope(_user, treasury);
+        (await _access.ResolveAsync(ct)).EnsureUpdate(treasury.Id); // recording needs the treasury's Update right
         if (!treasury.IsActive) throw new ConflictException("The treasury is inactive.");
         var reason = await _reasons.GetByIdAsync(new TreasuryReasonId(r.ReasonId), ct) ?? throw new NotFoundException("TreasuryReason", r.ReasonId);
         if (!reason.IsActive) throw new ConflictException("The reason is inactive.");
@@ -333,7 +357,8 @@ public sealed class UpdateTreasuryEntryValidator : AbstractValidator<UpdateTreas
     public UpdateTreasuryEntryValidator()
     {
         RuleFor(x => x.Id).NotEmpty();
-        RuleFor(x => x.ReasonId).NotEmpty();
+        // ReasonId is required for a manual row (the handler resolves it → 404 when missing) and ignored for a
+        // validated collection mirror, which has no reason; so it is not validated for emptiness here.
         RuleFor(x => x.Debit).GreaterThanOrEqualTo(0);
         RuleFor(x => x.Credit).GreaterThanOrEqualTo(0);
         RuleFor(x => x).Must(x => (x.Debit > 0) != (x.Credit > 0)).WithMessage("Enter either a debit (cash in) or a credit (expense out), not both and not neither.");
@@ -343,15 +368,26 @@ public sealed class UpdateTreasuryEntryValidator : AbstractValidator<UpdateTreas
 public sealed class UpdateTreasuryEntryHandler : ICommandHandler<UpdateTreasuryEntryCommand>
 {
     private readonly ITreasuryEntryRepository _entries; private readonly ITreasuryRepository _treasuries;
-    private readonly ITreasuryReasonRepository _reasons; private readonly ICurrentUser _user;
-    public UpdateTreasuryEntryHandler(ITreasuryEntryRepository entries, ITreasuryRepository treasuries, ITreasuryReasonRepository reasons, ICurrentUser user)
-    { _entries = entries; _treasuries = treasuries; _reasons = reasons; _user = user; }
+    private readonly ITreasuryReasonRepository _reasons; private readonly ICurrentUser _user; private readonly ITreasuryAccess _access;
+    public UpdateTreasuryEntryHandler(ITreasuryEntryRepository entries, ITreasuryRepository treasuries, ITreasuryReasonRepository reasons, ICurrentUser user, ITreasuryAccess access)
+    { _entries = entries; _treasuries = treasuries; _reasons = reasons; _user = user; _access = access; }
 
     public async Task<Unit> Handle(UpdateTreasuryEntryCommand r, CancellationToken ct)
     {
         var entry = await _entries.GetByIdAsync(new TreasuryEntryId(r.Id), ct) ?? throw new NotFoundException("TreasuryEntry", r.Id);
         var treasury = await _treasuries.GetByIdAsync(entry.TreasuryId, ct) ?? throw new NotFoundException("Treasury", entry.TreasuryId.Value);
         TreasuryScope.EnsureInScope(_user, treasury);
+        (await _access.ResolveAsync(ct)).EnsureUpdate(treasury.Id);
+        if (entry.Origin == TreasuryEntryOrigin.AutoCollection)
+        {
+            // A mirrored collection: only a validated one can be corrected, and only its amount and notes.
+            if (entry.ValidationStatus != TreasuryValidationStatus.Validated)
+                throw new ConflictException("Validate the collection's cash first; the amount can be corrected during validation.");
+            entry.AdjustValidated(r.Debit, r.Notes);
+            return Unit.Value;
+        }
+        if (r.ReasonId == Guid.Empty)
+            throw new Common.Exceptions.ValidationException(new Dictionary<string, string[]> { ["reasonId"] = new[] { "A reason is required." } });
         var reason = await _reasons.GetByIdAsync(new TreasuryReasonId(r.ReasonId), ct) ?? throw new NotFoundException("TreasuryReason", r.ReasonId);
         entry.Update(r.Date, r.Debit, r.Credit, reason.Id, r.Notes);
         return Unit.Value;
@@ -364,15 +400,92 @@ public sealed class DeleteTreasuryEntryValidator : AbstractValidator<DeleteTreas
 { public DeleteTreasuryEntryValidator() => RuleFor(x => x.Id).NotEmpty(); }
 public sealed class DeleteTreasuryEntryHandler : ICommandHandler<DeleteTreasuryEntryCommand>
 {
-    private readonly ITreasuryEntryRepository _entries; private readonly ITreasuryRepository _treasuries; private readonly ICurrentUser _user;
-    public DeleteTreasuryEntryHandler(ITreasuryEntryRepository entries, ITreasuryRepository treasuries, ICurrentUser user)
-    { _entries = entries; _treasuries = treasuries; _user = user; }
+    private readonly ITreasuryEntryRepository _entries; private readonly ITreasuryRepository _treasuries; private readonly ICurrentUser _user; private readonly ITreasuryAccess _access;
+    public DeleteTreasuryEntryHandler(ITreasuryEntryRepository entries, ITreasuryRepository treasuries, ICurrentUser user, ITreasuryAccess access)
+    { _entries = entries; _treasuries = treasuries; _user = user; _access = access; }
     public async Task<Unit> Handle(DeleteTreasuryEntryCommand r, CancellationToken ct)
     {
         var entry = await _entries.GetByIdAsync(new TreasuryEntryId(r.Id), ct) ?? throw new NotFoundException("TreasuryEntry", r.Id);
         var treasury = await _treasuries.GetByIdAsync(entry.TreasuryId, ct);
         if (treasury is not null) TreasuryScope.EnsureInScope(_user, treasury);
+        (await _access.ResolveAsync(ct)).EnsureUpdate(entry.TreasuryId);
+        if (entry.Origin == TreasuryEntryOrigin.AutoCollection)
+            throw new ConflictException("This entry mirrors a collection; delete the collection on the Collection page instead.");
         _entries.Remove(entry);
+        return Unit.Value;
+    }
+}
+
+/// <summary>The treasury confirms the cash received for a mirrored collection — the collected amount or a corrected one.
+/// Needs the treasury's Validate right (the page privilege alone is not enough).</summary>
+public sealed record ValidateTreasuryEntryCommand(Guid Id, decimal ReceivedAmount, string? Note) : ICommand, IAuthorizedRequest
+{ public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ViewAccounting }; }
+public sealed class ValidateTreasuryEntryValidator : AbstractValidator<ValidateTreasuryEntryCommand>
+{
+    public ValidateTreasuryEntryValidator()
+    {
+        RuleFor(x => x.Id).NotEmpty();
+        RuleFor(x => x.ReceivedAmount).GreaterThan(0);
+        RuleFor(x => x.Note).MaximumLength(500);
+    }
+}
+public sealed class ValidateTreasuryEntryHandler : ICommandHandler<ValidateTreasuryEntryCommand>
+{
+    private readonly ITreasuryEntryRepository _entries; private readonly ITreasuryRepository _treasuries;
+    private readonly ICurrentUser _user; private readonly ITreasuryAccess _access; private readonly IClock _clock;
+    public ValidateTreasuryEntryHandler(ITreasuryEntryRepository entries, ITreasuryRepository treasuries, ICurrentUser user, ITreasuryAccess access, IClock clock)
+    { _entries = entries; _treasuries = treasuries; _user = user; _access = access; _clock = clock; }
+    public async Task<Unit> Handle(ValidateTreasuryEntryCommand r, CancellationToken ct)
+    {
+        var entry = await _entries.GetByIdAsync(new TreasuryEntryId(r.Id), ct) ?? throw new NotFoundException("TreasuryEntry", r.Id);
+        var treasury = await _treasuries.GetByIdAsync(entry.TreasuryId, ct) ?? throw new NotFoundException("Treasury", entry.TreasuryId.Value);
+        TreasuryScope.EnsureInScope(_user, treasury);
+        (await _access.ResolveAsync(ct)).EnsureValidate(treasury.Id);
+        if (entry.Origin != TreasuryEntryOrigin.AutoCollection) throw new ConflictException("Only a collection's treasury entry is validated.");
+        if (entry.ValidationStatus == TreasuryValidationStatus.Validated) throw new ConflictException("This entry is already validated.");
+        entry.Validate(r.ReceivedAmount, r.Note, _user.Username, _clock.UtcNow);
+        return Unit.Value;
+    }
+}
+
+/// <summary>Replaces a role's treasury rights (ManageUsers, like the rest of role editing). Rows with no right are removed.</summary>
+public sealed record SetTreasuryGrantsCommand(Guid RoleId, IReadOnlyList<TreasuryGrantInput> Grants) : ICommand, IAuthorizedRequest
+{ public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageUsers }; }
+public sealed class SetTreasuryGrantsValidator : AbstractValidator<SetTreasuryGrantsCommand>
+{
+    public SetTreasuryGrantsValidator()
+    {
+        RuleFor(x => x.RoleId).NotEmpty();
+        RuleFor(x => x.Grants).NotNull();
+        RuleFor(x => x.Grants).Must(g => g.Select(x => x.TreasuryId).Distinct().Count() == g.Count).WithMessage("Each treasury may appear once.");
+        RuleForEach(x => x.Grants).ChildRules(g => g.RuleFor(x => x.TreasuryId).NotEmpty());
+    }
+}
+public sealed class SetTreasuryGrantsHandler : ICommandHandler<SetTreasuryGrantsCommand>
+{
+    private readonly ITreasuryGrantRepository _grants; private readonly ITreasuryRepository _treasuries; private readonly IRoleRepository _roles; private readonly ICurrentUser _user;
+    public SetTreasuryGrantsHandler(ITreasuryGrantRepository grants, ITreasuryRepository treasuries, IRoleRepository roles, ICurrentUser user)
+    { _grants = grants; _treasuries = treasuries; _roles = roles; _user = user; }
+    public async Task<Unit> Handle(SetTreasuryGrantsCommand r, CancellationToken ct)
+    {
+        var role = await _roles.GetByIdAsync(new RoleId(r.RoleId), ct) ?? throw new NotFoundException("Role", r.RoleId);
+        if (role.IsBuiltIn) throw new ConflictException("The built-in administrator role holds every treasury right; it is not edited.");
+        if (_user.RoleId == role.Id) throw new ForbiddenException("You cannot modify your own role.");
+
+        var existing = (await _grants.GetForRoleAsync(role.Id, ct)).ToDictionary(g => g.TreasuryId);
+        foreach (var input in r.Grants)
+        {
+            var treasury = await _treasuries.GetByIdAsync(new TreasuryId(input.TreasuryId), ct) ?? throw new NotFoundException("Treasury", input.TreasuryId);
+            var wanted = new TreasuryGrant.Rights(input.CanView, input.CanValidate, input.CanUpdate);
+            if (existing.TryGetValue(treasury.Id, out var g))
+            {
+                if (wanted.IsEmpty) _grants.Remove(g); else g.Set(wanted.View, wanted.Validate, wanted.Update);
+                existing.Remove(treasury.Id);
+            }
+            else if (!wanted.IsEmpty) _grants.Add(TreasuryGrant.Create(role.Id, treasury.Id, wanted.View, wanted.Validate, wanted.Update));
+        }
+        // Treasuries omitted from the payload lose their rights (the page always sends the full list).
+        foreach (var leftover in existing.Values) _grants.Remove(leftover);
         return Unit.Value;
     }
 }
@@ -686,9 +799,11 @@ public sealed class CreateCollectionValidator : AbstractValidator<CreateCollecti
 public sealed class CreateCollectionHandler : ICommandHandler<CreateCollectionCommand, Guid>
 {
     private readonly ICollectionRepository _repo; private readonly ILaboratoryRepository _labs;
-    private readonly IRepresentativeRepository _reps; private readonly ICurrentUser _user;
-    public CreateCollectionHandler(ICollectionRepository repo, ILaboratoryRepository labs, IRepresentativeRepository reps, ICurrentUser user)
-    { _repo = repo; _labs = labs; _reps = reps; _user = user; }
+    private readonly IRepresentativeRepository _reps; private readonly ITreasuryRepository _treasuries; private readonly ITreasuryEntryRepository _entries;
+    private readonly ICurrentUser _user;
+    public CreateCollectionHandler(ICollectionRepository repo, ILaboratoryRepository labs, IRepresentativeRepository reps,
+        ITreasuryRepository treasuries, ITreasuryEntryRepository entries, ICurrentUser user)
+    { _repo = repo; _labs = labs; _reps = reps; _treasuries = treasuries; _entries = entries; _user = user; }
 
     public async Task<Guid> Handle(CreateCollectionCommand r, CancellationToken ct)
     {
@@ -698,6 +813,7 @@ public sealed class CreateCollectionHandler : ICommandHandler<CreateCollectionCo
         var c = Collection.Create(lab.Id, r.Date, EnumParse.Name<CollectionType>(r.Type, nameof(r.Type)), repIds, r.Cash, r.Bank,
             r.Bank > 0 ? EnumParse.Name<IbanOption>(r.Iban!, nameof(r.Iban)) : null, r.DoneBy, r.Notes);
         _repo.Add(c);
+        await CollectionTreasurySync.UpsertAsync(c, lab, _treasuries, _entries, _reps, ct); // same transaction
         return c.Id.Value;
     }
 }
@@ -725,9 +841,11 @@ public sealed class UpdateCollectionValidator : AbstractValidator<UpdateCollecti
 public sealed class UpdateCollectionHandler : ICommandHandler<UpdateCollectionCommand>
 {
     private readonly ICollectionRepository _repo; private readonly ILaboratoryRepository _labs;
-    private readonly IRepresentativeRepository _reps; private readonly ICurrentUser _user;
-    public UpdateCollectionHandler(ICollectionRepository repo, ILaboratoryRepository labs, IRepresentativeRepository reps, ICurrentUser user)
-    { _repo = repo; _labs = labs; _reps = reps; _user = user; }
+    private readonly IRepresentativeRepository _reps; private readonly ITreasuryRepository _treasuries; private readonly ITreasuryEntryRepository _entries;
+    private readonly ICurrentUser _user;
+    public UpdateCollectionHandler(ICollectionRepository repo, ILaboratoryRepository labs, IRepresentativeRepository reps,
+        ITreasuryRepository treasuries, ITreasuryEntryRepository entries, ICurrentUser user)
+    { _repo = repo; _labs = labs; _reps = reps; _treasuries = treasuries; _entries = entries; _user = user; }
 
     public async Task<Unit> Handle(UpdateCollectionCommand r, CancellationToken ct)
     {
@@ -737,6 +855,7 @@ public sealed class UpdateCollectionHandler : ICommandHandler<UpdateCollectionCo
         var repIds = await CollectionSupport.ResolveRepsAsync(r.RepIds, _reps, _user, ct);
         c.Update(r.Date, EnumParse.Name<CollectionType>(r.Type, nameof(r.Type)), repIds, r.Cash, r.Bank,
             r.Bank > 0 ? EnumParse.Name<IbanOption>(r.Iban!, nameof(r.Iban)) : null, r.DoneBy, r.Notes);
+        await CollectionTreasurySync.UpsertAsync(c, lab, _treasuries, _entries, _reps, ct);
         return Unit.Value;
     }
 }
@@ -746,15 +865,57 @@ public sealed record DeleteCollectionCommand(Guid Id) : ICommand, IAuthorizedReq
 public sealed class DeleteCollectionValidator : AbstractValidator<DeleteCollectionCommand> { public DeleteCollectionValidator() => RuleFor(x => x.Id).NotEmpty(); }
 public sealed class DeleteCollectionHandler : ICommandHandler<DeleteCollectionCommand>
 {
-    private readonly ICollectionRepository _repo; private readonly ILaboratoryRepository _labs; private readonly ICurrentUser _user;
-    public DeleteCollectionHandler(ICollectionRepository repo, ILaboratoryRepository labs, ICurrentUser user) { _repo = repo; _labs = labs; _user = user; }
+    private readonly ICollectionRepository _repo; private readonly ILaboratoryRepository _labs; private readonly ITreasuryEntryRepository _entries; private readonly ICurrentUser _user;
+    public DeleteCollectionHandler(ICollectionRepository repo, ILaboratoryRepository labs, ITreasuryEntryRepository entries, ICurrentUser user)
+    { _repo = repo; _labs = labs; _entries = entries; _user = user; }
     public async Task<Unit> Handle(DeleteCollectionCommand r, CancellationToken ct)
     {
         var c = await _repo.GetByIdAsync(new CollectionId(r.Id), ct) ?? throw new NotFoundException("Collection", r.Id);
         var lab = await _labs.GetByIdAsync(c.LaboratoryId, ct);
         if (lab is not null) _user.EnsureInScope(lab);
+        await CollectionTreasurySync.RemoveAsync(c, _entries, ct); // refuses once the treasury has validated the cash
         _repo.Remove(c);
         return Unit.Value;
+    }
+}
+
+/// <summary>
+/// Keeps a collection's cash mirrored into the treasury serving the lab's branch (operator decision, 2026-09-16): the
+/// entry is created with the collection, refreshed when it changes, removed when it is deleted, and carries the
+/// collection's particulars. A lab with no serving branch, or a branch no active treasury covers, gets no entry (the
+/// collection is never blocked; the daily automation links it once a treasury covers the branch). When several active
+/// treasuries share the branch the first by name is used. Runs inside the collection command's transaction.
+/// </summary>
+public static class CollectionTreasurySync
+{
+    /// <summary>Creates or refreshes the mirroring entry. Returns false when no treasury can receive it.</summary>
+    public static async Task<bool> UpsertAsync(Collection collection, Laboratory lab, ITreasuryRepository treasuries, ITreasuryEntryRepository entries,
+        IRepresentativeRepository reps, CancellationToken ct)
+    {
+        var existing = await entries.GetByCollectionAsync(collection.Id, ct);
+        var treasury = string.IsNullOrWhiteSpace(lab.Branch) ? null : (await treasuries.GetActiveByBranchAsync(lab.Branch, ct)).FirstOrDefault();
+        if (treasury is null || collection.Cash.Amount <= 0)
+        {
+            // Nothing to receive it (or no cash any more): a not-yet-validated mirror is dropped; a validated one is kept
+            // — the treasury did receive that cash — and stays attributable through its system note.
+            if (existing is not null && existing.ValidationStatus != TreasuryValidationStatus.Validated) entries.Remove(existing);
+            return false;
+        }
+        var repNames = new List<string>();
+        foreach (var id in collection.RepIds) repNames.Add((await reps.GetByIdAsync(id, ct))?.FullName ?? "—");
+        if (existing is null) entries.Add(TreasuryEntry.FromCollection(treasury.Id, collection, lab.Name, repNames));
+        else existing.RefreshFromCollection(collection, lab.Name, repNames);
+        return true;
+    }
+
+    /// <summary>Removes the mirror with its collection; refused once the treasury has validated the cash (accounting integrity).</summary>
+    public static async Task RemoveAsync(Collection collection, ITreasuryEntryRepository entries, CancellationToken ct)
+    {
+        var existing = await entries.GetByCollectionAsync(collection.Id, ct);
+        if (existing is null) return;
+        if (existing.ValidationStatus == TreasuryValidationStatus.Validated)
+            throw new ConflictException("The treasury has already validated this collection's cash; the collection can no longer be deleted.");
+        entries.Remove(existing);
     }
 }
 

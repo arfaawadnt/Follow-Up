@@ -70,6 +70,7 @@ public sealed class IbanOption : Enumeration
 public readonly record struct TreasuryReasonId(Guid Value) { public static TreasuryReasonId New() => new(Guid.NewGuid()); public override string ToString() => Value.ToString(); }
 public readonly record struct TreasuryId(Guid Value) { public static TreasuryId New() => new(Guid.NewGuid()); public override string ToString() => Value.ToString(); }
 public readonly record struct TreasuryEntryId(Guid Value) { public static TreasuryEntryId New() => new(Guid.NewGuid()); public override string ToString() => Value.ToString(); }
+public readonly record struct TreasuryGrantId(Guid Value) { public static TreasuryGrantId New() => new(Guid.NewGuid()); public override string ToString() => Value.ToString(); }
 public readonly record struct PenaltyRecordId(Guid Value) { public static PenaltyRecordId New() => new(Guid.NewGuid()); public override string ToString() => Value.ToString(); }
 public readonly record struct DeductionId(Guid Value) { public static DeductionId New() => new(Guid.NewGuid()); public override string ToString() => Value.ToString(); }
 public readonly record struct CollectionId(Guid Value) { public static CollectionId New() => new(Guid.NewGuid()); public override string ToString() => Value.ToString(); }
@@ -166,14 +167,38 @@ public sealed class Treasury : AggregateRoot<TreasuryId>, IAuditable
     public void Activate(bool active) => IsActive = active;
 }
 
+/// <summary>Where a treasury entry came from: typed by an operator, or mirrored from a Collection's cash.</summary>
+public sealed class TreasuryEntryOrigin : Enumeration
+{
+    public static readonly TreasuryEntryOrigin Manual = new(1, nameof(Manual));
+    public static readonly TreasuryEntryOrigin AutoCollection = new(2, nameof(AutoCollection));
+    private TreasuryEntryOrigin(int id, string name) : base(id, name) { }
+}
+
+/// <summary>Validation state of a treasury entry. Manual rows need none; a mirrored collection is Pending until a
+/// treasury user confirms the cash actually received (possibly correcting the amount), then Validated.</summary>
+public sealed class TreasuryValidationStatus : Enumeration
+{
+    public static readonly TreasuryValidationStatus NotRequired = new(1, nameof(NotRequired));
+    public static readonly TreasuryValidationStatus Pending = new(2, nameof(Pending));
+    public static readonly TreasuryValidationStatus Validated = new(3, nameof(Validated));
+    private TreasuryValidationStatus(int id, string name) : base(id, name) { }
+}
+
 /// <summary>
-/// One treasury movement. Debit = cash INTO the treasury (دخول نقدي للخزينة); Credit = expenses OUT of the lab
-/// (خروج مصروفات من المعمل). An entry is one-sided: exactly one of the two is positive.
+/// One treasury movement. Debit = cash INTO the treasury; Credit = expenses OUT of the lab. An entry is one-sided:
+/// exactly one of the two is positive.
+/// <para>Two origins (operator decisions, 2026-09-16): <b>Manual</b> rows are typed and carry a configured reason.
+/// <b>AutoCollection</b> rows mirror one Collection's cash into the treasury serving the lab's branch — created, refreshed
+/// and removed with the collection, no reason (the collection is the reason), the collection's particulars in
+/// <see cref="SystemNote"/>. They start <see cref="TreasuryValidationStatus.Pending"/>; a treasury user with the Validate
+/// grant confirms the cash received (correcting the debit if it differs), after which only the Update grant may change it.
+/// A cash change on the collection re-opens validation.</para>
 /// </summary>
 public sealed class TreasuryEntry : AggregateRoot<TreasuryEntryId>, IAuditable
 {
     private TreasuryEntry() { } // EF
-    private TreasuryEntry(TreasuryEntryId id, TreasuryId treasuryId) : base(id) { TreasuryId = treasuryId; }
+    private TreasuryEntry(TreasuryEntryId id, TreasuryId treasuryId, TreasuryEntryOrigin origin) : base(id) { TreasuryId = treasuryId; Origin = origin; }
 
     /// <summary>DB-generated sequence number (identity) — the row's stable human-facing "Serial".</summary>
     public long Serial { get; private set; }
@@ -181,28 +206,158 @@ public sealed class TreasuryEntry : AggregateRoot<TreasuryEntryId>, IAuditable
     public DateOnly Date { get; private set; }
     public Money Debit { get; private set; }
     public Money Credit { get; private set; }
-    public TreasuryReasonId ReasonId { get; private set; }
+    /// <summary>The configured reason of a manual row; null for a mirrored collection.</summary>
+    public TreasuryReasonId? ReasonId { get; private set; }
+    /// <summary>Operator-written notes. Never modified by the automation.</summary>
     public string? Notes { get; private set; }
+    public TreasuryEntryOrigin Origin { get; private set; } = null!;
+    /// <summary>The Collection an AutoCollection row mirrors; null for manual rows.</summary>
+    public CollectionId? CollectionId { get; private set; }
+    /// <summary>The cash the collection recorded when last synced — what the treasury was expected to receive.</summary>
+    public Money? CollectedCash { get; private set; }
+    /// <summary>System-written details of the mirrored collection.</summary>
+    public string? SystemNote { get; private set; }
+    public TreasuryValidationStatus ValidationStatus { get; private set; } = null!;
+    public DateTimeOffset? ValidatedAt { get; private set; }
+    public string? ValidatedBy { get; private set; }
+    public string? ValidationNote { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
     public string CreatedBy { get; private set; } = null!;
     public DateTimeOffset? UpdatedAt { get; private set; }
     public string? UpdatedBy { get; private set; }
 
+    // ---- Manual ----
+
     public static TreasuryEntry Create(TreasuryId treasuryId, DateOnly date, decimal debit, decimal credit, TreasuryReasonId reasonId, string? notes)
     {
-        var e = new TreasuryEntry(TreasuryEntryId.New(), treasuryId);
+        var e = new TreasuryEntry(TreasuryEntryId.New(), treasuryId, TreasuryEntryOrigin.Manual) { ValidationStatus = TreasuryValidationStatus.NotRequired };
         e.Update(date, debit, credit, reasonId, notes);
         return e;
     }
 
+    /// <summary>Full edit of a manual row. Mirrored collections are changed through <see cref="Validate"/> / <see cref="AdjustValidated"/>.</summary>
     public void Update(DateOnly date, decimal debit, decimal credit, TreasuryReasonId reasonId, string? notes)
     {
+        if (Origin != TreasuryEntryOrigin.Manual)
+            throw new DomainException("A collection's treasury entry is validated or adjusted, not edited; its date and amount follow the collection.");
         var d = AccountingGuards.NonNegative(debit, "Debit");
         var c = AccountingGuards.NonNegative(credit, "Credit");
         if ((d.Amount > 0) == (c.Amount > 0))
             throw new DomainException("A treasury entry is either a debit (cash in) or a credit (expense out) — exactly one must be greater than zero.");
         Date = date; Debit = d; Credit = c; ReasonId = reasonId; Notes = AccountingGuards.Optional(notes, 500);
+    }
+
+    // ---- AutoCollection ----
+
+    /// <summary>Mirrors a collection's cash as a pending debit of the treasury serving the lab's branch.</summary>
+    public static TreasuryEntry FromCollection(TreasuryId treasuryId, Collection collection, string labName, IEnumerable<string> repNames)
+    {
+        if (collection.Cash.Amount <= 0) throw new DomainException("Only a collection with a cash amount is mirrored into a treasury.");
+        var e = new TreasuryEntry(TreasuryEntryId.New(), treasuryId, TreasuryEntryOrigin.AutoCollection)
+        { CollectionId = collection.Id, ValidationStatus = TreasuryValidationStatus.Pending, Credit = Money.Zero };
+        e.RefreshFromCollection(collection, labName, repNames);
+        return e;
+    }
+
+    /// <summary>
+    /// Re-syncs after the collection changed. Date and details always follow the collection. The debit follows the
+    /// collected cash while the row is Pending; a validated row keeps the amount the treasury confirmed unless the
+    /// collected cash itself changed — then validation is re-opened (Pending) and the debit resets to the new cash.
+    /// Operator notes are kept.
+    /// </summary>
+    public void RefreshFromCollection(Collection collection, string labName, IEnumerable<string> repNames)
+    {
+        if (Origin != TreasuryEntryOrigin.AutoCollection || CollectionId != collection.Id)
+            throw new DomainException("This treasury entry does not mirror that collection.");
+        if (collection.Cash.Amount <= 0) throw new DomainException("Only a collection with a cash amount is mirrored into a treasury.");
+        var cashChanged = CollectedCash is null || CollectedCash.Value.Amount != collection.Cash.Amount;
+        Date = collection.Date;
+        CollectedCash = collection.Cash;
+        var reps = string.Join(", ", repNames.Where(n => !string.IsNullOrWhiteSpace(n)));
+        SystemNote = AccountingGuards.Optional(
+            $"Collection · {labName} · {collection.Date:dd/MM/yyyy} · {collection.Type.Name} · rep(s) {reps} · cash {collection.Cash.Amount:0.00}"
+            + (collection.Bank.Amount > 0 ? $" (bank {collection.Bank.Amount:0.00} not in treasury)" : "")
+            + (string.IsNullOrWhiteSpace(collection.DoneBy) ? "" : $" · done by {collection.DoneBy}"), 1000);
+        if (ValidationStatus == TreasuryValidationStatus.Pending || cashChanged)
+        {
+            Debit = collection.Cash;
+            if (ValidationStatus == TreasuryValidationStatus.Validated)
+            {
+                ValidationStatus = TreasuryValidationStatus.Pending; // the confirmed amount no longer matches what was collected
+                ValidatedAt = null; ValidatedBy = null;
+            }
+        }
+    }
+
+    /// <summary>The treasury confirms the cash actually received — the collected amount, or a corrected one.</summary>
+    public void Validate(decimal receivedAmount, string? note, string validatedBy, DateTimeOffset at)
+    {
+        if (Origin != TreasuryEntryOrigin.AutoCollection) throw new DomainException("Only a collection's treasury entry is validated.");
+        if (ValidationStatus == TreasuryValidationStatus.Validated) throw new DomainException("This entry is already validated; use an update to change it.");
+        var received = AccountingGuards.NonNegative(receivedAmount, "Received amount");
+        if (received.Amount <= 0) throw new DomainException("The received amount must be greater than zero.");
+        Debit = received;
+        ValidationStatus = TreasuryValidationStatus.Validated;
+        ValidatedAt = at;
+        ValidatedBy = AccountingGuards.Required(validatedBy, "Validated by", 100);
+        ValidationNote = AccountingGuards.Optional(note, 500);
+    }
+
+    /// <summary>Post-validation correction of a mirrored entry (the Update grant): amount and operator notes only.</summary>
+    public void AdjustValidated(decimal amount, string? notes)
+    {
+        if (Origin != TreasuryEntryOrigin.AutoCollection) throw new DomainException("Use Update for a manual treasury entry.");
+        if (ValidationStatus != TreasuryValidationStatus.Validated) throw new DomainException("Validate the entry before adjusting it.");
+        var a = AccountingGuards.NonNegative(amount, "Amount");
+        if (a.Amount <= 0) throw new DomainException("The amount must be greater than zero.");
+        Debit = a;
+        Notes = AccountingGuards.Optional(notes, 500);
+    }
+
+    /// <summary>The confirmed amount differs from what the collection recorded.</summary>
+    public bool HasDiscrepancy => Origin == TreasuryEntryOrigin.AutoCollection && CollectedCash is { } c && c.Amount != Debit.Amount;
+}
+
+/// <summary>
+/// A role's rights on one treasury (operator decision, 2026-09-16): View its account, Validate its mirrored collections,
+/// Update its entries after validation (and record / edit / delete its manual entries). Validate and Update imply View.
+/// The built-in administrator role holds every right on every treasury without rows here. No row = no access.
+/// </summary>
+public sealed class TreasuryGrant : AggregateRoot<TreasuryGrantId>, IAuditable
+{
+    private TreasuryGrant() { } // EF
+    private TreasuryGrant(TreasuryGrantId id, RoleId roleId, TreasuryId treasuryId) : base(id) { RoleId = roleId; TreasuryId = treasuryId; }
+    public RoleId RoleId { get; private set; }
+    public TreasuryId TreasuryId { get; private set; }
+    public bool CanView { get; private set; }
+    public bool CanValidate { get; private set; }
+    public bool CanUpdate { get; private set; }
+    public DateTimeOffset CreatedAt { get; private set; }
+    public string CreatedBy { get; private set; } = null!;
+    public DateTimeOffset? UpdatedAt { get; private set; }
+    public string? UpdatedBy { get; private set; }
+
+    public static TreasuryGrant Create(RoleId roleId, TreasuryId treasuryId, bool view, bool validate, bool update)
+    {
+        var g = new TreasuryGrant(TreasuryGrantId.New(), roleId, treasuryId);
+        g.Set(view, validate, update);
+        return g;
+    }
+
+    public void Set(bool view, bool validate, bool update)
+    {
+        CanView = view || validate || update; // the finer rights need the page
+        CanValidate = validate;
+        CanUpdate = update;
+    }
+
+    public bool IsEmpty => !CanView && !CanValidate && !CanUpdate;
+
+    /// <summary>A requested set of rights, normalised the same way the aggregate stores them.</summary>
+    public readonly record struct Rights(bool View, bool Validate, bool Update)
+    {
+        public bool IsEmpty => !View && !Validate && !Update;
     }
 }
 

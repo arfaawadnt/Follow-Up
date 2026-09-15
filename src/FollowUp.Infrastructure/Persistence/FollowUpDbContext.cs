@@ -78,6 +78,7 @@ public sealed class FollowUpDbContext : DbContext
     public DbSet<Domain.Accounting.TreasuryReason> TreasuryReasons => Set<Domain.Accounting.TreasuryReason>();
     public DbSet<Domain.Accounting.Treasury> Treasuries => Set<Domain.Accounting.Treasury>();
     public DbSet<Domain.Accounting.TreasuryEntry> TreasuryEntries => Set<Domain.Accounting.TreasuryEntry>();
+    public DbSet<Domain.Accounting.TreasuryGrant> TreasuryGrants => Set<Domain.Accounting.TreasuryGrant>();
     public DbSet<Domain.Accounting.PenaltyRecord> PenaltyRecords => Set<Domain.Accounting.PenaltyRecord>();
     public DbSet<Domain.Accounting.Deduction> Deductions => Set<Domain.Accounting.Deduction>();
     public DbSet<Domain.Accounting.Collection> Collections => Set<Domain.Accounting.Collection>();
@@ -109,6 +110,8 @@ public sealed class FollowUpDbContext : DbContext
         c.Properties<Domain.Accounting.PenaltyUser>().HaveConversion<EnumerationConverter<Domain.Accounting.PenaltyUser>>().HaveMaxLength(32);
         c.Properties<Domain.Accounting.DeductionReason>().HaveConversion<EnumerationConverter<Domain.Accounting.DeductionReason>>().HaveMaxLength(32);
         c.Properties<Domain.Accounting.DeductionOrigin>().HaveConversion<EnumerationConverter<Domain.Accounting.DeductionOrigin>>().HaveMaxLength(32);
+        c.Properties<Domain.Accounting.TreasuryEntryOrigin>().HaveConversion<EnumerationConverter<Domain.Accounting.TreasuryEntryOrigin>>().HaveMaxLength(32);
+        c.Properties<Domain.Accounting.TreasuryValidationStatus>().HaveConversion<EnumerationConverter<Domain.Accounting.TreasuryValidationStatus>>().HaveMaxLength(32);
         c.Properties<Domain.Accounting.CollectionType>().HaveConversion<EnumerationConverter<Domain.Accounting.CollectionType>>().HaveMaxLength(32);
         c.Properties<Domain.Accounting.IbanOption>().HaveConversion<EnumerationConverter<Domain.Accounting.IbanOption>>().HaveMaxLength(32);
 
@@ -148,6 +151,7 @@ public sealed class FollowUpDbContext : DbContext
         c.Properties<Domain.Accounting.TreasuryReasonId>().HaveConversion<TreasuryReasonIdConverter>();
         c.Properties<Domain.Accounting.TreasuryId>().HaveConversion<TreasuryIdConverter>();
         c.Properties<Domain.Accounting.TreasuryEntryId>().HaveConversion<TreasuryEntryIdConverter>();
+        c.Properties<Domain.Accounting.TreasuryGrantId>().HaveConversion<TreasuryGrantIdConverter>();
         c.Properties<Domain.Accounting.PenaltyRecordId>().HaveConversion<PenaltyRecordIdConverter>();
         c.Properties<Domain.Accounting.DeductionId>().HaveConversion<DeductionIdConverter>();
         c.Properties<Domain.Accounting.CollectionId>().HaveConversion<CollectionIdConverter>();

@@ -26,6 +26,8 @@ public static class DependencyInjection
         });
 
         services.AddValidatorsFromAssembly(assembly, includeInternalTypes: true);
+        // Per-request resolution of the caller's per-treasury rights (Accounting > Treasury Account).
+        services.AddScoped<Common.Security.ITreasuryAccess, Common.Security.TreasuryAccess>();
 
         return services;
     }

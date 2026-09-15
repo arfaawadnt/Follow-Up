@@ -1,6 +1,7 @@
 using FluentAssertions;
 using FollowUp.Domain.Accounting;
 using FollowUp.Domain.Common;
+using FollowUp.Domain.Identity;
 using FollowUp.Domain.Laboratories;
 using FollowUp.Domain.Reference;
 using FollowUp.Domain.Representatives;
@@ -53,6 +54,69 @@ public class AccountingInvariantsTests
         neither.Should().Throw<DomainException>().WithMessage("*exactly one*");
         var negative = () => TreasuryEntry.Create(tid, D, -1m, 0m, rid, null);
         negative.Should().Throw<DomainException>().WithMessage("*cannot be negative*");
+    }
+
+    [Fact]
+    public void A_collection_mirror_follows_the_collection_until_validated_and_reopens_when_the_cash_changes()
+    {
+        var tid = TreasuryId.New(); var lab = LaboratoryId.New(); var rep = RepresentativeId.New();
+        var c = Collection.Create(lab, D, CollectionType.Single, new[] { rep }, 1000m, 250m, IbanOption.Iban16, "Ahmed", null);
+
+        var e = TreasuryEntry.FromCollection(tid, c, "Alpha Lab", new[] { "Rep One" });
+        e.Origin.Should().BeSameAs(TreasuryEntryOrigin.AutoCollection);
+        e.ValidationStatus.Should().BeSameAs(TreasuryValidationStatus.Pending);
+        e.Debit.Amount.Should().Be(1000m, "the cash, never the bank part"); e.Credit.Amount.Should().Be(0m);
+        e.ReasonId.Should().BeNull("the collection is the reason");
+        e.CollectionId.Should().Be(c.Id); e.CollectedCash!.Value.Amount.Should().Be(1000m); e.Date.Should().Be(D);
+        e.SystemNote.Should().Contain("Alpha Lab").And.Contain("Rep One").And.Contain("1000.00").And.Contain("bank 250.00").And.Contain("Ahmed");
+        e.HasDiscrepancy.Should().BeFalse();
+
+        FluentActions.Invoking(() => e.Update(D, 5m, 0m, TreasuryReasonId.New(), null)).Should().Throw<DomainException>().WithMessage("*validated or adjusted*");
+        FluentActions.Invoking(() => e.AdjustValidated(900m, null)).Should().Throw<DomainException>().WithMessage("*Validate the entry before*");
+
+        // While pending, the collection's cash drives the debit.
+        c.Update(D.AddDays(1), CollectionType.Single, new[] { rep }, 1200m, 250m, IbanOption.Iban16, "Ahmed", null);
+        e.RefreshFromCollection(c, "Alpha Lab", new[] { "Rep One" });
+        e.Debit.Amount.Should().Be(1200m); e.Date.Should().Be(D.AddDays(1));
+
+        // The treasury confirms less than collected → validated with a discrepancy.
+        e.Validate(1150m, "50 short", "cashier", new DateTimeOffset(2026, 9, 16, 10, 0, 0, TimeSpan.Zero));
+        e.ValidationStatus.Should().BeSameAs(TreasuryValidationStatus.Validated);
+        e.Debit.Amount.Should().Be(1150m); e.ValidatedBy.Should().Be("cashier"); e.ValidationNote.Should().Be("50 short");
+        e.HasDiscrepancy.Should().BeTrue();
+        FluentActions.Invoking(() => e.Validate(1m, null, "x", DateTimeOffset.UtcNow)).Should().Throw<DomainException>().WithMessage("*already validated*");
+
+        // Post-validation correction keeps it validated; a collection edit that leaves the cash alone keeps it validated too.
+        e.AdjustValidated(1160m, "recounted");
+        e.Debit.Amount.Should().Be(1160m); e.Notes.Should().Be("recounted"); e.ValidationStatus.Should().BeSameAs(TreasuryValidationStatus.Validated);
+        c.Update(D.AddDays(1), CollectionType.Single, new[] { rep }, 1200m, 300m, IbanOption.Iban16, "Ahmed", "notes only");
+        e.RefreshFromCollection(c, "Alpha Lab", new[] { "Rep One" });
+        e.ValidationStatus.Should().BeSameAs(TreasuryValidationStatus.Validated, "the collected cash did not change");
+        e.Debit.Amount.Should().Be(1160m, "the treasury's confirmed amount stands");
+
+        // A cash change on the collection re-opens validation with the new cash.
+        c.Update(D.AddDays(1), CollectionType.Single, new[] { rep }, 1500m, 300m, IbanOption.Iban16, "Ahmed", null);
+        e.RefreshFromCollection(c, "Alpha Lab", new[] { "Rep One" });
+        e.ValidationStatus.Should().BeSameAs(TreasuryValidationStatus.Pending);
+        e.Debit.Amount.Should().Be(1500m); e.ValidatedBy.Should().BeNull();
+        e.Notes.Should().Be("recounted", "operator notes are never touched by the automation");
+
+        var bankOnly = Collection.Create(lab, D, CollectionType.Single, new[] { rep }, 0m, 500m, IbanOption.Iban12, null, null);
+        FluentActions.Invoking(() => TreasuryEntry.FromCollection(tid, bankOnly, "Lab", Array.Empty<string>())).Should().Throw<DomainException>().WithMessage("*cash amount*");
+        var manual = TreasuryEntry.Create(tid, D, 10m, 0m, TreasuryReasonId.New(), null);
+        manual.ValidationStatus.Should().BeSameAs(TreasuryValidationStatus.NotRequired);
+        FluentActions.Invoking(() => manual.Validate(10m, null, "x", DateTimeOffset.UtcNow)).Should().Throw<DomainException>();
+    }
+
+    [Fact]
+    public void A_treasury_grant_normalises_its_rights()
+    {
+        var g = TreasuryGrant.Create(RoleId.New(), TreasuryId.New(), view: false, validate: true, update: false);
+        g.CanView.Should().BeTrue("Validate needs the page"); g.CanValidate.Should().BeTrue(); g.CanUpdate.Should().BeFalse();
+        g.Set(false, false, false);
+        g.IsEmpty.Should().BeTrue();
+        g.Set(false, false, true);
+        g.CanView.Should().BeTrue(); g.CanUpdate.Should().BeTrue();
     }
 
     // ---- Penalty ----

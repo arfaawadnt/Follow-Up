@@ -4,7 +4,7 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { TranslatePipe } from '../../core/i18n';
 import { ToastService } from '../../core/toast.service';
-import { RefItem, RoleItem } from '../../core/models';
+import { RefItem, RoleItem, TreasuryGrant } from '../../core/models';
 
 interface MatrixSpecial { priv: string; key: string; label: string; }
 interface MatrixRow { key: string; label: string; view: string | null; add: string | null; update: string | null; special: MatrixSpecial[]; }
@@ -185,6 +185,26 @@ const MATRIX: MatrixRow[] = [
             </div>
           </div>
 
+          @if (treasuryGrants().length) {
+            <div class="scopebox" style="margin-top:16px">
+              <div class="scopehead"><h4>{{ 'treasury_rights' | t : 'Treasury rights' }}</h4><span class="small muted">{{ 'treasury_rights_hint' | t : 'Per treasury: View the account, Validate mirrored collections, Update entries (records manual entries; corrects validated ones).' }}</span></div>
+              <div class="matrixwrap grid-scroll"><table class="privmatrix">
+                <thead><tr><th>{{ 'treasury' | t : 'Treasury' }}</th><th>{{ 'view' | t : 'View' }}</th><th>{{ 'validate' | t : 'Validate' }}</th><th>{{ 'update' | t : 'Update' }}</th></tr></thead>
+                <tbody>
+                  @for (g of treasuryGrants(); track g.treasuryId) {
+                    <tr>
+                      <td class="pagename">{{ g.treasuryName }}@if (!g.isActive) { <span class="badge b-neu" style="margin-inline-start:6px">{{ 'inactive' | t : 'Inactive' }}</span> }</td>
+                      <td class="ccell"><input type="checkbox" [checked]="g.canView || g.canValidate || g.canUpdate" [disabled]="lock() || r.isBuiltIn || g.canValidate || g.canUpdate" (change)="toggleGrant(g, 'canView', $event)"></td>
+                      <td class="ccell"><input type="checkbox" [checked]="g.canValidate" [disabled]="lock() || r.isBuiltIn" (change)="toggleGrant(g, 'canValidate', $event)"></td>
+                      <td class="ccell"><input type="checkbox" [checked]="g.canUpdate" [disabled]="lock() || r.isBuiltIn" (change)="toggleGrant(g, 'canUpdate', $event)"></td>
+                    </tr>
+                  }
+                </tbody>
+              </table></div>
+              @if (r.isBuiltIn) { <p class="muted small" style="margin:8px 0 0">{{ 'admin_all_treasuries' | t : 'The built-in administrator holds every right on every treasury.' }}</p> }
+            </div>
+          }
+
           @if (r.isBuiltIn) { <p class="muted small" style="margin-top:12px">Built-in roles cannot be edited.</p> }
         } @else { <div class="empty">{{ 'select_role' | t : 'Select a role.' }}</div> }
       </div>
@@ -256,6 +276,25 @@ export class RolesComponent {
     this.defTheme.set(r.defaultTheme || 'light');
     this.scopeBranches.set(new Set(r.scope?.branches ?? []));
     this.scopeGovernorates.set(new Set(r.scope?.governorates ?? []));
+    // Per-treasury rights (every treasury, granted or not). Built-in admin: shown read-only as all-granted.
+    this.treasuryGrants.set([]);
+    this.api.get<TreasuryGrant[]>(`/accounting/treasury/grants/${r.id}`).subscribe({
+      next: (g) => this.treasuryGrants.set(r.isBuiltIn ? g.map((x) => ({ ...x, canView: true, canValidate: true, canUpdate: true })) : g),
+      error: () => {},
+    });
+  }
+
+  /** The selected role's treasury rights being edited (saved with the role). */
+  readonly treasuryGrants = signal<TreasuryGrant[]>([]);
+  toggleGrant(g: TreasuryGrant, right: 'canView' | 'canValidate' | 'canUpdate', e: Event): void {
+    const on = (e.target as HTMLInputElement).checked;
+    this.treasuryGrants.update((list) => list.map((x) => {
+      if (x.treasuryId !== g.treasuryId) return x;
+      const next = { ...x, [right]: on };
+      if (right !== 'canView' && on) next.canView = true;          // Validate / Update need the page
+      if (right === 'canView' && !on) { next.canValidate = false; next.canUpdate = false; }
+      return next;
+    }));
   }
 
   lock(): boolean { const r = this.selected(); return !r || r.isBuiltIn || !this.auth.has('ManageUsers'); }
@@ -291,7 +330,16 @@ export class RolesComponent {
       id: r.id, name: r.name, privileges: [...this.draft()],
       defaultLanguage: this.defLang(), defaultTheme: this.defTheme(), scope,
     }).subscribe({
-      next: () => { this.busy.set(false); this.toast.success('Role saved.'); this.load(); }, error: () => { this.busy.set(false); },
+      next: () => {
+        // Then the treasury rights (separate resource; the page always sends the full list, so omissions revoke).
+        const grants = this.treasuryGrants().map((g) => ({ treasuryId: g.treasuryId, canView: g.canView, canValidate: g.canValidate, canUpdate: g.canUpdate }));
+        if (!grants.length) { this.busy.set(false); this.toast.success('Role saved.'); this.load(); return; }
+        this.api.put(`/accounting/treasury/grants/${r.id}`, grants).subscribe({
+          next: () => { this.busy.set(false); this.toast.success('Role saved.'); this.load(); },
+          error: () => { this.busy.set(false); this.load(); },
+        });
+      },
+      error: () => { this.busy.set(false); },
     });
   }
   createRole(): void {

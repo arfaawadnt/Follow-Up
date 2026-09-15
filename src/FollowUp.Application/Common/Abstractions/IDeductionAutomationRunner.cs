@@ -9,9 +9,11 @@ namespace FollowUp.Application.Common.Abstractions;
 /// <param name="DealSkippedAdjusted">AutoDeal rows left alone because an operator adjusted them.</param>
 /// <param name="PenaltiesLinked">Penalty records that had no mirroring deduction and received one.</param>
 /// <param name="PenaltiesUnplaced">Penalty records whose lab has no resolvable area (no deduction possible).</param>
+/// <param name="CollectionsLinked">Cash collections that had no mirroring treasury entry and received one.</param>
+/// <param name="CollectionsUnplaced">Cash collections whose lab's branch no active treasury covers (no entry possible).</param>
 public sealed record DeductionAutomationResult(
     string Month, DateOnly Through, int DealAreas, int DealCreated, int DealRecalculated, int DealSkippedAdjusted,
-    int PenaltiesLinked, int PenaltiesUnplaced);
+    int PenaltiesLinked, int PenaltiesUnplaced, int CollectionsLinked = 0, int CollectionsUnplaced = 0);
 
 /// <summary>
 /// Keeps the automated deductions current (operator decisions, 2026-09-15):

@@ -30,7 +30,7 @@ public class AccountingHandlerTests
         var treasuries = new FakeTreasuryRepository(); var t = Treasury.Create("Main", new[] { "Cairo" }); treasuries.Store.Add(t);
         var reasons = new FakeTreasuryReasonRepository(); var reason = TreasuryReason.Create("Fuel"); reasons.Store.Add(reason);
         var entries = new FakeTreasuryEntryRepository();
-        var handler = new CreateTreasuryEntryHandler(entries, treasuries, reasons, new FakeCurrentUser());
+        var handler = new CreateTreasuryEntryHandler(entries, treasuries, reasons, new FakeCurrentUser(), new FakeTreasuryAccess());
 
         var id = await handler.Handle(new CreateTreasuryEntryCommand(t.Id.Value, D, 0m, 250m, reason.Id.Value, "diesel"), CancellationToken.None);
 
@@ -44,7 +44,7 @@ public class AccountingHandlerTests
     {
         var treasuries = new FakeTreasuryRepository(); var t = Treasury.Create("Main", new[] { "Cairo" }); t.Activate(false); treasuries.Store.Add(t);
         var reasons = new FakeTreasuryReasonRepository(); var reason = TreasuryReason.Create("Fuel"); reasons.Store.Add(reason);
-        var handler = new CreateTreasuryEntryHandler(new FakeTreasuryEntryRepository(), treasuries, reasons, new FakeCurrentUser());
+        var handler = new CreateTreasuryEntryHandler(new FakeTreasuryEntryRepository(), treasuries, reasons, new FakeCurrentUser(), new FakeTreasuryAccess());
 
         await FluentActions.Awaiting(() => handler.Handle(new CreateTreasuryEntryCommand(t.Id.Value, D, 100m, 0m, reason.Id.Value, null), CancellationToken.None))
             .Should().ThrowAsync<ConflictException>().WithMessage("*treasury is inactive*");
@@ -268,7 +268,7 @@ public class AccountingHandlerTests
         var labs = new FakeLaboratoryRepository(); var lab = Lab(); labs.Store.Add(lab);
         var reps = new FakeRepresentativeRepository(); var r1 = Rep("A"); var r2 = Rep("B"); reps.Store.Add(r1); reps.Store.Add(r2);
         var repo = new FakeCollectionRepository();
-        var handler = new CreateCollectionHandler(repo, labs, reps, new FakeCurrentUser());
+        var handler = new CreateCollectionHandler(repo, labs, reps, new FakeTreasuryRepository(), new FakeTreasuryEntryRepository(), new FakeCurrentUser());
 
         var id = await handler.Handle(new CreateCollectionCommand(D, lab.Id.Value, "Group", new[] { r1.Id.Value, r2.Id.Value },
             1000m, 2500m, "18", "Cashier", null), CancellationToken.None);
@@ -285,7 +285,7 @@ public class AccountingHandlerTests
     {
         var labs = new FakeLaboratoryRepository(); var lab = Lab(); labs.Store.Add(lab);
         var repo = new FakeCollectionRepository();
-        var handler = new CreateCollectionHandler(repo, labs, new FakeRepresentativeRepository(), new FakeCurrentUser());
+        var handler = new CreateCollectionHandler(repo, labs, new FakeRepresentativeRepository(), new FakeTreasuryRepository(), new FakeTreasuryEntryRepository(), new FakeCurrentUser());
 
         await FluentActions.Awaiting(() => handler.Handle(new CreateCollectionCommand(D, lab.Id.Value, "Single", new[] { Guid.NewGuid() }, 100m, 0m, null, null, null), CancellationToken.None))
             .Should().ThrowAsync<NotFoundException>();
@@ -304,6 +304,130 @@ public class AccountingHandlerTests
         v.Validate(new CreateCollectionCommand(D, lab, "Single", new[] { r1 }, 0m, 500m, "99", null, null)).IsValid.Should().BeFalse("IBAN outside 12/16/18");
         v.Validate(new CreateCollectionCommand(D, lab, "Single", new[] { r1 }, 0m, 500m, "16", null, null)).IsValid.Should().BeTrue();
         v.Validate(new CreateCollectionCommand(D, lab, "Single", new[] { r1 }, 100m, 0m, null, null, null)).IsValid.Should().BeTrue("cash needs no IBAN");
+    }
+
+    // ---- Collection → treasury mirroring + per-treasury rights ----
+
+    private static Laboratory BranchLab(string branch) { var lab = Lab(); lab.PlaceInHierarchy(branch, "Cairo", null, null); return lab; }
+    private static CreateCollectionCommand Cash(Guid labId, Guid repId, decimal cash = 1000m) =>
+        new(D, labId, "Single", new[] { repId }, cash, 0m, null, "Cashier", null);
+    private static TreasuryGrant Grant(Role role, Treasury t, bool view, bool validate, bool update) => TreasuryGrant.Create(role.Id, t.Id, view, validate, update);
+    private static Role SomeRole() => Role.Create("Cashier", new[] { Privileges.ViewAccounting }, "en", "light", OrgScope.Global);
+
+    [Fact]
+    public async Task Recording_a_cash_collection_mirrors_it_as_a_pending_debit_of_the_treasury_serving_the_labs_branch()
+    {
+        var labs = new FakeLaboratoryRepository(); var lab = BranchLab("Giza"); labs.Store.Add(lab);
+        var reps = new FakeRepresentativeRepository(); var rep = Rep("Rep One"); reps.Store.Add(rep);
+        var treasuries = new FakeTreasuryRepository();
+        var cairo = Treasury.Create("Cairo Main", new[] { "Cairo" }); var giza = Treasury.Create("Giza Main", new[] { "Giza" }); var gizaB = Treasury.Create("Giza B", new[] { "giza" });
+        treasuries.Store.AddRange(new[] { cairo, giza, gizaB });
+        var entries = new FakeTreasuryEntryRepository(); var collections = new FakeCollectionRepository(); var me = new FakeCurrentUser();
+
+        var id = await new CreateCollectionHandler(collections, labs, reps, treasuries, entries, me).Handle(Cash(lab.Id.Value, rep.Id.Value), CancellationToken.None);
+
+        var e = entries.Store.Should().ContainSingle().Subject;
+        e.TreasuryId.Should().Be(gizaB.Id, "among the active treasuries covering the branch (case-insensitively), the first by name");
+        e.Origin.Should().BeSameAs(TreasuryEntryOrigin.AutoCollection);
+        e.ValidationStatus.Should().BeSameAs(TreasuryValidationStatus.Pending);
+        e.Debit.Amount.Should().Be(1000m); e.CollectionId!.Value.Value.Should().Be(id);
+        e.SystemNote.Should().Contain("Rep One").And.Contain("Cashier");
+
+        // Cash edit refreshes the mirror; deleting the collection removes it while still pending.
+        await new UpdateCollectionHandler(collections, labs, reps, treasuries, entries, me)
+            .Handle(new UpdateCollectionCommand(id, D, "Single", new[] { rep.Id.Value }, 800m, 0m, null, "Cashier", null), CancellationToken.None);
+        entries.Store.Single().Debit.Amount.Should().Be(800m);
+        await new DeleteCollectionHandler(collections, labs, entries, me).Handle(new DeleteCollectionCommand(id), CancellationToken.None);
+        entries.Store.Should().BeEmpty(); collections.Store.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_collection_with_no_receiving_treasury_or_no_cash_is_recorded_without_a_mirror_and_a_validated_mirror_blocks_deletion()
+    {
+        var labs = new FakeLaboratoryRepository(); var noBranch = Lab(); var alexLab = BranchLab("Alex"); labs.Store.AddRange(new[] { noBranch, alexLab });
+        var reps = new FakeRepresentativeRepository(); var rep = Rep(); reps.Store.Add(rep);
+        var treasuries = new FakeTreasuryRepository(); var alex = Treasury.Create("Alex", new[] { "Alex" }); treasuries.Store.Add(alex);
+        var entries = new FakeTreasuryEntryRepository(); var collections = new FakeCollectionRepository(); var me = new FakeCurrentUser();
+        var handler = new CreateCollectionHandler(collections, labs, reps, treasuries, entries, me);
+
+        await handler.Handle(Cash(noBranch.Id.Value, rep.Id.Value), CancellationToken.None);                     // lab without a serving branch
+        await handler.Handle(new CreateCollectionCommand(D, alexLab.Id.Value, "Single", new[] { rep.Id.Value }, 0m, 500m, "16", null, null), CancellationToken.None); // bank only
+        entries.Store.Should().BeEmpty("nothing to place; collections are never blocked");
+        collections.Store.Should().HaveCount(2);
+
+        var id = await handler.Handle(Cash(alexLab.Id.Value, rep.Id.Value), CancellationToken.None);
+        var mirror = entries.Store.Should().ContainSingle().Subject;
+        mirror.Validate(1000m, null, "cashier", DateTimeOffset.UtcNow);
+        await FluentActions.Awaiting(() => new DeleteCollectionHandler(collections, labs, entries, me).Handle(new DeleteCollectionCommand(id), CancellationToken.None))
+            .Should().ThrowAsync<ConflictException>().WithMessage("*already validated*");
+        collections.Store.Should().Contain(x => x.Id.Value == id);
+    }
+
+    [Fact]
+    public async Task Validation_needs_the_treasurys_Validate_right_and_confirms_or_corrects_the_received_cash()
+    {
+        var treasuries = new FakeTreasuryRepository(); var t = Treasury.Create("Giza", new[] { "Giza" }); treasuries.Store.Add(t);
+        var lab = BranchLab("Giza"); var rep = Rep();
+        var c = Collection.Create(lab.Id, D, CollectionType.Single, new[] { rep.Id }, 1000m, 0m, null, null, null);
+        var entries = new FakeTreasuryEntryRepository(); var mirror = TreasuryEntry.FromCollection(t.Id, c, lab.Name, new[] { rep.FullName }); entries.Store.Add(mirror);
+        var role = SomeRole(); var me = new FakeCurrentUser { RoleId = role.Id, Username = "cashier" };
+        var clock = new FakeClock(new DateTimeOffset(2026, 9, 16, 9, 0, 0, TimeSpan.Zero));
+
+        // View only → 403; a manual entry → 409; Validate right → validated with the corrected amount, by the caller.
+        await FluentActions.Awaiting(() => new ValidateTreasuryEntryHandler(entries, treasuries, me, new FakeTreasuryAccess(Grant(role, t, true, false, false)), clock)
+                .Handle(new ValidateTreasuryEntryCommand(mirror.Id.Value, 1000m, null), CancellationToken.None))
+            .Should().ThrowAsync<ForbiddenException>();
+        var manual = TreasuryEntry.Create(t.Id, D, 5m, 0m, TreasuryReasonId.New(), null); entries.Store.Add(manual);
+        await FluentActions.Awaiting(() => new ValidateTreasuryEntryHandler(entries, treasuries, me, new FakeTreasuryAccess(Grant(role, t, true, true, false)), clock)
+                .Handle(new ValidateTreasuryEntryCommand(manual.Id.Value, 5m, null), CancellationToken.None))
+            .Should().ThrowAsync<ConflictException>();
+        await new ValidateTreasuryEntryHandler(entries, treasuries, me, new FakeTreasuryAccess(Grant(role, t, true, true, false)), clock)
+            .Handle(new ValidateTreasuryEntryCommand(mirror.Id.Value, 950m, "50 short"), CancellationToken.None);
+        mirror.ValidationStatus.Should().BeSameAs(TreasuryValidationStatus.Validated);
+        mirror.Debit.Amount.Should().Be(950m); mirror.ValidatedBy.Should().Be("cashier"); mirror.ValidatedAt.Should().Be(clock.UtcNow);
+        mirror.HasDiscrepancy.Should().BeTrue();
+
+        // Post-validation correction needs the Update right; a mirror can never be deleted from the treasury side.
+        var reasons = new FakeTreasuryReasonRepository();
+        await FluentActions.Awaiting(() => new UpdateTreasuryEntryHandler(entries, treasuries, reasons, me, new FakeTreasuryAccess(Grant(role, t, true, true, false)))
+                .Handle(new UpdateTreasuryEntryCommand(mirror.Id.Value, D, 960m, 0m, Guid.Empty, "recount"), CancellationToken.None))
+            .Should().ThrowAsync<ForbiddenException>();
+        await new UpdateTreasuryEntryHandler(entries, treasuries, reasons, me, new FakeTreasuryAccess(Grant(role, t, true, false, true)))
+            .Handle(new UpdateTreasuryEntryCommand(mirror.Id.Value, D, 960m, 0m, Guid.Empty, "recount"), CancellationToken.None);
+        mirror.Debit.Amount.Should().Be(960m); mirror.Notes.Should().Be("recount");
+        await FluentActions.Awaiting(() => new DeleteTreasuryEntryHandler(entries, treasuries, me, new FakeTreasuryAccess(Grant(role, t, true, true, true)))
+                .Handle(new DeleteTreasuryEntryCommand(mirror.Id.Value), CancellationToken.None))
+            .Should().ThrowAsync<ConflictException>().WithMessage("*Collection page*");
+
+        // Recording a manual entry needs the Update right too.
+        var reason = TreasuryReason.Create("Fuel"); reasons.Store.Add(reason);
+        await FluentActions.Awaiting(() => new CreateTreasuryEntryHandler(entries, treasuries, reasons, me, new FakeTreasuryAccess(Grant(role, t, true, true, false)))
+                .Handle(new CreateTreasuryEntryCommand(t.Id.Value, D, 100m, 0m, reason.Id.Value, null), CancellationToken.None))
+            .Should().ThrowAsync<ForbiddenException>();
+    }
+
+    [Fact]
+    public async Task Setting_a_roles_treasury_rights_upserts_and_removes_rows_and_refuses_the_built_in_role()
+    {
+        var roles = new FakeRoleRepository(); var role = SomeRole(); roles.Store.Add(role);
+        var admin = Role.Create("Admin", Privileges.All, "en", "light", OrgScope.Global, isBuiltIn: true); roles.Store.Add(admin);
+        var treasuries = new FakeTreasuryRepository(); var a = Treasury.Create("A", new[] { "X" }); var b = Treasury.Create("B", new[] { "Y" }); treasuries.Store.AddRange(new[] { a, b });
+        var grants = new FakeTreasuryGrantRepository(); grants.Store.Add(TreasuryGrant.Create(role.Id, b.Id, true, true, true));
+        var handler = new SetTreasuryGrantsHandler(grants, treasuries, roles, new FakeCurrentUser());
+
+        await handler.Handle(new SetTreasuryGrantsCommand(role.Id.Value, new[]
+        {
+            new TreasuryGrantInput(a.Id.Value, false, true, false),   // new row (Validate implies View)
+            new TreasuryGrantInput(b.Id.Value, false, false, false),  // all rights removed → row deleted
+        }), CancellationToken.None);
+
+        var row = grants.Store.Should().ContainSingle().Subject;
+        row.TreasuryId.Should().Be(a.Id); row.CanView.Should().BeTrue(); row.CanValidate.Should().BeTrue(); row.CanUpdate.Should().BeFalse();
+
+        await FluentActions.Awaiting(() => handler.Handle(new SetTreasuryGrantsCommand(admin.Id.Value, Array.Empty<TreasuryGrantInput>()), CancellationToken.None))
+            .Should().ThrowAsync<ConflictException>();
+        await FluentActions.Awaiting(() => handler.Handle(new SetTreasuryGrantsCommand(role.Id.Value, new[] { new TreasuryGrantInput(Guid.NewGuid(), true, false, false) }), CancellationToken.None))
+            .Should().ThrowAsync<NotFoundException>();
     }
 
     // ---- Rep income ----

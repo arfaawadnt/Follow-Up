@@ -12,6 +12,7 @@ public static class AccountingEndpoints
     public sealed record ReasonBody(string Name, bool IsActive = true);
     public sealed record TreasuryBody(string Name, IReadOnlyList<string> Branches, bool IsActive = true);
     public sealed record TreasuryEntryBody(Guid TreasuryId, DateOnly Date, decimal Debit, decimal Credit, Guid ReasonId, string? Notes);
+    public sealed record ValidateEntryBody(decimal ReceivedAmount, string? Note);
     public sealed record PenaltyBody(DateOnly Date, Guid LaboratoryId, string AccNo, string PatientName,
         string WrongTestCode, string WrongTestName, decimal WrongValue, string RightTestCode, string RightTestName, decimal RightValue,
         string UserType, Guid? PerformedByUserId, Guid? PerformedByRepId);
@@ -49,6 +50,14 @@ public static class AccountingEndpoints
         { await m.Send(new UpdateTreasuryEntryCommand(id, b.Date, b.Debit, b.Credit, b.ReasonId, b.Notes), ct); return Results.NoContent(); }).WithTags(tag);
         api.MapDelete("/accounting/treasury/entries/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>
         { await m.Send(new DeleteTreasuryEntryCommand(id), ct); return Results.NoContent(); }).WithTags(tag);
+        // Validation of a mirrored collection's cash (needs the treasury's Validate right).
+        api.MapPost("/accounting/treasury/entries/{id:guid}/validate", async (Guid id, ValidateEntryBody b, IMediator m, CancellationToken ct) =>
+        { await m.Send(new ValidateTreasuryEntryCommand(id, b.ReceivedAmount, b.Note), ct); return Results.NoContent(); }).WithTags(tag);
+        // Per-role treasury rights (Roles page; ManageUsers).
+        api.MapGet("/accounting/treasury/grants/{roleId:guid}", async (Guid roleId, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetTreasuryGrantsQuery(roleId), ct))).WithTags(tag);
+        api.MapPut("/accounting/treasury/grants/{roleId:guid}", async (Guid roleId, IReadOnlyList<TreasuryGrantInput> grants, IMediator m, CancellationToken ct) =>
+        { await m.Send(new SetTreasuryGrantsCommand(roleId, grants), ct); return Results.NoContent(); }).WithTags(tag);
 
         // ---- Penalty statement ----
         api.MapGet("/accounting/penalties", async (DateOnly from, DateOnly to, Guid? laboratoryId, IMediator m, CancellationToken ct) =>

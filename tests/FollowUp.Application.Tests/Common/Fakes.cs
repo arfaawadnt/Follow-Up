@@ -123,6 +123,8 @@ public sealed class FakeTreasuryRepository : ITreasuryRepository
     public readonly List<Domain.Accounting.Treasury> Store = new();
     public Task<IReadOnlyList<Domain.Accounting.Treasury>> GetAllAsync(CancellationToken ct) => Task.FromResult<IReadOnlyList<Domain.Accounting.Treasury>>(Store.ToList());
     public Task<Domain.Accounting.Treasury?> GetByIdAsync(Domain.Accounting.TreasuryId id, CancellationToken ct) => Task.FromResult(Store.FirstOrDefault(x => x.Id == id));
+    public Task<IReadOnlyList<Domain.Accounting.Treasury>> GetActiveByBranchAsync(string branch, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Domain.Accounting.Treasury>>(Store.Where(t => t.IsActive && t.Branches.Contains(branch, StringComparer.OrdinalIgnoreCase)).OrderBy(t => t.Name).ToList());
     public void Add(Domain.Accounting.Treasury treasury) => Store.Add(treasury);
 }
 
@@ -130,8 +132,28 @@ public sealed class FakeTreasuryEntryRepository : ITreasuryEntryRepository
 {
     public readonly List<Domain.Accounting.TreasuryEntry> Store = new();
     public Task<Domain.Accounting.TreasuryEntry?> GetByIdAsync(Domain.Accounting.TreasuryEntryId id, CancellationToken ct) => Task.FromResult(Store.FirstOrDefault(x => x.Id == id));
+    public Task<Domain.Accounting.TreasuryEntry?> GetByCollectionAsync(Domain.Accounting.CollectionId collectionId, CancellationToken ct) =>
+        Task.FromResult(Store.FirstOrDefault(x => x.CollectionId == collectionId));
     public void Add(Domain.Accounting.TreasuryEntry entry) => Store.Add(entry);
     public void Remove(Domain.Accounting.TreasuryEntry entry) => Store.Remove(entry);
+}
+
+public sealed class FakeTreasuryGrantRepository : ITreasuryGrantRepository
+{
+    public readonly List<Domain.Accounting.TreasuryGrant> Store = new();
+    public Task<IReadOnlyList<Domain.Accounting.TreasuryGrant>> GetForRoleAsync(RoleId roleId, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Domain.Accounting.TreasuryGrant>>(Store.Where(g => g.RoleId == roleId).ToList());
+    public void Add(Domain.Accounting.TreasuryGrant grant) => Store.Add(grant);
+    public void Remove(Domain.Accounting.TreasuryGrant grant) => Store.Remove(grant);
+}
+
+/// <summary>Fixed treasury rights for handler tests: administrator (everything) or the given per-treasury grants.</summary>
+public sealed class FakeTreasuryAccess : FollowUp.Application.Common.Security.ITreasuryAccess
+{
+    private readonly FollowUp.Application.Common.Security.TreasuryAccessMap _map;
+    public FakeTreasuryAccess() => _map = FollowUp.Application.Common.Security.TreasuryAccessMap.Administrator();
+    public FakeTreasuryAccess(params Domain.Accounting.TreasuryGrant[] grants) => _map = FollowUp.Application.Common.Security.TreasuryAccessMap.FromGrants(grants);
+    public Task<FollowUp.Application.Common.Security.TreasuryAccessMap> ResolveAsync(CancellationToken ct) => Task.FromResult(_map);
 }
 
 public sealed class FakePenaltyRecordRepository : IPenaltyRecordRepository

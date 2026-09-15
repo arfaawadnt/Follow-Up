@@ -181,6 +181,7 @@ public static class DependencyInjection
         services.AddScoped<ITreasuryReasonRepository, TreasuryReasonRepository>();
         services.AddScoped<ITreasuryRepository, TreasuryRepository>();
         services.AddScoped<ITreasuryEntryRepository, TreasuryEntryRepository>();
+        services.AddScoped<ITreasuryGrantRepository, TreasuryGrantRepository>();
         services.AddScoped<IPenaltyRecordRepository, PenaltyRecordRepository>();
         services.AddScoped<IDeductionRepository, DeductionRepository>();
         services.AddScoped<ICollectionRepository, CollectionRepository>();

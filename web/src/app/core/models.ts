@@ -196,11 +196,20 @@ export interface RepPerformanceRow {
 
 // ---- Accounting module ----
 export interface TreasuryReasonDto { id: string; name: string; isActive: boolean; }
-export interface TreasuryDto { id: string; name: string; branches: string[]; isActive: boolean; }
+/** A treasury as the caller sees it: only View-granted treasuries are listed, with the caller's own rights on each. */
+export interface TreasuryDto { id: string; name: string; branches: string[]; isActive: boolean; canValidate: boolean; canUpdate: boolean; }
 export interface TreasuryEntryDto {
   id: string; serial: number; date: string; treasuryId: string; treasuryName: string;
-  debit: number; credit: number; reasonId: string; reasonName: string; notes: string | null;
+  debit: number; credit: number; reasonId: string | null; reasonName: string; notes: string | null;
+  /** Manual | AutoCollection (mirrors a Collection's cash). */
+  origin: string;
+  /** NotRequired (manual) | Pending | Validated. */
+  validationStatus: string;
+  collectionId: string | null; collectedCash: number | null; systemNote: string | null;
+  validatedAt: string | null; validatedBy: string | null; validationNote: string | null;
 }
+/** A role's rights on one treasury (Roles page). */
+export interface TreasuryGrant { treasuryId: string; treasuryName: string; isActive: boolean; canView: boolean; canValidate: boolean; canUpdate: boolean; }
 export interface PenaltyDto {
   id: string; serial: number; date: string; laboratoryId: string; labDisplayCode: string; labName: string;
   accNo: string; patientName: string; wrongTestCode: string; wrongTestName: string; wrongValue: number;

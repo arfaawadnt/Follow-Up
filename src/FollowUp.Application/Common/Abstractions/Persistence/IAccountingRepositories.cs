@@ -1,3 +1,4 @@
+using FollowUp.Domain.Identity;
 using FollowUp.Domain.Accounting;
 
 namespace FollowUp.Application.Common.Abstractions.Persistence;
@@ -16,14 +17,26 @@ public interface ITreasuryRepository
 {
     Task<IReadOnlyList<Treasury>> GetAllAsync(CancellationToken ct);
     Task<Treasury?> GetByIdAsync(TreasuryId id, CancellationToken ct);
+    /// <summary>Active treasuries assigned to a branch (the lab's serving branch), ordered by name.</summary>
+    Task<IReadOnlyList<Treasury>> GetActiveByBranchAsync(string branch, CancellationToken ct);
     void Add(Treasury treasury);
 }
 
 public interface ITreasuryEntryRepository
 {
     Task<TreasuryEntry?> GetByIdAsync(TreasuryEntryId id, CancellationToken ct);
+    /// <summary>The AutoCollection row mirroring a collection, if one exists.</summary>
+    Task<TreasuryEntry?> GetByCollectionAsync(CollectionId collectionId, CancellationToken ct);
     void Add(TreasuryEntry entry);
     void Remove(TreasuryEntry entry);
+}
+
+/// <summary>Per-role, per-treasury rights (View / Validate / Update). Unique per (role, treasury).</summary>
+public interface ITreasuryGrantRepository
+{
+    Task<IReadOnlyList<TreasuryGrant>> GetForRoleAsync(RoleId roleId, CancellationToken ct);
+    void Add(TreasuryGrant grant);
+    void Remove(TreasuryGrant grant);
 }
 
 public interface IPenaltyRecordRepository

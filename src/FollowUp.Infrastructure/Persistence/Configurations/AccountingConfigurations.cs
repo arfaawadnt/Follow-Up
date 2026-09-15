@@ -58,10 +58,43 @@ internal sealed class TreasuryEntryConfiguration : IEntityTypeConfiguration<Trea
         b.Property(x => x.Debit);
         b.Property(x => x.Credit);
         b.Property(x => x.Notes).HasMaxLength(500);
+        // Collection mirroring + validation (2026-09-16). ReasonId became optional: a mirrored collection has no reason row.
+        b.Property(x => x.ReasonId).IsRequired(false);
+        b.Property(x => x.Origin).HasDefaultValue(TreasuryEntryOrigin.Manual);
+        b.Property(x => x.CollectionId);
+        b.Property(x => x.CollectedCash);
+        b.Property(x => x.SystemNote).HasMaxLength(1000);
+        b.Property(x => x.ValidationStatus).HasDefaultValue(TreasuryValidationStatus.NotRequired);
+        b.Property(x => x.ValidatedAt);
+        b.Property(x => x.ValidatedBy).HasMaxLength(100);
+        b.Property(x => x.ValidationNote).HasMaxLength(500);
+        b.Ignore(x => x.HasDiscrepancy);
         b.HasOne<Treasury>().WithMany().HasForeignKey(x => x.TreasuryId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne<TreasuryReason>().WithMany().HasForeignKey(x => x.ReasonId).OnDelete(DeleteBehavior.Restrict);
+        // Restrict: the collection command removes (or refuses to remove) its mirror first, so a dangling mirror can never remain.
+        b.HasOne<Collection>().WithMany().HasForeignKey(x => x.CollectionId).OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(x => x.CollectionId).IsUnique().HasFilter("collection_id IS NOT NULL");
         b.HasIndex(x => new { x.TreasuryId, x.Date });
+        b.HasIndex(x => new { x.TreasuryId, x.ValidationStatus });
         b.HasIndex(x => x.Serial).IsUnique();
+    }
+}
+
+internal sealed class TreasuryGrantConfiguration : IEntityTypeConfiguration<TreasuryGrant>
+{
+    public void Configure(EntityTypeBuilder<TreasuryGrant> b)
+    {
+        b.ToTable("treasury_grant");
+        b.HasKey(x => x.Id);
+        b.IgnoreDomainEvents();
+        b.MapAuditable();
+        b.Property(x => x.CanView);
+        b.Property(x => x.CanValidate);
+        b.Property(x => x.CanUpdate);
+        b.Ignore(x => x.IsEmpty);
+        b.HasOne<Role>().WithMany().HasForeignKey(x => x.RoleId).OnDelete(DeleteBehavior.Cascade);        // a deleted role takes its grants
+        b.HasOne<Treasury>().WithMany().HasForeignKey(x => x.TreasuryId).OnDelete(DeleteBehavior.Restrict); // treasuries are never hard-deleted
+        b.HasIndex(x => new { x.RoleId, x.TreasuryId }).IsUnique();
     }
 }
 

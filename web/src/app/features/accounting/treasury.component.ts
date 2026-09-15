@@ -18,6 +18,10 @@ type Opt = { value: string; label: string };
  * Treasury Account — many treasuries, each assigned to branches; every movement is one-sided: Debit = cash INTO the
  * treasury, Credit = expenses OUT of the lab. The Setup tab maintains treasuries (name, branches, active) and the
  * configurable reasons; both are deactivated rather than deleted so history keeps resolving.
+ *
+ * Cash collections mirror in automatically (AutoCollection rows, Pending until validated). Rights are per treasury
+ * (Roles page): the list shows only View-granted treasuries; Validate confirms a mirrored collection's cash (with the
+ * option to correct it); Update records manual entries and corrects validated mirrors.
  */
 @Component({
   selector: 'app-acc-treasury',
@@ -28,7 +32,7 @@ type Opt = { value: string; label: string };
       <div><div class="breadcrumbs">Home / {{ 'accounting' | t : 'Accounting' }} / {{ 'acc_treasury' | t : 'Treasury Account' }}</div><h1>{{ 'acc_treasury' | t : 'Treasury Account' }}</h1></div>
       <div class="pagehead-actions">
         @if (tab() === 'account') {
-          @if (canManage()) { <button class="btn btn-p" (click)="openNew()">{{ 'record_entry' | t : 'Record entry' }}</button> }
+          @if (canManage() && updatableTreasuries().length) { <button class="btn btn-p" (click)="openNew()">{{ 'record_entry' | t : 'Record entry' }}</button> }
           <button class="btn btn-s" (click)="exportExcel()">{{ 'export_excel' | t : 'Export Excel' }}</button>
           <button class="btn btn-s" (click)="exportPdf()">{{ 'export_pdf' | t : 'Export PDF' }}</button>
         }
@@ -47,7 +51,7 @@ type Opt = { value: string; label: string };
         <div class="kpi kpi-green"><div class="lbl">{{ 'total_debit' | t : 'Total debit' }}</div><div class="val">{{ k().debit | number:'1.2-2' }}</div><div class="sub">{{ 'debit_hint' | t : 'Cash into the treasury' }}</div></div>
         <div class="kpi kpi-amber"><div class="lbl">{{ 'total_credit' | t : 'Total credit' }}</div><div class="val">{{ k().credit | number:'1.2-2' }}</div><div class="sub">{{ 'credit_hint' | t : 'Expenses out of the lab' }}</div></div>
         <div class="kpi kpi-blue"><div class="lbl">{{ 'net' | t : 'Net' }}</div><div class="val">{{ k().net | number:'1.2-2' }}</div><div class="sub">EGP</div></div>
-        <div class="kpi kpi-teal"><div class="lbl">{{ 'entries' | t : 'Entries' }}</div><div class="val">{{ k().count }}</div></div>
+        <div class="kpi kpi-teal"><div class="lbl">{{ 'pending_validation' | t : 'Pending validation' }}</div><div class="val">{{ k().pending }}</div><div class="sub">{{ 'entries' | t : 'Entries' }}: {{ k().count }}</div></div>
       </div>
 
       <div class="card" style="padding:16px;margin-bottom:16px">
@@ -65,25 +69,36 @@ type Opt = { value: string; label: string };
           <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
             <thead><tr>
               <th>{{ 'serial' | t : 'Serial' }}</th><th>{{ 'date' | t : 'Date' }}</th><th>{{ 'day' | t : 'Day' }}</th><th>{{ 'treasury' | t : 'Treasury' }}</th>
-              <th class="r">{{ 'debit' | t : 'Debit' }}</th><th class="r">{{ 'credit_out' | t : 'Credit' }}</th><th>{{ 'reason' | t : 'Reason' }}</th><th>{{ 'notes' | t : 'Notes' }}</th>
-              @if (canManage()) { <th class="ar">{{ 'actions' | t : 'Actions' }}</th> }
+              <th class="r">{{ 'debit' | t : 'Debit' }}</th><th class="r">{{ 'credit_out' | t : 'Credit' }}</th><th>{{ 'reason' | t : 'Reason' }}</th>
+              <th>{{ 'status' | t : 'Status' }}</th><th>{{ 'notes' | t : 'Notes' }}</th>
+              <th class="ar">{{ 'actions' | t : 'Actions' }}</th>
             </tr></thead>
             <tbody>
               @for (e of rows(); track e.id; let i = $index) {
                 <tr>
                   <td class="mono">{{ i + 1 }}</td><td>{{ ddmy(e.date) }}</td><td>{{ day(e.date) }}</td><td><b>{{ e.treasuryName }}</b></td>
-                  <td class="r mono pos">{{ e.debit ? (e.debit | number:'1.2-2') : '' }}</td><td class="r mono neg">{{ e.credit ? (e.credit | number:'1.2-2') : '' }}</td>
-                  <td>{{ e.reasonName }}</td><td>{{ e.notes || '—' }}</td>
-                  @if (canManage()) {
-                    <td class="ar actions">
+                  <td class="r mono pos">{{ e.debit ? (e.debit | number:'1.2-2') : '' }}
+                    @if (e.collectedCash !== null && e.collectedCash !== e.debit) { <div class="small muted">{{ 'collected' | t : 'collected' }} {{ e.collectedCash | number:'1.2-2' }}</div> }</td>
+                  <td class="r mono neg">{{ e.credit ? (e.credit | number:'1.2-2') : '' }}</td>
+                  <td>{{ e.reasonName }}</td>
+                  <td><span class="badge" [class.b-neu]="e.validationStatus === 'NotRequired'" [class.b-warn]="e.validationStatus === 'Pending'" [class.b-ok]="e.validationStatus === 'Validated'">{{ statusLabel(e) }}</span>
+                    @if (e.validatedBy) { <div class="small muted">{{ e.validatedBy }} · {{ ddmy(e.validatedAt) }}</div> }</td>
+                  <td>@if (e.systemNote) { <div class="small muted">{{ e.systemNote }}</div> }@if (e.validationNote) { <div class="small muted"><i>{{ e.validationNote }}</i></div> }{{ e.notes || ((e.systemNote || e.validationNote) ? '' : '—') }}</td>
+                  <td class="ar actions">
+                    @if (e.origin === 'AutoCollection' && e.validationStatus === 'Pending' && canValidate(e.treasuryId)) {
+                      <button class="btn btn-mini btn-p" (click)="openValidate(e)">{{ 'validate' | t : 'Validate' }}</button>
+                    }
+                    @if (canManage() && canUpdate(e.treasuryId) && (e.origin === 'Manual' || e.validationStatus === 'Validated')) {
                       <button class="icon-btn" title="Edit" (click)="openEdit(e)">✎</button>
+                    }
+                    @if (canManage() && canUpdate(e.treasuryId) && e.origin === 'Manual') {
                       <button class="icon-btn del" title="Delete" (click)="remove(e, i + 1)">🗑</button>
-                    </td>
-                  }
+                    }
+                  </td>
                 </tr>
-              } @empty { <tr><td colspan="9" class="empty" style="text-align:center;padding:24px">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
+              } @empty { <tr><td colspan="10" class="empty" style="text-align:center;padding:24px">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
             </tbody>
-            @if (rows().length) { <tfoot><tr><td colspan="4">{{ 'total' | t : 'Total' }}</td><td class="r mono">{{ k().debit | number:'1.2-2' }}</td><td class="r mono">{{ k().credit | number:'1.2-2' }}</td><td colspan="2">{{ 'net' | t : 'Net' }}: {{ k().net | number:'1.2-2' }}</td>@if (canManage()) { <td></td> }</tr></tfoot> }
+            @if (rows().length) { <tfoot><tr><td colspan="4">{{ 'total' | t : 'Total' }}</td><td class="r mono">{{ k().debit | number:'1.2-2' }}</td><td class="r mono">{{ k().credit | number:'1.2-2' }}</td><td colspan="3">{{ 'net' | t : 'Net' }}: <b>{{ k().net | number:'1.2-2' }}</b></td><td></td></tr></tfoot> }
           </table></div>
         }
       </div>
@@ -141,25 +156,52 @@ type Opt = { value: string; label: string };
       </div>
     }
 
+    @if (validating(); as v) {
+      <div class="as-overlay" (click)="validating.set(null)">
+        <div class="as-dlg" (click)="$event.stopPropagation()">
+          <div class="as-dlg-head"><h2>{{ 'validate_cash' | t : 'Validate received cash' }}</h2><button class="btn btn-mini btn-s" (click)="validating.set(null)">✕</button></div>
+          <div class="as-dlg-body">
+            <div class="basis" style="margin-bottom:12px">{{ v.systemNote }}</div>
+            <div class="frm-grid" style="grid-template-columns:1fr 1fr;gap:12px">
+              <div class="field"><label>{{ 'collected_cash' | t : 'Collected cash' }}</label><input class="input" [value]="v.collectedCash | number:'1.2-2'" disabled></div>
+              <div class="field"><label>{{ 'received_amount' | t : 'Received amount' }} *</label><input class="input" type="number" min="0.01" step="0.01" [(ngModel)]="vf.received"></div>
+              @if (vf.received !== null && vf.received !== v.collectedCash) { <div class="basis neg" style="grid-column:1/-1">{{ 'discrepancy_hint' | t : 'The received amount differs from the collected cash; the difference will be visible on the report.' }}</div> }
+              <div class="field" style="grid-column:1/-1"><label>{{ 'validation_note' | t : 'Validation note' }}</label><input class="input" [(ngModel)]="vf.note" maxlength="500"></div>
+            </div>
+          </div>
+          <div class="as-dlg-foot">
+            <button class="btn btn-s" (click)="validating.set(null)">{{ 'cancel' | t : 'Cancel' }}</button>
+            <button class="btn btn-p" [disabled]="busy() || vf.received === null || vf.received <= 0" (click)="validate()">{{ 'validate' | t : 'Validate' }}</button>
+          </div>
+        </div>
+      </div>
+    }
+
     @if (dlg()) {
       <div class="as-overlay" (click)="dlg.set(false)">
         <div class="as-dlg" (click)="$event.stopPropagation()">
           <div class="as-dlg-head"><h2>{{ editId ? ('edit' | t : 'Edit') : ('record_entry' | t : 'Record entry') }}</h2><button class="btn btn-mini btn-s" (click)="dlg.set(false)">✕</button></div>
           <div class="as-dlg-body">
+            @if (editing()?.origin === 'AutoCollection') {
+              <div class="basis" style="margin-bottom:10px"><b>{{ 'validated' | t : 'Validated' }}</b> · {{ 'auto_entry_edit_hint' | t : 'This entry mirrors a collection: treasury, date and side follow the collection; only the amount and your notes can be corrected.' }}
+                <div class="small muted" style="margin-top:4px">{{ editing()!.systemNote }}</div></div>
+            }
             <div class="frm-grid" style="grid-template-columns:1fr 1fr;gap:12px">
-              <div class="field" style="grid-column:1/-1"><label>{{ 'treasury' | t : 'Treasury' }} *</label><app-filter-select [(ngModel)]="f.treasuryId" [options]="activeTreasuryOptions()" [clearable]="true" placeholder="—" [disabled]="!!editId"></app-filter-select></div>
-              <div class="field"><label>{{ 'date' | t : 'Date' }} *</label><app-date-input [(ngModel)]="f.date"></app-date-input></div>
+              <div class="field" style="grid-column:1/-1"><label>{{ 'treasury' | t : 'Treasury' }} *</label><app-filter-select [(ngModel)]="f.treasuryId" [options]="updatableTreasuryOptions()" [clearable]="true" placeholder="—" [disabled]="!!editId"></app-filter-select></div>
+              <div class="field"><label>{{ 'date' | t : 'Date' }} *</label><app-date-input [(ngModel)]="f.date" [disabled]="isAutoEdit()"></app-date-input></div>
               <div class="field"><label>{{ 'day' | t : 'Day' }}</label><input class="input" [value]="day(f.date)" disabled></div>
               <div class="field" style="grid-column:1/-1">
                 <label>{{ 'type' | t : 'Type' }} *</label>
                 <div style="display:flex;gap:16px">
-                  <label class="chk"><input type="radio" name="side" value="debit" [(ngModel)]="f.side"> {{ 'debit' | t : 'Debit' }} <span class="small muted">— {{ 'debit_hint' | t : 'Cash into the treasury' }}</span></label>
-                  <label class="chk"><input type="radio" name="side" value="credit" [(ngModel)]="f.side"> {{ 'credit_out' | t : 'Credit' }} <span class="small muted">— {{ 'credit_hint' | t : 'Expenses out of the lab' }}</span></label>
+                  <label class="chk"><input type="radio" name="side" value="debit" [(ngModel)]="f.side" [disabled]="isAutoEdit()"> {{ 'debit' | t : 'Debit' }} <span class="small muted">— {{ 'debit_hint' | t : 'Cash into the treasury' }}</span></label>
+                  <label class="chk"><input type="radio" name="side" value="credit" [(ngModel)]="f.side" [disabled]="isAutoEdit()"> {{ 'credit_out' | t : 'Credit' }} <span class="small muted">— {{ 'credit_hint' | t : 'Expenses out of the lab' }}</span></label>
                 </div>
               </div>
               <div class="field"><label>{{ 'amount' | t : 'Amount' }} *</label><input class="input" type="number" min="0.01" step="0.01" [(ngModel)]="f.amount"></div>
-              <div class="field"><label>{{ 'reason' | t : 'Reason' }} *</label>
-                <select class="select" [(ngModel)]="f.reasonId"><option value="">—</option>@for (r of activeReasons(); track r.id) { <option [value]="r.id">{{ r.name }}</option> }</select></div>
+              @if (!isAutoEdit()) {
+                <div class="field"><label>{{ 'reason' | t : 'Reason' }} *</label>
+                  <select class="select" [(ngModel)]="f.reasonId"><option value="">—</option>@for (r of activeReasons(); track r.id) { <option [value]="r.id">{{ r.name }}</option> }</select></div>
+              } @else { <div class="field"><label>{{ 'reason' | t : 'Reason' }}</label><input class="input" [value]="'collection' | t : 'Collection'" disabled></div> }
               <div class="field" style="grid-column:1/-1"><label>{{ 'notes' | t : 'Notes' }}</label><input class="input" [(ngModel)]="f.notes" maxlength="500"></div>
             </div>
           </div>
@@ -184,6 +226,11 @@ export class TreasuryComponent {
   readonly loading = signal(true);
   readonly busy = signal(false);
   readonly dlg = signal(false);
+  /** The mirrored collection being validated (null = dialog closed) and its form. */
+  readonly validating = signal<TreasuryEntryDto | null>(null);
+  vf = { received: null as number | null, note: '' };
+  /** The row being edited (null for a new record) — an AutoCollection row locks everything but amount and notes. */
+  readonly editing = signal<TreasuryEntryDto | null>(null);
   readonly rows = signal<TreasuryEntryDto[]>([]);
   readonly treasuries = signal<TreasuryDto[]>([]);
   readonly reasons = signal<TreasuryReasonDto[]>([]);
@@ -198,14 +245,32 @@ export class TreasuryComponent {
   readonly editReasonId = signal<string | null>(null); editReasonName = ''; editReasonActive = true;
 
   readonly treasuryOptions = computed<Opt[]>(() => this.treasuries().map((t) => ({ value: t.id, label: t.name })));
-  readonly activeTreasuryOptions = computed<Opt[]>(() => this.treasuries().filter((t) => t.isActive).map((t) => ({ value: t.id, label: t.name })));
+  /** Treasuries the caller may record into (active + Update right). */
+  readonly updatableTreasuries = computed(() => this.treasuries().filter((t) => t.isActive && t.canUpdate));
+  readonly updatableTreasuryOptions = computed<Opt[]>(() => this.updatableTreasuries().map((t) => ({ value: t.id, label: t.name })));
   readonly activeReasons = computed(() => this.reasons().filter((r) => r.isActive));
   readonly branchOptions = computed(() => this.branches());
   readonly k = computed(() => {
     const r = this.rows();
     const debit = r.reduce((a, e) => a + e.debit, 0); const credit = r.reduce((a, e) => a + e.credit, 0);
-    return { debit, credit, net: debit - credit, count: r.length };
+    return { debit, credit, net: debit - credit, count: r.length, pending: r.filter((e) => e.validationStatus === 'Pending').length };
   });
+  canValidate(treasuryId: string): boolean { return !!this.treasuries().find((t) => t.id === treasuryId)?.canValidate; }
+  canUpdate(treasuryId: string): boolean { return !!this.treasuries().find((t) => t.id === treasuryId)?.canUpdate; }
+  isAutoEdit(): boolean { return this.editing()?.origin === 'AutoCollection'; }
+  statusLabel(e: TreasuryEntryDto): string {
+    const ar = this.ui.lang() === 'ar';
+    if (e.validationStatus === 'Pending') return ar ? 'قيد التحقق' : 'Pending validation';
+    if (e.validationStatus === 'Validated') return ar ? 'تم التحقق' : 'Validated';
+    return ar ? 'يدوي' : 'Manual';
+  }
+  openValidate(e: TreasuryEntryDto): void { this.vf = { received: e.collectedCash ?? e.debit, note: '' }; this.validating.set(e); }
+  validate(): void {
+    const e = this.validating(); if (!e || this.vf.received === null || this.vf.received <= 0) return;
+    this.busy.set(true);
+    this.api.post(`/accounting/treasury/entries/${e.id}/validate`, { receivedAmount: this.vf.received, note: this.vf.note.trim() || null })
+      .subscribe({ next: () => { this.busy.set(false); this.validating.set(null); this.toast.success('Cash validated.'); this.load(); }, error: () => this.busy.set(false) });
+  }
 
   constructor() {
     this.reloadConfig();
@@ -229,18 +294,20 @@ export class TreasuryComponent {
 
   // ---- entries ----
   private blank() { return { treasuryId: '', date: localToday(), side: 'debit' as 'debit' | 'credit', amount: null as number | null, reasonId: '', notes: '' }; }
-  openNew(): void { this.editId = null; this.f = this.blank(); if (this.activeTreasuryOptions().length === 1) this.f.treasuryId = this.activeTreasuryOptions()[0].value; this.dlg.set(true); }
+  openNew(): void { this.editId = null; this.editing.set(null); this.f = this.blank(); if (this.updatableTreasuryOptions().length === 1) this.f.treasuryId = this.updatableTreasuryOptions()[0].value; this.dlg.set(true); }
   openEdit(e: TreasuryEntryDto): void {
-    this.editId = e.id;
-    this.f = { treasuryId: e.treasuryId, date: e.date, side: e.debit > 0 ? 'debit' : 'credit', amount: e.debit > 0 ? e.debit : e.credit, reasonId: e.reasonId, notes: e.notes ?? '' };
+    this.editId = e.id; this.editing.set(e);
+    this.f = { treasuryId: e.treasuryId, date: e.date, side: e.debit > 0 ? 'debit' : 'credit', amount: e.debit > 0 ? e.debit : e.credit, reasonId: e.reasonId ?? '', notes: e.notes ?? '' };
     this.dlg.set(true);
   }
-  valid(): boolean { const f = this.f; return !!f.treasuryId && !!f.date && !!f.reasonId && f.amount !== null && f.amount > 0; }
+  valid(): boolean { const f = this.f; return !!f.treasuryId && !!f.date && (this.isAutoEdit() || !!f.reasonId) && f.amount !== null && f.amount > 0; }
   save(): void {
     if (!this.valid()) return;
     this.busy.set(true);
     const amt = this.f.amount ?? 0;
-    const body = { treasuryId: this.f.treasuryId, date: this.f.date, debit: this.f.side === 'debit' ? amt : 0, credit: this.f.side === 'credit' ? amt : 0, reasonId: this.f.reasonId, notes: this.f.notes.trim() || null };
+    // For a validated collection mirror the server applies amount + notes only (reasonId is ignored; sent as an empty GUID).
+    const body = { treasuryId: this.f.treasuryId, date: this.f.date, debit: this.f.side === 'debit' ? amt : 0, credit: this.f.side === 'credit' ? amt : 0,
+      reasonId: this.isAutoEdit() ? '00000000-0000-0000-0000-000000000000' : this.f.reasonId, notes: this.f.notes.trim() || null };
     const req = this.editId ? this.api.put(`/accounting/treasury/entries/${this.editId}`, body) : this.api.post('/accounting/treasury/entries', body);
     req.subscribe({ next: () => { this.busy.set(false); this.dlg.set(false); this.toast.success('Entry saved.'); this.load(); }, error: () => this.busy.set(false) });
   }
@@ -275,8 +342,11 @@ export class TreasuryComponent {
       .subscribe({ next: () => { this.busy.set(false); this.editReasonId.set(null); this.toast.success('Reason saved.'); this.reloadConfig(); this.load(); }, error: () => this.busy.set(false) });
   }
 
-  private static readonly HEADER = ['Serial', 'Date', 'Day', 'Treasury', 'Debit', 'Credit', 'Reason', 'Notes'];
-  private exportRows() { return this.rows().map((e, i) => [i + 1, ddmy(e.date), this.day(e.date), e.treasuryName, money(e.debit), money(e.credit), e.reasonName, e.notes ?? '']); }
+  private static readonly HEADER = ['Serial', 'Date', 'Day', 'Treasury', 'Debit', 'Collected cash', 'Credit', 'Reason', 'Status', 'Validated by', 'Details', 'Notes'];
+  private exportRows() {
+    return this.rows().map((e, i) => [i + 1, ddmy(e.date), this.day(e.date), e.treasuryName, money(e.debit), e.collectedCash === null ? '' : money(e.collectedCash), money(e.credit),
+      e.reasonName, this.statusLabel(e), e.validatedBy ? `${e.validatedBy} ${ddmy(e.validatedAt)}` : '', [e.systemNote, e.validationNote].filter(Boolean).join(' · '), e.notes ?? '']);
+  }
   exportExcel(): void { exportXlsx(`treasury-account-${localToday()}.xlsx`, TreasuryComponent.HEADER, this.exportRows()); }
   exportPdf(): void { printTable(`Treasury Account (${ddmy(this.from)} → ${ddmy(this.to)})`, TreasuryComponent.HEADER, this.exportRows()); }
 }
