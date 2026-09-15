@@ -1,0 +1,10 @@
+# Declares the repo's line-ending policy to the formatter (dotnet format / IDEs). It mirrors .gitattributes, which
+# already normalises these types to LF in the repository; without this, dotnet format on Windows falls back to CRLF
+# for any trivia it re-emits and the `--verify-no-changes` gate fails on a clean LF checkout.
+root = true
+
+[*.{cs,csproj,props,json,ts,html,md}]
+end_of_line = lf
+
+[*.sln]
+end_of_line = crlf
