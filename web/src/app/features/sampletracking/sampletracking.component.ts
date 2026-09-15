@@ -73,7 +73,7 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
         </div>
         @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
         @else {
-          <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
+          <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
             <thead><tr><th>{{ 'date' | t : 'Date' }}</th><th>{{ 'area_2' | t : 'Area' }}</th><th>{{ 'samples' | t : 'Samples' }}</th><th>{{ 'data_entry' | t : 'Data Entry' }}</th><th>{{ 'reviewed_by' | t : 'Reviewed By' }}</th><th>{{ 'sorted_by_2' | t : 'Sorted By' }}</th><th>{{ 'notes' | t : 'Notes' }}</th><th>{{ 'actions' | t : 'Actions' }}</th></tr></thead>
             <tbody>
               @for (r of filtered(); track r.id) {
@@ -131,7 +131,7 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
         @else {
           @for (grp of reportGroups(); track grp.key) {
             <div style="background:var(--slate-100);padding:8px 16px;font-weight:700;font-size:12.5px;border-bottom:1px solid var(--slate-150)">{{ (groupBy === 'Area' ? 'area_2' : 'laboratory') | t : groupBy }}: {{ grp.key }}</div>
-            <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
+            <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
               <thead><tr><th>{{ 'laboratory' | t : 'Laboratory' }}</th><th>{{ 'visit_datetime' | t : 'Visit datetime' }}</th><th>{{ 'samples' | t : 'Samples' }}</th><th>{{ 'collected' | t : 'Collected' }}</th><th>{{ 'transferred' | t : 'Transferred' }}</th><th>{{ 'received' | t : 'Received' }}</th><th>{{ 'data_entry' | t : 'Data entry' }}</th><th>{{ 'revised' | t : 'Revised' }}</th><th>{{ 'sorted' | t : 'Sorted' }}</th><th>{{ 'notes' | t : 'Notes' }}</th></tr></thead>
               <tbody>
                 @for (r of grp.rows; track $index) {

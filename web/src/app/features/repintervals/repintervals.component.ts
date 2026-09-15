@@ -66,7 +66,7 @@ type AvgField = 'plannedToCollect' | 'collectToTransfer' | 'transferToCheckin' |
     <div class="card" style="padding:0;overflow:hidden">
       @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
       @else if (groupBy() !== 'none') {
-        <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
+        <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
           <thead><tr><th>{{ groupLabel() }}</th><th class="r">{{ 'visits_count' | t : 'Visits count' }}</th><th class="r">{{ 'total_samples' | t : 'Total samples' }}</th>
             <th class="r">{{ 'planned_collect_delay' | t : 'Planned→Collect' }}</th><th class="r">{{ 'collect_to_transfer' | t : 'Collect→Transfer' }}</th>
             <th class="r">{{ 'transfer_to_checkin' | t : 'Transfer→Check-in' }}</th><th class="r">{{ 'total_cycle_time' | t : 'Total cycle' }}</th></tr></thead>
@@ -83,7 +83,7 @@ type AvgField = 'plannedToCollect' | 'collectToTransfer' | 'transferToCheckin' |
         </table></div>
       }
       @else {
-        <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
+        <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
           <thead><tr><th>{{ 'date' | t }}</th><th>{{ 'laboratory' | t }}</th><th>{{ 'collector' | t }}</th><th>{{ 'samples_2' | t : 'Samples' }}</th>
             <th>{{ 'planned_collect_delay' | t : 'Planned→Collect' }}</th><th>{{ 'collect_to_transfer' | t : 'Collect→Transfer' }}</th>
             <th>{{ 'transfer_to_checkin' | t : 'Transfer→Check-in' }}</th><th>{{ 'total_cycle_time' | t : 'Total cycle' }}</th></tr></thead>

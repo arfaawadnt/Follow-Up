@@ -54,7 +54,7 @@ type Opt = { value: string; label: string };
       @else if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
       @else {
         <div style="padding:0 16px 8px;font-weight:700">{{ st()?.repName }}</div>
-        <table class="grid-table" style="margin:0;border:none">
+        <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
           <thead><tr>
             <th>{{ 'date' | t : 'Date' }}</th><th>{{ 'day' | t : 'Day' }}</th><th>{{ 'kind' | t : 'Kind' }}</th>
             <th class="r">{{ 'debit' | t : 'Debit' }}</th><th class="r">{{ 'credit_out' | t : 'Credit' }}</th><th>{{ 'notes' | t : 'Notes' }}</th><th class="r">{{ 'balance' | t : 'Balance' }}</th>
@@ -73,7 +73,7 @@ type Opt = { value: string; label: string };
           @if (st()?.rows?.length) {
             <tfoot><tr><td colspan="3">{{ 'total' | t : 'Total' }}</td><td class="r mono">{{ st()!.totalDebit | number:'1.2-2' }}</td><td class="r mono">{{ st()!.totalCredit | number:'1.2-2' }}</td><td></td><td class="r mono">{{ st()!.balance | number:'1.2-2' }}</td>@if (canManage()) { <td></td> }</tr></tfoot>
           }
-        </table>
+        </table></div>
       }
     </div>
 

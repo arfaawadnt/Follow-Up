@@ -38,7 +38,7 @@ const STATUSES = ['All', 'Scheduled', 'Completed', 'Cancelled'];
     <div class="card" style="padding:0;overflow:hidden">
       @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
       @else {
-        <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
+        <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
           <thead><tr><th>{{ 'ref' | t : 'Ref' }}</th><th>{{ 'laboratory' | t }}</th><th>{{ 'rep' | t }}</th><th>{{ 'date' | t }}</th><th>{{ 'time' | t : 'Time' }}</th><th>{{ 'purpose' | t }}</th><th>{{ 'status' | t }}</th><th>{{ 'outcome_plan' | t : 'Outcome / Plan' }}</th><th></th></tr></thead>
           <tbody>
             @for (v of shown(); track v.id) {

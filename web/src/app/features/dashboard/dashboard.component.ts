@@ -63,7 +63,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
       <div class="grid" style="grid-template-columns:1.5fr 1fr;margin-bottom:14px">
         <div class="card"><div class="chead">{{ 'todays_schedule' | t }} <span class="small muted" style="font-weight:400">{{ 'first_9_by_time' | t }}</span></div>
           @if (d.schedule.length) {
-            <table><tr><th>{{ 'time' | t }}</th><th>{{ 'laboratory' | t }}</th><th>{{ 'collector' | t }}</th><th>{{ 'status' | t }}</th><th></th></tr>
+            <div class="grid-scroll"><table><tr><th>{{ 'time' | t }}</th><th>{{ 'laboratory' | t }}</th><th>{{ 'collector' | t }}</th><th>{{ 'status' | t }}</th><th></th></tr>
               @for (v of d.schedule; track v.id) {
                 <tr><td class="mono">{{ v.time }}</td>
                   <td><b style="color:var(--slate-900)">{{ v.lab }}</b><div class="small muted">{{ v.area ?? '—' }}</div></td>
@@ -73,7 +73,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
                     <button class="btn btn-mini btn-p" (click)="openRecord(v)" [disabled]="busy()">{{ 'record_visit' | t : 'Record visit' }}</button>
                   }</td></tr>
               }
-            </table>
+            </table></div>
           } @else { <div class="empty">{{ 'no_visits_today' | t }}</div> }
         </div>
         <div class="card"><div class="chead">{{ 'unresolved_complaints' | t }}</div>

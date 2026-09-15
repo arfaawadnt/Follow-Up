@@ -35,7 +35,7 @@ interface AuditRow { id: string; occurredAt: string; actor: string; entity: stri
     <div class="card" style="padding:0;overflow:hidden">
       @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
       @if (!loading() && result(); as r) {
-        <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
+        <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
           <thead><tr><th>{{ 'action_time' | t : 'Action Time' }}</th><th>{{ 'action_by' | t : 'Action By' }}</th><th>{{ 'entity' | t : 'Entity' }}</th><th>{{ 'action' | t : 'Action' }}</th><th>{{ 'valuable_info' | t : 'Valuable Info' }}</th></tr></thead>
           <tbody>
             @for (a of r.items; track a.id) {

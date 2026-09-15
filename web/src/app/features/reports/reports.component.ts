@@ -74,7 +74,7 @@ interface LabHistory {
     }
 
     @if (tab() === 'performance') {
-      <div class="card" style="padding:0;overflow:hidden"><div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
+      <div class="card" style="padding:0;overflow:hidden"><div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
         <thead><tr><th>{{ 'representative' | t }}</th><th>{{ 'type' | t }}</th><th>{{ 'goal' | t : 'Goal' }}</th><th>{{ 'target' | t }}</th><th>{{ 'achieved' | t }}</th><th style="width:180px">{{ 'attainment' | t }}</th><th>{{ 'pace' | t : 'Pace' }}</th><th>{{ 'salary' | t : 'Salary' }}</th></tr></thead>
         <tbody>
           @for (r of perf(); track r.repId) {
@@ -133,7 +133,7 @@ interface LabHistory {
         </div>
         <div class="grid" style="grid-template-columns:1.2fr 1fr">
           <div class="card" style="padding:0;overflow:hidden"><div class="chead" style="padding:12px 16px">{{ 'visit_history' | t : 'Visit history' }}</div>
-            <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
+            <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
               <thead><tr><th>{{ 'date' | t }}</th><th>{{ 'time' | t : 'Time' }}</th><th>{{ 'collector' | t }}</th><th>{{ 'status' | t }}</th><th class="r">{{ 'samples_2' | t : 'Samples' }}</th></tr></thead>
               <tbody>
                 @for (v of x.visits; track $index) {
@@ -144,7 +144,7 @@ interface LabHistory {
             </table></div>
           </div>
           <div class="card" style="padding:0;overflow:hidden"><div class="chead" style="padding:12px 16px">{{ 'complaints_from_lab' | t : 'Complaints from this lab' }}</div>
-            <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
+            <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
               <thead><tr><th>{{ 'ref' | t : 'Ref' }}</th><th>{{ 'description_lbl' | t : 'Description' }}</th><th>{{ 'date' | t }}</th><th>{{ 'status' | t }}</th></tr></thead>
               <tbody>
                 @for (c of x.complaintRows; track c.reference) {

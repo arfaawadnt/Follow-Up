@@ -38,7 +38,7 @@ interface Sess { id: string; username: string; ipAddress: string | null; termina
     <div class="card" style="padding:0;overflow:hidden">
       @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
       @else {
-        <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
+        <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
           <thead><tr><th>{{ 'username' | t : 'Username' }}</th><th>{{ 'terminal_ip' | t : 'Terminal IP' }}</th><th>{{ 'terminal_name' | t : 'Terminal Name' }}</th><th>{{ 'login_time' | t : 'Login Time' }}</th><th>{{ 'logout_time' | t : 'Logout Time' }}</th><th>{{ 'duration' | t : 'Duration' }}</th></tr></thead>
           <tbody>
             @for (s of filtered(); track s.id) {

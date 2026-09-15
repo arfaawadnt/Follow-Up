@@ -68,7 +68,7 @@ const NOLAB = 'No lab';
     <div class="card" style="padding:10px 0;overflow-x:auto">
       @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
       @else {
-        <table class="grid-table" style="margin:0;border:none">
+        <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
           <thead><tr>
             <th class="stick">{{ 'governorate_2' | t : 'Governorate' }}</th>
             <th>{{ 'city' | t : 'City' }}</th><th>{{ 'area_2' | t : 'Area' }}</th><th>{{ 'lab_name' | t : 'Lab' }}</th>
@@ -86,7 +86,7 @@ const NOLAB = 'No lab';
               </tr>
             } @empty { <tr><td colspan="11" class="empty" style="text-align:center;padding:24px">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
           </tbody>
-        </table>
+        </table></div>
         @if (grid().length) {
           <div class="fu-pager">
             <button class="btn-ghost" [disabled]="curPage() <= 1" (click)="page.set(curPage() - 1)">‹ {{ 'prev' | t : 'Prev' }}</button>

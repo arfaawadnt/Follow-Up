@@ -54,7 +54,7 @@ type StageForm = 'ack' | 'validity' | 'investigation' | 'outcome' | 'resolve';
     <div class="card" style="padding:0;overflow:hidden">
       @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
       @if (!loading() && result(); as r) {
-        <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
+        <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
           <thead><tr><th>{{ 'ref' | t : 'Ref' }}</th><th>{{ 'laboratory' | t }}</th><th>{{ 'category' | t }}</th><th>{{ 'complaint' | t : 'Complaint' }}</th>
             <th>{{ 'via' | t : 'Via' }}</th><th>{{ 'assigned_to' | t : 'Assigned to' }}</th><th>{{ 'status' | t }}</th><th style="width:190px"></th></tr></thead>
           <tbody>
@@ -220,9 +220,9 @@ type StageForm = 'ack' | 'validity' | 'investigation' | 'outcome' | 'resolve';
           @if (detailTab() === 'audit') {
             <div style="padding:14px 16px">
               @if (audit(); as rows) {
-                <table class="grid-table"><thead><tr><th>{{ 'time' | t : 'Time' }}</th><th>{{ 'user' | t : 'User' }}</th><th>{{ 'event' | t : 'Event' }}</th><th>{{ 'details' | t : 'Details' }}</th></tr></thead>
+                <div class="grid-scroll"><table class="grid-table"><thead><tr><th>{{ 'time' | t : 'Time' }}</th><th>{{ 'user' | t : 'User' }}</th><th>{{ 'event' | t : 'Event' }}</th><th>{{ 'details' | t : 'Details' }}</th></tr></thead>
                   <tbody>@for (a of rows; track $index) { <tr><td class="mono small">{{ a.occurredAt | date:'dd/MM/yyyy HH:mm' }}</td><td>{{ a.actor }}</td><td>{{ a.action }}</td><td class="small muted" style="white-space:pre-line;max-width:320px">{{ auditDetails(a) }}</td></tr> } @empty { <tr><td colspan="4" class="muted small">—</td></tr> }</tbody>
-                </table>
+                </table></div>
               } @else { <span class="muted small">{{ 'loading' | t : 'Loading…' }}</span> }
             </div>
           }

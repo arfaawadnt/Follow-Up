@@ -44,7 +44,7 @@ interface TestGroup { id: string; code: string; nameEn: string; nameAr: string |
         </div>
         @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
         @else {
-          <table class="grid-table" style="margin:0;border:none">
+          <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
             <thead><tr><th>{{ 'group_code_2' | t : 'Code' }}</th><th>{{ 'group_name_2' | t : 'Name' }}</th><th style="width:90px">{{ 'source' | t : 'Source' }}</th><th style="width:130px"></th></tr></thead>
             <tbody>
               @for (g of filtered(); track g.id) {
@@ -56,7 +56,7 @@ interface TestGroup { id: string; code: string; nameEn: string; nameAr: string |
                   </td></tr>
               } @empty { <tr><td colspan="4" class="empty" style="text-align:center;padding:24px">—</td></tr> }
             </tbody>
-          </table>
+          </table></div>
         }
       </div>
     </div>

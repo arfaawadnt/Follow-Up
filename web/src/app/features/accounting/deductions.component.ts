@@ -52,7 +52,7 @@ interface AreaOpt { id: string; name: string; percentageDeal: boolean; percentag
     <div class="card" style="padding:10px 0;overflow-x:auto">
       @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
       @else {
-        <table class="grid-table" style="margin:0;border:none">
+        <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
           <thead><tr>
             <th>{{ 'serial' | t : 'Serial' }}</th><th>{{ 'date' | t : 'Date' }}</th><th>{{ 'day' | t : 'Day' }}</th><th>{{ 'area_2' | t : 'Area' }}</th>
             <th>{{ 'reason' | t : 'Reason' }}</th><th>{{ 'period' | t : 'Period' }}</th><th class="r">{{ 'value' | t : 'Value' }}</th><th>{{ 'notes' | t : 'Notes' }}</th>
@@ -75,7 +75,7 @@ interface AreaOpt { id: string; name: string; percentageDeal: boolean; percentag
             } @empty { <tr><td colspan="9" class="empty" style="text-align:center;padding:24px">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
           </tbody>
           @if (rows().length) { <tfoot><tr><td colspan="6">{{ 'total' | t : 'Total' }}</td><td class="r mono">{{ k().total | number:'1.2-2' }}</td><td></td>@if (canManage()) { <td></td> }</tr></tfoot> }
-        </table>
+        </table></div>
       }
     </div>
 

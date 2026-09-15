@@ -5,6 +5,7 @@ import { UiService } from '../core/ui.service';
 import { RealtimeService } from '../core/realtime.service';
 import { NotificationStore } from '../core/notification.store';
 import { IconsService } from '../core/icons.service';
+import { GridKeyboardNavService } from '../core/grid-keyboard-nav.service';
 import { TranslatePipe } from '../core/i18n';
 
 interface NavItem { id: string; key: string; icon: string; path: string; privilege?: string; }
@@ -80,6 +81,7 @@ export class ShellComponent implements AfterViewChecked, OnDestroy {
   readonly rt = inject(RealtimeService);
   readonly notes = inject(NotificationStore);
   private readonly icons = inject(IconsService);
+  private readonly gridKeys = inject(GridKeyboardNavService);
   private readonly router = inject(Router);
 
   private static readonly COLLAPSE_KEY = 'fu.sidebarCollapsed';
@@ -153,7 +155,7 @@ export class ShellComponent implements AfterViewChecked, OnDestroy {
     return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || n[0].toUpperCase();
   });
 
-  constructor() { void this.rt.start(); }
+  constructor() { void this.rt.start(); this.gridKeys.start(); }
 
   ngAfterViewChecked(): void { this.icons.render(); }
 

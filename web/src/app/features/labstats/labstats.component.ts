@@ -72,7 +72,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
     <div class="card" style="padding:10px 0;overflow-x:auto">
       @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
       @else {
-        <table class="grid-table" style="margin:0;border:none">
+        <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
           <thead><tr>
             <th class="stick">{{ 'lab_name' | t : 'Lab name' }}</th>
             <th>{{ 'category' | t : 'Category' }}</th><th>{{ 'segment' | t }}</th>
@@ -101,7 +101,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
               <td class="r mono" style="font-weight:800">{{ k().income | number:'1.0-1' }}</td>
             </tr></tfoot>
           }
-        </table>
+        </table></div>
         @if (pivot().length) {
           <div class="fu-pager">
             <button class="btn-ghost" [disabled]="curPage() <= 1" (click)="page.set(curPage() - 1)">‹ {{ 'prev' | t : 'Prev' }}</button>

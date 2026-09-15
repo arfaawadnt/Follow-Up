@@ -25,7 +25,7 @@ type Tab = 'preferences' | 'gateways' | 'logs';
     </div>
 
     @if (tab() === 'preferences') {
-      <div class="card" style="padding:0;overflow:hidden"><table class="grid-table" style="margin:0;border:none">
+      <div class="card" style="padding:0;overflow:hidden"><div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
         <thead><tr><th>{{ 'alert_type' | t : 'Alert Type' }}</th><th style="text-align:center">{{ 'in_app_alerts' | t : 'In-App Alerts' }}</th><th style="text-align:center">{{ 'email_alerts' | t : 'Email Alerts' }}</th><th style="text-align:center">{{ 'whatsapp_alerts' | t : 'WhatsApp Alerts' }}</th></tr></thead>
         <tbody>
           @for (p of prefs(); track p.eventKey) {
@@ -35,18 +35,18 @@ type Tab = 'preferences' | 'gateways' | 'logs';
               <td style="text-align:center"><input type="checkbox" [checked]="p.whatsApp" (change)="togglePref(p, 'whatsApp', $event)"></td></tr>
           } @empty { <tr><td colspan="4" class="empty" style="text-align:center;padding:24px">—</td></tr> }
         </tbody>
-      </table></div>
+      </table></div></div>
     }
 
     @if (tab() === 'gateways') {
-      <div class="card" style="padding:0;overflow:hidden"><table class="grid-table" style="margin:0;border:none">
+      <div class="card" style="padding:0;overflow:hidden"><div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
         <thead><tr><th>Gateway</th><th>Status</th><th>Secret</th></tr></thead>
         <tbody>@for (g of gateways(); track g.name) { <tr><td>{{ g.name }}</td><td><span class="badge" [class]="g.enabled?'b-ok':'b-neu'">{{ g.enabled ? 'Enabled' : 'Disabled' }}</span></td><td class="mono small">{{ g.maskedSecret }}</td></tr> } @empty { <tr><td colspan="3" class="empty" style="text-align:center;padding:24px">—</td></tr> }</tbody>
-      </table></div>
+      </table></div></div>
     }
 
     @if (tab() === 'logs') {
-      <div class="card" style="padding:0;overflow:hidden"><table class="grid-table" style="margin:0;border:none">
+      <div class="card" style="padding:0;overflow:hidden"><div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
         <thead><tr><th>Channel</th><th>Recipient</th><th>Event</th><th>Status</th><th>Attempts</th><th></th></tr></thead>
         <tbody>
           @for (l of logs(); track l.id) {
@@ -56,7 +56,7 @@ type Tab = 'preferences' | 'gateways' | 'logs';
               <td>@if (l.status === 'Failed') { <button class="btn btn-mini btn-s" (click)="retry(l)">Retry</button> }</td></tr>
           } @empty { <tr><td colspan="6" class="empty" style="text-align:center;padding:24px">—</td></tr> }
         </tbody>
-      </table></div>
+      </table></div></div>
     }
   `,
   styles: [`

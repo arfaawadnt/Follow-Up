@@ -79,7 +79,7 @@ const TABS: { key: Tab; label: string }[] = [
         </div>
         <div class="card panel">
           <div class="setup-toolbar"><h3 style="margin:0">Current Items</h3><input class="input srch" [ngModel]="q()" (ngModelChange)="q.set($event)" placeholder="Search…"><span class="cnt">{{ refsF().length }}/{{ refs().length }}</span></div>
-          <table class="items">
+          <div class="grid-scroll"><table class="items">
             <thead><tr><th>{{ singular() }}</th>@if (tab() === 'governorates') { <th>Real Name</th> }@if (tab() === 'segments') { <th style="width:120px">Income from</th><th style="width:120px">Income to</th> }<th style="width:80px">Source</th><th class="ar">Actions</th></tr></thead>
             <tbody>
               @for (r of refsF(); track r.id) {
@@ -110,7 +110,7 @@ const TABS: { key: Tab; label: string }[] = [
                 </tr>
               } @empty { <tr><td colspan="3" class="empty">No items yet.</td></tr> }
             </tbody>
-          </table>
+          </table></div>
         </div>
         @if (tab() === 'segments') {
           <div class="card panel" style="grid-column:1/-1">
@@ -138,7 +138,7 @@ const TABS: { key: Tab; label: string }[] = [
         </div>
         <div class="card panel">
           <div class="setup-toolbar"><h3 style="margin:0">Current Items</h3><input class="input srch" [ngModel]="q()" (ngModelChange)="q.set($event)" placeholder="Search…"><span class="cnt">{{ citiesF().length }}/{{ cities().length }}</span></div>
-          <table class="items">
+          <div class="grid-scroll"><table class="items">
             <thead><tr><th>City</th><th>Governorate</th><th>Real Name</th><th style="width:80px">Source</th><th class="ar">Actions</th></tr></thead>
             <tbody>
               @for (c of citiesF(); track c.id) {
@@ -165,7 +165,7 @@ const TABS: { key: Tab; label: string }[] = [
                 </tr>
               } @empty { <tr><td colspan="5" class="empty">No items yet.</td></tr> }
             </tbody>
-          </table>
+          </table></div>
         </div>
       </div>
     }
@@ -195,7 +195,7 @@ const TABS: { key: Tab; label: string }[] = [
         </div>
         <div class="card panel">
           <div class="setup-toolbar"><h3 style="margin:0">Current Items</h3><input class="input srch" [ngModel]="q()" (ngModelChange)="q.set($event)" placeholder="Search…"><span class="cnt">{{ areasF().length }}/{{ areas().length }}</span></div>
-          <table class="items">
+          <div class="grid-scroll"><table class="items">
             <thead><tr><th>Area</th><th>City</th><th>Real Name</th><th>{{ 'area_manager' | t : 'Area Manager' }}</th><th>{{ 'area_responsible' | t : 'Area Responsible' }}</th><th>Transport</th><th>{{ 'percentage_deal' | t : 'Percentage Deal' }}</th><th style="width:80px">Source</th><th class="ar">Actions</th></tr></thead>
             <tbody>
               @for (a of areasF(); track a.id) {
@@ -236,7 +236,7 @@ const TABS: { key: Tab; label: string }[] = [
                 </tr>
               } @empty { <tr><td colspan="9" class="empty">No items yet.</td></tr> }
             </tbody>
-          </table>
+          </table></div>
         </div>
       </div>
     }
@@ -255,7 +255,7 @@ const TABS: { key: Tab; label: string }[] = [
           <h3 style="margin:0">Loyalty tiers</h3>
           @if (canEdit()) { <button class="btn btn-s btn-mini" (click)="addTier()">+ Add tier</button> }
         </div>
-        <table class="items">
+        <div class="grid-scroll"><table class="items">
           <thead><tr><th>Tier</th><th>Min Achievement (%)</th><th>Points</th><th class="ar"></th></tr></thead>
           <tbody>
             @for (t of comp.tiers; track $index) {
@@ -267,7 +267,7 @@ const TABS: { key: Tab; label: string }[] = [
               </tr>
             } @empty { <tr><td colspan="4" class="empty">No tiers configured.</td></tr> }
           </tbody>
-        </table>
+        </table></div>
         @if (canEdit()) { <button class="btn btn-p" style="margin-top:16px" [disabled]="busy()" (click)="saveComp()">Save configuration</button> }
       </div>
     }

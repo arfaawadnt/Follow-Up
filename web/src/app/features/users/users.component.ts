@@ -37,7 +37,7 @@ interface Role { id: string; name: string; privileges: string[]; isBuiltIn: bool
     <div class="card" style="padding:0;overflow:hidden">
       @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
       @else {
-        <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
+        <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
           <thead><tr><th>{{ 'username' | t : 'Username' }}</th><th>{{ 'display_name' | t : 'Display Name' }}</th><th>{{ 'role' | t : 'Role' }}</th><th>{{ 'language' | t : 'Language' }}</th><th>{{ 'privileges' | t : 'Privileges' }}</th><th></th></tr></thead>
           <tbody>
             @for (u of users(); track u.id) {

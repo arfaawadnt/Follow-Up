@@ -60,7 +60,7 @@ import { AttachmentService } from '../../core/attachment.service';
     <div class="card" style="padding:0;overflow:hidden">
       @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
       @else {
-        <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
+        <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
           <thead><tr>
             <th style="width:28px"><input type="checkbox" [checked]="allSelected()" (change)="toggleAll()"></th>
             <th>{{ 'laboratory_2' | t }}</th><th>{{ 'collection_date_and_time' | t }}</th><th>{{ 'collector_rep' | t : 'Collector rep' }}</th>

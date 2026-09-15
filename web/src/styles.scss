@@ -499,6 +499,34 @@ tr:nth-child(even) td {
 tr:hover td {
   background: var(--primary-blue-light) !important;
 }
+
+/* ---- Data grids ------------------------------------------------------------------------------------------
+   Every data table sits in a .grid-scroll wrapper (enforced by GridConventionTests). The wrapper is the grid's
+   own scroll region: it scrolls horizontally for wide tables and vertically once the table exceeds the
+   viewport budget, and the header row is frozen at its top (sticky against the wrapper). Stats pages also
+   freeze their first column (.stick) — the header corner needs to win over both. */
+.grid-scroll {
+  overflow: auto;
+  max-height: calc(100vh - var(--grid-viewport-offset, 210px));
+}
+.grid-scroll > table { margin: 0; }
+.grid-scroll thead th,
+.grid-scroll > table > tbody > tr:first-child > th {   /* daily / dashboard write the header row without <thead> */
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.grid-scroll thead th.stick { z-index: 3; }
+/* Keyboard navigation (GridKeyboardNavService): the table is focusable, one cell is "active". */
+.grid-scroll > table:focus { outline: none; }
+.grid-scroll > table:focus-visible { box-shadow: inset 0 0 0 2px var(--primary-blue-light); }
+.grid-scroll tr.gk-row > td { background: var(--primary-blue-light) !important; }
+.grid-scroll .gk-cell { outline: 2px solid var(--primary-blue); outline-offset: -2px; border-radius: 2px; }
+@media print {
+  .grid-scroll { max-height: none; overflow: visible; }
+  .grid-scroll thead th, .grid-scroll > table > tbody > tr:first-child > th { position: static; }
+  .grid-scroll .gk-cell { outline: none; }
+}
 .mono {
   font-family: var(--mono);
   font-size: 12px;

@@ -62,7 +62,7 @@ type Opt = { value: string; label: string };
       <div class="card" style="padding:10px 0;overflow-x:auto">
         @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
         @else {
-          <table class="grid-table" style="margin:0;border:none">
+          <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
             <thead><tr>
               <th>{{ 'serial' | t : 'Serial' }}</th><th>{{ 'date' | t : 'Date' }}</th><th>{{ 'day' | t : 'Day' }}</th><th>{{ 'treasury' | t : 'Treasury' }}</th>
               <th class="r">{{ 'debit' | t : 'Debit' }}</th><th class="r">{{ 'credit_out' | t : 'Credit' }}</th><th>{{ 'reason' | t : 'Reason' }}</th><th>{{ 'notes' | t : 'Notes' }}</th>
@@ -84,7 +84,7 @@ type Opt = { value: string; label: string };
               } @empty { <tr><td colspan="9" class="empty" style="text-align:center;padding:24px">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
             </tbody>
             @if (rows().length) { <tfoot><tr><td colspan="4">{{ 'total' | t : 'Total' }}</td><td class="r mono">{{ k().debit | number:'1.2-2' }}</td><td class="r mono">{{ k().credit | number:'1.2-2' }}</td><td colspan="2">{{ 'net' | t : 'Net' }}: {{ k().net | number:'1.2-2' }}</td>@if (canManage()) { <td></td> }</tr></tfoot> }
-          </table>
+          </table></div>
         }
       </div>
     } @else {
@@ -96,7 +96,7 @@ type Opt = { value: string; label: string };
           <label class="lbl" style="margin-top:10px">{{ 'branches' | t : 'Branches' }}</label>
           <app-filter-select [multiple]="true" [(ngModel)]="newTreasuryBranches" [options]="branchOptions()" placeholder="—"></app-filter-select>
           <button class="btn btn-p" style="margin-top:12px" [disabled]="busy() || !newTreasuryName.trim() || !newTreasuryBranches.length" (click)="addTreasury()">{{ 'add' | t : 'Add' }}</button>
-          <table class="items" style="margin-top:14px">
+          <div class="grid-scroll"><table class="items" style="margin-top:14px">
             <thead><tr><th>{{ 'name' | t : 'Name' }}</th><th>{{ 'branches' | t : 'Branches' }}</th><th>{{ 'active' | t : 'Active' }}</th><th class="ar">{{ 'actions' | t : 'Actions' }}</th></tr></thead>
             <tbody>
               @for (t of treasuries(); track t.id) {
@@ -113,14 +113,14 @@ type Opt = { value: string; label: string };
                 </tr>
               } @empty { <tr><td colspan="4" class="empty">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
             </tbody>
-          </table>
+          </table></div>
         </div>
         <div class="card" style="padding:16px">
           <h3 style="margin:0 0 10px">{{ 'reasons' | t : 'Reasons' }}</h3>
           <label class="lbl">{{ 'name' | t : 'Name' }}</label>
           <input class="input" [(ngModel)]="newReasonName" maxlength="100">
           <button class="btn btn-p" style="margin-top:12px" [disabled]="busy() || !newReasonName.trim()" (click)="addReason()">{{ 'add' | t : 'Add' }}</button>
-          <table class="items" style="margin-top:14px">
+          <div class="grid-scroll"><table class="items" style="margin-top:14px">
             <thead><tr><th>{{ 'name' | t : 'Name' }}</th><th>{{ 'active' | t : 'Active' }}</th><th class="ar">{{ 'actions' | t : 'Actions' }}</th></tr></thead>
             <tbody>
               @for (r of reasons(); track r.id) {
@@ -136,7 +136,7 @@ type Opt = { value: string; label: string };
                 </tr>
               } @empty { <tr><td colspan="3" class="empty">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
             </tbody>
-          </table>
+          </table></div>
         </div>
       </div>
     }

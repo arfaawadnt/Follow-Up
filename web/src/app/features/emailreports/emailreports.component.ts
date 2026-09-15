@@ -111,7 +111,7 @@ const NEW_EDITOR = (): Editor => ({ id: null, name: '', includeLabStats: true, i
         </div>
       }
 
-      <table class="grid-table" style="margin:0;border:none">
+      <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
         <thead><tr><th>{{ 'report_name' | t : 'Name' }}</th><th>{{ 'reports_included' | t : 'Reports' }}</th><th>{{ 'recipients' | t : 'Recipients' }}</th><th>{{ 'send_time' | t : 'Time' }}</th><th>{{ 'enabled' | t : 'Enabled' }}</th><th>{{ 'last_run' | t : 'Last run' }}</th><th class="r">{{ 'actions' | t : 'Actions' }}</th></tr></thead>
         <tbody>
           @for (s of subs(); track s.id) {
@@ -135,7 +135,7 @@ const NEW_EDITOR = (): Editor => ({ id: null, name: '', includeLabStats: true, i
             </tr>
           } @empty { <tr><td colspan="7" class="empty" style="text-align:center;padding:20px">{{ 'no_records_found' | t : 'No reports yet.' }}</td></tr> }
         </tbody>
-      </table>
+      </table></div>
     </div>
   `,
   styles: [`

@@ -61,7 +61,7 @@ const DASH = '—';
     <div class="card" style="padding:10px 0;overflow-x:auto">
       @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
       @else {
-        <table class="grid-table" style="margin:0;border:none">
+        <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
           <thead><tr>
             <th class="stick">{{ 'governorate_area' | t : 'Governorate / Area' }}</th>
             <th class="r ref">{{ 'ref_by_month' | t : 'Ref by Month' }}</th>
@@ -102,7 +102,7 @@ const DASH = '—';
               @for (p of periods(); track p) { <td class="r mono" style="font-weight:800">{{ colTotal(p) | number: numFmt() }}</td> }
             </tr></tfoot>
           }
-        </table>
+        </table></div>
       }
     </div>
 

@@ -33,7 +33,7 @@ const TYPES = ['Collector', 'Marketing', 'Transfer', 'Scanning'];
     <div class="card" style="padding:0;overflow:hidden">
       @if (loading()) { <div class="empty" style="padding:24px">Loading…</div> }
       @else {
-        <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
+        <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
           <thead><tr><th>Representative</th><th>Type</th><th>Phone</th><th>Goal</th><th>Target</th><th>Duration</th><th>Salary</th><th>{{ 'assigned_labs' | t : 'Assigned Labs' }}</th><th style="width:80px">Source</th><th></th></tr></thead>
           <tbody>
             @for (r of paged(); track r.id) {

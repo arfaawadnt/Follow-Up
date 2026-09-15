@@ -75,7 +75,7 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
     <div class="card">
       @if (loading()) { <div class="empty">{{ 'loading' | t : 'Loading…' }}</div> }
       @else {
-        <table id="daily-table">
+        <div class="grid-scroll"><table id="daily-table">
           <tr><th>{{ 'date' | t }} &amp; {{ 'time' | t }}</th><th>{{ 'laboratory' | t }}</th><th>{{ 'collector' | t }}</th>
             <th>{{ 'status' | t }}</th><th>{{ 'samples' | t }}</th><th>{{ 'marked_at' | t : 'Marked At' }}</th><th>Verified</th><th></th></tr>
           @for (v of paged(); track v.visitId) {
@@ -108,7 +108,7 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
               </td>
             </tr>
           } @empty { <tr><td colspan="8" class="empty">{{ 'no_visits_today' | t }}</td></tr> }
-        </table>
+        </table></div>
         @if (filtered().length) {
           <div class="fu-pager">
             <button class="btn-ghost" [disabled]="curPage() <= 1" (click)="page.set(curPage() - 1)">‹ {{ 'prev' | t : 'Prev' }}</button>

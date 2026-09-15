@@ -25,7 +25,7 @@ interface TestSetup { id: string; code: string; nameEn: string; nameAr: string |
             <button class="btn btn-mini btn-p" [disabled]="!newGroup.code || !newGroup.nameEn || busy()" (click)="addGroup()">Add</button>
           </div>
         }
-        <table class="app">
+        <div class="grid-scroll"><table class="app">
           <thead><tr><th>Code</th><th>Name (EN)</th><th>Name (AR)</th><th></th></tr></thead>
           <tbody>
             @for (g of groups(); track g.id) {
@@ -45,7 +45,7 @@ interface TestSetup { id: string; code: string; nameEn: string; nameAr: string |
               </tr>
             } @empty { <tr><td colspan="4" class="empty">No groups.</td></tr> }
           </tbody>
-        </table>
+        </table></div>
       </div></div>
 
       <div class="dcard"><div class="cbody">
@@ -61,7 +61,7 @@ interface TestSetup { id: string; code: string; nameEn: string; nameAr: string |
             <button class="btn btn-mini btn-p" [disabled]="!newSetup.code || !newSetup.nameEn || busy()" (click)="addSetup()">Add</button>
           </div>
         }
-        <table class="app">
+        <div class="grid-scroll"><table class="app">
           <thead><tr><th>Code</th><th>Name (EN)</th><th>Group</th><th></th></tr></thead>
           <tbody>
             @for (s of setups(); track s.id) {
@@ -86,7 +86,7 @@ interface TestSetup { id: string; code: string; nameEn: string; nameAr: string |
               </tr>
             } @empty { <tr><td colspan="4" class="empty">No setups.</td></tr> }
           </tbody>
-        </table>
+        </table></div>
       </div></div>
     </div>
   `,

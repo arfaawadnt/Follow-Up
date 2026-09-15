@@ -56,7 +56,7 @@ interface TestRow { id?: string; testCode: string; testName: string; sampleVolum
     <div class="card" style="padding:0;overflow:hidden">
       @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
       @else {
-        <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
+        <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
           <thead><tr><th>{{ 'date' | t }}</th><th>{{ 'source_lab_col' | t : 'Source Lab' }}</th>
             <th>{{ 'quantity' | t : 'Samples' }}</th><th>{{ 'status_3' | t }}</th><th>{{ 'destination_lab' | t : 'Destination Lab' }}</th><th>{{ 'tests' | t : 'Tests' }}</th><th>{{ 'notes' | t : 'Notes' }}</th><th>{{ 'actions_4' | t : 'Actions' }}</th></tr></thead>
           <tbody>
@@ -129,7 +129,7 @@ interface TestRow { id?: string; testCode: string; testName: string; sampleVolum
             <div style="background:var(--slate-100);padding:10px 16px;font-weight:700;border-bottom:1px solid var(--slate-150);font-size:13px">{{ dg.date | appDate }}</div>
             @for (lg of dg.labs; track lg.labCode) {
               <div style="padding:8px 16px;font-weight:600;font-size:12.5px;color:var(--slate-800);border-bottom:1px solid var(--slate-100)">{{ lg.labName }} <span class="small muted">· {{ lg.labCode }}</span></div>
-              <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
+              <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
                 <thead><tr><th>{{ 'test_name' | t : 'Test' }}</th><th>{{ 'sample_volume' | t : 'Sample Volume' }}</th>
                   <th style="text-align:right">{{ 'test_fees' | t : 'Test Fees' }}</th><th style="text-align:right">{{ 'outsource_fees' | t : 'Outsource Fees' }}</th><th style="text-align:right">{{ 'net_revenue' | t : 'Net Revenue' }}</th></tr></thead>
                 <tbody>

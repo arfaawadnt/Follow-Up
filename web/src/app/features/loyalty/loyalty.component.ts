@@ -31,7 +31,7 @@ const TIERS = ['All', 'Gold', 'Silver', 'Bronze'];
     <div class="card" style="padding:0;overflow:hidden">
       @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
       @else {
-        <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
+        <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
           <thead><tr><th>{{ 'code_2' | t : 'Code' }}</th><th>{{ 'laboratory_3' | t : 'Laboratory' }}</th><th>{{ 'monthly_target_2' | t : 'Monthly target' }}</th>
             <th>{{ 'achieved_mtd' | t : 'Achieved MTD' }}</th><th>{{ 'achievement' | t : 'Achievement' }}</th><th>{{ 'tier' | t : 'Tier' }}</th><th>{{ 'loyalty_points_2' | t : 'Points' }}</th>
             @if (auth.has('ManageLoyalty')) { <th style="text-align:center">{{ 'actions_3' | t : 'Actions' }}</th> }</tr></thead>

@@ -106,7 +106,7 @@ const MATRIX: MatrixRow[] = [
             }
           </div>
 
-          <div class="matrixwrap">
+          <div class="matrixwrap grid-scroll">
             <table class="privmatrix">
               <thead><tr>
                 <th>{{ 'system_page' | t : 'System Page' }}</th>

@@ -35,7 +35,7 @@ const GROUPS = ['Collector', 'Marketing', 'Scanning'];
         @if (byType(g).length) {
           <div class="card" style="margin-bottom:20px;padding:0;overflow:hidden">
             <div style="background:var(--slate-100);padding:10px 16px;font-weight:700;border-bottom:1px solid var(--slate-150);font-size:13px">{{ g }} {{ 'reps_2' | t : 'reps' }}</div>
-            <div style="overflow-x:auto"><table class="grid-table" style="margin:0;border:none">
+            <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
               <thead><tr><th>{{ 'representative_4' | t : 'Representative' }}</th><th>{{ 'target_2' | t : 'Target' }}</th><th>{{ 'achieved_mtd' | t : 'Achieved' }}</th>
                 <th>{{ 'attainment_2' | t : 'Attainment' }}</th><th>{{ 'base_salary_2' | t : 'Base salary' }}</th><th>{{ 'commission' | t : 'Commission' }}</th><th>{{ 'bonus' | t : 'Bonus' }}</th><th>{{ 'total_payout_2' | t : 'Total payout' }}</th></tr></thead>
               <tbody>

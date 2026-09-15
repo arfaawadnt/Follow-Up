@@ -17,7 +17,7 @@ interface EditableSetting extends SettingDto { draft: string; dirty: boolean; }
       <h3 class="sec">Application settings</h3>
       @if (loading()) { <p class="muted">Loading…</p> }
       @if (!loading()) {
-        <table class="app">
+        <div class="grid-scroll"><table class="app">
           <thead><tr><th>Key</th><th>Value</th><th></th></tr></thead>
           <tbody>
             @for (s of settings(); track s.key) {
@@ -31,7 +31,7 @@ interface EditableSetting extends SettingDto { draft: string; dirty: boolean; }
               </tr>
             } @empty { <tr><td colspan="3" class="muted">No settings.</td></tr> }
           </tbody>
-        </table>
+        </table></div>
         <p class="hint">Secrets are write-only — the current value is never returned; leave blank to keep it unchanged.</p>
       }
     </div></div>

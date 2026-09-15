@@ -78,7 +78,7 @@ interface Draft { rep: string; name: string; mobile: string; car: string; when: 
             <span>{{ 'area_3' | t : 'Area' }} <b>{{ grp.area }}</b></span>
             <span class="badge b-info">{{ grp.rows.length }} {{ 'lab_visit_s' | t : 'visit(s)' }}</span>
           </div>
-          <div style="overflow-x:auto">
+          <div class="grid-scroll">
             <table class="grid-table" style="margin:0;border:none">
               <thead><tr>
                 <th style="width:28px"><input type="checkbox" [checked]="allSelected(grp.rows)" (change)="toggleAll(grp.rows)"></th>

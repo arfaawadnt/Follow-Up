@@ -57,7 +57,7 @@ interface TestSetup {
         </div>
         @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
         @else {
-          <table class="grid-table" style="margin:0;border:none">
+          <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
             <thead><tr><th style="width:90px">{{ 'test_code_2' | t : 'Test Code' }}</th><th>{{ 'test_name_2' | t : 'Test Name' }}</th><th>{{ 'group_name_2' | t : 'Group Name' }}</th><th style="width:60px">{{ 'test_type' | t : 'Type' }}</th><th style="width:90px">{{ 'cost' | t : 'Cost' }}</th><th style="width:80px">{{ 'source' | t : 'Source' }}</th><th style="width:130px"></th></tr></thead>
             <tbody>
               @for (s of paged(); track s.id) {
@@ -71,7 +71,7 @@ interface TestSetup {
                   </td></tr>
               } @empty { <tr><td colspan="7" class="empty" style="text-align:center;padding:24px">—</td></tr> }
             </tbody>
-          </table>
+          </table></div>
           <div class="fu-pager">
             <button class="btn-ghost" [disabled]="page() <= 1" (click)="page.set(page() - 1)">‹ Prev</button>
             <span>Page {{ page() }} / {{ pageCount() }} · {{ filtered().length }} items</span>

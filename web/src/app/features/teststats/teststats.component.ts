@@ -66,7 +66,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
     <div class="card" style="padding:10px 0;overflow-x:auto">
       @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
       @else {
-        <table class="grid-table" style="margin:0;border:none">
+        <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
           <thead><tr>
             <th>{{ 'test_code_2' | t : 'Test Code' }}</th><th>{{ 'test_name_2' | t : 'Test Name' }}</th><th>{{ 'parent_group' | t : 'Parent Group' }}</th>
             @for (p of periods(); track p) { <th class="r">{{ colLabel(p) }}</th> }
@@ -92,7 +92,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
               <td class="r mono" style="font-weight:800">{{ totals().income | number : '1.0-1' }}</td>
             </tr></tfoot>
           }
-        </table>
+        </table></div>
       }
     </div>
 
@@ -130,7 +130,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
             <div style="max-height:60vh;overflow:auto">
               @if (noLabLoading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
               @else {
-                <table class="grid-table" style="margin:0">
+                <div class="grid-scroll"><table class="grid-table" style="margin:0">
                   <thead><tr>
                     <th>{{ 'date_time' | t : 'Date/Time' }}</th><th>{{ 'acc_no' | t : 'Acc No' }}</th><th>{{ 'patient_name' | t : 'Patient Name' }}</th><th>{{ 'doctor' | t : 'Doctor' }}</th><th>{{ 'registered_by' | t : 'Registered By' }}</th><th>{{ 'test_name_2' | t : 'Test Name' }}</th>
                   </tr></thead>
@@ -139,7 +139,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
                       <tr><td class="mono">{{ r.regDate | date:'yyyy-MM-dd HH:mm' }}</td><td class="mono">{{ r.accNo }}</td><td>{{ r.patientName }}</td><td>{{ r.doctor }}</td><td>{{ r.registeredBy }}</td><td>{{ r.testName }}</td></tr>
                     } @empty { <tr><td colspan="6" class="empty" style="text-align:center;padding:24px">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
                   </tbody>
-                </table>
+                </table></div>
               }
             </div>
           </div>

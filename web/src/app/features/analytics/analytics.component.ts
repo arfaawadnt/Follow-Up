@@ -37,7 +37,7 @@ type Tab = 'loyalty' | 'commissions' | 'labstats';
       @if (loading()) { <div class="cbody">Loading…</div> }
 
       @if (!loading() && tab() === 'loyalty') {
-        <table class="app">
+        <div class="grid-scroll"><table class="app">
           <thead><tr><th>Laboratory</th><th class="r">Target</th><th class="r">Achieved</th><th class="r">Points</th><th>Tier</th></tr></thead>
           <tbody>
             @for (l of loyalty(); track l.laboratoryId) {
@@ -45,11 +45,11 @@ type Tab = 'loyalty' | 'commissions' | 'labstats';
                 <td class="r mono">{{ l.mtdSamples }}</td><td class="r mono">{{ l.loyaltyPoints }}</td><td>{{ l.loyaltyTier ?? '—' }}</td></tr>
             } @empty { <tr><td colspan="5" class="empty">No loyalty data for this period.</td></tr> }
           </tbody>
-        </table>
+        </table></div>
       }
 
       @if (!loading() && tab() === 'commissions') {
-        <table class="app">
+        <div class="grid-scroll"><table class="app">
           <thead><tr><th>Representative</th><th class="r">Target</th><th class="r">Achieved</th><th class="r">Base</th>
             <th class="r">Commission</th><th class="r">Bonus</th><th class="r">Total</th></tr></thead>
           <tbody>
@@ -60,11 +60,11 @@ type Tab = 'loyalty' | 'commissions' | 'labstats';
                 <td class="r mono">{{ c.bonusEarned | number:'1.0-0' }}</td><td class="r mono strong">{{ c.totalPayout | number:'1.0-0' }}</td></tr>
             } @empty { <tr><td colspan="7" class="empty">No commission data for this period.</td></tr> }
           </tbody>
-        </table>
+        </table></div>
       }
 
       @if (!loading() && tab() === 'labstats') {
-        <table class="app">
+        <div class="grid-scroll"><table class="app">
           <thead><tr><th>Date</th><th>Lab</th><th class="r">Registrations</th><th class="r">Tests</th><th class="r">Income</th></tr></thead>
           <tbody>
             @for (s of labstats(); track $index) {
@@ -73,7 +73,7 @@ type Tab = 'loyalty' | 'commissions' | 'labstats';
                 <td class="r mono">{{ s.income | number:'1.0-2' }}</td></tr>
             } @empty { <tr><td colspan="5" class="empty">No statistics in this range.</td></tr> }
           </tbody>
-        </table>
+        </table></div>
       }
     </div></div>
   `,

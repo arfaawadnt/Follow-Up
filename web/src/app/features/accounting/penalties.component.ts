@@ -51,7 +51,7 @@ type Opt = { value: string; label: string };
     <div class="card" style="padding:10px 0;overflow-x:auto">
       @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
       @else {
-        <table class="grid-table" style="margin:0;border:none">
+        <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
           <thead><tr>
             <th>{{ 'serial' | t : 'Serial' }}</th><th>{{ 'day' | t : 'Day' }}</th><th>{{ 'date' | t : 'Date' }}</th><th>{{ 'lab' | t : 'Lab' }}</th>
             <th>{{ 'acc_no' | t : 'Acc No' }}</th><th>{{ 'patient_name' | t : 'Patient Name' }}</th>
@@ -88,7 +88,7 @@ type Opt = { value: string; label: string };
               @if (canManage()) { <td></td> }
             </tr></tfoot>
           }
-        </table>
+        </table></div>
       }
     </div>
 

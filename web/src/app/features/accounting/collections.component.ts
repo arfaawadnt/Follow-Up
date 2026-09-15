@@ -52,7 +52,7 @@ type Opt = { value: string; label: string };
     <div class="card" style="padding:10px 0;overflow-x:auto">
       @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
       @else {
-        <table class="grid-table" style="margin:0;border:none">
+        <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
           <thead><tr>
             <th>{{ 'serial' | t : 'Serial' }}</th><th>{{ 'date' | t : 'Date' }}</th><th>{{ 'day' | t : 'Day' }}</th><th>{{ 'lab' | t : 'Lab' }}</th><th>{{ 'rep' | t : 'Rep' }}</th>
             <th class="r">{{ 'cash' | t : 'Cash' }}</th><th class="r">{{ 'bank' | t : 'Bank' }}</th><th class="r">{{ 'total' | t : 'Total' }}</th>
@@ -77,7 +77,7 @@ type Opt = { value: string; label: string };
             } @empty { <tr><td colspan="13" class="empty" style="text-align:center;padding:24px">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
           </tbody>
           @if (rows().length) { <tfoot><tr><td colspan="5">{{ 'total' | t : 'Total' }}</td><td class="r mono">{{ k().cash | number:'1.2-2' }}</td><td class="r mono">{{ k().bank | number:'1.2-2' }}</td><td class="r mono">{{ k().total | number:'1.2-2' }}</td><td colspan="4"></td>@if (canManage()) { <td></td> }</tr></tfoot> }
-        </table>
+        </table></div>
       }
     </div>
 
