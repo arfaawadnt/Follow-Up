@@ -148,8 +148,11 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
         _noLab = noLab; _email = email; _clock = clock; _logger = logger;
     }
 
-    private sealed record Filters(string[]? Governorates, string[]? Cities, string[]? Areas, string[]? Categories,
-        string[]? Segments, string[]? Groups, string? RefMonth, string? CompareBy);
+    /// <summary>The saved-filter payload (stats_email_subscription.filters_json). Every member is optional so an older
+    /// subscription that predates a filter (e.g. Branches, added 2026-09-15) deserialises with that filter "off".</summary>
+    private sealed record Filters(string[]? Governorates = null, string[]? Cities = null, string[]? Areas = null,
+        string[]? Branches = null, string[]? Categories = null, string[]? Segments = null, string[]? Groups = null,
+        string? RefMonth = null, string? CompareBy = null);
     private static bool Match(string[]? filter, string? value) =>
         filter is null || filter.Length == 0 || (value != null && filter.Contains(value));
     private static bool IsIncome(Filters f) => string.Equals(f.CompareBy, "income", StringComparison.OrdinalIgnoreCase);
@@ -163,8 +166,8 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
         var to = _clock.CairoToday.AddDays(-1);
         var from = to.AddDays(-(Math.Max(1, sub.WindowDays) - 1));
         Filters f;
-        try { f = JsonSerializer.Deserialize<Filters>(sub.FiltersJson, JsonOpts) ?? new Filters(null, null, null, null, null, null, null, null); }
-        catch { f = new Filters(null, null, null, null, null, null, null, null); }
+        try { f = JsonSerializer.Deserialize<Filters>(sub.FiltersJson, JsonOpts) ?? new Filters(); }
+        catch { f = new Filters(); }
 
         var (html, attachments) = await BuildAsync(sub, from, to, f, ct);
         var recipients = await ResolveRecipientsAsync(sub, ct);
@@ -266,6 +269,7 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
         var income = IsIncome(f);
         var rows = (await _labStats.ListAsync(from, to, scope, ct))
             .Where(r => Match(f.Governorates, r.Governorate) && Match(f.Cities, r.City) && Match(f.Areas, r.Area)
+                     && Match(f.Branches, r.Branch) // the lab's serving branch (operator-managed, like the on-screen page's filter)
                      && Match(f.Categories, r.Category) && Match(f.Segments, r.Segment)).ToList();
         var periods = rows.Select(r => r.Date).Distinct().OrderBy(d => d).ToList();
 
@@ -391,7 +395,10 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
     private async Task<ReportSection> RenderAreaAsync(string dateTag, DateOnly from, DateOnly to, Filters f, OrgScope scope, CancellationToken ct)
     {
         var income = IsIncome(f);
-        bool Geo(AreaStatDto r) => Match(f.Governorates, r.Governorate) && Match(f.Cities, r.City) && Match(f.Areas, r.Area);
+        // Area stats rows are grouped at (date, gov, city, area, branch) grain precisely so a serving-branch filter can
+        // apply before the per-governorate/area accumulation below.
+        bool Geo(AreaStatDto r) => Match(f.Governorates, r.Governorate) && Match(f.Cities, r.City) && Match(f.Areas, r.Area)
+                                   && Match(f.Branches, r.Branch);
         var rows = (await _areaStats.ListAsync(from, to, scope, ct)).Where(Geo).ToList();
 
         var (refFrom, refTo, refDays) = RefWindow(to, f.RefMonth);

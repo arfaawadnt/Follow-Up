@@ -18,13 +18,14 @@ interface Subscription {
   filtersJson: string; userIds: string[]; emails: string[]; sendHour: number; sendMinute: number;
   windowDays: number; enabled: boolean; lastStatus: string | null; lastRunAt: string | null;
 }
-interface Filters { governorates: string[]; cities: string[]; areas: string[]; categories: string[]; segments: string[]; groups: string[]; refMonth: string; compareBy: string; }
+/** Mirrors the runner's saved-filter payload (StatsEmailRunner.Filters); `branches` = the labs' serving branch. */
+interface Filters { governorates: string[]; cities: string[]; areas: string[]; branches: string[]; categories: string[]; segments: string[]; groups: string[]; refMonth: string; compareBy: string; }
 interface Editor {
   id: string | null; name: string; includeLabStats: boolean; includeTestStats: boolean; includeAreaStats: boolean; includeNoLab: boolean;
   filters: Filters; userIds: string[]; emailsText: string; sendHour: number; sendMinute: number; windowDays: number; enabled: boolean;
 }
 
-const EMPTY_FILTERS = (): Filters => ({ governorates: [], cities: [], areas: [], categories: [], segments: [], groups: [], refMonth: '', compareBy: 'count' });
+const EMPTY_FILTERS = (): Filters => ({ governorates: [], cities: [], areas: [], branches: [], categories: [], segments: [], groups: [], refMonth: '', compareBy: 'count' });
 const NEW_EDITOR = (): Editor => ({ id: null, name: '', includeLabStats: true, includeTestStats: false, includeAreaStats: false, includeNoLab: false,
   filters: EMPTY_FILTERS(), userIds: [], emailsText: '', sendHour: 6, sendMinute: 0, windowDays: 1, enabled: true });
 
@@ -90,6 +91,7 @@ const NEW_EDITOR = (): Editor => ({ id: null, name: '', includeLabStats: true, i
             <div class="field"><label>{{ 'governorate_2' | t : 'Governorate' }}</label><app-filter-select [multiple]="true" [options]="govs()" [(ngModel)]="ed.filters.governorates"></app-filter-select></div>
             <div class="field"><label>{{ 'city' | t : 'City' }}</label><app-filter-select [multiple]="true" [options]="cities()" [(ngModel)]="ed.filters.cities"></app-filter-select></div>
             <div class="field"><label>{{ 'area_2' | t : 'Area' }}</label><app-filter-select [multiple]="true" [options]="areas()" [(ngModel)]="ed.filters.areas"></app-filter-select></div>
+            <div class="field"><label>{{ 'serving_branch' | t : 'Serving branch' }}</label><app-filter-select [multiple]="true" [options]="branches()" [(ngModel)]="ed.filters.branches"></app-filter-select></div>
             <div class="field"><label>{{ 'category' | t : 'Lab Category' }}</label><app-filter-select [multiple]="true" [options]="categories()" [(ngModel)]="ed.filters.categories"></app-filter-select></div>
             <div class="field"><label>{{ 'segment' | t : 'Segment' }}</label><app-filter-select [multiple]="true" [options]="segments()" [(ngModel)]="ed.filters.segments"></app-filter-select></div>
             <div class="field"><label>{{ 'group' | t : 'Test Group' }}</label><app-filter-select [multiple]="true" [options]="groups()" [(ngModel)]="ed.filters.groups"></app-filter-select></div>
@@ -163,6 +165,7 @@ export class EmailReportsComponent {
   readonly govs = signal<string[]>([]);
   readonly cities = signal<string[]>([]);
   readonly areas = signal<string[]>([]);
+  readonly branches = signal<string[]>([]);
   readonly categories = signal<string[]>([]);
   readonly segments = signal<string[]>([]);
   readonly groups = signal<string[]>([]);
@@ -175,6 +178,8 @@ export class EmailReportsComponent {
     this.api.get<RefItem[]>('/setup/refs', { type: 'Governorate' }).subscribe({ next: (r) => this.govs.set(r.map((x) => x.nameEn).sort()) });
     this.api.get<City[]>('/setup/cities').subscribe({ next: (r) => this.cities.set([...new Set(r.map((x) => x.name))].sort()) });
     this.api.get<Area[]>('/setup/areas').subscribe({ next: (r) => this.areas.set([...new Set(r.map((x) => x.name))].sort()) });
+    // Serving branches are the Branch reference items (Setup › Branches); Laboratory.Branch stores the branch name.
+    this.api.get<RefItem[]>('/setup/refs', { type: 'Branch' }).subscribe({ next: (r) => this.branches.set(r.map((x) => x.nameEn).sort()) });
     this.api.get<RefItem[]>('/setup/refs', { type: 'LabCategory' }).subscribe({ next: (r) => this.categories.set(r.map((x) => x.nameEn).sort()) });
     this.api.get<RefItem[]>('/setup/refs', { type: 'Segment' }).subscribe({ next: (r) => this.segments.set(r.map((x) => x.nameEn).sort()) });
     this.api.get<Group[]>('/test-groups').subscribe({ next: (r) => this.groups.set(r.map((x) => x.nameEn).sort()) });
