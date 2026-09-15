@@ -47,8 +47,11 @@ if ($fixed -match 'media="print"') { throw "ABORT: CSP fix failed (print-onload 
 $css = Get-ChildItem "$srcWeb\styles-*.css" | Select-Object -First 1
 if (-not $css -or -not ((Get-Content $css.FullName -Raw) -match '\.grid-scroll')) { throw "ABORT: styles bundle lacks .grid-scroll - rebuild (pass -Build)." }
 $main = Get-ChildItem "$srcWeb\main-*.js" | Select-Object -First 1
-if (-not $main -or -not ((Get-Content $main.FullName -Raw) -match 'gk-cell')) { throw "ABORT: main bundle lacks GridKeyboardNavService - rebuild (pass -Build)." }
-Write-Host "Payload OK: $($css.Name) + $($main.Name) carry the grid UX."
+# The shell is a lazy chunk, so the nav service lives in a chunk-*.js, not in main.
+$navChunk = Get-ChildItem "$srcWeb\*.js" | Where-Object { (Get-Content $_.FullName -Raw) -match 'gk-cell' } | Select-Object -First 1
+if (-not $main) { throw "ABORT: no main-*.js bundle - rebuild (pass -Build)." }
+if (-not $navChunk) { throw "ABORT: no bundle file carries GridKeyboardNavService (gk-cell) - rebuild (pass -Build)." }
+Write-Host "Payload OK: $($css.Name) (grid-scroll) + $($navChunk.Name) (keyboard nav) + $($main.Name)."
 
 $backup = "C:\FollowUp\wwwroot-backup-grid-ux-$stamp"
 Write-Host "Backing up current wwwroot -> $backup"
