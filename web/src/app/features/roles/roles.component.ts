@@ -9,7 +9,14 @@ import { RefItem, RoleItem } from '../../core/models';
 interface MatrixSpecial { priv: string; key: string; label: string; }
 interface MatrixRow { key: string; label: string; view: string | null; add: string | null; update: string | null; special: MatrixSpecial[]; }
 
-/** Privilege matrix: every privilege in Privileges.cs appears exactly once (Verify/Resolve are the standalone checkboxes). */
+/**
+ * Privilege matrix: every privilege in Privileges.cs appears exactly once (Verify/Resolve are the standalone
+ * checkboxes). Guarded by RolePrivilegeMatrixTests (ArchitectureTests): a privilege added to the backend without a
+ * checkbox here fails the build, so the page can never silently fall behind the catalogue again.
+ * Rows map to sidebar pages; a page gated by another page's privilege (Lab Checkin → Transfers/Confirm, Rep
+ * Intervals → Reports/View, Groups + Test Setup → Test Stats/View) is named on that checkbox rather than given an
+ * empty row. The "Add" column on the stats pages is the manual "Sync from Oracle" action.
+ */
 const MATRIX: MatrixRow[] = [
   { key: 'page_dashboard', label: 'Dashboard', view: 'ViewDashboard', add: null, update: null, special: [] },
   { key: 'page_labs', label: 'Labs', view: null, add: 'AddLabs', update: 'UpdateLabs', special: [
@@ -23,14 +30,18 @@ const MATRIX: MatrixRow[] = [
   { key: 'page_daily_followup', label: 'Daily Follow-up', view: 'ViewDailyFollowup', add: 'AddDailyFollowup', update: 'UpdateDailyFollowup', special: [] },
   { key: 'page_transfers', label: 'Transfers', view: 'ViewTransfers', add: null, update: null, special: [
     { priv: 'ManageTransfers', key: 'priv_manage', label: 'Manage' },
-    { priv: 'ConfirmTransfers', key: 'priv_confirm', label: 'Confirm' },
+    { priv: 'ConfirmTransfers', key: 'priv_confirm_checkin', label: 'Confirm (Lab Checkin)' },
   ] },
-  { key: 'page_lab_checkin', label: 'Lab Checkin', view: null, add: null, update: null, special: [] },
   { key: 'page_sample_tracking', label: 'Sample Tracking', view: 'SampleTracking', add: null, update: null, special: [] },
   { key: 'page_outsource', label: 'Outsource', view: 'OutsourceSamples', add: null, update: null, special: [] },
-  { key: 'page_lab_stats', label: 'Lab Stats', view: 'ViewLabStats', add: null, update: null, special: [] },
+  { key: 'page_lab_stats', label: 'Lab Stats', view: 'ViewLabStats', add: 'AddLabStats', update: null, special: [] },
   { key: 'page_test_stats', label: 'Test Stats', view: 'ViewTeststats', add: 'AddTeststats', update: null, special: [] },
-  { key: 'page_reports', label: 'Reports', view: 'ViewReports', add: null, update: null, special: [] },
+  { key: 'page_area_stats', label: 'Area Stats', view: 'ViewAreaStats', add: 'AddAreaStats', update: null, special: [] },
+  { key: 'page_detailed_stats', label: 'Detailed Stats', view: 'ViewDetailedStats', add: null, update: null, special: [] },
+  { key: 'page_reports', label: 'Reports & Rep Intervals', view: 'ViewReports', add: null, update: null, special: [] },
+  { key: 'page_accounting', label: 'Accounting', view: 'ViewAccounting', add: null, update: null, special: [
+    { priv: 'ManageAccounting', key: 'priv_manage', label: 'Manage' },
+  ] },
   { key: 'page_marketing', label: 'Marketing', view: 'ViewMarketing', add: 'AddMarketing', update: 'UpdateMarketing', special: [] },
   { key: 'page_complaints', label: 'Complaints', view: 'ViewComplaints', add: 'AddComplaints', update: 'UpdateComplaints', special: [
     { priv: 'ManageComplaints', key: 'priv_manage', label: 'Manage' },
@@ -58,7 +69,9 @@ const MATRIX: MatrixRow[] = [
   { key: 'page_oracle', label: 'Oracle', view: null, add: null, update: null, special: [
     { priv: 'OracleIntegration', key: 'priv_integration', label: 'Integration' },
   ] },
-  { key: 'page_notifications', label: 'Notifications', view: null, add: null, update: null, special: [] },
+  { key: 'page_email_reports', label: 'Email Reports', view: null, add: null, update: null, special: [
+    { priv: 'ManageEmailReports', key: 'priv_manage', label: 'Manage' },
+  ] },
 ];
 
 @Component({

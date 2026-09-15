@@ -1214,7 +1214,7 @@ export const TRANSLATIONS = {
     page_outsource: "Outsource",
     page_lab_stats: "Lab Stats",
     page_test_stats: "Test Stats",
-    page_reports: "Reports",
+    page_reports: "Reports & Rep Intervals",
     page_marketing: "Marketing",
     page_complaints: "Complaints",
     page_groups: "Groups",
@@ -1300,6 +1300,11 @@ export const TRANSLATIONS = {
     entries: "Entries",
     select_rep_first: "Select a representative to view the statement.",
     no_active_deal: "This area has no active Percentage Deal.",
+    page_area_stats: "Area Stats",
+    page_detailed_stats: "Detailed Stats",
+    page_accounting: "Accounting",
+    page_email_reports: "Email Reports",
+    priv_confirm_checkin: "Confirm (Lab Checkin)",
   },
   ar: {
     /* --- UI-003: folded from inline bilingual ternaries --- */
@@ -2505,7 +2510,7 @@ export const TRANSLATIONS = {
     page_outsource: "العينات الخارجية",
     page_lab_stats: "إحصائيات المختبرات",
     page_test_stats: "إحصائيات التحاليل",
-    page_reports: "التقارير",
+    page_reports: "التقارير وفترات المناديب",
     page_marketing: "التسويق",
     page_complaints: "الشكاوى",
     page_groups: "المجموعات",
@@ -2591,5 +2596,10 @@ export const TRANSLATIONS = {
     entries: "الحركات",
     select_rep_first: "اختر مندوبًا لعرض كشف الحساب.",
     no_active_deal: "لا يوجد اتفاق نسبة نشط لهذه المنطقة.",
+    page_area_stats: "إحصائيات المناطق",
+    page_detailed_stats: "الإحصائيات التفصيلية",
+    page_accounting: "الحسابات",
+    page_email_reports: "تقارير البريد الإلكتروني",
+    priv_confirm_checkin: "تأكيد (استلام المختبر)",
   }
 };
