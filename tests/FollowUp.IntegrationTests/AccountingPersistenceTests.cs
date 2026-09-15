@@ -64,9 +64,11 @@ public sealed class AccountingPersistenceTests
             penaltyId = penalty.Id.Value; deductionId = deduction.Id.Value; collectionId = collection.Id.Value; incomeId = income.Id.Value;
             rep1 = r1.Id.Value; rep2 = r2.Id.Value;
 
-            // Serial is a PostgreSQL identity populated on insert, increasing in insertion order.
+            // Serial is a PostgreSQL identity populated on insert. EF batches the two entries into one multi-row
+            // INSERT … RETURNING, and PostgreSQL does not guarantee the order in which identity values are handed
+            // out across that batch — so assert "assigned and distinct", not "increasing in AddRange order".
             e1.Serial.Should().BeGreaterThan(0);
-            e2.Serial.Should().BeGreaterThan(e1.Serial);
+            e2.Serial.Should().BeGreaterThan(0).And.NotBe(e1.Serial);
             penalty.Serial.Should().BeGreaterThan(0);
         }
 
