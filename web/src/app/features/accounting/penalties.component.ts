@@ -61,9 +61,9 @@ type Opt = { value: string; label: string };
             @if (canManage()) { <th class="ar">{{ 'actions' | t : 'Actions' }}</th> }
           </tr></thead>
           <tbody>
-            @for (p of rows(); track p.id) {
+            @for (p of rows(); track p.id; let i = $index) {
               <tr>
-                <td class="mono">{{ p.serial }}</td><td>{{ day(p.date) }}</td><td>{{ ddmy(p.date) }}</td>
+                <td class="mono">{{ i + 1 }}</td><td>{{ day(p.date) }}</td><td>{{ ddmy(p.date) }}</td>
                 <td><b>{{ p.labName }}</b> <span class="small muted">{{ p.labDisplayCode }}</span></td>
                 <td>{{ p.accNo }}</td><td>{{ p.patientName }}</td>
                 <td>{{ p.wrongTestName }} <span class="small muted">{{ p.wrongTestCode }}</span></td><td class="r mono">{{ p.wrongValue | number:'1.2-2' }}</td>
@@ -73,7 +73,7 @@ type Opt = { value: string; label: string };
                 @if (canManage()) {
                   <td class="ar actions">
                     <button class="icon-btn" title="Edit" (click)="openEdit(p)">✎</button>
-                    <button class="icon-btn del" title="Delete" (click)="remove(p)">🗑</button>
+                    <button class="icon-btn del" title="Delete" (click)="remove(p, i + 1)">🗑</button>
                   </td>
                 }
               </tr>
@@ -214,14 +214,14 @@ export class PenaltiesComponent {
     const req = this.editId ? this.api.put(`/accounting/penalties/${this.editId}`, body) : this.api.post('/accounting/penalties', body);
     req.subscribe({ next: () => { this.busy.set(false); this.dlg.set(false); this.toast.success('Penalty saved.'); this.load(); }, error: () => this.busy.set(false) });
   }
-  remove(p: PenaltyDto): void {
-    if (!confirm(`Delete penalty #${p.serial}?`)) return;
+  remove(p: PenaltyDto, rowNo: number): void {
+    if (!confirm(`Delete penalty #${rowNo} (${ddmy(p.date)} · ${p.labName} · Acc ${p.accNo})?`)) return;
     this.api.delete(`/accounting/penalties/${p.id}`).subscribe({ next: () => { this.toast.success('Penalty deleted.'); this.load(); } });
   }
 
   private static readonly HEADER = ['Serial', 'Day', 'Date', 'Lab', 'Code', 'Acc No', 'Patient Name', 'Wrong Test', 'Value', 'Right Test', 'Value', 'Penalty', 'User Type / User'];
   private exportRows() {
-    return this.rows().map((p) => [p.serial, this.day(p.date), ddmy(p.date), p.labName, p.labDisplayCode, p.accNo, p.patientName,
+    return this.rows().map((p, i) => [i + 1, this.day(p.date), ddmy(p.date), p.labName, p.labDisplayCode, p.accNo, p.patientName,
       `${p.wrongTestName} (${p.wrongTestCode})`, money(p.wrongValue), `${p.rightTestName} (${p.rightTestCode})`, money(p.rightValue), money(p.penalty), `${this.userLabel(p.userType)} / ${p.performedByName ?? '—'}`]);
   }
   exportExcel(): void { exportXlsx(`penalty-statement-${localToday()}.xlsx`, PenaltiesComponent.HEADER, this.exportRows()); }

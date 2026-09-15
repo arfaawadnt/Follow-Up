@@ -69,15 +69,15 @@ type Opt = { value: string; label: string };
               @if (canManage()) { <th class="ar">{{ 'actions' | t : 'Actions' }}</th> }
             </tr></thead>
             <tbody>
-              @for (e of rows(); track e.id) {
+              @for (e of rows(); track e.id; let i = $index) {
                 <tr>
-                  <td class="mono">{{ e.serial }}</td><td>{{ ddmy(e.date) }}</td><td>{{ day(e.date) }}</td><td><b>{{ e.treasuryName }}</b></td>
+                  <td class="mono">{{ i + 1 }}</td><td>{{ ddmy(e.date) }}</td><td>{{ day(e.date) }}</td><td><b>{{ e.treasuryName }}</b></td>
                   <td class="r mono pos">{{ e.debit ? (e.debit | number:'1.2-2') : '' }}</td><td class="r mono neg">{{ e.credit ? (e.credit | number:'1.2-2') : '' }}</td>
                   <td>{{ e.reasonName }}</td><td>{{ e.notes || '—' }}</td>
                   @if (canManage()) {
                     <td class="ar actions">
                       <button class="icon-btn" title="Edit" (click)="openEdit(e)">✎</button>
-                      <button class="icon-btn del" title="Delete" (click)="remove(e)">🗑</button>
+                      <button class="icon-btn del" title="Delete" (click)="remove(e, i + 1)">🗑</button>
                     </td>
                   }
                 </tr>
@@ -244,8 +244,8 @@ export class TreasuryComponent {
     const req = this.editId ? this.api.put(`/accounting/treasury/entries/${this.editId}`, body) : this.api.post('/accounting/treasury/entries', body);
     req.subscribe({ next: () => { this.busy.set(false); this.dlg.set(false); this.toast.success('Entry saved.'); this.load(); }, error: () => this.busy.set(false) });
   }
-  remove(e: TreasuryEntryDto): void {
-    if (!confirm(`Delete entry #${e.serial}?`)) return;
+  remove(e: TreasuryEntryDto, rowNo: number): void {
+    if (!confirm(`Delete entry #${rowNo} (${ddmy(e.date)} · ${e.treasuryName})?`)) return;
     this.api.delete(`/accounting/treasury/entries/${e.id}`).subscribe({ next: () => { this.toast.success('Entry deleted.'); this.load(); } });
   }
 
@@ -276,7 +276,7 @@ export class TreasuryComponent {
   }
 
   private static readonly HEADER = ['Serial', 'Date', 'Day', 'Treasury', 'Debit', 'Credit', 'Reason', 'Notes'];
-  private exportRows() { return this.rows().map((e) => [e.serial, ddmy(e.date), this.day(e.date), e.treasuryName, money(e.debit), money(e.credit), e.reasonName, e.notes ?? '']); }
+  private exportRows() { return this.rows().map((e, i) => [i + 1, ddmy(e.date), this.day(e.date), e.treasuryName, money(e.debit), money(e.credit), e.reasonName, e.notes ?? '']); }
   exportExcel(): void { exportXlsx(`treasury-account-${localToday()}.xlsx`, TreasuryComponent.HEADER, this.exportRows()); }
   exportPdf(): void { printTable(`Treasury Account (${ddmy(this.from)} → ${ddmy(this.to)})`, TreasuryComponent.HEADER, this.exportRows()); }
 }

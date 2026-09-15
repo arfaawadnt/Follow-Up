@@ -60,9 +60,9 @@ type Opt = { value: string; label: string };
             @if (canManage()) { <th class="ar">{{ 'actions' | t : 'Actions' }}</th> }
           </tr></thead>
           <tbody>
-            @for (c of rows(); track c.id) {
+            @for (c of rows(); track c.id; let i = $index) {
               <tr>
-                <td class="mono">{{ c.serial }}</td><td>{{ ddmy(c.date) }}</td><td>{{ day(c.date) }}</td>
+                <td class="mono">{{ i + 1 }}</td><td>{{ ddmy(c.date) }}</td><td>{{ day(c.date) }}</td>
                 <td><b>{{ c.labName }}</b> <span class="small muted">{{ c.labDisplayCode }}</span></td>
                 <td><div class="chip-list">@for (n of c.repNames; track $index) { <span>{{ n }}</span> }</div></td>
                 <td class="r mono">{{ c.cash | number:'1.2-2' }}</td><td class="r mono">{{ c.bank | number:'1.2-2' }}</td><td class="r mono" style="font-weight:700">{{ c.total | number:'1.2-2' }}</td>
@@ -70,7 +70,7 @@ type Opt = { value: string; label: string };
                 @if (canManage()) {
                   <td class="ar actions">
                     <button class="icon-btn" title="Edit" (click)="openEdit(c)">✎</button>
-                    <button class="icon-btn del" title="Delete" (click)="remove(c)">🗑</button>
+                    <button class="icon-btn del" title="Delete" (click)="remove(c, i + 1)">🗑</button>
                   </td>
                 }
               </tr>
@@ -190,14 +190,14 @@ export class CollectionsComponent {
     const req = this.editId ? this.api.put(`/accounting/collections/${this.editId}`, body) : this.api.post('/accounting/collections', body);
     req.subscribe({ next: () => { this.busy.set(false); this.dlg.set(false); this.toast.success('Collection saved.'); this.load(); }, error: () => this.busy.set(false) });
   }
-  remove(c: CollectionDto): void {
-    if (!confirm(`Delete collection #${c.serial}?`)) return;
+  remove(c: CollectionDto, rowNo: number): void {
+    if (!confirm(`Delete collection #${rowNo} (${ddmy(c.date)} · ${c.labName})?`)) return;
     this.api.delete(`/accounting/collections/${c.id}`).subscribe({ next: () => { this.toast.success('Collection deleted.'); this.load(); } });
   }
 
   private static readonly HEADER = ['Serial', 'Date', 'Day', 'Lab', 'Code', 'Rep(s)', 'Cash', 'Bank', 'Total', 'Type', 'IBAN Number', 'Done by', 'Notes'];
   private exportRows() {
-    return this.rows().map((c) => [c.serial, ddmy(c.date), this.day(c.date), c.labName, c.labDisplayCode, c.repNames.join(', '), money(c.cash), money(c.bank), money(c.total), c.type, c.iban ?? '', c.doneBy ?? '', c.notes ?? '']);
+    return this.rows().map((c, i) => [i + 1, ddmy(c.date), this.day(c.date), c.labName, c.labDisplayCode, c.repNames.join(', '), money(c.cash), money(c.bank), money(c.total), c.type, c.iban ?? '', c.doneBy ?? '', c.notes ?? '']);
   }
   exportExcel(): void { exportXlsx(`collections-${localToday()}.xlsx`, CollectionsComponent.HEADER, this.exportRows()); }
   exportPdf(): void { printTable(`Collection (${ddmy(this.from)} → ${ddmy(this.to)})`, CollectionsComponent.HEADER, this.exportRows()); }

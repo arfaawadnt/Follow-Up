@@ -66,10 +66,10 @@ interface AreaOpt { id: string; name: string; percentageDeal: boolean; percentag
             @if (canManage()) { <th class="ar">{{ 'actions' | t : 'Actions' }}</th> }
           </tr></thead>
           <tbody>
-            @for (d of rows(); track d.id) {
+            @for (d of rows(); track d.id; let i = $index) {
               <tr>
-                <td class="mono">{{ d.serial }}</td><td>{{ ddmy(d.date) }}</td><td>{{ day(d.date) }}</td><td><b>{{ d.areaName }}</b></td>
-                <td>{{ reasonLabel(d.reason) }}@if (d.penaltySerial) { <div class="small muted">{{ 'penalty' | t : 'Penalty' }} #{{ d.penaltySerial }}</div> }</td>
+                <td class="mono">{{ i + 1 }}</td><td>{{ ddmy(d.date) }}</td><td>{{ day(d.date) }}</td><td><b>{{ d.areaName }}</b></td>
+                <td>{{ reasonLabel(d.reason) }}</td>
                 <td class="small muted">@if (d.periodFrom) { {{ ddmy(d.periodFrom) }} → {{ ddmy(d.periodTo) }} } @else { — }</td>
                 <td class="r mono">{{ d.value | number:'1.2-2' }}</td>
                 <td><span class="badge" [class.b-neu]="d.origin === 'Manual'" [class.b-info]="d.origin !== 'Manual' && !d.isAdjusted" [class.b-warn]="d.isAdjusted">{{ statusLabel(d) }}</span></td>
@@ -77,7 +77,7 @@ interface AreaOpt { id: string; name: string; percentageDeal: boolean; percentag
                 @if (canManage()) {
                   <td class="ar actions">
                     <button class="icon-btn" title="Edit" (click)="openEdit(d)">✎</button>
-                    @if (d.origin !== 'AutoPenalty') { <button class="icon-btn del" title="Delete" (click)="remove(d)">🗑</button> }
+                    @if (d.origin !== 'AutoPenalty') { <button class="icon-btn del" title="Delete" (click)="remove(d, i + 1)">🗑</button> }
                   </td>
                 }
               </tr>
@@ -223,15 +223,14 @@ export class DeductionsComponent {
     const req = this.editId ? this.api.put(`/accounting/deductions/${this.editId}`, body) : this.api.post('/accounting/deductions', body);
     req.subscribe({ next: () => { this.busy.set(false); this.dlg.set(false); this.toast.success('Deduction saved.'); this.load(); }, error: () => this.busy.set(false) });
   }
-  remove(d: DeductionDto): void {
-    if (!confirm(`Delete deduction #${d.serial}?`)) return;
+  remove(d: DeductionDto, rowNo: number): void {
+    if (!confirm(`Delete deduction #${rowNo} (${ddmy(d.date)} · ${d.areaName} · ${this.reasonLabel(d.reason)})?`)) return;
     this.api.delete(`/accounting/deductions/${d.id}`).subscribe({ next: () => { this.toast.success('Deduction deleted.'); this.load(); } });
   }
 
   private static readonly HEADER = ['Serial', 'Date', 'Day', 'Area', 'Reason', 'Period from', 'Period to', 'Value', 'Status', 'Details', 'Notes'];
   private exportRows() {
-    return this.rows().map((d) => [d.serial, ddmy(d.date), this.day(d.date), d.areaName,
-      d.penaltySerial ? `${this.reasonLabel(d.reason)} #${d.penaltySerial}` : this.reasonLabel(d.reason),
+    return this.rows().map((d, i) => [i + 1, ddmy(d.date), this.day(d.date), d.areaName, this.reasonLabel(d.reason),
       d.periodFrom ? ddmy(d.periodFrom) : '', d.periodTo ? ddmy(d.periodTo) : '', money(d.value), this.statusLabel(d), d.systemNote ?? '', d.notes ?? '']);
   }
   exportExcel(): void { exportXlsx(`deductions-${localToday()}.xlsx`, DeductionsComponent.HEADER, this.exportRows()); }
