@@ -53,6 +53,9 @@ public static class AccountingEndpoints
         // Validation of a mirrored collection's cash (needs the treasury's Validate right).
         api.MapPost("/accounting/treasury/entries/{id:guid}/validate", async (Guid id, ValidateEntryBody b, IMediator m, CancellationToken ct) =>
         { await m.Send(new ValidateTreasuryEntryCommand(id, b.ReceivedAmount, b.Note), ct); return Results.NoContent(); }).WithTags(tag);
+        // Treasury page: mirror every not-yet-mirrored cash collection now (same pass as the nightly automation).
+        api.MapPost("/accounting/treasury/sync-collections", async (IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new SyncCollectionsToTreasuryCommand(), ct))).WithTags(tag);
         // Per-role treasury rights (Roles page; ManageUsers).
         api.MapGet("/accounting/treasury/grants/{roleId:guid}", async (Guid roleId, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetTreasuryGrantsQuery(roleId), ct))).WithTags(tag);

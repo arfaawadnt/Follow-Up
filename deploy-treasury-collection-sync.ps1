@@ -19,7 +19,7 @@
 # ACCESS CHANGE TO KNOW: after this release, non-admin roles see NO treasury until granted rights on the Roles page
 # (Admin keeps everything). Grant View / Validate / Update per treasury, then users re-login is NOT needed (rights are
 # read per request), but a hard refresh (Ctrl+F5) is.
-# First-run effect: the 00:30 job (or Deductions -> "Recalculate now") mirrors every existing cash collection into its
+# First-run effect: the 00:30 job (or Treasury Account -> "Sync collections") mirrors every existing cash collection into its
 # lab's serving-branch treasury as Pending entries awaiting validation.
 #
 # Run in an ELEVATED PowerShell. Assumes Release DLLs + Angular bundle are already built this session; -Build to build.
@@ -138,7 +138,7 @@ if ($healthy) {
     Write-Host "Service is up and healthy. Backup at $backup"
     Write-Host "Next (Ctrl+F5):"
     Write-Host "  1. System & Admin -> Roles: grant View / Validate / Update per treasury to the roles that need them (Admin has all)."
-    Write-Host "  2. Accounting -> Deductions -> 'Recalculate now' to mirror existing cash collections as Pending treasury entries."
+    Write-Host "  2. Accounting -> Treasury Account -> 'Sync collections' to mirror existing cash collections as Pending treasury entries."
     Write-Host "  3. Accounting -> Treasury Account: Pending rows show a Validate button (Validate right); confirm or correct the received cash."
     Write-Host "  4. Record a cash collection on the Collection page: its treasury entry appears immediately as Pending."
 } else {

@@ -57,9 +57,11 @@ public sealed class TreasuryCollectionSyncTests
         {
             using (var scope = _fx.Services.CreateScope())
             {
+                // The Treasury page action mirrors what the nightly automation would; the nightly pass then finds nothing more.
+                var sync = scope.ServiceProvider.GetRequiredService<ICollectionTreasurySync>();
+                var r = await sync.RunAsync(CancellationToken.None);
+                r.Linked.Should().BeGreaterThanOrEqualTo(1);
                 var runner = scope.ServiceProvider.GetRequiredService<IDeductionAutomationRunner>();
-                var r = await runner.RunAsync(D, manual: true, CancellationToken.None);
-                r.CollectionsLinked.Should().BeGreaterThanOrEqualTo(1);
 
                 var db = scope.ServiceProvider.GetRequiredService<FollowUpDbContext>();
                 var mirrors = await db.TreasuryEntries.AsNoTracking().Where(e => e.TreasuryId == giza.Id).ToListAsync();

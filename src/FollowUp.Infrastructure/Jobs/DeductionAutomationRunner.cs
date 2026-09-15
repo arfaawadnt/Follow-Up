@@ -108,33 +108,9 @@ internal sealed class DeductionAutomationRunner : IDeductionAutomationRunner
             }
         }
 
-        // ---- 3. Collection → treasury reconcile ---------------------------------------------------------------------
-        // Every cash collection mirrors into the treasury serving its lab's branch; the write handlers do this synchronously,
-        // this pass links the ones that could not be placed at the time (no treasury covered the branch yet, collections
-        // that predate the mirroring). Existing mirrors are NOT refreshed here — the collection handlers own that.
-        var mirroredCollections = await _db.TreasuryEntries.AsNoTracking().Where(e => e.CollectionId != null).Select(e => e.CollectionId!.Value).ToListAsync(ct);
-        var mirroredCollectionSet = mirroredCollections.ToHashSet();
-        var unlinkedCollections = await _db.Collections.AsNoTracking().Where(c => !mirroredCollections.Contains(c.Id)).ToListAsync(ct);
-        var collectionsLinked = 0; var collectionsUnplaced = 0;
-        if (unlinkedCollections.Count > 0)
-        {
-            var activeTreasuries = await _db.Treasuries.AsNoTracking().Where(t => t.IsActive).OrderBy(t => t.Name).ToListAsync(ct);
-            var collLabIds = unlinkedCollections.Select(c => c.LaboratoryId).Distinct().ToList();
-            var collLabs = await _db.Laboratories.AsNoTracking().Where(l => collLabIds.Contains(l.Id))
-                .Select(l => new { l.Id, l.Name, l.Branch }).ToDictionaryAsync(l => l.Id, ct);
-            var repIds = unlinkedCollections.SelectMany(c => c.RepIds).Distinct().ToList();
-            var repNames = await _db.Representatives.AsNoTracking().Where(r => repIds.Contains(r.Id)).ToDictionaryAsync(r => r.Id, r => r.FullName, ct);
-            foreach (var c in unlinkedCollections)
-            {
-                if (c.Cash.Amount <= 0 || mirroredCollectionSet.Contains(c.Id)) continue; // bank-only collections never reach a treasury
-                if (!collLabs.TryGetValue(c.LaboratoryId, out var lab) || string.IsNullOrWhiteSpace(lab.Branch)) { collectionsUnplaced++; continue; }
-                var treasury = activeTreasuries.FirstOrDefault(t => t.Branches.Contains(lab.Branch, StringComparer.OrdinalIgnoreCase));
-                if (treasury is null) { collectionsUnplaced++; continue; }
-                _db.TreasuryEntries.Add(TreasuryEntry.FromCollection(treasury.Id, c, lab.Name, c.RepIds.Select(r => repNames.GetValueOrDefault(r, "—"))));
-                mirroredCollectionSet.Add(c.Id);
-                collectionsLinked++;
-            }
-        }
+        // ---- 3. Collection → treasury reconcile (shared with the Treasury page's "Sync collections") -----------------
+        var collections = await CollectionTreasurySyncRunner.ReconcileAsync(_db, ct);
+        var collectionsLinked = collections.Linked; var collectionsUnplaced = collections.Unplaced;
 
         await _db.SaveChangesAsync(ct);
 

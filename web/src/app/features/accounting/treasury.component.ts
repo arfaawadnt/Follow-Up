@@ -9,7 +9,7 @@ import { AuthService } from '../../core/auth.service';
 import { ToastService } from '../../core/toast.service';
 import { UiService } from '../../core/ui.service';
 import { TranslatePipe } from '../../core/i18n';
-import { RefItem, TreasuryDto, TreasuryEntryDto, TreasuryReasonDto } from '../../core/models';
+import { CollectionTreasurySyncResult, RefItem, TreasuryDto, TreasuryEntryDto, TreasuryReasonDto } from '../../core/models';
 import { ACC_STYLES, dayName, firstOfMonth, money } from './accounting.util';
 
 type Opt = { value: string; label: string };
@@ -33,6 +33,7 @@ type Opt = { value: string; label: string };
       <div class="pagehead-actions">
         @if (tab() === 'account') {
           @if (canManage() && updatableTreasuries().length) { <button class="btn btn-p" (click)="openNew()">{{ 'record_entry' | t : 'Record entry' }}</button> }
+          @if (canManage()) { <button class="btn btn-s" [disabled]="syncing()" (click)="syncCollections()" [title]="'sync_collections_hint' | t : 'Mirror every cash collection that has no treasury entry yet as a pending entry of its branch treasury'">{{ syncing() ? ('loading' | t : 'Loading…') : ('sync_collections' | t : 'Sync collections') }}</button> }
           <button class="btn btn-s" (click)="exportExcel()">{{ 'export_excel' | t : 'Export Excel' }}</button>
           <button class="btn btn-s" (click)="exportPdf()">{{ 'export_pdf' | t : 'Export PDF' }}</button>
         }
@@ -226,6 +227,7 @@ export class TreasuryComponent {
   readonly loading = signal(true);
   readonly busy = signal(false);
   readonly dlg = signal(false);
+  readonly syncing = signal(false);
   /** The mirrored collection being validated (null = dialog closed) and its form. */
   readonly validating = signal<TreasuryEntryDto | null>(null);
   vf = { received: null as number | null, note: '' };
@@ -263,6 +265,17 @@ export class TreasuryComponent {
     if (e.validationStatus === 'Pending') return ar ? 'قيد التحقق' : 'Pending validation';
     if (e.validationStatus === 'Validated') return ar ? 'تم التحقق' : 'Validated';
     return ar ? 'يدوي' : 'Manual';
+  }
+  syncCollections(): void {
+    this.syncing.set(true);
+    this.api.post<CollectionTreasurySyncResult>('/accounting/treasury/sync-collections', {}).subscribe({
+      next: (r) => {
+        this.syncing.set(false);
+        this.toast.success(`${r.linked} collection${r.linked === 1 ? '' : 's'} mirrored as pending${r.unplaced ? `; ${r.unplaced} without a treasury for the lab's branch` : ''}.`);
+        this.load();
+      },
+      error: () => this.syncing.set(false),
+    });
   }
   openValidate(e: TreasuryEntryDto): void { this.vf = { received: e.collectedCash ?? e.debit, note: '' }; this.validating.set(e); }
   validate(): void {

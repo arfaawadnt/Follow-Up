@@ -448,6 +448,18 @@ public sealed class ValidateTreasuryEntryHandler : ICommandHandler<ValidateTreas
     }
 }
 
+/// <summary>Treasury page action: mirrors every cash collection that has no treasury entry yet (collections recorded
+/// before the mirroring, labs whose branch gained a treasury later). Same pass the nightly automation runs.</summary>
+public sealed record SyncCollectionsToTreasuryCommand : ICommand<CollectionTreasurySyncResult>, IAuthorizedRequest
+{ public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageAccounting }; }
+public sealed class SyncCollectionsToTreasuryValidator : AbstractValidator<SyncCollectionsToTreasuryCommand> { }
+public sealed class SyncCollectionsToTreasuryHandler : ICommandHandler<SyncCollectionsToTreasuryCommand, CollectionTreasurySyncResult>
+{
+    private readonly ICollectionTreasurySync _sync;
+    public SyncCollectionsToTreasuryHandler(ICollectionTreasurySync sync) => _sync = sync;
+    public Task<CollectionTreasurySyncResult> Handle(SyncCollectionsToTreasuryCommand r, CancellationToken ct) => _sync.RunAsync(ct);
+}
+
 /// <summary>Replaces a role's treasury rights (ManageUsers, like the rest of role editing). Rows with no right are removed.</summary>
 public sealed record SetTreasuryGrantsCommand(Guid RoleId, IReadOnlyList<TreasuryGrantInput> Grants) : ICommand, IAuthorizedRequest
 { public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageUsers }; }

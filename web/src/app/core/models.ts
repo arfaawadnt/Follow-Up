@@ -208,6 +208,7 @@ export interface TreasuryEntryDto {
   collectionId: string | null; collectedCash: number | null; systemNote: string | null;
   validatedAt: string | null; validatedBy: string | null; validationNote: string | null;
 }
+export interface CollectionTreasurySyncResult { linked: number; unplaced: number; }
 /** A role's rights on one treasury (Roles page). */
 export interface TreasuryGrant { treasuryId: string; treasuryName: string; isActive: boolean; canView: boolean; canValidate: boolean; canUpdate: boolean; }
 export interface PenaltyDto {
