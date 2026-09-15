@@ -19,7 +19,7 @@ public class OutsourceScopeTests
     {
         var labs = new FakeLaboratoryRepository();
         var creator = new FakeCurrentUser { Privileges = new HashSet<string> { Privileges.AddLabs } }; // Global scope
-        await new CreateLaboratoryHandler(labs, creator, new FakeSetupQueries()).Handle(new CreateLaboratoryCommand
+        await new CreateLaboratoryHandler(labs, creator, new FakeSetupQueries(), new FakeRepresentativeRepository()).Handle(new CreateLaboratoryCommand
         {
             Code = "MGL-9001",
             Name = "Cairo Lab",

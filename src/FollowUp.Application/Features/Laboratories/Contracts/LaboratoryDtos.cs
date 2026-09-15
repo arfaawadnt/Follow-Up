@@ -22,7 +22,9 @@ public sealed record LabListItemDto(
     /// <summary>Ids of the lab's assigned collectors — the manual-visit dialog filters its collector picker to these.</summary>
     IReadOnlyList<Guid>? CollectorRepIds = null,
     /// <summary>Operator-managed Credit flag (the lab settles on credit); never touched by the Oracle sync.</summary>
-    bool Credit = false);
+    bool Credit = false,
+    /// <summary>Display name of the lab's responsible rep (type LabResponsible); null when unassigned.</summary>
+    string? Responsible = null);
 
 /// <summary>Contact-person projection.</summary>
 public sealed record ContactDto(Guid Id, string Name, string Role, string? Phone, DateOnly? Birthday);
@@ -61,7 +63,9 @@ public sealed record LabDetailDto(
     IReadOnlyList<ContactDto> Contacts,
     uint RowVersion,
     /// <summary>Operator-managed Credit flag (the lab settles on credit); never touched by the Oracle sync.</summary>
-    bool Credit = false);
+    bool Credit = false,
+    /// <summary>The lab's responsible rep (type LabResponsible); null when unassigned.</summary>
+    Guid? ResponsibleRepId = null);
 
 /// <summary>The lightweight lab picker row (GET /labs/lookup): every lab in the caller's scope, id + masked display code
 /// + name. Exists because the paged list capped pickers at 500 of ~13k labs; this carries only what a picker shows.</summary>

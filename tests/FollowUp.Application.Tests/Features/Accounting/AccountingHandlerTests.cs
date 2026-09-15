@@ -262,69 +262,85 @@ public class AccountingHandlerTests
 
     // ---- Collection ----
 
-    [Fact]
-    public async Task Create_collection_resolves_every_rep_and_stores_the_bank_iban()
+    /// <summary>A Lab Responsible — the only type that collects — optionally placed in a serving branch.</summary>
+    private static Representative LabResp(string name = "Responsible", string? branch = null)
     {
-        var labs = new FakeLaboratoryRepository(); var lab = Lab(); labs.Store.Add(lab);
-        var reps = new FakeRepresentativeRepository(); var r1 = Rep("A"); var r2 = Rep("B"); reps.Store.Add(r1); reps.Store.Add(r2);
-        var repo = new FakeCollectionRepository();
-        var handler = new CreateCollectionHandler(repo, labs, reps, new FakeTreasuryRepository(), new FakeTreasuryEntryRepository(), new FakeCurrentUser());
+        var r = Representative.Register(name, RepresentativeType.LabResponsible, GoalDuration.Monthly, Money.Zero, Money.Zero);
+        if (branch is not null) r.AssignScope(branch, "Cairo");
+        return r;
+    }
+    private static FakeCollectionRouting Routing(params Representative[] reps) { var f = new FakeCollectionRouting(); foreach (var r in reps) f.Branches[r.Id] = r.Branch; return f; }
+    private static CollectionShareInput[] Shares(params (Representative Rep, decimal Amount)[] s) => s.Select(x => new CollectionShareInput(x.Rep.Id.Value, x.Amount)).ToArray();
 
-        var id = await handler.Handle(new CreateCollectionCommand(D, lab.Id.Value, "Group", new[] { r1.Id.Value, r2.Id.Value },
-            1000m, 2500m, "18", "Cashier", null), CancellationToken.None);
+    [Fact]
+    public async Task Create_group_collection_resolves_every_rep_stores_the_shares_and_the_bank_iban()
+    {
+        var reps = new FakeRepresentativeRepository(); var r1 = LabResp("A"); var r2 = LabResp("B"); reps.Store.Add(r1); reps.Store.Add(r2);
+        var repo = new FakeCollectionRepository();
+        var handler = new CreateCollectionHandler(repo, reps, Routing(r1, r2), new FakeTreasuryRepository(), new FakeTreasuryEntryRepository(), new FakeCurrentUser());
+
+        var id = await handler.Handle(new CreateCollectionCommand(D, "Group", Shares((r1, 1500m), (r2, 2000m)), 1000m, 2500m, "18", "Cashier", null), CancellationToken.None);
 
         var c = repo.Store.Single(x => x.Id.Value == id);
         c.Type.Should().BeSameAs(CollectionType.Group);
-        c.RepIds.Should().BeEquivalentTo(new[] { r1.Id, r2.Id });
+        c.RepIds.Should().Equal(r1.Id, r2.Id);
+        c.ShareOf(r1.Id).Amount.Should().Be(1500m); c.ShareOf(r2.Id).Amount.Should().Be(2000m);
         c.Iban.Should().BeSameAs(IbanOption.Iban18);
         c.Total.Amount.Should().Be(3500m);
     }
 
     [Fact]
-    public async Task Create_collection_with_an_unknown_rep_is_not_found_and_stores_nothing()
+    public async Task Create_collection_refuses_an_unknown_rep_and_a_rep_who_is_not_a_lab_responsible()
     {
-        var labs = new FakeLaboratoryRepository(); var lab = Lab(); labs.Store.Add(lab);
+        var reps = new FakeRepresentativeRepository(); var collector = Rep("Collector"); reps.Store.Add(collector);
         var repo = new FakeCollectionRepository();
-        var handler = new CreateCollectionHandler(repo, labs, new FakeRepresentativeRepository(), new FakeTreasuryRepository(), new FakeTreasuryEntryRepository(), new FakeCurrentUser());
+        var handler = new CreateCollectionHandler(repo, reps, new FakeCollectionRouting(), new FakeTreasuryRepository(), new FakeTreasuryEntryRepository(), new FakeCurrentUser());
 
-        await FluentActions.Awaiting(() => handler.Handle(new CreateCollectionCommand(D, lab.Id.Value, "Single", new[] { Guid.NewGuid() }, 100m, 0m, null, null, null), CancellationToken.None))
+        await FluentActions.Awaiting(() => handler.Handle(new CreateCollectionCommand(D, "Single", new[] { new CollectionShareInput(Guid.NewGuid(), 100m) }, 100m, 0m, null, null, null), CancellationToken.None))
             .Should().ThrowAsync<NotFoundException>();
+        await FluentActions.Awaiting(() => handler.Handle(new CreateCollectionCommand(D, "Single", Shares((collector, 100m)), 100m, 0m, null, null, null), CancellationToken.None))
+            .Should().ThrowAsync<ValidationException>("only Lab Responsible reps collect");
         repo.Store.Should().BeEmpty();
     }
 
     [Fact]
-    public void Collection_validator_enforces_rep_count_amount_and_iban_rules()
+    public void Collection_validator_enforces_rep_count_shares_amount_and_iban_rules()
     {
         var v = new CreateCollectionValidator();
-        var lab = Guid.NewGuid(); var r1 = Guid.NewGuid(); var r2 = Guid.NewGuid();
-        v.Validate(new CreateCollectionCommand(D, lab, "Single", new[] { r1, r2 }, 100m, 0m, null, null, null)).IsValid.Should().BeFalse("single with two reps");
-        v.Validate(new CreateCollectionCommand(D, lab, "Group", new[] { r1 }, 100m, 0m, null, null, null)).IsValid.Should().BeFalse("group with one rep");
-        v.Validate(new CreateCollectionCommand(D, lab, "Single", new[] { r1 }, 0m, 0m, null, null, null)).IsValid.Should().BeFalse("no amount");
-        v.Validate(new CreateCollectionCommand(D, lab, "Single", new[] { r1 }, 0m, 500m, null, null, null)).IsValid.Should().BeFalse("bank without IBAN");
-        v.Validate(new CreateCollectionCommand(D, lab, "Single", new[] { r1 }, 0m, 500m, "99", null, null)).IsValid.Should().BeFalse("IBAN outside 12/16/18");
-        v.Validate(new CreateCollectionCommand(D, lab, "Single", new[] { r1 }, 0m, 500m, "16", null, null)).IsValid.Should().BeTrue();
-        v.Validate(new CreateCollectionCommand(D, lab, "Single", new[] { r1 }, 100m, 0m, null, null, null)).IsValid.Should().BeTrue("cash needs no IBAN");
+        var r1 = Guid.NewGuid(); var r2 = Guid.NewGuid();
+        CollectionShareInput[] one(decimal a) => new[] { new CollectionShareInput(r1, a) };
+        CollectionShareInput[] two(decimal a, decimal b) => new[] { new CollectionShareInput(r1, a), new CollectionShareInput(r2, b) };
+        v.Validate(new CreateCollectionCommand(D, "Single", two(50m, 50m), 100m, 0m, null, null, null)).IsValid.Should().BeFalse("single with two reps");
+        v.Validate(new CreateCollectionCommand(D, "Group", one(100m), 100m, 0m, null, null, null)).IsValid.Should().BeFalse("group with one rep");
+        v.Validate(new CreateCollectionCommand(D, "Group", two(60m, 50m), 100m, 0m, null, null, null)).IsValid.Should().BeFalse("shares do not add up to the total");
+        v.Validate(new CreateCollectionCommand(D, "Group", two(100m, 0m), 100m, 0m, null, null, null)).IsValid.Should().BeFalse("a group share must be positive");
+        v.Validate(new CreateCollectionCommand(D, "Group", new[] { new CollectionShareInput(r1, 50m), new CollectionShareInput(r1, 50m) }, 100m, 0m, null, null, null)).IsValid.Should().BeFalse("a rep appears once");
+        v.Validate(new CreateCollectionCommand(D, "Group", two(60m, 40m), 100m, 0m, null, null, null)).IsValid.Should().BeTrue("shares add up to cash + bank");
+        v.Validate(new CreateCollectionCommand(D, "Single", one(0m), 0m, 0m, null, null, null)).IsValid.Should().BeFalse("no amount");
+        v.Validate(new CreateCollectionCommand(D, "Single", one(500m), 0m, 500m, null, null, null)).IsValid.Should().BeFalse("bank without IBAN");
+        v.Validate(new CreateCollectionCommand(D, "Single", one(500m), 0m, 500m, "99", null, null)).IsValid.Should().BeFalse("IBAN outside 12/16/18");
+        v.Validate(new CreateCollectionCommand(D, "Single", one(500m), 0m, 500m, "16", null, null)).IsValid.Should().BeTrue();
+        v.Validate(new CreateCollectionCommand(D, "Single", one(0m), 100m, 0m, null, null, null)).IsValid.Should().BeTrue("cash needs no IBAN; a single share is taken as the total");
     }
 
     // ---- Collection → treasury mirroring + per-treasury rights ----
 
-    private static Laboratory BranchLab(string branch) { var lab = Lab(); lab.PlaceInHierarchy(branch, "Cairo", null, null); return lab; }
-    private static CreateCollectionCommand Cash(Guid labId, Guid repId, decimal cash = 1000m) =>
-        new(D, labId, "Single", new[] { repId }, cash, 0m, null, "Cashier", null);
+    private static CreateCollectionCommand Cash(Representative rep, decimal cash = 1000m) =>
+        new(D, "Single", Shares((rep, cash)), cash, 0m, null, "Cashier", null);
     private static TreasuryGrant Grant(Role role, Treasury t, bool view, bool validate, bool update) => TreasuryGrant.Create(role.Id, t.Id, view, validate, update);
     private static Role SomeRole() => Role.Create("Cashier", new[] { Privileges.ViewAccounting }, "en", "light", OrgScope.Global);
 
     [Fact]
-    public async Task Recording_a_cash_collection_mirrors_it_as_a_pending_debit_of_the_treasury_serving_the_labs_branch()
+    public async Task Recording_a_cash_collection_mirrors_it_as_a_pending_debit_of_the_treasury_serving_the_reps_branch()
     {
-        var labs = new FakeLaboratoryRepository(); var lab = BranchLab("Giza"); labs.Store.Add(lab);
-        var reps = new FakeRepresentativeRepository(); var rep = Rep("Rep One"); reps.Store.Add(rep);
+        var reps = new FakeRepresentativeRepository(); var rep = LabResp("Rep One", "Giza"); reps.Store.Add(rep);
+        var routing = Routing(rep);
         var treasuries = new FakeTreasuryRepository();
         var cairo = Treasury.Create("Cairo Main", new[] { "Cairo" }); var giza = Treasury.Create("Giza Main", new[] { "Giza" }); var gizaB = Treasury.Create("Giza B", new[] { "giza" });
         treasuries.Store.AddRange(new[] { cairo, giza, gizaB });
         var entries = new FakeTreasuryEntryRepository(); var collections = new FakeCollectionRepository(); var me = new FakeCurrentUser();
 
-        var id = await new CreateCollectionHandler(collections, labs, reps, treasuries, entries, me).Handle(Cash(lab.Id.Value, rep.Id.Value), CancellationToken.None);
+        var id = await new CreateCollectionHandler(collections, reps, routing, treasuries, entries, me).Handle(Cash(rep), CancellationToken.None);
 
         var e = entries.Store.Should().ContainSingle().Subject;
         e.TreasuryId.Should().Be(gizaB.Id, "among the active treasuries covering the branch (case-insensitively), the first by name");
@@ -334,31 +350,31 @@ public class AccountingHandlerTests
         e.SystemNote.Should().Contain("Rep One").And.Contain("Cashier");
 
         // Cash edit refreshes the mirror; deleting the collection removes it while still pending.
-        await new UpdateCollectionHandler(collections, labs, reps, treasuries, entries, me)
-            .Handle(new UpdateCollectionCommand(id, D, "Single", new[] { rep.Id.Value }, 800m, 0m, null, "Cashier", null), CancellationToken.None);
+        await new UpdateCollectionHandler(collections, reps, routing, treasuries, entries, me)
+            .Handle(new UpdateCollectionCommand(id, D, "Single", Shares((rep, 800m)), 800m, 0m, null, "Cashier", null), CancellationToken.None);
         entries.Store.Single().Debit.Amount.Should().Be(800m);
-        await new DeleteCollectionHandler(collections, labs, entries, me).Handle(new DeleteCollectionCommand(id), CancellationToken.None);
+        await new DeleteCollectionHandler(collections, reps, entries, me).Handle(new DeleteCollectionCommand(id), CancellationToken.None);
         entries.Store.Should().BeEmpty(); collections.Store.Should().BeEmpty();
     }
 
     [Fact]
     public async Task A_collection_with_no_receiving_treasury_or_no_cash_is_recorded_without_a_mirror_and_a_validated_mirror_blocks_deletion()
     {
-        var labs = new FakeLaboratoryRepository(); var noBranch = Lab(); var alexLab = BranchLab("Alex"); labs.Store.AddRange(new[] { noBranch, alexLab });
-        var reps = new FakeRepresentativeRepository(); var rep = Rep(); reps.Store.Add(rep);
+        var reps = new FakeRepresentativeRepository(); var nowhere = LabResp("Nowhere"); var alexRep = LabResp("Alex Rep", "Alex"); reps.Store.Add(nowhere); reps.Store.Add(alexRep);
+        var routing = Routing(nowhere, alexRep);
         var treasuries = new FakeTreasuryRepository(); var alex = Treasury.Create("Alex", new[] { "Alex" }); treasuries.Store.Add(alex);
         var entries = new FakeTreasuryEntryRepository(); var collections = new FakeCollectionRepository(); var me = new FakeCurrentUser();
-        var handler = new CreateCollectionHandler(collections, labs, reps, treasuries, entries, me);
+        var handler = new CreateCollectionHandler(collections, reps, routing, treasuries, entries, me);
 
-        await handler.Handle(Cash(noBranch.Id.Value, rep.Id.Value), CancellationToken.None);                     // lab without a serving branch
-        await handler.Handle(new CreateCollectionCommand(D, alexLab.Id.Value, "Single", new[] { rep.Id.Value }, 0m, 500m, "16", null, null), CancellationToken.None); // bank only
+        await handler.Handle(Cash(nowhere), CancellationToken.None);                                                   // rep resolves to no serving branch
+        await handler.Handle(new CreateCollectionCommand(D, "Single", Shares((alexRep, 500m)), 0m, 500m, "16", null, null), CancellationToken.None); // bank only
         entries.Store.Should().BeEmpty("nothing to place; collections are never blocked");
         collections.Store.Should().HaveCount(2);
 
-        var id = await handler.Handle(Cash(alexLab.Id.Value, rep.Id.Value), CancellationToken.None);
+        var id = await handler.Handle(Cash(alexRep), CancellationToken.None);
         var mirror = entries.Store.Should().ContainSingle().Subject;
         mirror.Validate(1000m, null, "cashier", DateTimeOffset.UtcNow);
-        await FluentActions.Awaiting(() => new DeleteCollectionHandler(collections, labs, entries, me).Handle(new DeleteCollectionCommand(id), CancellationToken.None))
+        await FluentActions.Awaiting(() => new DeleteCollectionHandler(collections, reps, entries, me).Handle(new DeleteCollectionCommand(id), CancellationToken.None))
             .Should().ThrowAsync<ConflictException>().WithMessage("*already validated*");
         collections.Store.Should().Contain(x => x.Id.Value == id);
     }
@@ -367,9 +383,9 @@ public class AccountingHandlerTests
     public async Task Validation_needs_the_treasurys_Validate_right_and_confirms_or_corrects_the_received_cash()
     {
         var treasuries = new FakeTreasuryRepository(); var t = Treasury.Create("Giza", new[] { "Giza" }); treasuries.Store.Add(t);
-        var lab = BranchLab("Giza"); var rep = Rep();
-        var c = Collection.Create(lab.Id, D, CollectionType.Single, new[] { rep.Id }, 1000m, 0m, null, null, null);
-        var entries = new FakeTreasuryEntryRepository(); var mirror = TreasuryEntry.FromCollection(t.Id, c, lab.Name, new[] { rep.FullName }); entries.Store.Add(mirror);
+        var rep = LabResp("Rep", "Giza");
+        var c = Collection.Create(D, CollectionType.Single, new[] { (rep.Id, 1000m) }, 1000m, 0m, null, null, null);
+        var entries = new FakeTreasuryEntryRepository(); var mirror = TreasuryEntry.FromCollection(t.Id, c, new[] { rep.FullName }); entries.Store.Add(mirror);
         var role = SomeRole(); var me = new FakeCurrentUser { RoleId = role.Id, Username = "cashier" };
         var clock = new FakeClock(new DateTimeOffset(2026, 9, 16, 9, 0, 0, TimeSpan.Zero));
 

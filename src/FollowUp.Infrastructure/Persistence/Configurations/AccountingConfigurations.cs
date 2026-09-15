@@ -179,12 +179,13 @@ internal sealed class CollectionConfiguration : IEntityTypeConfiguration<Collect
         b.Property(x => x.DoneBy).HasMaxLength(200);
         b.Property(x => x.Notes).HasMaxLength(500);
         b.Ignore(x => x.Total); // derived: cash + bank
-        b.Property(x => x.RepIds)
-            .HasColumnName("rep_ids").HasColumnType("jsonb")
+        b.Ignore(x => x.RepIds); // derived from Shares
+        // Per-rep shares as jsonb (a collection belongs to its reps; there is no lab). Like the former rep_ids list there is
+        // no FK to representative (jsonb) — reps are never deleted, only deactivated.
+        b.Property(x => x.Shares)
+            .HasColumnName("rep_shares").HasColumnType("jsonb")
             .UsePropertyAccessMode(PropertyAccessMode.Field)
-            .HasConversion<RepIdListConverter>(new RepIdListComparer());
-        b.HasOne<Laboratory>().WithMany().HasForeignKey(x => x.LaboratoryId).OnDelete(DeleteBehavior.Restrict);
-        b.HasIndex(x => new { x.LaboratoryId, x.Date });
+            .HasConversion<CollectionShareListConverter>(new CollectionShareListComparer());
         b.HasIndex(x => x.Date);
         b.HasIndex(x => x.Serial).IsUnique();
     }

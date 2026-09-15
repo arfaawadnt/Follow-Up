@@ -55,7 +55,7 @@ public sealed class AccountingPersistenceTests
             db.PenaltyRecords.Add(penalty);
             var deduction = Deduction.Create(area.Id, D, DeductionReason.PercentageDeal, 987.65m, "Sept", new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30));
             db.Deductions.Add(deduction);
-            var collection = Collection.Create(lab.Id, D, CollectionType.Group, new[] { r1.Id, r2.Id }, 1000m, 2500m, IbanOption.Iban18, "Cashier", null);
+            var collection = Collection.Create(D, CollectionType.Group, new[] { (r1.Id, 1500m), (r2.Id, 2000m) }, 1000m, 2500m, IbanOption.Iban18, "Cashier", null);
             db.Collections.Add(collection);
             var income = RepIncomeEntry.Create(r1.Id, D, 1500m, "cash"); db.RepIncomeEntries.Add(income);
             await db.SaveChangesAsync();
@@ -93,6 +93,8 @@ public sealed class AccountingPersistenceTests
 
             var collection = await db.Collections.AsNoTracking().SingleAsync(c => c.Id == new CollectionId(collectionId));
             collection.RepIds.Should().BeEquivalentTo(new[] { new RepresentativeId(rep1), new RepresentativeId(rep2) }, "jsonb rep list round-trips");
+            collection.ShareOf(new RepresentativeId(rep1)).Amount.Should().Be(1500m, "jsonb shares round-trip");
+            collection.ShareOf(new RepresentativeId(rep2)).Amount.Should().Be(2000m);
             collection.Iban.Should().BeSameAs(IbanOption.Iban18);
             collection.Total.Amount.Should().Be(3500m);
 
@@ -113,7 +115,7 @@ public sealed class AccountingPersistenceTests
         var entry = TreasuryEntry.Create(treasury.Id, D, 100m, 0m, reason.Id, null); db.TreasuryEntries.Add(entry);
         var lab = NewLab(tag); db.Laboratories.Add(lab);
         var rep = NewRep(tag); db.Representatives.Add(rep);
-        var collection = Collection.Create(lab.Id, D, CollectionType.Single, new[] { rep.Id }, 100m, 0m, null, null, null); db.Collections.Add(collection);
+        var collection = Collection.Create(D, CollectionType.Single, new[] { (rep.Id, 100m) }, 100m, 0m, null, null, null); db.Collections.Add(collection);
         var income = RepIncomeEntry.Create(rep.Id, D, 50m, null); db.RepIncomeEntries.Add(income);
         await db.SaveChangesAsync();
         var eid = entry.Id.Value; var cid = collection.Id.Value; var iid = income.Id.Value;
@@ -187,18 +189,20 @@ public sealed class AccountingPersistenceTests
         var s1 = DailyLabStatistic.For(D, lab.Code.Value.ToUpperInvariant()); s1.Set(3, 10, new Money(1000m)); db.DailyLabStatistics.Add(s1);
         var s2 = DailyLabStatistic.For(D, otherLab.Code.Value.ToUpperInvariant()); s2.Set(3, 10, new Money(99999m)); db.DailyLabStatistics.Add(s2); // not this rep's
         db.RepIncomeEntries.Add(RepIncomeEntry.Create(rep.Id, D, 200m, "real cash"));
-        db.Collections.Add(Collection.Create(lab.Id, D, CollectionType.Single, new[] { rep.Id }, 300m, 0m, null, null, null));
-        db.Collections.Add(Collection.Create(otherLab.Id, D, CollectionType.Single, new[] { other.Id }, 777m, 0m, null, null, null)); // not this rep's
+        db.Collections.Add(Collection.Create(D, CollectionType.Single, new[] { (rep.Id, 300m) }, 300m, 0m, null, null, null));
+        db.Collections.Add(Collection.Create(D, CollectionType.Single, new[] { (other.Id, 777m) }, 777m, 0m, null, null, null)); // not this rep's
+        // A group collection credits each rep with their own share only.
+        db.Collections.Add(Collection.Create(D, CollectionType.Group, new[] { (rep.Id, 100m), (other.Id, 900m) }, 1000m, 0m, null, null, null));
         await db.SaveChangesAsync();
 
         var st = await queries.RepStatementAsync(rep.Id.Value, D, D, OrgScope.Global, CancellationToken.None);
         st.Should().NotBeNull();
         st!.RepName.Should().Be(rep.FullName);
-        st.Rows.Select(r => r.Kind).Should().Equal("OracleIncome", "ManualIncome", "Collection");
+        st.Rows.Select(r => r.Kind).Should().Equal("OracleIncome", "ManualIncome", "Collection", "Collection");
         st.Rows[0].Debit.Should().Be(1000m); st.Rows[0].Balance.Should().Be(1000m);
         st.Rows[1].Debit.Should().Be(200m); st.Rows[1].Balance.Should().Be(1200m);
-        st.Rows[2].Credit.Should().Be(300m); st.Rows[2].Balance.Should().Be(900m);
-        st.TotalDebit.Should().Be(1200m); st.TotalCredit.Should().Be(300m); st.Balance.Should().Be(900m);
+        st.Rows.Skip(2).Select(r => r.Credit).Should().BeEquivalentTo(new[] { 300m, 100m }, "the single collection in full, the group one by this rep's share");
+        st.TotalDebit.Should().Be(1200m); st.TotalCredit.Should().Be(400m); st.Balance.Should().Be(800m);
 
         // A rep outside the caller's geographic scope resolves to null (surfaced as 404 — never a leak).
         // Wildcard everywhere except Branches: a Register()ed rep carries a null Branch, and the rep-scope filter hides a

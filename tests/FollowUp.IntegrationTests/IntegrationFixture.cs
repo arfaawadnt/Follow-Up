@@ -78,9 +78,9 @@ DELETE FROM treasury_entry;  -- before collection: AutoCollection rows RESTRICT 
 DELETE FROM collection;
 DELETE FROM rep_income_entry;
 DELETE FROM laboratory;
--- Release the area management-role FKs (Restrict → representative) so a test that then deletes reps stays FK-safe;
+-- Release the area management-role FK (Restrict → representative) so a test that then deletes reps stays FK-safe;
 -- reference rows themselves are intentionally left in place.
-UPDATE area SET area_manager_id = NULL, area_responsible_id = NULL;
+UPDATE area SET area_manager_id = NULL;
 DELETE FROM audit_entry;");
     }
 

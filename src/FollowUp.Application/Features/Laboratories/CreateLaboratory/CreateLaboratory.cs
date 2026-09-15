@@ -42,6 +42,8 @@ public sealed record CreateLaboratoryCommand : ICommand<Guid>, IAuthorizedReques
     public IReadOnlyList<string> VisitTimes { get; init; } = Array.Empty<string>();
     public IReadOnlyList<Guid> CollectorRepIds { get; init; } = Array.Empty<Guid>();
     public Guid? MarketingRepId { get; init; }
+    /// <summary>The lab's responsible (type LabResponsible) — the rep who collects its money; validated by the handler.</summary>
+    public Guid? ResponsibleRepId { get; init; }
     public IReadOnlyList<NewContact> Contacts { get; init; } = Array.Empty<NewContact>();
 
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.AddLabs, Privileges.ManageLabs };
@@ -80,12 +82,14 @@ public sealed class CreateLaboratoryHandler : ICommandHandler<CreateLaboratoryCo
     private readonly ILaboratoryRepository _repository;
     private readonly ICurrentUser _currentUser;
     private readonly ISetupQueries _setup;
+    private readonly IRepresentativeRepository _reps;
 
-    public CreateLaboratoryHandler(ILaboratoryRepository repository, ICurrentUser currentUser, ISetupQueries setup)
+    public CreateLaboratoryHandler(ILaboratoryRepository repository, ICurrentUser currentUser, ISetupQueries setup, IRepresentativeRepository reps)
     {
         _repository = repository;
         _currentUser = currentUser;
         _setup = setup;
+        _reps = reps;
     }
 
     public async Task<Guid> Handle(CreateLaboratoryCommand request, CancellationToken ct)
@@ -116,6 +120,8 @@ public sealed class CreateLaboratoryHandler : ICommandHandler<CreateLaboratoryCo
 
         lab.AssignCollectors(request.CollectorRepIds.Select(c => new Domain.Representatives.RepresentativeId(c)));
         if (request.MarketingRepId is { } m) lab.AssignMarketing(new Domain.Representatives.RepresentativeId(m));
+        lab.AssignResponsible(await RepRoleSupport.ResolveAsync(request.ResponsibleRepId,
+            Domain.Representatives.RepresentativeType.LabResponsible, nameof(request.ResponsibleRepId), _reps, _currentUser, ct));
 
         foreach (var contact in request.Contacts)
             lab.AddContact(contact.Name, Enum.Parse<ContactRole>(contact.Role), contact.Phone, contact.Birthday);

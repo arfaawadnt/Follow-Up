@@ -7,7 +7,8 @@ using Microsoft.Extensions.Logging;
 namespace FollowUp.Infrastructure.Jobs;
 
 /// <summary>
-/// Links every cash collection without a mirroring treasury entry to the treasury serving its lab's branch (Pending).
+/// Links every cash collection without a mirroring treasury entry to the treasury serving its reps' branch (Pending;
+/// branch per <see cref="Persistence.Queries.CollectionRouting"/>).
 /// Existing mirrors are NOT refreshed here — the collection handlers own that. Shared by the Treasury page's
 /// "Sync collections" action (own SaveChanges) and by the nightly automation (which saves once for all its passes).
 /// </summary>
@@ -36,18 +37,17 @@ internal sealed class CollectionTreasurySyncRunner : ICollectionTreasurySync
         if (unlinked.Count == 0) return new CollectionTreasurySyncResult(0, 0);
 
         var activeTreasuries = await db.Treasuries.AsNoTracking().Where(t => t.IsActive).OrderBy(t => t.Name).ToListAsync(ct);
-        var labIds = unlinked.Select(c => c.LaboratoryId).Distinct().ToList();
-        var labs = await db.Laboratories.AsNoTracking().Where(l => labIds.Contains(l.Id))
-            .Select(l => new { l.Id, l.Name, l.Branch }).ToDictionaryAsync(l => l.Id, ct);
         var repIds = unlinked.SelectMany(c => c.RepIds).Distinct().ToList();
         var repNames = await db.Representatives.AsNoTracking().Where(r => repIds.Contains(r.Id)).ToDictionaryAsync(r => r.Id, r => r.FullName, ct);
+        var routing = await Persistence.Queries.CollectionRouting.BuildResolverAsync(db, repIds, ct);
         foreach (var c in unlinked)
         {
             if (c.Cash.Amount <= 0 || mirroredSet.Contains(c.Id)) continue; // bank-only collections never reach a treasury
-            if (!labs.TryGetValue(c.LaboratoryId, out var lab) || string.IsNullOrWhiteSpace(lab.Branch)) { unplaced++; continue; }
-            var treasury = activeTreasuries.FirstOrDefault(t => t.Branches.Contains(lab.Branch, StringComparer.OrdinalIgnoreCase));
+            var branch = Persistence.Queries.CollectionRouting.Resolve(c.RepIds, routing);
+            if (string.IsNullOrWhiteSpace(branch)) { unplaced++; continue; }
+            var treasury = activeTreasuries.FirstOrDefault(t => t.Branches.Contains(branch, StringComparer.OrdinalIgnoreCase));
             if (treasury is null) { unplaced++; continue; }
-            db.TreasuryEntries.Add(TreasuryEntry.FromCollection(treasury.Id, c, lab.Name, c.RepIds.Select(r => repNames.GetValueOrDefault(r, "—"))));
+            db.TreasuryEntries.Add(TreasuryEntry.FromCollection(treasury.Id, c, c.RepIds.Select(r => repNames.GetValueOrDefault(r, "—"))));
             mirroredSet.Add(c.Id);
             linked++;
         }

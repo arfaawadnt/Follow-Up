@@ -171,27 +171,24 @@ internal sealed class AccountingQueries : IAccountingQueries
 
     // ---- Collections ----
 
-    public async Task<IReadOnlyList<CollectionDto>> CollectionsAsync(DateOnly from, DateOnly to, Guid? laboratoryId, Guid? repId, OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
+    public async Task<IReadOnlyList<CollectionDto>> CollectionsAsync(DateOnly from, DateOnly to, Guid? repId, OrgScope scope, CancellationToken ct)
     {
-        var scopedLabs = _db.Laboratories.ApplyScope(scope).Select(l => l.Id);
-        var q = _db.Collections.AsNoTracking().Where(c => scopedLabs.Contains(c.LaboratoryId) && c.Date >= from && c.Date <= to);
-        if (laboratoryId is { } lid) q = q.Where(c => c.LaboratoryId == new LaboratoryId(lid));
-        var rows = await q.OrderByDescending(c => c.Date).ThenByDescending(c => c.Serial).ToListAsync(ct);
-        if (repId is { } rid) rows = rows.Where(c => c.RepIds.Contains(new RepresentativeId(rid))).ToList(); // jsonb list → in memory
+        // A collection is its reps' act: it is visible when every rep on it is within the caller's rep scope (fail-closed,
+        // matching the write side's EnsureRepsInScope). The shares are a jsonb list, so the membership tests run in memory.
+        var rows = await _db.Collections.AsNoTracking().Where(c => c.Date >= from && c.Date <= to)
+            .OrderByDescending(c => c.Date).ThenByDescending(c => c.Serial).ToListAsync(ct);
+        var scopedReps = (await _db.Representatives.ApplyScope(scope).AsNoTracking().Select(r => r.Id).ToListAsync(ct)).ToHashSet();
+        rows = rows.Where(c => c.RepIds.All(scopedReps.Contains)).ToList();
+        if (repId is { } rid) rows = rows.Where(c => c.RepIds.Contains(new RepresentativeId(rid))).ToList();
 
-        var labs = await LabRowsAsync(rows.Select(c => c.LaboratoryId), ct);
         var repIds = rows.SelectMany(c => c.RepIds).Distinct().ToList();
         var repNames = await _db.Representatives.AsNoTracking().Where(r => repIds.Contains(r.Id))
             .ToDictionaryAsync(r => r.Id, r => r.FullName, ct);
 
-        return rows.Select(c =>
-        {
-            labs.TryGetValue(c.LaboratoryId, out var lab);
-            return new CollectionDto(c.Id.Value, c.Serial, c.Date, c.LaboratoryId.Value,
-                lab is null ? "—" : DisplayCode.For(lab.Code.Value, lab.IsEncrypted, canSeeEncrypted), lab?.Name ?? "—",
-                c.Type.Name, c.RepIds.Select(r => r.Value).ToList(), c.RepIds.Select(r => repNames.GetValueOrDefault(r, "—")).ToList(),
-                c.Cash.Amount, c.Bank.Amount, c.Total.Amount, c.Iban?.Name, c.DoneBy, c.Notes);
-        }).ToList();
+        return rows.Select(c => new CollectionDto(c.Id.Value, c.Serial, c.Date, c.Type.Name,
+            c.Shares.Select(s => new CollectionShareDto(s.RepId.Value, repNames.GetValueOrDefault(s.RepId, "—"), s.Amount.Amount)).ToList(),
+            c.RepIds.Select(r => r.Value).ToList(), c.RepIds.Select(r => repNames.GetValueOrDefault(r, "—")).ToList(),
+            c.Cash.Amount, c.Bank.Amount, c.Total.Amount, c.Iban?.Name, c.DoneBy, c.Notes)).ToList();
     }
 
     // ---- Rep statement ----
@@ -217,7 +214,7 @@ internal sealed class AccountingQueries : IAccountingQueries
         var manual = await _db.RepIncomeEntries.AsNoTracking()
             .Where(e => e.RepresentativeId == rid && e.Date >= from && e.Date <= to).ToListAsync(ct);
 
-        // Credit — collections this rep took part in (jsonb list → in memory).
+        // Credit — this rep's share of the collections they took part in (jsonb list → in memory).
         var collections = (await _db.Collections.AsNoTracking().Where(c => c.Date >= from && c.Date <= to).ToListAsync(ct))
             .Where(c => c.RepIds.Contains(rid)).ToList();
 
@@ -227,7 +224,7 @@ internal sealed class AccountingQueries : IAccountingQueries
         foreach (var e in manual)
             lines.Add((e.Date, 1, "ManualIncome", e.Amount.Amount, 0m, e.Notes, e.Id.Value));
         foreach (var c in collections)
-            lines.Add((c.Date, 2, "Collection", 0m, c.Total.Amount, c.Notes ?? (c.Bank.Amount > 0 ? $"Bank (IBAN {c.Iban?.Name})" : "Cash"), c.Id.Value));
+            lines.Add((c.Date, 2, "Collection", 0m, c.ShareOf(rid).Amount, c.Notes ?? (c.Bank.Amount > 0 ? $"Bank (IBAN {c.Iban?.Name})" : "Cash"), c.Id.Value));
 
         var rows = new List<RepStatementRowDto>();
         decimal balance = 0m, totalDebit = 0m, totalCredit = 0m;

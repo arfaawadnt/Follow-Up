@@ -12,8 +12,8 @@ interface RefItem { id: string; type: string; code: string; nameEn: string; name
 interface City { id: string; name: string; governorate: string; realName: string | null; source: string; }
 interface Area {
   id: string; name: string; cityId: string; transportationRequired: boolean; transferReps: string[]; realName: string | null; source: string;
-  /** Area management roles — reps of type AreaManager / AreaResponsible. */
-  areaManagerId: string | null; areaResponsibleId: string | null;
+  /** Area management role — a rep of type AreaManager. (The day-to-day responsible is per lab now: Laboratory.responsibleRepId.) */
+  areaManagerId: string | null;
   /** Operator-managed Percentage Deal; never touched by the Oracle sync. `percentage` is 0–100 while the deal is on. */
   percentageDeal: boolean; percentage: number | null;
 }
@@ -183,8 +183,6 @@ const TABS: { key: Tab; label: string }[] = [
           </select>
           <label class="lbl" style="margin-top:10px">{{ 'area_manager' | t : 'Area Manager' }}</label>
           <app-filter-select [(ngModel)]="areaManager" [options]="managerOptions()" [clearable]="true" placeholder="—" [searchPlaceholder]="'search_managers' | t : 'Search managers…'" [disabled]="!canEdit()"></app-filter-select>
-          <label class="lbl" style="margin-top:10px">{{ 'area_responsible' | t : 'Area Responsible' }}</label>
-          <app-filter-select [(ngModel)]="areaResponsible" [options]="responsibleOptions()" [clearable]="true" placeholder="—" [searchPlaceholder]="'search_responsibles' | t : 'Search responsibles…'" [disabled]="!canEdit()"></app-filter-select>
           <label class="chk" style="margin-top:10px"><input type="checkbox" [(ngModel)]="areaTransport" [disabled]="!canEdit()"> Transportation required</label>
           <label class="chk" style="margin-top:10px"><input type="checkbox" [ngModel]="areaPercentageDeal" (ngModelChange)="setAreaDeal($event)" [disabled]="!canEdit()"> {{ 'percentage_deal' | t : 'Percentage Deal' }}</label>
           @if (areaPercentageDeal) {
@@ -196,7 +194,7 @@ const TABS: { key: Tab; label: string }[] = [
         <div class="card panel">
           <div class="setup-toolbar"><h3 style="margin:0">Current Items</h3><input class="input srch" [ngModel]="q()" (ngModelChange)="q.set($event)" placeholder="Search…"><span class="cnt">{{ areasF().length }}/{{ areas().length }}</span></div>
           <div class="grid-scroll"><table class="items">
-            <thead><tr><th>Area</th><th>City</th><th>Real Name</th><th>{{ 'area_manager' | t : 'Area Manager' }}</th><th>{{ 'area_responsible' | t : 'Area Responsible' }}</th><th>Transport</th><th>{{ 'percentage_deal' | t : 'Percentage Deal' }}</th><th style="width:80px">Source</th><th class="ar">Actions</th></tr></thead>
+            <thead><tr><th>Area</th><th>City</th><th>Real Name</th><th>{{ 'area_manager' | t : 'Area Manager' }}</th><th>Transport</th><th>{{ 'percentage_deal' | t : 'Percentage Deal' }}</th><th style="width:80px">Source</th><th class="ar">Actions</th></tr></thead>
             <tbody>
               @for (a of areasF(); track a.id) {
                 <tr>
@@ -208,7 +206,6 @@ const TABS: { key: Tab; label: string }[] = [
                   </td>
                   <td>@if (editId() === a.id) { <input class="input" [(ngModel)]="editRealName" placeholder="optional real name"> } @else { {{ a.realName || '—' }} }</td>
                   <td>@if (editId() === a.id) { <app-filter-select [(ngModel)]="editManager" [options]="managerOptions()" [clearable]="true" placeholder="—" [searchPlaceholder]="'search_managers' | t : 'Search managers…'"></app-filter-select> } @else { {{ repName(a.areaManagerId) }} }</td>
-                  <td>@if (editId() === a.id) { <app-filter-select [(ngModel)]="editResponsible" [options]="responsibleOptions()" [clearable]="true" placeholder="—" [searchPlaceholder]="'search_responsibles' | t : 'Search responsibles…'"></app-filter-select> } @else { {{ repName(a.areaResponsibleId) }} }</td>
                   <td>
                     @if (editId() === a.id) { <input type="checkbox" [(ngModel)]="editTransport"> }
                     @else { {{ a.transportationRequired ? 'Yes' : 'No' }} }
@@ -332,22 +329,21 @@ export class SetupComponent {
     });
   }
 
-  // Reps for the area-role pickers (loaded with the Areas tab); each picker is bound to its matching rep type.
+  // Reps for the area-manager picker (loaded with the Areas tab); bound to the AreaManager rep type.
   readonly reps = signal<RepListItem[]>([]);
   readonly managerOptions = computed(() => this.reps().filter((r) => r.type === 'AreaManager').map((r) => ({ value: r.id, label: r.fullName })));
-  readonly responsibleOptions = computed(() => this.reps().filter((r) => r.type === 'AreaResponsible').map((r) => ({ value: r.id, label: r.fullName })));
   repName(id: string | null): string { return id ? (this.reps().find((r) => r.id === id)?.fullName ?? '—') : '—'; }
 
   readonly editId = signal<string | null>(null);
   editName = ''; editGov = ''; editCityId = ''; editTransport = false; editRealName = '';
-  editManager = ''; editResponsible = '';
+  editManager = '';
   editPercentageDeal = false; editPercentage: number | null = null;   // area percentage deal (edit row)
   editFrom: number | null = null; editTo: number | null = null;   // segment income band (edit row)
 
   newName = '';
   newFrom: number | null = null; newTo: number | null = null;     // segment income band (create panel)
   cityName = ''; cityGov = '';
-  areaName = ''; areaCity = ''; areaTransport = false; areaManager = ''; areaResponsible = '';
+  areaName = ''; areaCity = ''; areaTransport = false; areaManager = '';
   areaPercentageDeal = false; areaPercentage: number | null = null;   // area percentage deal (create panel)
 
   readonly isRefTab = computed(() => this.tab() in REF_MAP);
@@ -396,8 +392,8 @@ export class SetupComponent {
     this.editId.set(id); this.editName = name; this.editRealName = realName ?? ''; this.editFrom = from; this.editTo = to;
   }
   startEditCity(c: City): void { this.editId.set(c.id); this.editName = c.name; this.editGov = c.governorate; this.editRealName = c.realName ?? ''; }
-  startEditArea(a: Area): void { this.editId.set(a.id); this.editName = a.name; this.editCityId = a.cityId; this.editTransport = a.transportationRequired; this.editRealName = a.realName ?? ''; this.editManager = a.areaManagerId ?? ''; this.editResponsible = a.areaResponsibleId ?? ''; this.editPercentageDeal = a.percentageDeal; this.editPercentage = a.percentage; }
-  cancelEdit(): void { this.editId.set(null); this.editName = ''; this.editGov = ''; this.editCityId = ''; this.editTransport = false; this.editRealName = ''; this.editManager = ''; this.editResponsible = ''; this.editFrom = null; this.editTo = null; this.editPercentageDeal = false; this.editPercentage = null; }
+  startEditArea(a: Area): void { this.editId.set(a.id); this.editName = a.name; this.editCityId = a.cityId; this.editTransport = a.transportationRequired; this.editRealName = a.realName ?? ''; this.editManager = a.areaManagerId ?? ''; this.editPercentageDeal = a.percentageDeal; this.editPercentage = a.percentage; }
+  cancelEdit(): void { this.editId.set(null); this.editName = ''; this.editGov = ''; this.editCityId = ''; this.editTransport = false; this.editRealName = ''; this.editManager = ''; this.editFrom = null; this.editTo = null; this.editPercentageDeal = false; this.editPercentage = null; }
   /** A percentage deal needs a 0–100 value; with the deal off the percentage is irrelevant (the server discards it). */
   percentOk(deal: boolean, pct: number | null): boolean { return !deal || (pct !== null && pct >= 0 && pct <= 100); }
   /** Toggling the deal off clears the percentage so a stale value is never sent (mirrors Area.SetPercentageDeal). */
@@ -443,14 +439,14 @@ export class SetupComponent {
   addArea(): void {
     this.run(this.api.post('/setup/areas', {
       name: this.areaName.trim(), cityId: this.areaCity, transportationRequired: this.areaTransport, transferReps: [],
-      areaManagerId: this.areaManager || null, areaResponsibleId: this.areaResponsible || null,
+      areaManagerId: this.areaManager || null,
       percentageDeal: this.areaPercentageDeal, percentage: this.areaPercentageDeal ? this.areaPercentage : null,
-    }), () => { this.areaName = ''; this.areaCity = ''; this.areaTransport = false; this.areaManager = ''; this.areaResponsible = ''; this.areaPercentageDeal = false; this.areaPercentage = null; this.reloadAreas(); });
+    }), () => { this.areaName = ''; this.areaCity = ''; this.areaTransport = false; this.areaManager = ''; this.areaPercentageDeal = false; this.areaPercentage = null; this.reloadAreas(); });
   }
   saveArea(a: Area): void {
     this.run(this.api.put(`/setup/areas/${a.id}`, {
       name: this.editName.trim(), cityId: this.editCityId, transportationRequired: this.editTransport, realName: this.editRealName.trim() || null,
-      areaManagerId: this.editManager || null, areaResponsibleId: this.editResponsible || null,
+      areaManagerId: this.editManager || null,
       percentageDeal: this.editPercentageDeal, percentage: this.editPercentageDeal ? this.editPercentage : null,
     }), () => { this.cancelEdit(); this.reloadAreas(); });
   }

@@ -59,24 +59,24 @@ public class AccountingInvariantsTests
     [Fact]
     public void A_collection_mirror_follows_the_collection_until_validated_and_reopens_when_the_cash_changes()
     {
-        var tid = TreasuryId.New(); var lab = LaboratoryId.New(); var rep = RepresentativeId.New();
-        var c = Collection.Create(lab, D, CollectionType.Single, new[] { rep }, 1000m, 250m, IbanOption.Iban16, "Ahmed", null);
+        var tid = TreasuryId.New(); var rep = RepresentativeId.New();
+        var c = Collection.Create(D, CollectionType.Single, new[] { (rep, 0m) }, 1000m, 250m, IbanOption.Iban16, "Ahmed", null);
 
-        var e = TreasuryEntry.FromCollection(tid, c, "Alpha Lab", new[] { "Rep One" });
+        var e = TreasuryEntry.FromCollection(tid, c, new[] { "Rep One" });
         e.Origin.Should().BeSameAs(TreasuryEntryOrigin.AutoCollection);
         e.ValidationStatus.Should().BeSameAs(TreasuryValidationStatus.Pending);
         e.Debit.Amount.Should().Be(1000m, "the cash, never the bank part"); e.Credit.Amount.Should().Be(0m);
         e.ReasonId.Should().BeNull("the collection is the reason");
         e.CollectionId.Should().Be(c.Id); e.CollectedCash!.Value.Amount.Should().Be(1000m); e.Date.Should().Be(D);
-        e.SystemNote.Should().Contain("Alpha Lab").And.Contain("Rep One").And.Contain("1000.00").And.Contain("bank 250.00").And.Contain("Ahmed");
+        e.SystemNote.Should().Contain("Rep One").And.Contain("1000.00").And.Contain("bank 250.00").And.Contain("Ahmed");
         e.HasDiscrepancy.Should().BeFalse();
 
         FluentActions.Invoking(() => e.Update(D, 5m, 0m, TreasuryReasonId.New(), null)).Should().Throw<DomainException>().WithMessage("*validated or adjusted*");
         FluentActions.Invoking(() => e.AdjustValidated(900m, null)).Should().Throw<DomainException>().WithMessage("*Validate the entry before*");
 
         // While pending, the collection's cash drives the debit.
-        c.Update(D.AddDays(1), CollectionType.Single, new[] { rep }, 1200m, 250m, IbanOption.Iban16, "Ahmed", null);
-        e.RefreshFromCollection(c, "Alpha Lab", new[] { "Rep One" });
+        c.Update(D.AddDays(1), CollectionType.Single, new[] { (rep, 0m) }, 1200m, 250m, IbanOption.Iban16, "Ahmed", null);
+        e.RefreshFromCollection(c, new[] { "Rep One" });
         e.Debit.Amount.Should().Be(1200m); e.Date.Should().Be(D.AddDays(1));
 
         // The treasury confirms less than collected → validated with a discrepancy.
@@ -89,20 +89,20 @@ public class AccountingInvariantsTests
         // Post-validation correction keeps it validated; a collection edit that leaves the cash alone keeps it validated too.
         e.AdjustValidated(1160m, "recounted");
         e.Debit.Amount.Should().Be(1160m); e.Notes.Should().Be("recounted"); e.ValidationStatus.Should().BeSameAs(TreasuryValidationStatus.Validated);
-        c.Update(D.AddDays(1), CollectionType.Single, new[] { rep }, 1200m, 300m, IbanOption.Iban16, "Ahmed", "notes only");
-        e.RefreshFromCollection(c, "Alpha Lab", new[] { "Rep One" });
+        c.Update(D.AddDays(1), CollectionType.Single, new[] { (rep, 0m) }, 1200m, 300m, IbanOption.Iban16, "Ahmed", "notes only");
+        e.RefreshFromCollection(c, new[] { "Rep One" });
         e.ValidationStatus.Should().BeSameAs(TreasuryValidationStatus.Validated, "the collected cash did not change");
         e.Debit.Amount.Should().Be(1160m, "the treasury's confirmed amount stands");
 
         // A cash change on the collection re-opens validation with the new cash.
-        c.Update(D.AddDays(1), CollectionType.Single, new[] { rep }, 1500m, 300m, IbanOption.Iban16, "Ahmed", null);
-        e.RefreshFromCollection(c, "Alpha Lab", new[] { "Rep One" });
+        c.Update(D.AddDays(1), CollectionType.Single, new[] { (rep, 0m) }, 1500m, 300m, IbanOption.Iban16, "Ahmed", null);
+        e.RefreshFromCollection(c, new[] { "Rep One" });
         e.ValidationStatus.Should().BeSameAs(TreasuryValidationStatus.Pending);
         e.Debit.Amount.Should().Be(1500m); e.ValidatedBy.Should().BeNull();
         e.Notes.Should().Be("recounted", "operator notes are never touched by the automation");
 
-        var bankOnly = Collection.Create(lab, D, CollectionType.Single, new[] { rep }, 0m, 500m, IbanOption.Iban12, null, null);
-        FluentActions.Invoking(() => TreasuryEntry.FromCollection(tid, bankOnly, "Lab", Array.Empty<string>())).Should().Throw<DomainException>().WithMessage("*cash amount*");
+        var bankOnly = Collection.Create(D, CollectionType.Single, new[] { (rep, 0m) }, 0m, 500m, IbanOption.Iban12, null, null);
+        FluentActions.Invoking(() => TreasuryEntry.FromCollection(tid, bankOnly, Array.Empty<string>())).Should().Throw<DomainException>().WithMessage("*cash amount*");
         var manual = TreasuryEntry.Create(tid, D, 10m, 0m, TreasuryReasonId.New(), null);
         manual.ValidationStatus.Should().BeSameAs(TreasuryValidationStatus.NotRequired);
         FluentActions.Invoking(() => manual.Validate(10m, null, "x", DateTimeOffset.UtcNow)).Should().Throw<DomainException>();
@@ -257,32 +257,41 @@ public class AccountingInvariantsTests
     // ---- Collection ----
 
     [Fact]
-    public void A_single_collection_names_one_rep_and_a_group_at_least_two()
+    public void A_single_collection_names_one_rep_who_takes_the_total_and_a_group_splits_it_exactly()
     {
-        var lab = LaboratoryId.New(); var r1 = RepresentativeId.New(); var r2 = RepresentativeId.New();
-        var single = Collection.Create(lab, D, CollectionType.Single, new[] { r1 }, 100m, 0m, null, "Ahmed", null);
+        var r1 = RepresentativeId.New(); var r2 = RepresentativeId.New();
+        var single = Collection.Create(D, CollectionType.Single, new[] { (r1, 0m) }, 100m, 0m, null, "Ahmed", null);
         single.RepIds.Should().ContainSingle().Which.Should().Be(r1);
+        single.ShareOf(r1).Amount.Should().Be(100m, "a single rep takes the whole amount whatever was passed");
+        single.ShareOf(r2).Amount.Should().Be(0m, "a rep who is not on the collection has no share");
 
-        var group = Collection.Create(lab, D, CollectionType.Group, new[] { r1, r2, r2 }, 100m, 0m, null, null, null);
-        group.RepIds.Should().HaveCount(2, "reps are de-duplicated");
+        var group = Collection.Create(D, CollectionType.Group, new[] { (r1, 60m), (r2, 40m) }, 70m, 30m, IbanOption.Iban12, null, null);
+        group.Shares.Select(s => (s.RepId, s.Amount.Amount)).Should().Equal((r1, 60m), (r2, 40m));
+        group.RepIds.Should().Equal(r1, r2);
 
-        FluentActions.Invoking(() => Collection.Create(lab, D, CollectionType.Single, new[] { r1, r2 }, 100m, 0m, null, null, null))
+        FluentActions.Invoking(() => Collection.Create(D, CollectionType.Single, new[] { (r1, 50m), (r2, 50m) }, 100m, 0m, null, null, null))
             .Should().Throw<DomainException>().WithMessage("*exactly one rep*");
-        FluentActions.Invoking(() => Collection.Create(lab, D, CollectionType.Group, new[] { r1 }, 100m, 0m, null, null, null))
+        FluentActions.Invoking(() => Collection.Create(D, CollectionType.Group, new[] { (r1, 100m) }, 100m, 0m, null, null, null))
             .Should().Throw<DomainException>().WithMessage("*at least two reps*");
+        FluentActions.Invoking(() => Collection.Create(D, CollectionType.Group, new[] { (r1, 60m), (r2, 50m) }, 100m, 0m, null, null, null))
+            .Should().Throw<DomainException>().WithMessage("*must add up to cash + bank*");
+        FluentActions.Invoking(() => Collection.Create(D, CollectionType.Group, new[] { (r1, 100m), (r2, 0m) }, 100m, 0m, null, null, null))
+            .Should().Throw<DomainException>().WithMessage("*greater than zero*");
+        FluentActions.Invoking(() => Collection.Create(D, CollectionType.Group, new[] { (r1, 50m), (r1, 50m) }, 100m, 0m, null, null, null))
+            .Should().Throw<DomainException>().WithMessage("*appears once*");
     }
 
     [Fact]
     public void A_collection_needs_an_amount_and_an_iban_exactly_when_there_is_a_bank_amount()
     {
-        var lab = LaboratoryId.New(); var rep = new[] { RepresentativeId.New() };
+        var rep = new[] { (RepresentativeId.New(), 0m) };
 
-        FluentActions.Invoking(() => Collection.Create(lab, D, CollectionType.Single, rep, 0m, 0m, null, null, null))
+        FluentActions.Invoking(() => Collection.Create(D, CollectionType.Single, rep, 0m, 0m, null, null, null))
             .Should().Throw<DomainException>().WithMessage("*cash or bank amount*");
-        FluentActions.Invoking(() => Collection.Create(lab, D, CollectionType.Single, rep, 0m, 500m, null, null, null))
+        FluentActions.Invoking(() => Collection.Create(D, CollectionType.Single, rep, 0m, 500m, null, null, null))
             .Should().Throw<DomainException>().WithMessage("*requires the IBAN*");
 
-        var bank = Collection.Create(lab, D, CollectionType.Single, rep, 200m, 500m, IbanOption.Iban16, null, null);
+        var bank = Collection.Create(D, CollectionType.Single, rep, 200m, 500m, IbanOption.Iban16, null, null);
         bank.Iban.Should().BeSameAs(IbanOption.Iban16);
         bank.Total.Amount.Should().Be(700m);
 

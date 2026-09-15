@@ -48,6 +48,7 @@ const STATUSES = ['All', 'Scanned', 'Interactive', 'Active', 'Inactive', 'Stoppe
         <div class="field"><label>{{ 'serving_branch' | t : 'Serving branch' }}</label><app-filter-select [options]="branches()" [ngModel]="branch()" (ngModelChange)="branch.set($event); page.set(1)" [allValue]="'All'" [placeholder]="'all_2' | t"></app-filter-select></div>
         <div class="field"><label>{{ 'collection_rep' | t : 'Collection rep' }}</label><app-filter-select [options]="collectorReps()" [ngModel]="collectorRep()" (ngModelChange)="collectorRep.set($event); page.set(1)" [allValue]="'All'" [placeholder]="'all_2' | t"></app-filter-select></div>
         <div class="field"><label>{{ 'marketing_rep' | t : 'Marketing rep' }}</label><app-filter-select [options]="marketingReps()" [ngModel]="marketingRep()" (ngModelChange)="marketingRep.set($event); page.set(1)" [allValue]="'All'" [placeholder]="'all_2' | t"></app-filter-select></div>
+        <div class="field"><label>{{ 'lab_responsible' | t : 'Lab Responsible' }}</label><app-filter-select [options]="responsibleReps()" [ngModel]="responsibleRep()" (ngModelChange)="responsibleRep.set($event); page.set(1)" [allValue]="'All'" [placeholder]="'all_2' | t"></app-filter-select></div>
       </div>
     </div>
 
@@ -55,7 +56,7 @@ const STATUSES = ['All', 'Scanned', 'Interactive', 'Active', 'Inactive', 'Stoppe
       @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
       @else {
         <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
-          <thead><tr><th>{{ 'laboratory_3' | t : 'Laboratory' }}</th><th>{{ 'code_2' | t : 'Code' }}</th><th>{{ 'segment' | t }}</th><th>{{ 'status' | t }}</th><th>{{ 'address' | t : 'Address' }}</th>@if (canViewLocation()) { <th>{{ 'map' | t : 'Map' }}</th> }<th>{{ 'collector' | t : 'Collector' }}</th><th>{{ 'marketing' | t : 'Marketing' }}</th><th style="width:80px">{{ 'source' | t : 'Source' }}</th><th class="r">{{ 'avg_mo' | t : 'Avg/mo' }}</th><th></th></tr></thead>
+          <thead><tr><th>{{ 'laboratory_3' | t : 'Laboratory' }}</th><th>{{ 'code_2' | t : 'Code' }}</th><th>{{ 'segment' | t }}</th><th>{{ 'status' | t }}</th><th>{{ 'address' | t : 'Address' }}</th>@if (canViewLocation()) { <th>{{ 'map' | t : 'Map' }}</th> }<th>{{ 'collector' | t : 'Collector' }}</th><th>{{ 'marketing' | t : 'Marketing' }}</th><th>{{ 'lab_responsible' | t : 'Lab Responsible' }}</th><th style="width:80px">{{ 'source' | t : 'Source' }}</th><th class="r">{{ 'avg_mo' | t : 'Avg/mo' }}</th><th></th></tr></thead>
           <tbody>
             @for (l of paged(); track l.id) {
               <tr class="clickable" (click)="open(l.id)">
@@ -67,6 +68,7 @@ const STATUSES = ['All', 'Scanned', 'Interactive', 'Active', 'Inactive', 'Stoppe
                 @if (canViewLocation()) { <td>@if (l.latitude != null && l.longitude != null) { <a [href]="mapUrl(l)" target="_blank" rel="noopener" (click)="$event.stopPropagation()">📍 {{ 'map' | t : 'Map' }}</a> } @else { — }</td> }
                 <td>{{ l.collectors.length ? l.collectors.join(', ') : '—' }}</td>
                 <td>{{ l.marketing ?? '—' }}</td>
+                <td>{{ l.responsible ?? '—' }}</td>
                 <td>@if (l.source === 'Oracle') { <span class="src-b src-o">Oracle</span> } @else { <span class="src-b src-m">Manual</span> }</td>
                 <td class="r mono">{{ l.avgMonthlySamples ?? '—' }}</td>
                 <td class="r" style="white-space:nowrap">
@@ -104,7 +106,7 @@ export class LabsComponent {
   readonly segments = SEGMENTS; readonly statuses = STATUSES;
   search = ''; segment = 'All'; status = 'All';
   readonly gov = signal<string[]>([]); readonly city = signal<string[]>([]); readonly area = signal<string[]>([]);
-  readonly branch = signal('All'); readonly collectorRep = signal('All'); readonly marketingRep = signal('All');
+  readonly branch = signal('All'); readonly collectorRep = signal('All'); readonly marketingRep = signal('All'); readonly responsibleRep = signal('All');
   readonly syncing = signal(false);
   readonly page = signal(1);
   readonly pageSize = signal(25);
@@ -129,13 +131,15 @@ export class LabsComponent {
     && (!this.area().length || this.area().includes(l.area ?? ''))
     && (this.branch() === 'All' || l.branch === this.branch())
     && (this.collectorRep() === 'All' || l.collectors.includes(this.collectorRep()))
-    && (this.marketingRep() === 'All' || l.marketing === this.marketingRep())));
+    && (this.marketingRep() === 'All' || l.marketing === this.marketingRep())
+    && (this.responsibleRep() === 'All' || l.responsible === this.responsibleRep())));
   readonly govs = computed(() => this.distinct((l) => l.governorate));
   readonly cities = computed(() => this.distinct((l) => l.city));
   readonly areas = computed(() => this.distinct((l) => l.area));
   readonly branches = computed(() => this.distinct((l) => l.branch));
   readonly collectorReps = computed(() => [...new Set(this.items().flatMap((l) => l.collectors))].sort());
   readonly marketingReps = computed(() => this.distinct((l) => l.marketing));
+  readonly responsibleReps = computed(() => this.distinct((l) => l.responsible));
 
   constructor() { this.load(); }
 
@@ -155,28 +159,28 @@ export class LabsComponent {
   clearFilters(): void {
     this.search = ''; this.segment = 'All'; this.status = 'All';
     this.gov.set([]); this.city.set([]); this.area.set([]);
-    this.branch.set('All'); this.collectorRep.set('All'); this.marketingRep.set('All');
+    this.branch.set('All'); this.collectorRep.set('All'); this.marketingRep.set('All'); this.responsibleRep.set('All');
     this.load();
   }
 
   exportXlsx(): void {
     const map = this.canViewLocation();
     exportXlsx('laboratories.xlsx',
-      ['Laboratory', 'Code', 'Segment', 'Status', 'Address', ...(map ? ['Map'] : []), 'Collector', 'Marketing', 'Avg/mo'],
+      ['Laboratory', 'Code', 'Segment', 'Status', 'Address', ...(map ? ['Map'] : []), 'Collector', 'Marketing', 'Lab Responsible', 'Avg/mo'],
       this.filtered().map((l) => [l.name, l.displayCode, l.segment, l.status,
         [l.area, l.governorate].filter(Boolean).join(', '),
         ...(map ? [l.latitude != null && l.longitude != null ? this.mapUrl(l) : ''] : []),
-        l.collectors.join('; '), l.marketing, l.avgMonthlySamples]));
+        l.collectors.join('; '), l.marketing, l.responsible, l.avgMonthlySamples]));
   }
 
   exportPdf(): void {
     const map = this.canViewLocation();
     printTable('Laboratory Management',
-      ['Laboratory', 'Code', 'Segment', 'Status', 'Address', ...(map ? ['Map'] : []), 'Collector', 'Marketing', 'Avg/mo'],
+      ['Laboratory', 'Code', 'Segment', 'Status', 'Address', ...(map ? ['Map'] : []), 'Collector', 'Marketing', 'Lab Responsible', 'Avg/mo'],
       this.filtered().map((l) => [l.name, l.displayCode, l.segment, l.status,
         [l.area, l.governorate].filter(Boolean).join(', '),
         ...(map ? [l.latitude != null && l.longitude != null ? `${l.latitude},${l.longitude}` : ''] : []),
-        l.collectors.join(', '), l.marketing, l.avgMonthlySamples]));
+        l.collectors.join(', '), l.marketing, l.responsible, l.avgMonthlySamples]));
   }
 
   load(): void {

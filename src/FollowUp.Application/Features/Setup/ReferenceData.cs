@@ -17,7 +17,7 @@ public sealed record RefItemDto(Guid Id, string Type, string Code, string NameEn
     decimal? TargetIncomeFrom = null, decimal? TargetIncomeTo = null);
 public sealed record CityDto(Guid Id, string Name, string Governorate, string? RealName, string Source);
 public sealed record AreaDto(Guid Id, string Name, Guid CityId, bool TransportationRequired, IReadOnlyList<Guid> TransferReps, string? RealName, string Source,
-    Guid? AreaManagerId = null, Guid? AreaResponsibleId = null,
+    Guid? AreaManagerId = null,
     bool PercentageDeal = false, decimal? Percentage = null);
 
 public interface ISetupQueries
@@ -238,32 +238,11 @@ public sealed class UpdateCityHandler : ICommandHandler<UpdateCityCommand>
 
 // ---- Area write ----
 
-/// <summary>
-/// Resolves an optional area-role assignment: the representative must exist and be of the expected type
-/// (<c>AreaManager</c> for the manager, <c>AreaResponsible</c> for the responsible) — the UI pickers are bound to
-/// those types and the server enforces the same rule. Returns null when no assignment was supplied.
-/// </summary>
-internal static class AreaRoleSupport
-{
-    public static async Task<RepresentativeId?> ResolveAsync(Guid? repId, Domain.Representatives.RepresentativeType expected,
-        string field, IRepresentativeRepository reps, ICurrentUser user, CancellationToken ct)
-    {
-        if (repId is not { } id) return null;
-        var rep = await reps.GetByIdAsync(new RepresentativeId(id), ct)
-            ?? throw new NotFoundException("Representative", id);
-        // Record-level scope (ADR-0002): a caller may only assign a representative within their own org-scope.
-        FollowUp.Application.Common.Security.ScopeGuard.EnsureInScope(user, rep);
-        if (rep.Type != expected)
-            throw new Common.Exceptions.ValidationException(new Dictionary<string, string[]>
-            {
-                [field] = new[] { $"The selected representative must be of type {expected.Name}." },
-            });
-        return rep.Id;
-    }
-}
+// The area's manager is resolved through Common.Security.RepRoleSupport (type-bound, scope-checked); the day-to-day
+// responsible moved from the area to the laboratory (Laboratory.ResponsibleRepId, type LabResponsible) on 2026-09-16.
 
 public sealed record CreateAreaCommand(string Name, Guid CityId, bool TransportationRequired, IReadOnlyList<Guid> TransferReps, string? RealName = null,
-    Guid? AreaManagerId = null, Guid? AreaResponsibleId = null,
+    Guid? AreaManagerId = null,
     bool PercentageDeal = false, decimal? Percentage = null)
     : ICommand<Guid>, IAuthorizedRequest
 {
@@ -296,10 +275,8 @@ public sealed class CreateAreaHandler : ICommandHandler<CreateAreaCommand, Guid>
         area.SetTransferReps(request.TransferReps.Select(r => new RepresentativeId(r)));
         area.SetRealName(request.RealName);
         area.SetPercentageDeal(request.PercentageDeal, request.Percentage);
-        area.AssignManager(await AreaRoleSupport.ResolveAsync(request.AreaManagerId,
+        area.AssignManager(await Common.Security.RepRoleSupport.ResolveAsync(request.AreaManagerId,
             Domain.Representatives.RepresentativeType.AreaManager, nameof(request.AreaManagerId), _reps, _user, ct));
-        area.AssignResponsible(await AreaRoleSupport.ResolveAsync(request.AreaResponsibleId,
-            Domain.Representatives.RepresentativeType.AreaResponsible, nameof(request.AreaResponsibleId), _reps, _user, ct));
         _repository.Add(area);
         return area.Id.Value;
     }
@@ -325,7 +302,7 @@ public sealed class DeleteAreaHandler : ICommandHandler<DeleteAreaCommand>
 }
 
 public sealed record UpdateAreaCommand(Guid Id, string Name, Guid CityId, bool TransportationRequired, string? RealName = null,
-    Guid? AreaManagerId = null, Guid? AreaResponsibleId = null,
+    Guid? AreaManagerId = null,
     bool PercentageDeal = false, decimal? Percentage = null)
     : ICommand, IAuthorizedRequest
 {
@@ -363,10 +340,8 @@ public sealed class UpdateAreaHandler : ICommandHandler<UpdateAreaCommand>
         area.SetTransportation(request.TransportationRequired);
         area.SetRealName(request.RealName);
         area.SetPercentageDeal(request.PercentageDeal, request.Percentage);
-        area.AssignManager(await AreaRoleSupport.ResolveAsync(request.AreaManagerId,
+        area.AssignManager(await Common.Security.RepRoleSupport.ResolveAsync(request.AreaManagerId,
             Domain.Representatives.RepresentativeType.AreaManager, nameof(request.AreaManagerId), _reps, _user, ct));
-        area.AssignResponsible(await AreaRoleSupport.ResolveAsync(request.AreaResponsibleId,
-            Domain.Representatives.RepresentativeType.AreaResponsible, nameof(request.AreaResponsibleId), _reps, _user, ct));
         return Unit.Value;
     }
 }

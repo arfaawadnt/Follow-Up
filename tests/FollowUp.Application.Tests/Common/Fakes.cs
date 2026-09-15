@@ -182,6 +182,14 @@ public sealed class FakeCollectionRepository : ICollectionRepository
     public void Remove(Domain.Accounting.Collection collection) => Store.Remove(collection);
 }
 
+/// <summary>Routing stub: rep → branch; the first rep (in order) with a branch wins, like the real resolver.</summary>
+public sealed class FakeCollectionRouting : ICollectionRouting
+{
+    public readonly Dictionary<RepresentativeId, string?> Branches = new();
+    public Task<string?> ServingBranchAsync(IReadOnlyList<RepresentativeId> repIds, CancellationToken ct) =>
+        Task.FromResult(repIds.Select(id => Branches.GetValueOrDefault(id)).FirstOrDefault(b => !string.IsNullOrWhiteSpace(b)));
+}
+
 public sealed class FakeRepIncomeEntryRepository : IRepIncomeEntryRepository
 {
     public readonly List<Domain.Accounting.RepIncomeEntry> Store = new();

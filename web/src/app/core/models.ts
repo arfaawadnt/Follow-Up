@@ -30,6 +30,8 @@ export interface LabListItem {
   collectors: string[]; collectorRepIds: string[]; marketing: string | null; encrypted: boolean; source: string;
   /** Operator-managed Credit flag; never touched by the Oracle sync. */
   credit: boolean;
+  /** Display name of the lab's responsible rep (type LabResponsible); null when unassigned. */
+  responsible: string | null;
 }
 
 export interface ContactDto { id: string; name: string; role: string; phone: string | null; birthday: string | null; }
@@ -44,6 +46,8 @@ export interface LabDetail {
   latitude: number | null; longitude: number | null; monthlyTarget: number;
   loyaltyPoints: number; loyaltyTier: string | null;
   collectorRepIds: string[]; marketingRepId: string | null;
+  /** The lab's responsible rep (type LabResponsible) — the one who collects its money; null when unassigned. */
+  responsibleRepId: string | null;
   workDays: string[]; visitTimes: string[]; contacts: ContactDto[]; rowVersion: number;
   /** Operator-managed Credit flag; never touched by the Oracle sync. */
   credit: boolean;
@@ -236,9 +240,12 @@ export interface DeductionAutomationResult {
   month: string; through: string; dealAreas: number; dealCreated: number; dealRecalculated: number; dealSkippedAdjusted: number;
   penaltiesLinked: number; penaltiesUnplaced: number;
 }
+/** One rep's part of a collection (the amount that rep handed in); for a Single collection it is the total. */
+export interface CollectionShare { repId: string; repName: string; amount: number; }
+/** A collection belongs to its reps (a Lab Responsible collects from many labs) — there is no lab on it. */
 export interface CollectionDto {
-  id: string; serial: number; date: string; laboratoryId: string; labDisplayCode: string; labName: string;
-  type: string; repIds: string[]; repNames: string[]; cash: number; bank: number; total: number;
+  id: string; serial: number; date: string; type: string; shares: CollectionShare[];
+  repIds: string[]; repNames: string[]; cash: number; bank: number; total: number;
   iban: string | null; doneBy: string | null; notes: string | null;
 }
 export interface RepStatementRow { date: string; kind: string; debit: number; credit: number; notes: string | null; balance: number; sourceId: string | null; }
