@@ -35,6 +35,19 @@ public sealed class DeductionReason : Enumeration
     private DeductionReason(int id, string name) : base(id, name) { }
 }
 
+/// <summary>
+/// Where a deduction row came from. <c>Manual</c> rows are typed by an operator. <c>AutoPenalty</c> rows mirror one
+/// penalty record (created, refreshed and removed with it). <c>AutoDeal</c> rows are the one-per-area-per-month
+/// Percentage Deal deductions the daily automation keeps current for the running month.
+/// </summary>
+public sealed class DeductionOrigin : Enumeration
+{
+    public static readonly DeductionOrigin Manual = new(1, nameof(Manual));
+    public static readonly DeductionOrigin AutoPenalty = new(2, nameof(AutoPenalty));
+    public static readonly DeductionOrigin AutoDeal = new(3, nameof(AutoDeal));
+    private DeductionOrigin(int id, string name) : base(id, name) { }
+}
+
 /// <summary>A collection made by one rep (Single) or jointly by several (Group).</summary>
 public sealed class CollectionType : Enumeration
 {
@@ -278,46 +291,141 @@ public sealed class PenaltyRecord : AggregateRoot<PenaltyRecordId>, IAuditable
 // ---- Deductions ----
 
 /// <summary>
-/// A deduction applied to an area. Rows are entered manually; for the Penalty and PercentageDeal reasons the value is
-/// suggested by the server from the Penalty Statement / the area's income × deal percentage over a period, then kept
-/// editable (operator decision). The period the suggestion covered is stored for the audit trail.
+/// A deduction applied to an area. Three origins (operator decisions, 2026-09-15):
+/// <list type="bullet">
+/// <item><b>Manual</b> — typed by an operator; for Penalty / PercentageDeal reasons a value may be suggested by the server
+/// and stays editable. The period a suggestion covered is stored for the audit trail.</item>
+/// <item><b>AutoPenalty</b> — mirrors one penalty record: created when the penalty is recorded, refreshed when it is
+/// edited, removed when it is deleted. <see cref="SystemNote"/> carries the penalty details for investigation.</item>
+/// <item><b>AutoDeal</b> — the single Percentage Deal deduction per area per month, recalculated daily by the automation
+/// for the running month (income to date × the area's deal %). A month that has ended is never recalculated
+/// automatically; an operator may still edit it or press "Suggest value", which marks it <see cref="IsAdjusted"/>.</item>
+/// </list>
+/// Operator notes (<see cref="Notes"/>) are never touched by the automation; system text lives in <see cref="SystemNote"/>.
 /// </summary>
 public sealed class Deduction : AggregateRoot<DeductionId>, IAuditable
 {
     private Deduction() { } // EF
-    private Deduction(DeductionId id, AreaId areaId) : base(id) { AreaId = areaId; }
+    private Deduction(DeductionId id, AreaId areaId, DeductionOrigin origin) : base(id) { AreaId = areaId; Origin = origin; }
 
     public long Serial { get; private set; }
     public DateOnly Date { get; private set; }
     public AreaId AreaId { get; private set; }
     public DeductionReason Reason { get; private set; } = null!;
     public Money Value { get; private set; }
+    /// <summary>Operator-written notes. Never modified by the automation.</summary>
     public string? Notes { get; private set; }
-    /// <summary>The period a suggested (Penalty / PercentageDeal) value was computed over; null for typed values.</summary>
+    /// <summary>The period a suggested / automated value was computed over; null for typed values.</summary>
     public DateOnly? PeriodFrom { get; private set; }
     public DateOnly? PeriodTo { get; private set; }
+    public DeductionOrigin Origin { get; private set; } = null!;
+    /// <summary>An automated row whose value an operator changed (typed or via "Suggest value"). The automation leaves it alone.</summary>
+    public bool IsAdjusted { get; private set; }
+    /// <summary>System-written details: the mirrored penalty's particulars, or the deal calculation basis.</summary>
+    public string? SystemNote { get; private set; }
+    /// <summary>The penalty an AutoPenalty row mirrors; null for the other origins.</summary>
+    public PenaltyRecordId? PenaltyRecordId { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
     public string CreatedBy { get; private set; } = null!;
     public DateTimeOffset? UpdatedAt { get; private set; }
     public string? UpdatedBy { get; private set; }
 
+    // ---- Manual ----
+
     public static Deduction Create(AreaId areaId, DateOnly date, DeductionReason reason, decimal value, string? notes, DateOnly? periodFrom, DateOnly? periodTo)
     {
-        var d = new Deduction(DeductionId.New(), areaId);
+        var d = new Deduction(DeductionId.New(), areaId, DeductionOrigin.Manual);
         d.Update(date, reason, value, notes, periodFrom, periodTo);
         return d;
     }
 
+    /// <summary>Full edit of a manual row. Automated rows only accept <see cref="Adjust"/>.</summary>
     public void Update(DateOnly date, DeductionReason reason, decimal value, string? notes, DateOnly? periodFrom, DateOnly? periodTo)
     {
-        if (periodFrom is { } f && periodTo is { } t && t < f) throw new DomainException("The period end must not precede its start.");
-        if ((periodFrom is null) != (periodTo is null)) throw new DomainException("A period needs both a start and an end.");
+        if (Origin != DeductionOrigin.Manual)
+            throw new DomainException("An automated deduction keeps its area, reason and period; only its value and notes can be adjusted.");
+        ValidatePeriod(periodFrom, periodTo);
         Date = date;
         Reason = reason ?? throw new DomainException("A deduction reason is required.");
         Value = AccountingGuards.NonNegative(value, "Deduction value");
         Notes = AccountingGuards.Optional(notes, 500);
         PeriodFrom = periodFrom; PeriodTo = periodTo;
+    }
+
+    // ---- AutoPenalty ----
+
+    /// <summary>
+    /// Mirrors a penalty as a deduction of its lab's area. The deduction value is the penalty (wrong − right) floored at
+    /// zero — an under-charge is not deducted from the area — while the signed amount is kept in the system note.
+    /// </summary>
+    public static Deduction FromPenalty(AreaId areaId, PenaltyRecord penalty, string labName)
+    {
+        var d = new Deduction(DeductionId.New(), areaId, DeductionOrigin.AutoPenalty) { PenaltyRecordId = penalty.Id, Reason = DeductionReason.Penalty };
+        d.RefreshFromPenalty(penalty, labName);
+        return d;
+    }
+
+    /// <summary>Re-syncs an AutoPenalty row after its penalty changed. The penalty is the source of truth, so a prior
+    /// operator adjustment of the value is superseded; operator notes are kept.</summary>
+    public void RefreshFromPenalty(PenaltyRecord penalty, string labName)
+    {
+        if (Origin != DeductionOrigin.AutoPenalty || PenaltyRecordId != penalty.Id)
+            throw new DomainException("This deduction does not mirror that penalty.");
+        Date = penalty.Date;
+        PeriodFrom = penalty.Date; PeriodTo = penalty.Date;
+        var signed = penalty.PenaltyAmount.Amount;
+        Value = new Money(Math.Max(0m, signed));
+        IsAdjusted = false;
+        SystemNote = AccountingGuards.Optional(
+            $"Penalty · {labName} · Acc {penalty.AccNo} · {penalty.PatientName} · wrong {penalty.WrongTestName} ({penalty.WrongTestCode}) {penalty.WrongValue.Amount:0.00} → right {penalty.RightTestName} ({penalty.RightTestCode}) {penalty.RightValue.Amount:0.00} · penalty {signed:0.00}"
+            + (signed < 0 ? " (under-charge: nothing deducted)" : ""), 1000);
+    }
+
+    // ---- AutoDeal ----
+
+    /// <summary>The month's single Percentage Deal deduction for an area: dated on the 1st, period = 1st → the day the
+    /// income was calculated through.</summary>
+    public static Deduction AutoDeal(AreaId areaId, YearMonth month, DateOnly through, decimal value, string basis)
+    {
+        var first = new DateOnly(month.Year, month.Month, 1);
+        var d = new Deduction(DeductionId.New(), areaId, DeductionOrigin.AutoDeal) { Reason = DeductionReason.PercentageDeal, Date = first, PeriodFrom = first };
+        d.Recalculate(through, value, basis);
+        return d;
+    }
+
+    /// <summary>Daily recalculation of an AutoDeal row. Refused once an operator has adjusted it.</summary>
+    public void Recalculate(DateOnly through, decimal value, string basis)
+    {
+        if (Origin != DeductionOrigin.AutoDeal) throw new DomainException("Only automated Percentage Deal deductions are recalculated.");
+        if (IsAdjusted) throw new DomainException("A manually adjusted deduction is not recalculated automatically.");
+        if (through < PeriodFrom!.Value) throw new DomainException("The calculation date precedes the deduction month.");
+        PeriodTo = through;
+        Value = AccountingGuards.NonNegative(value, "Deduction value");
+        SystemNote = AccountingGuards.Optional(basis, 1000);
+    }
+
+    // ---- Operator edit of an automated row ----
+
+    /// <summary>
+    /// Operator edit of an automated row: value and notes only. A changed value marks the row manually adjusted (and,
+    /// for AutoDeal, stops the daily recalculation); the optional <paramref name="basis"/> is what "Suggest value"
+    /// computed and replaces the system note. Operator notes are the operator's — they are stored as given.
+    /// </summary>
+    public void Adjust(decimal value, string? notes, string? basis)
+    {
+        if (Origin == DeductionOrigin.Manual) throw new DomainException("Use Update for a manual deduction.");
+        var newValue = AccountingGuards.NonNegative(value, "Deduction value");
+        if (newValue != Value) IsAdjusted = true;
+        Value = newValue;
+        Notes = AccountingGuards.Optional(notes, 500);
+        if (!string.IsNullOrWhiteSpace(basis)) SystemNote = AccountingGuards.Optional(basis, 1000);
+    }
+
+    private static void ValidatePeriod(DateOnly? periodFrom, DateOnly? periodTo)
+    {
+        if (periodFrom is { } f && periodTo is { } t && t < f) throw new DomainException("The period end must not precede its start.");
+        if ((periodFrom is null) != (periodTo is null)) throw new DomainException("A period needs both a start and an end.");
     }
 }
 

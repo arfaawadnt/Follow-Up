@@ -100,6 +100,8 @@ public sealed class FakeAreaRepository : IAreaRepository
     public readonly List<Domain.Reference.Area> Store = new();
     public Task<Domain.Reference.Area?> GetByIdAsync(Domain.Reference.AreaId id, CancellationToken ct) =>
         Task.FromResult(Store.FirstOrDefault(a => a.Id == id));
+    public Task<Domain.Reference.Area?> GetByNameAsync(string name, CancellationToken ct) =>
+        Task.FromResult(Store.OrderBy(a => a.Name).FirstOrDefault(a => a.Name == name));
     public Task<IReadOnlyList<Domain.Reference.Area>> GetAllAsync(CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<Domain.Reference.Area>>(Store.ToList());
     public void Add(Domain.Reference.Area area) => Store.Add(area);
@@ -144,6 +146,8 @@ public sealed class FakeDeductionRepository : IDeductionRepository
 {
     public readonly List<Domain.Accounting.Deduction> Store = new();
     public Task<Domain.Accounting.Deduction?> GetByIdAsync(Domain.Accounting.DeductionId id, CancellationToken ct) => Task.FromResult(Store.FirstOrDefault(x => x.Id == id));
+    public Task<Domain.Accounting.Deduction?> GetByPenaltyAsync(Domain.Accounting.PenaltyRecordId penaltyId, CancellationToken ct) =>
+        Task.FromResult(Store.FirstOrDefault(x => x.PenaltyRecordId == penaltyId));
     public void Add(Domain.Accounting.Deduction deduction) => Store.Add(deduction);
     public void Remove(Domain.Accounting.Deduction deduction) => Store.Remove(deduction);
 }

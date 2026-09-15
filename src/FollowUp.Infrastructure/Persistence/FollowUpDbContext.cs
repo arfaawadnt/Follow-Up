@@ -108,6 +108,7 @@ public sealed class FollowUpDbContext : DbContext
         c.Properties<NotificationChannel>().HaveConversion<EnumerationConverter<NotificationChannel>>().HaveMaxLength(32);
         c.Properties<Domain.Accounting.PenaltyUser>().HaveConversion<EnumerationConverter<Domain.Accounting.PenaltyUser>>().HaveMaxLength(32);
         c.Properties<Domain.Accounting.DeductionReason>().HaveConversion<EnumerationConverter<Domain.Accounting.DeductionReason>>().HaveMaxLength(32);
+        c.Properties<Domain.Accounting.DeductionOrigin>().HaveConversion<EnumerationConverter<Domain.Accounting.DeductionOrigin>>().HaveMaxLength(32);
         c.Properties<Domain.Accounting.CollectionType>().HaveConversion<EnumerationConverter<Domain.Accounting.CollectionType>>().HaveMaxLength(32);
         c.Properties<Domain.Accounting.IbanOption>().HaveConversion<EnumerationConverter<Domain.Accounting.IbanOption>>().HaveMaxLength(32);
 

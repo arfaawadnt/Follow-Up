@@ -36,6 +36,8 @@ public interface IPenaltyRecordRepository
 public interface IDeductionRepository
 {
     Task<Deduction?> GetByIdAsync(DeductionId id, CancellationToken ct);
+    /// <summary>The AutoPenalty row mirroring a penalty, if one exists.</summary>
+    Task<Deduction?> GetByPenaltyAsync(PenaltyRecordId penaltyId, CancellationToken ct);
     void Add(Deduction deduction);
     void Remove(Deduction deduction);
 }

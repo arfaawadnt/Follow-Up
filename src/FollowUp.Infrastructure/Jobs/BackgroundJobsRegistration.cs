@@ -41,6 +41,7 @@ public static class BackgroundJobsRegistration
         services.AddScoped<NightlyStatsSyncJob>();
         services.AddScoped<RetentionJob>();
         services.AddScoped<MonthlySegmentAssignmentJob>();
+        services.AddScoped<DeductionAutomationJob>();
         services.AddScoped<StatsEmailJobRunner>();
 
         services.AddHostedService<RecurringJobsInitializer>();
@@ -86,6 +87,9 @@ public sealed class RecurringJobsInitializer : IHostedService
         // Month-start segment auto-assignment — 02:00 on the 1st (Cairo), after that night's stats pull has synced
         // the previous month's final day, so the just-ended month's achieved income is complete.
         _jobs.AddOrUpdate<MonthlySegmentAssignmentJob>("monthly-segment-assignment", j => j.RunAsync(CancellationToken.None), "0 2 1 * *", cairoOptions);
+        // Deductions automation — 00:30 daily (Cairo), after the nightly stats pull has landed yesterday's income:
+        // penalties → mirrored deductions, and the month's Percentage Deal deductions recalculated.
+        _jobs.AddOrUpdate<DeductionAutomationJob>("deductions-automation", j => j.RunAsync(CancellationToken.None), "30 0 * * *", cairoOptions);
 
         // Per-subscription daily statistics-email schedules (each has its own send time).
         try

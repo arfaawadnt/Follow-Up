@@ -94,6 +94,7 @@ public static class DependencyInjection
         services.AddScoped<IOracleReader, Jobs.OracleDbReader>();
         services.AddScoped<IOracleSyncRunner, Jobs.OracleSyncRunner>();
         services.AddScoped<Application.Common.Abstractions.ISegmentAssignmentRunner, Jobs.SegmentAssignmentRunner>();
+        services.AddScoped<Application.Common.Abstractions.IDeductionAutomationRunner, Jobs.DeductionAutomationRunner>();
         services.AddSingleton<Application.Common.Abstractions.IAttachmentStorage, Gateways.LocalAttachmentStorage>();
 
         services.AddSingleton<IFileStorage, Gateways.LocalFileStorage>();

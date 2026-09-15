@@ -1308,6 +1308,9 @@ export const TRANSLATIONS = {
     user_type: "User Type",
     user_type_user: "User Type / User",
     select_user: "Select…",
+    recalculate_now: "Recalculate now",
+    recalculate_hint: "Link penalties and recalculate the current Percentage Deal deductions now",
+    auto_edit_hint: "Area, reason and period are fixed for an automated deduction. Changing the value (typed or via Suggest value) marks it manually adjusted; your notes are kept.",
   },
   ar: {
     /* --- UI-003: folded from inline bilingual ternaries --- */
@@ -2607,5 +2610,8 @@ export const TRANSLATIONS = {
     user_type: "نوع المستخدم",
     user_type_user: "نوع المستخدم / المستخدم",
     select_user: "اختر…",
+    recalculate_now: "إعادة الحساب الآن",
+    recalculate_hint: "ربط الغرامات وإعادة حساب خصومات اتفاق النسبة لهذا الشهر الآن",
+    auto_edit_hint: "المنطقة والسبب والفترة ثابتة للخصم الآلي. تغيير القيمة (يدويًا أو عبر اقتراح القيمة) يجعله معدَّلًا يدويًا؛ وتبقى ملاحظاتك كما هي.",
   }
 };

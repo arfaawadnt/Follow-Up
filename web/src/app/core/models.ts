@@ -213,8 +213,19 @@ export interface PenaltyActorDto { id: string; name: string; detail: string | nu
 export interface DeductionDto {
   id: string; serial: number; date: string; areaId: string; areaName: string; reason: string; value: number;
   notes: string | null; periodFrom: string | null; periodTo: string | null;
+  /** Manual | AutoPenalty (mirrors a penalty) | AutoDeal (the month's automated Percentage Deal row). */
+  origin: string;
+  /** An automated row whose value an operator changed — the automation leaves it alone. */
+  isAdjusted: boolean;
+  /** System-written details: mirrored penalty particulars or the deal calculation basis. */
+  systemNote: string | null;
+  penaltyRecordId: string | null; penaltySerial: number | null;
 }
 export interface DeductionSuggestion { value: number; basis: string; }
+export interface DeductionAutomationResult {
+  month: string; through: string; dealAreas: number; dealCreated: number; dealRecalculated: number; dealSkippedAdjusted: number;
+  penaltiesLinked: number; penaltiesUnplaced: number;
+}
 export interface CollectionDto {
   id: string; serial: number; date: string; laboratoryId: string; labDisplayCode: string; labName: string;
   type: string; repIds: string[]; repNames: string[]; cash: number; bank: number; total: number;

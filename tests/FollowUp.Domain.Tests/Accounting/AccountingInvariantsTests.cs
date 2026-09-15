@@ -127,6 +127,69 @@ public class AccountingInvariantsTests
             .Should().Throw<DomainException>().WithMessage("*cannot be negative*");
     }
 
+    [Fact]
+    public void An_auto_penalty_deduction_mirrors_its_penalty_floors_under_charges_and_resyncs_on_refresh()
+    {
+        var area = AreaId.New();
+        var rep = FollowUp.Domain.Representatives.RepresentativeId.New();
+        var penalty = PenaltyRecord.Create(LaboratoryId.New(), D, "ACC-7", "Patient", "T1", "Wrong test", 300m, "T2", "Right test", 120m, PenaltyUser.Rep, null, rep);
+
+        var d = Deduction.FromPenalty(area, penalty, "Alpha Lab");
+        d.Origin.Should().BeSameAs(DeductionOrigin.AutoPenalty);
+        d.Reason.Should().BeSameAs(DeductionReason.Penalty);
+        d.PenaltyRecordId.Should().Be(penalty.Id);
+        d.Date.Should().Be(D); d.PeriodFrom.Should().Be(D); d.PeriodTo.Should().Be(D);
+        d.Value.Amount.Should().Be(180m, "wrong − right");
+        d.SystemNote.Should().Contain("Alpha Lab").And.Contain("ACC-7").And.Contain("Patient").And.Contain("Wrong test").And.Contain("Right test");
+        d.IsAdjusted.Should().BeFalse();
+
+        // An operator tweaks the value and writes a note; the penalty then changes to an under-charge.
+        d.Adjust(150m, "checked with the lab", null);
+        d.IsAdjusted.Should().BeTrue();
+        penalty.Update(D.AddDays(1), "ACC-7", "Patient", "T1", "Wrong", 100m, "T2", "Right", 250m, PenaltyUser.Rep, null, rep);
+        d.RefreshFromPenalty(penalty, "Alpha Lab");
+        d.Value.Amount.Should().Be(0m, "an under-charge is not deducted from the area");
+        d.SystemNote.Should().Contain("-150.00").And.Contain("under-charge");
+        d.Date.Should().Be(D.AddDays(1));
+        d.IsAdjusted.Should().BeFalse("the penalty is the source of truth; its change supersedes the adjustment");
+        d.Notes.Should().Be("checked with the lab", "operator notes are never touched by the automation");
+
+        var other = PenaltyRecord.Create(LaboratoryId.New(), D, "X", "P", "T1", "W", 1m, "T2", "R", 1m, PenaltyUser.Rep, null, rep);
+        FluentActions.Invoking(() => d.RefreshFromPenalty(other, "Lab")).Should().Throw<DomainException>().WithMessage("*does not mirror*");
+        FluentActions.Invoking(() => d.Update(D, DeductionReason.Penalty, 1m, null, null, null)).Should().Throw<DomainException>().WithMessage("*only its value and notes*");
+    }
+
+    [Fact]
+    public void An_auto_deal_deduction_is_recalculated_until_an_operator_adjusts_it()
+    {
+        var area = AreaId.New();
+        var month = new YearMonth(2026, 9);
+        var d = Deduction.AutoDeal(area, month, new DateOnly(2026, 9, 10), 250m, "income 2,500 × 10%");
+        d.Origin.Should().BeSameAs(DeductionOrigin.AutoDeal);
+        d.Reason.Should().BeSameAs(DeductionReason.PercentageDeal);
+        d.Date.Should().Be(new DateOnly(2026, 9, 1), "dated on the 1st so the month's filter finds it");
+        d.PeriodFrom.Should().Be(new DateOnly(2026, 9, 1)); d.PeriodTo.Should().Be(new DateOnly(2026, 9, 10));
+        d.SystemNote.Should().Be("income 2,500 × 10%");
+
+        d.Recalculate(new DateOnly(2026, 9, 11), 275m, "income 2,750 × 10%");
+        d.Value.Amount.Should().Be(275m); d.PeriodTo.Should().Be(new DateOnly(2026, 9, 11));
+        FluentActions.Invoking(() => d.Recalculate(new DateOnly(2026, 8, 31), 1m, "x")).Should().Throw<DomainException>().WithMessage("*precedes*");
+
+        // Notes-only edit is not an adjustment; a value change is, and it stops the recalculation.
+        d.Adjust(275m, "agreed with area manager", null);
+        d.IsAdjusted.Should().BeFalse("same value, only a note");
+        d.Adjust(300m, "agreed with area manager", "Suggested: income 3,000 × 10%");
+        d.IsAdjusted.Should().BeTrue();
+        d.SystemNote.Should().Be("Suggested: income 3,000 × 10%", "the Suggest-value basis replaces the system note");
+        d.Notes.Should().Be("agreed with area manager");
+        FluentActions.Invoking(() => d.Recalculate(new DateOnly(2026, 9, 12), 1m, "x")).Should().Throw<DomainException>().WithMessage("*manually adjusted*");
+
+        var manual = Deduction.Create(area, D, DeductionReason.Transportation, 5m, null, null, null);
+        manual.Origin.Should().BeSameAs(DeductionOrigin.Manual);
+        FluentActions.Invoking(() => manual.Adjust(6m, null, null)).Should().Throw<DomainException>().WithMessage("*Use Update*");
+        FluentActions.Invoking(() => manual.Recalculate(D, 1m, "x")).Should().Throw<DomainException>();
+    }
+
     // ---- Collection ----
 
     [Fact]

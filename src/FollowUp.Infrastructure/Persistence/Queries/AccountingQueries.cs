@@ -108,8 +108,15 @@ internal sealed class AccountingQueries : IAccountingQueries
             .Where(d => ids.Contains(d.AreaId) && d.Date >= from && d.Date <= to)
             .OrderByDescending(d => d.Date).ThenByDescending(d => d.Serial).ToListAsync(ct);
 
+        // The mirrored penalties' serials, for "Penalty #N" on the report (one set-based lookup).
+        var penaltyIds = rows.Where(d => d.PenaltyRecordId is not null).Select(d => d.PenaltyRecordId!.Value).Distinct().ToList();
+        var serials = penaltyIds.Count == 0 ? new Dictionary<PenaltyRecordId, long>()
+            : await _db.PenaltyRecords.AsNoTracking().Where(p => penaltyIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Serial, ct);
+
         return rows.Select(d => new DeductionDto(d.Id.Value, d.Serial, d.Date, d.AreaId.Value,
-            areas.TryGetValue(d.AreaId, out var a) ? a : "—", d.Reason.Name, d.Value.Amount, d.Notes, d.PeriodFrom, d.PeriodTo)).ToList();
+            areas.TryGetValue(d.AreaId, out var a) ? a : "—", d.Reason.Name, d.Value.Amount, d.Notes, d.PeriodFrom, d.PeriodTo,
+            d.Origin.Name, d.IsAdjusted, d.SystemNote, d.PenaltyRecordId?.Value,
+            d.PenaltyRecordId is { } pid && serials.TryGetValue(pid, out var s) ? s : null)).ToList();
     }
 
     public async Task<DeductionSuggestionDto> SuggestDeductionAsync(Guid areaId, DeductionReason reason, DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct)

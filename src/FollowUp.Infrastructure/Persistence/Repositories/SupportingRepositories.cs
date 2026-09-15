@@ -142,6 +142,8 @@ internal sealed class AreaRepository : IAreaRepository
     public AreaRepository(FollowUpDbContext db) => _db = db;
     public Task<Area?> GetByIdAsync(AreaId id, CancellationToken ct) =>
         _db.Areas.FirstOrDefaultAsync(x => x.Id == id, ct);
+    public Task<Area?> GetByNameAsync(string name, CancellationToken ct) =>
+        _db.Areas.OrderBy(x => x.Name).FirstOrDefaultAsync(x => x.Name == name, ct);
     public async Task<IReadOnlyList<Area>> GetAllAsync(CancellationToken ct) =>
         await _db.Areas.ToListAsync(ct);
     public void Add(Area area) => _db.Areas.Add(area);

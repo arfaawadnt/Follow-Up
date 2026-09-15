@@ -72,9 +72,9 @@ DELETE FROM marketing_visit;
 DELETE FROM complaint;
 -- Accounting ledgers hold Restrict FKs to laboratory / representative / area — clear them before the labs so the
 -- delete below stays FK-safe (treasury + treasury_reason are configuration and, like reference rows, are left in place).
+DELETE FROM deduction;       -- before penalty_record: AutoPenalty rows RESTRICT their penalty
 DELETE FROM penalty_record;
 DELETE FROM collection;
-DELETE FROM deduction;
 DELETE FROM rep_income_entry;
 DELETE FROM treasury_entry;
 DELETE FROM laboratory;

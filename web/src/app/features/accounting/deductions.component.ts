@@ -9,15 +9,18 @@ import { AuthService } from '../../core/auth.service';
 import { ToastService } from '../../core/toast.service';
 import { UiService } from '../../core/ui.service';
 import { TranslatePipe } from '../../core/i18n';
-import { DeductionDto, DeductionSuggestion } from '../../core/models';
+import { DeductionAutomationResult, DeductionDto, DeductionSuggestion } from '../../core/models';
 import { ACC_STYLES, DEDUCTION_REASONS, dayName, firstOfMonth, money } from './accounting.util';
 
 type Opt = { value: string; label: string };
 interface AreaOpt { id: string; name: string; percentageDeal: boolean; percentage: number | null; }
 
 /**
- * Deductions — per-area deductions. Transportation is typed; Penalty and Percentage Deal values are suggested by the
- * server over a period (Σ penalties of the area's labs / area income × deal %) and stay editable.
+ * Deductions — per-area deductions. Manual rows are typed (Penalty / Percentage Deal values may be suggested by the
+ * server over a period). Automated rows arrive on their own: every penalty mirrors into an AutoPenalty row carrying its
+ * details, and each area with an active deal gets one AutoDeal row per month, recalculated daily for the running month.
+ * Editing an automated row (typing or "Suggest value") marks it "manually adjusted"; operator notes are kept separately
+ * from the system-written details.
  */
 @Component({
   selector: 'app-acc-deductions',
@@ -27,7 +30,10 @@ interface AreaOpt { id: string; name: string; percentageDeal: boolean; percentag
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'accounting' | t : 'Accounting' }} / {{ 'acc_deductions' | t : 'Deductions' }}</div><h1>{{ 'acc_deductions' | t : 'Deductions' }}</h1></div>
       <div class="pagehead-actions">
-        @if (canManage()) { <button class="btn btn-p" (click)="openNew()">{{ 'record_deduction' | t : 'Record deduction' }}</button> }
+        @if (canManage()) {
+          <button class="btn btn-p" (click)="openNew()">{{ 'record_deduction' | t : 'Record deduction' }}</button>
+          <button class="btn btn-s" [disabled]="recalculating()" (click)="recalculate()" [title]="'recalculate_hint' | t : 'Link penalties and recalculate the current Percentage Deal deductions now'">{{ recalculating() ? ('loading' | t : 'Loading…') : ('recalculate_now' | t : 'Recalculate now') }}</button>
+        }
         <button class="btn btn-s" (click)="exportExcel()">{{ 'export_excel' | t : 'Export Excel' }}</button>
         <button class="btn btn-s" (click)="exportPdf()">{{ 'export_pdf' | t : 'Export PDF' }}</button>
       </div>
@@ -55,26 +61,29 @@ interface AreaOpt { id: string; name: string; percentageDeal: boolean; percentag
         <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
           <thead><tr>
             <th>{{ 'serial' | t : 'Serial' }}</th><th>{{ 'date' | t : 'Date' }}</th><th>{{ 'day' | t : 'Day' }}</th><th>{{ 'area_2' | t : 'Area' }}</th>
-            <th>{{ 'reason' | t : 'Reason' }}</th><th>{{ 'period' | t : 'Period' }}</th><th class="r">{{ 'value' | t : 'Value' }}</th><th>{{ 'notes' | t : 'Notes' }}</th>
+            <th>{{ 'reason' | t : 'Reason' }}</th><th>{{ 'period' | t : 'Period' }}</th><th class="r">{{ 'value' | t : 'Value' }}</th>
+            <th>{{ 'status' | t : 'Status' }}</th><th>{{ 'notes' | t : 'Notes' }}</th>
             @if (canManage()) { <th class="ar">{{ 'actions' | t : 'Actions' }}</th> }
           </tr></thead>
           <tbody>
             @for (d of rows(); track d.id) {
               <tr>
                 <td class="mono">{{ d.serial }}</td><td>{{ ddmy(d.date) }}</td><td>{{ day(d.date) }}</td><td><b>{{ d.areaName }}</b></td>
-                <td>{{ reasonLabel(d.reason) }}</td>
+                <td>{{ reasonLabel(d.reason) }}@if (d.penaltySerial) { <div class="small muted">{{ 'penalty' | t : 'Penalty' }} #{{ d.penaltySerial }}</div> }</td>
                 <td class="small muted">@if (d.periodFrom) { {{ ddmy(d.periodFrom) }} → {{ ddmy(d.periodTo) }} } @else { — }</td>
-                <td class="r mono">{{ d.value | number:'1.2-2' }}</td><td>{{ d.notes || '—' }}</td>
+                <td class="r mono">{{ d.value | number:'1.2-2' }}</td>
+                <td><span class="badge" [class.b-neu]="d.origin === 'Manual'" [class.b-info]="d.origin !== 'Manual' && !d.isAdjusted" [class.b-warn]="d.isAdjusted">{{ statusLabel(d) }}</span></td>
+                <td>@if (d.systemNote) { <div class="small muted">{{ d.systemNote }}</div> }{{ d.notes || (d.systemNote ? '' : '—') }}</td>
                 @if (canManage()) {
                   <td class="ar actions">
                     <button class="icon-btn" title="Edit" (click)="openEdit(d)">✎</button>
-                    <button class="icon-btn del" title="Delete" (click)="remove(d)">🗑</button>
+                    @if (d.origin !== 'AutoPenalty') { <button class="icon-btn del" title="Delete" (click)="remove(d)">🗑</button> }
                   </td>
                 }
               </tr>
-            } @empty { <tr><td colspan="9" class="empty" style="text-align:center;padding:24px">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
+            } @empty { <tr><td colspan="10" class="empty" style="text-align:center;padding:24px">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
           </tbody>
-          @if (rows().length) { <tfoot><tr><td colspan="6">{{ 'total' | t : 'Total' }}</td><td class="r mono">{{ k().total | number:'1.2-2' }}</td><td></td>@if (canManage()) { <td></td> }</tr></tfoot> }
+          @if (rows().length) { <tfoot><tr><td colspan="6">{{ 'total' | t : 'Total' }}</td><td class="r mono">{{ k().total | number:'1.2-2' }}</td><td></td><td></td>@if (canManage()) { <td></td> }</tr></tfoot> }
         </table></div>
       }
     </div>
@@ -84,19 +93,25 @@ interface AreaOpt { id: string; name: string; percentageDeal: boolean; percentag
         <div class="as-dlg" (click)="$event.stopPropagation()">
           <div class="as-dlg-head"><h2>{{ editId ? ('edit' | t : 'Edit') : ('record_deduction' | t : 'Record deduction') }}</h2><button class="btn btn-mini btn-s" (click)="dlg.set(false)">✕</button></div>
           <div class="as-dlg-body">
+            @if (editing()?.origin !== 'Manual' && editing()) {
+              <div class="basis" style="margin-bottom:10px">
+                <b>{{ statusLabel(editing()!) }}</b> · {{ 'auto_edit_hint' | t : 'Area, reason and period are fixed for an automated deduction. Changing the value (typed or via Suggest value) marks it manually adjusted; your notes are kept.' }}
+                @if (editing()!.systemNote) { <div class="small muted" style="margin-top:4px">{{ editing()!.systemNote }}</div> }
+              </div>
+            }
             <div class="frm-grid" style="grid-template-columns:1fr 1fr;gap:12px">
-              <div class="field"><label>{{ 'date' | t : 'Date' }} *</label><app-date-input [(ngModel)]="f.date"></app-date-input></div>
+              <div class="field"><label>{{ 'date' | t : 'Date' }} *</label><app-date-input [(ngModel)]="f.date" [disabled]="isAuto()"></app-date-input></div>
               <div class="field"><label>{{ 'day' | t : 'Day' }}</label><input class="input" [value]="day(f.date)" disabled></div>
               <div class="field" style="grid-column:1/-1"><label>{{ 'area_2' | t : 'Area' }} *</label><app-filter-select [(ngModel)]="f.areaId" [options]="areaOptions()" [clearable]="true" placeholder="—" [disabled]="!!editId"></app-filter-select></div>
               <div class="field" style="grid-column:1/-1"><label>{{ 'reason' | t : 'Reason' }} *</label>
-                <select class="select" [ngModel]="f.reason" (ngModelChange)="setReason($event)">@for (r of reasons; track r) { <option [value]="r">{{ reasonLabel(r) }}</option> }</select>
+                <select class="select" [ngModel]="f.reason" (ngModelChange)="setReason($event)" [disabled]="isAuto()">@for (r of reasons; track r) { <option [value]="r">{{ reasonLabel(r) }}</option> }</select>
                 @if (f.reason === 'PercentageDeal' && selectedArea() && !selectedArea()!.percentageDeal) { <div class="basis neg">{{ 'no_active_deal' | t : 'This area has no active Percentage Deal.' }}</div> }
               </div>
               @if (f.reason !== 'Transportation') {
-                <div class="field"><label>{{ 'period' | t : 'Period' }} · {{ 'start_date' | t }}</label><app-date-input [(ngModel)]="f.periodFrom"></app-date-input></div>
-                <div class="field"><label>{{ 'period' | t : 'Period' }} · {{ 'end_date' | t }}</label><app-date-input [(ngModel)]="f.periodTo"></app-date-input></div>
+                <div class="field"><label>{{ 'period' | t : 'Period' }} · {{ 'start_date' | t }}</label><app-date-input [(ngModel)]="f.periodFrom" [disabled]="isAuto()"></app-date-input></div>
+                <div class="field"><label>{{ 'period' | t : 'Period' }} · {{ 'end_date' | t }}</label><app-date-input [(ngModel)]="f.periodTo" [disabled]="isAuto()"></app-date-input></div>
                 <div class="field" style="grid-column:1/-1">
-                  <button class="btn btn-s" type="button" [disabled]="suggesting() || !f.areaId || !f.periodFrom || !f.periodTo" (click)="suggest()">{{ suggesting() ? ('loading' | t : 'Loading…') : ('suggest_value' | t : 'Suggest value') }}</button>
+                  <button class="btn btn-s" type="button" [disabled]="suggesting() || !f.areaId || !f.periodFrom || !f.periodTo || editing()?.origin === 'AutoPenalty'" (click)="suggest()">{{ suggesting() ? ('loading' | t : 'Loading…') : ('suggest_value' | t : 'Suggest value') }}</button>
                   @if (basis()) { <div class="basis">{{ basis() }}</div> }
                 </div>
               }
@@ -125,8 +140,11 @@ export class DeductionsComponent {
   readonly loading = signal(true);
   readonly busy = signal(false);
   readonly suggesting = signal(false);
+  readonly recalculating = signal(false);
   readonly dlg = signal(false);
   readonly basis = signal('');
+  /** The row being edited (null for a new record) — drives the automated-row rules in the dialog. */
+  readonly editing = signal<DeductionDto | null>(null);
   readonly rows = signal<DeductionDto[]>([]);
   readonly areas = signal<AreaOpt[]>([]);
   from = firstOfMonth(); to = localToday(); areaId = '';
@@ -149,6 +167,24 @@ export class DeductionsComponent {
   canManage(): boolean { return this.auth.has('ManageAccounting'); }
   day(d: string | null): string { return dayName(d, this.ui.lang()); }
   reasonLabel(r: string): string { return r === 'PercentageDeal' ? 'Percentage Deal' : r; }
+  isAuto(): boolean { const e = this.editing(); return !!e && e.origin !== 'Manual'; }
+  statusLabel(d: DeductionDto): string {
+    const ar = this.ui.lang() === 'ar';
+    if (d.origin === 'Manual') return ar ? 'يدوي' : 'Manual';
+    if (d.isAdjusted) return ar ? 'معدَّل يدويًا' : 'Manually adjusted';
+    return ar ? 'محسوب آليًا' : 'Auto-calculated';
+  }
+  recalculate(): void {
+    this.recalculating.set(true);
+    this.api.post<DeductionAutomationResult>('/accounting/deductions/recalculate', {}).subscribe({
+      next: (r) => {
+        this.recalculating.set(false);
+        this.toast.success(`${r.month}: ${r.dealCreated} deal row(s) created, ${r.dealRecalculated} recalculated, ${r.dealSkippedAdjusted} kept (adjusted); ${r.penaltiesLinked} penalt${r.penaltiesLinked === 1 ? 'y' : 'ies'} linked${r.penaltiesUnplaced ? `, ${r.penaltiesUnplaced} without an area` : ''}.`);
+        this.load();
+      },
+      error: () => this.recalculating.set(false),
+    });
+  }
 
   load(): void {
     this.loading.set(true);
@@ -158,9 +194,9 @@ export class DeductionsComponent {
   }
 
   private blank() { return { date: localToday(), areaId: '', reason: 'Transportation', value: null as number | null, notes: '', periodFrom: firstOfMonth(), periodTo: localToday() }; }
-  openNew(): void { this.editId = null; this.f = this.blank(); this.basis.set(''); this.dlg.set(true); }
+  openNew(): void { this.editId = null; this.editing.set(null); this.f = this.blank(); this.basis.set(''); this.dlg.set(true); }
   openEdit(d: DeductionDto): void {
-    this.editId = d.id; this.basis.set('');
+    this.editId = d.id; this.editing.set(d); this.basis.set('');
     this.f = { date: d.date, areaId: d.areaId, reason: d.reason, value: d.value, notes: d.notes ?? '', periodFrom: d.periodFrom ?? firstOfMonth(), periodTo: d.periodTo ?? localToday() };
     this.dlg.set(true);
   }
@@ -180,8 +216,10 @@ export class DeductionsComponent {
     if (!this.valid()) return;
     this.busy.set(true);
     const typed = this.f.reason === 'Transportation';
+    // For an automated row the server applies value + notes (+ the Suggest-value basis) only; the rest is fixed.
     const body = { date: this.f.date, areaId: this.f.areaId, reason: this.f.reason, value: this.f.value, notes: this.f.notes.trim() || null,
-      periodFrom: typed ? null : this.f.periodFrom, periodTo: typed ? null : this.f.periodTo };
+      periodFrom: typed ? null : this.f.periodFrom, periodTo: typed ? null : this.f.periodTo,
+      basis: this.isAuto() && this.basis() ? this.basis() : null };
     const req = this.editId ? this.api.put(`/accounting/deductions/${this.editId}`, body) : this.api.post('/accounting/deductions', body);
     req.subscribe({ next: () => { this.busy.set(false); this.dlg.set(false); this.toast.success('Deduction saved.'); this.load(); }, error: () => this.busy.set(false) });
   }
@@ -190,9 +228,11 @@ export class DeductionsComponent {
     this.api.delete(`/accounting/deductions/${d.id}`).subscribe({ next: () => { this.toast.success('Deduction deleted.'); this.load(); } });
   }
 
-  private static readonly HEADER = ['Serial', 'Date', 'Day', 'Area', 'Reason', 'Period from', 'Period to', 'Value', 'Notes'];
+  private static readonly HEADER = ['Serial', 'Date', 'Day', 'Area', 'Reason', 'Period from', 'Period to', 'Value', 'Status', 'Details', 'Notes'];
   private exportRows() {
-    return this.rows().map((d) => [d.serial, ddmy(d.date), this.day(d.date), d.areaName, this.reasonLabel(d.reason), d.periodFrom ? ddmy(d.periodFrom) : '', d.periodTo ? ddmy(d.periodTo) : '', money(d.value), d.notes ?? '']);
+    return this.rows().map((d) => [d.serial, ddmy(d.date), this.day(d.date), d.areaName,
+      d.penaltySerial ? `${this.reasonLabel(d.reason)} #${d.penaltySerial}` : this.reasonLabel(d.reason),
+      d.periodFrom ? ddmy(d.periodFrom) : '', d.periodTo ? ddmy(d.periodTo) : '', money(d.value), this.statusLabel(d), d.systemNote ?? '', d.notes ?? '']);
   }
   exportExcel(): void { exportXlsx(`deductions-${localToday()}.xlsx`, DeductionsComponent.HEADER, this.exportRows()); }
   exportPdf(): void { printTable(`Deductions (${ddmy(this.from)} → ${ddmy(this.to)})`, DeductionsComponent.HEADER, this.exportRows()); }

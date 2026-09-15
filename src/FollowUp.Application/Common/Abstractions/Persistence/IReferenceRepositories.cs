@@ -25,6 +25,8 @@ public interface ICityRepository
 public interface IAreaRepository
 {
     Task<Area?> GetByIdAsync(AreaId id, CancellationToken ct);
+    /// <summary>The area a lab's <c>Area</c> name string refers to (labs carry the area by name). Null when none matches.</summary>
+    Task<Area?> GetByNameAsync(string name, CancellationToken ct);
     Task<IReadOnlyList<Area>> GetAllAsync(CancellationToken ct);
     void Add(Area area);
     void Remove(Area area);

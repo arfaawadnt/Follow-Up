@@ -15,7 +15,8 @@ public static class AccountingEndpoints
     public sealed record PenaltyBody(DateOnly Date, Guid LaboratoryId, string AccNo, string PatientName,
         string WrongTestCode, string WrongTestName, decimal WrongValue, string RightTestCode, string RightTestName, decimal RightValue,
         string UserType, Guid? PerformedByUserId, Guid? PerformedByRepId);
-    public sealed record DeductionBody(DateOnly Date, Guid AreaId, string Reason, decimal Value, string? Notes, DateOnly? PeriodFrom, DateOnly? PeriodTo);
+    public sealed record DeductionBody(DateOnly Date, Guid AreaId, string Reason, decimal Value, string? Notes, DateOnly? PeriodFrom, DateOnly? PeriodTo,
+        string? Basis = null);
     public sealed record CollectionBody(DateOnly Date, Guid LaboratoryId, string Type, IReadOnlyList<Guid> RepIds,
         decimal Cash, decimal Bank, string? Iban, string? DoneBy, string? Notes);
     public sealed record RepIncomeBody(DateOnly Date, Guid RepresentativeId, decimal Amount, string? Notes);
@@ -78,9 +79,12 @@ public static class AccountingEndpoints
         api.MapPost("/accounting/deductions", async (DeductionBody b, IMediator m, CancellationToken ct) =>
         { var id = await m.Send(new CreateDeductionCommand(b.Date, b.AreaId, b.Reason, b.Value, b.Notes, b.PeriodFrom, b.PeriodTo), ct); return Results.Created($"/api/v1/accounting/deductions/{id}", new { id }); }).WithTags(tag);
         api.MapPut("/accounting/deductions/{id:guid}", async (Guid id, DeductionBody b, IMediator m, CancellationToken ct) =>
-        { await m.Send(new UpdateDeductionCommand(id, b.Date, b.Reason, b.Value, b.Notes, b.PeriodFrom, b.PeriodTo), ct); return Results.NoContent(); }).WithTags(tag);
+        { await m.Send(new UpdateDeductionCommand(id, b.Date, b.Reason, b.Value, b.Notes, b.PeriodFrom, b.PeriodTo, b.Basis), ct); return Results.NoContent(); }).WithTags(tag);
         api.MapDelete("/accounting/deductions/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>
         { await m.Send(new DeleteDeductionCommand(id), ct); return Results.NoContent(); }).WithTags(tag);
+        // Runs the daily automation now: link unmirrored penalties + recalculate the month's Percentage Deal rows.
+        api.MapPost("/accounting/deductions/recalculate", async (IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new RecalculateDeductionsCommand(), ct))).WithTags(tag);
 
         // ---- Collections ----
         api.MapGet("/accounting/collections", async (DateOnly from, DateOnly to, Guid? laboratoryId, Guid? repId, IMediator m, CancellationToken ct) =>

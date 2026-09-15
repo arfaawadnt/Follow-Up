@@ -77,6 +77,20 @@ public sealed class RetentionJob
 }
 
 /// <summary>
+/// Daily deductions automation — links penalties to their mirroring deductions and recalculates the month's
+/// Percentage Deal deductions from the income synced so far. Runs after the nightly stats pull, for the month of the
+/// latest synced day (yesterday), so the run on the 1st completes the just-ended month with its final day.
+/// </summary>
+[DisableConcurrentExecution(timeoutInSeconds: 600)]
+public sealed class DeductionAutomationJob
+{
+    private readonly IDeductionAutomationRunner _runner;
+    private readonly IClock _clock;
+    public DeductionAutomationJob(IDeductionAutomationRunner runner, IClock clock) { _runner = runner; _clock = clock; }
+    public Task RunAsync(CancellationToken ct) => _runner.RunAsync(_clock.CairoToday.AddDays(-1), manual: false, ct);
+}
+
+/// <summary>
 /// Month-start segment auto-assignment — reassigns every lab to the segment whose target-income band contains the
 /// lab's achieved income for the just-ended calendar month. Runs after the month's final nightly stats pull so the
 /// previous month is fully synced. Timeout covers loading and updating the full lab set.

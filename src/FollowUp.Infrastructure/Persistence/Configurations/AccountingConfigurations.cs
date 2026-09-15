@@ -115,6 +115,16 @@ internal sealed class DeductionConfiguration : IEntityTypeConfiguration<Deductio
         b.Property(x => x.Notes).HasMaxLength(500);
         b.Property(x => x.PeriodFrom);
         b.Property(x => x.PeriodTo);
+        // Automation (2026-09-15): origin + adjusted flag + system-written details + the mirrored penalty.
+        b.Property(x => x.Origin).HasDefaultValue(DeductionOrigin.Manual);
+        b.Property(x => x.IsAdjusted).HasDefaultValue(false);
+        b.Property(x => x.SystemNote).HasMaxLength(1000);
+        b.Property(x => x.PenaltyRecordId);
+        // Restrict: the penalty command removes its mirrored deduction first, so a dangling mirror can never remain.
+        b.HasOne<PenaltyRecord>().WithMany().HasForeignKey(x => x.PenaltyRecordId).OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(x => x.PenaltyRecordId).IsUnique().HasFilter("penalty_record_id IS NOT NULL");
+        // One automated Percentage Deal row per area per month (PeriodFrom is always the 1st for AutoDeal).
+        b.HasIndex(x => new { x.AreaId, x.PeriodFrom }).IsUnique().HasFilter("origin = 'AutoDeal'").HasDatabaseName("ux_deduction_auto_deal_area_month");
         b.HasOne<Area>().WithMany().HasForeignKey(x => x.AreaId).OnDelete(DeleteBehavior.Restrict);
         b.HasIndex(x => new { x.AreaId, x.Date });
         b.HasIndex(x => x.Serial).IsUnique();
