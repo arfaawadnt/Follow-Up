@@ -6,7 +6,8 @@ import { DateInputComponent } from '../../shared/date-input.component';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { ToastService } from '../../core/toast.service';
-import { LabListItem, MarketingVisit, PagedResult, RepListItem } from '../../core/models';
+import { LabLookup, MarketingVisit, PagedResult, RepListItem } from '../../core/models';
+import { FilterSelectComponent } from '../../shared/filter-select.component';
 import { TranslatePipe } from '../../core/i18n';
 
 const PURPOSES: { value: string; label: string }[] = [
@@ -23,7 +24,7 @@ const STATUSES = ['All', 'Scheduled', 'Completed', 'Cancelled'];
 @Component({
   selector: 'app-marketing',
   standalone: true,
-  imports: [AppDatePipe, FormsModule, ReactiveFormsModule, TranslatePipe, DateInputComponent],
+  imports: [AppDatePipe, FormsModule, ReactiveFormsModule, TranslatePipe, DateInputComponent, FilterSelectComponent],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'marketing_visit_followup' | t : 'Marketing' }}</div><h1>{{ 'marketing_visit_followup' | t : 'Marketing Visits' }}</h1></div>
@@ -74,7 +75,7 @@ const STATUSES = ['All', 'Scheduled', 'Completed', 'Cancelled'];
           <form [formGroup]="form" (ngSubmit)="submit()" style="padding:16px">
             <div class="frm-grid" style="grid-template-columns:1fr 1fr;gap:12px">
               <div class="field"><label>{{ 'laboratory_lbl' | t : 'Laboratory *' }}</label>
-                <select class="select" formControlName="laboratoryId"><option value="">—</option>@for (l of labs(); track l.id) { <option [value]="l.id">{{ l.displayCode }} · {{ l.name }}</option> }</select></div>
+                <app-filter-select formControlName="laboratoryId" [options]="labOptions()" [clearable]="true" placeholder="—"></app-filter-select></div>
               <div class="field"><label>{{ 'marketing_rep_lbl' | t : 'Marketing rep *' }}</label>
                 <select class="select" formControlName="representativeId"><option value="">—</option>@for (r of marketingReps(); track r.id) { <option [value]="r.id">{{ r.fullName }}</option> }</select></div>
               <div class="field"><label>{{ 'date_lbl' | t : 'Date *' }}</label><app-date-input formControlName="scheduledDate"></app-date-input></div>
@@ -124,7 +125,8 @@ export class MarketingComponent {
   readonly loading = signal(true);
   readonly busy = signal(false);
   readonly items = signal<MarketingVisit[]>([]);
-  readonly labs = signal<LabListItem[]>([]);
+  readonly labs = signal<LabLookup[]>([]);
+  readonly labOptions = computed(() => this.labs().map((l) => ({ value: l.id, label: `${l.displayCode} · ${l.name}` })));
   readonly reps = signal<RepListItem[]>([]);
   // The reference only offers marketing-type reps in the schedule popup.
   readonly marketingReps = computed(() => this.reps().filter((r) => r.type === 'Marketing'));
@@ -162,7 +164,7 @@ export class MarketingComponent {
   openForm(): void {
     this.showForm.set(true);
     if (this.labs().length === 0) {
-      this.api.get<PagedResult<LabListItem>>('/labs', { pageSize: 500 }).subscribe({ next: (r) => this.labs.set(r.items) });
+      this.api.get<LabLookup[]>('/labs/lookup').subscribe({ next: (r) => this.labs.set(r) });
       this.api.get<PagedResult<RepListItem>>('/reps', { pageSize: 500 }).subscribe({ next: (r) => this.reps.set(r.items) });
     }
   }

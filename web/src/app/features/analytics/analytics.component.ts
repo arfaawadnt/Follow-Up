@@ -6,7 +6,7 @@ import { FormsModule } from '@angular/forms';
 import { DateInputComponent } from '../../shared/date-input.component';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
-import { Commission, LabListItem, LabStat, LoyaltyLedger, PagedResult, RepListItem } from '../../core/models';
+import { Commission, LabLookup, LabStat, LoyaltyLedger, PagedResult, RepListItem } from '../../core/models';
 
 type Tab = 'loyalty' | 'commissions' | 'labstats';
 
@@ -116,8 +116,8 @@ export class AnalyticsComponent {
 
   constructor() {
     // Name lookups are shared across tabs; fetch once.
-    this.api.get<PagedResult<LabListItem>>('/labs', { pageSize: 500 }).subscribe({
-      next: (r) => this.labs.set(new Map(r.items.map((l) => [l.id, `${l.displayCode} · ${l.name}`]))),
+    this.api.get<LabLookup[]>('/labs/lookup').subscribe({
+      next: (r) => this.labs.set(new Map(r.map((l) => [l.id, `${l.displayCode} · ${l.name}`]))),
     });
     if (this.auth.has('ManageCommissions')) {
       this.api.get<PagedResult<RepListItem>>('/reps', { pageSize: 500 }).subscribe({

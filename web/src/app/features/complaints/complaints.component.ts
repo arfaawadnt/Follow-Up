@@ -1,9 +1,10 @@
-import { Component, ElementRef, HostListener, inject, signal, ViewChild } from '@angular/core';
+import { Component, ElementRef, HostListener, computed, inject, signal, ViewChild } from '@angular/core';
 import { DatePipe, SlicePipe } from '@angular/common';
 import { FormsModule, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
-import { ComplaintAuditRow, ComplaintCounts, ComplaintDetail, ComplaintListItem, LabListItem, PagedResult, RefItem, RepListItem } from '../../core/models';
+import { ComplaintAuditRow, ComplaintCounts, ComplaintDetail, ComplaintListItem, LabLookup, PagedResult, RefItem, RepListItem } from '../../core/models';
+import { FilterSelectComponent } from '../../shared/filter-select.component';
 import { EsignPanelComponent } from '../../shared/esign-panel.component';
 import { TranslatePipe } from '../../core/i18n';
 import { ToastService } from '../../core/toast.service';
@@ -28,7 +29,7 @@ type StageForm = 'ack' | 'validity' | 'investigation' | 'outcome' | 'resolve';
 @Component({
   selector: 'app-complaints',
   standalone: true,
-  imports: [DatePipe, SlicePipe, FormsModule, ReactiveFormsModule, EsignPanelComponent, TranslatePipe],
+  imports: [DatePipe, SlicePipe, FormsModule, ReactiveFormsModule, EsignPanelComponent, TranslatePipe, FilterSelectComponent],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'complaint_logs' | t : 'Complaints' }}</div><h1>{{ 'complaint_logs' | t : 'Complaints' }}</h1></div>
@@ -100,7 +101,7 @@ type StageForm = 'ack' | 'validity' | 'investigation' | 'outcome' | 'resolve';
           <form [formGroup]="form" (ngSubmit)="submit()" style="padding:16px">
             <div class="frm-grid" style="grid-template-columns:1fr 1fr;gap:12px">
               <div class="field"><label>{{ 'laboratory_lbl' | t : 'Laboratory *' }}</label>
-                <select class="select" formControlName="laboratoryId"><option value="">—</option>@for (l of labs(); track l.id) { <option [value]="l.id">{{ l.displayCode }} · {{ l.name }}</option> }</select></div>
+                <app-filter-select formControlName="laboratoryId" [options]="labOptions()" [clearable]="true" placeholder="—"></app-filter-select></div>
               <div class="field"><label>{{ 'category' | t }}</label><select class="select" formControlName="category">@for (c of categories; track c) { <option [value]="c">{{ c }}</option> }</select></div>
               <div class="field"><label>{{ 'representative' | t : 'Representative' }}</label>
                 <select class="select" formControlName="representativeId"><option value="">—</option>@for (r of reps(); track r.id) { <option [value]="r.id">{{ r.fullName }}</option> }</select></div>
@@ -265,7 +266,8 @@ export class ComplaintsComponent {
   readonly busy = signal(false);
   readonly result = signal<PagedResult<ComplaintListItem> | null>(null);
   readonly counts = signal<ComplaintCounts | null>(null); // CMP-16: server-side pill counts
-  readonly labs = signal<LabListItem[]>([]);
+  readonly labs = signal<LabLookup[]>([]);
+  readonly labOptions = computed(() => this.labs().map((l) => ({ value: l.id, label: `${l.displayCode} · ${l.name}` })));
   readonly reps = signal<RepListItem[]>([]);
   readonly teams = signal<RefItem[]>([]);
   readonly showLog = signal(false);
@@ -361,7 +363,7 @@ export class ComplaintsComponent {
     // The reference prefills the complaint date/time with "now".
     this.form.controls.receivedAt.setValue(ComplaintsComponent.nowLocal());
     if (this.labs().length === 0) {
-      this.api.get<PagedResult<LabListItem>>('/labs', { pageSize: 500 }).subscribe({ next: (r) => this.labs.set(r.items) });
+      this.api.get<LabLookup[]>('/labs/lookup').subscribe({ next: (r) => this.labs.set(r) });
       this.api.get<PagedResult<RepListItem>>('/reps', { pageSize: 500 }).subscribe({ next: (r) => this.reps.set(r.items) });
       this.api.get<RefItem[]>('/setup/refs', { type: 'Team' }).subscribe({ next: (t) => {
         this.teams.set(t);

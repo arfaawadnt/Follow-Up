@@ -16,6 +16,9 @@ public interface ILaboratoryQueries
 
     /// <summary>The next available lab code (read-only projection; drives the create-lab form's suggestion).</summary>
     Task<string> NextCodeAsync(CancellationToken ct);
+
+    /// <summary>Every lab in scope as a picker row (id, masked display code, name), ordered by name — unpaged.</summary>
+    Task<IReadOnlyList<LabLookupDto>> LookupAsync(OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
 }
 
 /// <summary>Filter criteria for a laboratory search.</summary>

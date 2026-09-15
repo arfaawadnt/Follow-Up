@@ -6,7 +6,7 @@ import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
-import { LabListItem, PagedResult, RepPerformanceRow } from '../../core/models';
+import { LabLookup, RepPerformanceRow } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
 
 interface ChartPoint { m: string; v: number; }
@@ -170,7 +170,7 @@ export class ReportsComponent {
   readonly tab = signal<'overview' | 'performance' | 'labhistory'>('overview');
   readonly ov = signal<Overview | null>(null);
   readonly perf = signal<RepPerformanceRow[]>([]);
-  readonly labs = signal<LabListItem[]>([]);
+  readonly labs = signal<LabLookup[]>([]);
   readonly labOptions = computed(() => this.labs().map((l) => ({ value: l.id, label: `${l.name} — ${l.displayCode}` })));
   readonly hist = signal<LabHistory | null>(null);
   histLab = '';
@@ -184,7 +184,7 @@ export class ReportsComponent {
   setHist(): void {
     this.tab.set('labhistory');
     if (this.labs().length === 0) {
-      this.api.get<PagedResult<LabListItem>>('/labs', { pageSize: 500 }).subscribe({ next: (r) => { this.labs.set(r.items); if (r.items.length) { this.histLab = r.items[0].id; this.loadHist(); } } });
+      this.api.get<LabLookup[]>('/labs/lookup').subscribe({ next: (r) => { this.labs.set(r); if (r.length) { this.histLab = r[0].id; this.loadHist(); } } });
     }
   }
   loadHist(): void { if (this.histLab) { this.hist.set(null); this.api.get<LabHistory>(`/reports/labhistory/${this.histLab}`).subscribe({ next: (h) => this.hist.set(h) }); } }

@@ -20,6 +20,8 @@ export interface PagedResult<T> {
   truncated: boolean;
 }
 
+/** Lab picker row (GET /labs/lookup): every lab in scope, unpaged — use this for pickers, never the paged /labs list. */
+export interface LabLookup { id: string; displayCode: string; name: string; }
 export interface LabListItem {
   id: string; displayCode: string; name: string; segment: string; status: string;
   branch: string | null; governorate: string | null; city: string | null; area: string | null;

@@ -28,6 +28,17 @@ internal sealed class LaboratoryQueries : ILaboratoryQueries
     private readonly FollowUpDbContext _db;
     public LaboratoryQueries(FollowUpDbContext db) => _db = db;
 
+    public async Task<IReadOnlyList<LabLookupDto>> LookupAsync(OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
+    {
+        // Picker payload only (id, code, encrypted flag, name) — no rep-name joins, no geography — so all ~13k labs
+        // cost about a megabyte. Scope is pushed into SQL like the directory; codes are masked the same way.
+        var labs = await _db.Laboratories.AsNoTracking().ApplyScope(scope)
+            .OrderBy(l => l.Name)
+            .Select(l => new { l.Id, l.Code, l.IsEncrypted, l.Name })
+            .ToListAsync(ct);
+        return labs.Select(l => new LabLookupDto(l.Id.Value, DisplayCode.For(l.Code.Value, l.IsEncrypted, canSeeEncrypted), l.Name)).ToList();
+    }
+
     public async Task<PagedResult<LabListItemDto>> SearchAsync(
         LabSearchCriteria criteria, OrgScope scope, bool canSeeEncrypted, bool canSeeLocation, CancellationToken ct)
     {

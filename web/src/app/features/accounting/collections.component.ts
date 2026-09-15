@@ -9,7 +9,7 @@ import { AuthService } from '../../core/auth.service';
 import { ToastService } from '../../core/toast.service';
 import { UiService } from '../../core/ui.service';
 import { TranslatePipe } from '../../core/i18n';
-import { CollectionDto, LabListItem, PagedResult, RepListItem } from '../../core/models';
+import { CollectionDto, LabLookup, PagedResult, RepListItem } from '../../core/models';
 import { ACC_STYLES, COLLECTION_TYPES, IBAN_OPTIONS, dayName, firstOfMonth, money } from './accounting.util';
 
 type Opt = { value: string; label: string };
@@ -130,7 +130,7 @@ export class CollectionsComponent {
   readonly busy = signal(false);
   readonly dlg = signal(false);
   readonly rows = signal<CollectionDto[]>([]);
-  readonly labs = signal<LabListItem[]>([]);
+  readonly labs = signal<LabLookup[]>([]);
   readonly reps = signal<RepListItem[]>([]);
   from = firstOfMonth(); to = localToday(); labId = ''; repId = '';
   editId: string | null = null;
@@ -145,7 +145,7 @@ export class CollectionsComponent {
   });
 
   constructor() {
-    this.api.get<PagedResult<LabListItem>>('/labs', { pageSize: 500 }).subscribe({ next: (r) => this.labs.set(r.items), error: () => {} });
+    this.api.get<LabLookup[]>('/labs/lookup').subscribe({ next: (r) => this.labs.set(r), error: () => {} });
     this.api.get<PagedResult<RepListItem>>('/reps', { pageSize: 500 }).subscribe({ next: (r) => this.reps.set(r.items), error: () => {} });
     this.load();
   }

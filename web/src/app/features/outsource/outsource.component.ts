@@ -6,7 +6,7 @@ import { FilterSelectComponent } from '../../shared/filter-select.component';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { ToastService } from '../../core/toast.service';
-import { LabListItem, OutsourceSample, OutsourceTrackingRow, PagedResult, TestLookup } from '../../core/models';
+import { LabLookup, OutsourceSample, OutsourceTrackingRow, TestLookup } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
 import { exportXlsx, printTable, localToday, ddmy } from '../../shared/export.util';
 import { AppDatePipe } from '../../shared/app-date.pipe';
@@ -206,7 +206,7 @@ interface TestRow { id?: string; testCode: string; testName: string; sampleVolum
             <div class="frm-grid" style="grid-template-columns:1fr 1fr;gap:12px">
               <div class="field"><label>{{ 'date' | t : 'Date' }}</label><app-date-input formControlName="visitDate"></app-date-input></div>
               <div class="field"><label>{{ 'laboratory' | t }}</label>
-                <select class="select" formControlName="laboratoryId"><option value="">—</option>@for (l of labs(); track l.id) { <option [value]="l.id">{{ l.displayCode }} · {{ l.name }}</option> }</select></div>
+                <app-filter-select formControlName="laboratoryId" [options]="labOptions()" [clearable]="true" placeholder="—"></app-filter-select></div>
               <div class="field"><label>{{ 'quantity' | t : 'Samples Count' }}</label><input class="input" type="number" min="1" formControlName="quantity"></div>
               <div class="field"><label>{{ 'destination' | t : 'Destination Lab' }}</label><input class="input" formControlName="destinationLab"></div>
               <div class="field" style="grid-column:1/-1"><label>{{ 'notes' | t : 'Notes' }}</label><input class="input" formControlName="notes"></div>
@@ -266,7 +266,8 @@ export class OutsourceComponent {
   readonly loading = signal(true);
   readonly busy = signal(false);
   readonly items = signal<OutsourceSample[]>([]);
-  readonly labs = signal<LabListItem[]>([]);
+  readonly labs = signal<LabLookup[]>([]);
+  readonly labOptions = computed(() => this.labs().map((l) => ({ value: l.id, label: `${l.displayCode} · ${l.name}` })));
   readonly status = signal('All');
   readonly statuses = STATUSES;
   readonly volumes = VOLUMES;
@@ -293,7 +294,7 @@ export class OutsourceComponent {
   });
 
   constructor() {
-    this.api.get<PagedResult<LabListItem>>('/labs', { pageSize: 500 }).subscribe({ next: (r) => this.labs.set(r.items) });
+    this.api.get<LabLookup[]>('/labs/lookup').subscribe({ next: (r) => this.labs.set(r) });
     this.api.get<TestLookup[]>('/test-lookup').subscribe({ next: (r) => this.testLookup.set(r), error: () => {} });
     this.load();
   }

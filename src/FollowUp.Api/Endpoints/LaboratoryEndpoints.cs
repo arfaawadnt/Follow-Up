@@ -32,6 +32,10 @@ public static class LaboratoryEndpoints
                 Governorate = governorate,
             }, ct))).WithTags("Laboratories");
 
+        // Picker data: every lab in scope, unpaged (the paged list above capped pickers at 500 of ~13k labs).
+        api.MapGet("/labs/lookup", async (IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetLabLookupQuery(), ct))).WithTags("Laboratories");
+
         api.MapGet("/labs/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetLaboratoryByIdQuery(id), ct))).WithTags("Laboratories");
 

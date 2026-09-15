@@ -9,7 +9,7 @@ import { AuthService } from '../../core/auth.service';
 import { ToastService } from '../../core/toast.service';
 import { UiService } from '../../core/ui.service';
 import { TranslatePipe } from '../../core/i18n';
-import { LabListItem, PagedResult, PenaltyActorDto, PenaltyDto, TestLookup } from '../../core/models';
+import { LabLookup, PenaltyActorDto, PenaltyDto, TestLookup } from '../../core/models';
 import { ACC_STYLES, PENALTY_USERS, dayName, firstOfMonth, money } from './accounting.util';
 
 type Opt = { value: string; label: string };
@@ -139,7 +139,7 @@ export class PenaltiesComponent {
   readonly busy = signal(false);
   readonly dlg = signal(false);
   readonly rows = signal<PenaltyDto[]>([]);
-  readonly labs = signal<LabListItem[]>([]);
+  readonly labs = signal<LabLookup[]>([]);
   readonly tests = signal<TestLookup[]>([]);
   from = firstOfMonth(); to = localToday(); labId = '';
   editId: string | null = null;
@@ -154,7 +154,7 @@ export class PenaltiesComponent {
   });
 
   constructor() {
-    this.api.get<PagedResult<LabListItem>>('/labs', { pageSize: 500 }).subscribe({ next: (r) => this.labs.set(r.items), error: () => {} });
+    this.api.get<LabLookup[]>('/labs/lookup').subscribe({ next: (r) => this.labs.set(r), error: () => {} });
     this.api.get<TestLookup[]>('/test-lookup').subscribe({ next: (r) => this.tests.set(r), error: () => {} });
     this.load();
   }
