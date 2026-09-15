@@ -118,6 +118,28 @@ public sealed class RepIdListComparer : ValueComparer<IReadOnlyCollection<Repres
     { }
 }
 
+// ---- Collection shares (rep + amount) <-> json: [{"repId":"…","amount":600.00}, …] ----
+
+internal sealed record CollectionShareJson(Guid RepId, decimal Amount);
+
+public sealed class CollectionShareListConverter : ValueConverter<IReadOnlyCollection<FollowUp.Domain.Accounting.CollectionShare>, string>
+{
+    public CollectionShareListConverter() : base(
+        v => Json.Serialize(v.Select(s => new CollectionShareJson(s.RepId.Value, s.Amount.Amount)).ToArray()),
+        s => (Json.Deserialize<CollectionShareJson[]>(string.IsNullOrWhiteSpace(s) || !s.TrimStart().StartsWith("[") ? "[]" : s) ?? Array.Empty<CollectionShareJson>())
+            .Select(j => new FollowUp.Domain.Accounting.CollectionShare(new RepresentativeId(j.RepId), new Money(j.Amount))).ToList())
+    { }
+}
+
+public sealed class CollectionShareListComparer : ValueComparer<IReadOnlyCollection<FollowUp.Domain.Accounting.CollectionShare>>
+{
+    public CollectionShareListComparer() : base(
+        (a, b) => a!.SequenceEqual(b!),
+        v => v.Aggregate(0, (h, x) => h ^ x.GetHashCode()),
+        v => v.ToList())
+    { }
+}
+
 // ---- Plain string lists (e.g. lab image paths) <-> json ----
 
 public sealed class StringListConverter : ValueConverter<IReadOnlyCollection<string>, string>

@@ -15,9 +15,10 @@ using Xunit;
 namespace FollowUp.IntegrationTests;
 
 /// <summary>
-/// Collection → treasury mirroring and per-treasury rights (2026-09-16) through the real read side, runner and database:
-/// the daily automation links a cash collection that has no mirror to the treasury serving the lab's branch; the read
-/// side shows only the treasuries a role is granted, with the role's rights; the DB refuses the shapes the domain forbids.
+/// Collection → treasury mirroring and per-treasury rights (2026-09-16) through the real read side, runner and database.
+/// A collection belongs to its reps (no lab), so the receiving treasury is the one serving the collecting rep's branch:
+/// the rep's own Branch, or — when the rep has none — the branch of the labs the rep is responsible for. The read side
+/// shows only the treasuries a role is granted, with the role's rights; the DB refuses the shapes the domain forbids.
 /// </summary>
 [Collection("integration")]
 public sealed class TreasuryCollectionSyncTests
@@ -29,25 +30,31 @@ public sealed class TreasuryCollectionSyncTests
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];
 
     [SkippableFact]
-    public async Task Automation_links_unmirrored_cash_collections_and_grants_shape_what_a_role_sees()
+    public async Task Sync_links_unmirrored_cash_collections_by_the_reps_branch_and_grants_shape_what_a_role_sees()
     {
         Skip.IfNot(_fx.DatabaseAvailable, "FOLLOWUP_DB not set.");
         var tag = Tag();
-        Treasury giza, cairo; Laboratory gizaLab; Representative rep; Collection cashColl, bankColl; Role cashier;
+        Treasury giza, cairo; Laboratory gizaLab; Representative rep, viaLabs; Collection cashColl, viaLabsColl, bankColl; Role cashier;
 
         using (var scope = _fx.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<FollowUpDbContext>();
             giza = Treasury.Create($"Giza {tag}", new[] { $"BR-G-{tag}" }); cairo = Treasury.Create($"Cairo {tag}", new[] { $"BR-C-{tag}" });
             db.Treasuries.AddRange(giza, cairo);
+            // Rep 1 carries its own branch; rep 2 has none and is routed through the lab it is responsible for.
+            rep = Representative.Register($"Rep {tag}", RepresentativeType.LabResponsible, GoalDuration.Monthly, Money.Zero, Money.Zero);
+            rep.AssignScope($"BR-G-{tag}", "Giza");
+            viaLabs = Representative.Register($"ViaLabs {tag}", RepresentativeType.LabResponsible, GoalDuration.Monthly, Money.Zero, Money.Zero);
+            db.Representatives.AddRange(rep, viaLabs);
             gizaLab = Laboratory.Register(LabCode.Create($"MGL-{Random.Shared.Next(100000, 999999)}"), $"Lab {tag}", "B");
             gizaLab.PlaceInHierarchy($"BR-G-{tag}", "Giza", null, null);
+            gizaLab.AssignResponsible(viaLabs.Id);
             db.Laboratories.Add(gizaLab);
-            rep = Representative.Register($"Rep {tag}", RepresentativeType.Collector, GoalDuration.Monthly, Money.Zero, Money.Zero); db.Representatives.Add(rep);
             // Written straight to the table (as collections predating the mirroring were): no mirror yet.
-            cashColl = Collection.Create(gizaLab.Id, D, CollectionType.Single, new[] { rep.Id }, 1000m, 0m, null, "Cashier", null);
-            bankColl = Collection.Create(gizaLab.Id, D, CollectionType.Single, new[] { rep.Id }, 0m, 500m, IbanOption.Iban16, null, null);
-            db.Collections.AddRange(cashColl, bankColl);
+            cashColl = Collection.Create(D, CollectionType.Single, new[] { (rep.Id, 1000m) }, 1000m, 0m, null, "Cashier", null);
+            viaLabsColl = Collection.Create(D, CollectionType.Single, new[] { (viaLabs.Id, 700m) }, 700m, 0m, null, null, null);
+            bankColl = Collection.Create(D, CollectionType.Single, new[] { (rep.Id, 500m) }, 0m, 500m, IbanOption.Iban16, null, null);
+            db.Collections.AddRange(cashColl, viaLabsColl, bankColl);
             cashier = Role.Create($"Cashier {tag}", new[] { Privileges.ViewAccounting }, "en", "light", OrgScope.Global); db.Roles.Add(cashier);
             db.TreasuryGrants.Add(TreasuryGrant.Create(cashier.Id, giza.Id, view: true, validate: true, update: false));
             await db.SaveChangesAsync();
@@ -60,20 +67,28 @@ public sealed class TreasuryCollectionSyncTests
                 // The Treasury page action mirrors what the nightly automation would; the nightly pass then finds nothing more.
                 var sync = scope.ServiceProvider.GetRequiredService<ICollectionTreasurySync>();
                 var r = await sync.RunAsync(CancellationToken.None);
-                r.Linked.Should().BeGreaterThanOrEqualTo(1);
+                r.Linked.Should().BeGreaterThanOrEqualTo(2);
                 var runner = scope.ServiceProvider.GetRequiredService<IDeductionAutomationRunner>();
 
                 var db = scope.ServiceProvider.GetRequiredService<FollowUpDbContext>();
                 var mirrors = await db.TreasuryEntries.AsNoTracking().Where(e => e.TreasuryId == giza.Id).ToListAsync();
-                var mirror = mirrors.Should().ContainSingle("the cash collection is mirrored once; the bank-only one never is").Subject;
-                mirror.CollectionId.Should().Be(cashColl.Id);
+                mirrors.Should().HaveCount(2, "the two cash collections are mirrored once each; the bank-only one never is");
+                var mirror = mirrors.Single(m => m.CollectionId == cashColl.Id);
                 mirror.Debit.Amount.Should().Be(1000m); mirror.Credit.Amount.Should().Be(0m); mirror.ReasonId.Should().BeNull();
                 mirror.ValidationStatus.Should().BeSameAs(TreasuryValidationStatus.Pending);
-                mirror.SystemNote.Should().Contain($"Lab {tag}").And.Contain($"Rep {tag}");
+                mirror.SystemNote.Should().Contain($"Rep {tag}").And.Contain("Cashier");
+                var viaLabsMirror = mirrors.Single(m => m.CollectionId == viaLabsColl.Id);
+                viaLabsMirror.Debit.Amount.Should().Be(700m, "a rep without a branch is routed through the branch of the labs they are responsible for");
                 (await db.TreasuryEntries.CountAsync(e => e.TreasuryId == cairo.Id)).Should().Be(0);
 
                 // A second run links nothing more (idempotent).
                 (await runner.RunAsync(D, manual: true, CancellationToken.None)).CollectionsLinked.Should().Be(0);
+
+                // The routing service used by the collection commands agrees with the runner.
+                var routing = scope.ServiceProvider.GetRequiredService<ICollectionRouting>();
+                (await routing.ServingBranchAsync(new[] { rep.Id }, CancellationToken.None)).Should().Be($"BR-G-{tag}");
+                (await routing.ServingBranchAsync(new[] { viaLabs.Id }, CancellationToken.None)).Should().Be($"BR-G-{tag}");
+                (await routing.ServingBranchAsync(new[] { RepresentativeId.New() }, CancellationToken.None)).Should().BeNull();
 
                 // ---- Read side: the cashier role sees Giza with Validate but not Update, and never Cairo; admin sees both.
                 var queries = scope.ServiceProvider.GetRequiredService<IAccountingQueries>();
@@ -91,6 +106,11 @@ public sealed class TreasuryCollectionSyncTests
                 var forRole = await queries.TreasuryGrantsAsync(cashier.Id, CancellationToken.None);
                 forRole.Should().Contain(g => g.TreasuryId == giza.Id.Value && g.CanValidate && !g.CanUpdate);
                 forRole.Should().Contain(g => g.TreasuryId == cairo.Id.Value && !g.CanView);
+
+                // ---- Collection read side: shares round-trip; the rep filter matches a rep on the collection.
+                var collections = await queries.CollectionsAsync(D, D, rep.Id.Value, OrgScope.Global, CancellationToken.None);
+                collections.Select(c => c.Id).Should().BeEquivalentTo(new[] { cashColl.Id.Value, bankColl.Id.Value });
+                collections.Single(c => c.Id == cashColl.Id.Value).Shares.Should().ContainSingle(s => s.RepId == rep.Id.Value && s.Amount == 1000m && s.RepName == $"Rep {tag}");
 
                 // ---- DB refuses the shapes the domain forbids.
                 var mirrorId = mirror.Id.Value;
@@ -117,12 +137,12 @@ VALUES ({Guid.NewGuid()}, {cashier.Id.Value}, {giza.Id.Value}, true, false, fals
             using var scope = _fx.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<FollowUpDbContext>();
             await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM treasury_entry WHERE treasury_id IN ({giza.Id.Value}, {cairo.Id.Value})");
-            await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM collection WHERE laboratory_id = {gizaLab.Id.Value}");
+            await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM collection WHERE id IN ({cashColl.Id.Value}, {viaLabsColl.Id.Value}, {bankColl.Id.Value})");
             await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM treasury_grant WHERE role_id = {cashier.Id.Value}");
             await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM role WHERE id = {cashier.Id.Value}");
             await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM treasury WHERE id IN ({giza.Id.Value}, {cairo.Id.Value})");
             await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM laboratory WHERE id = {gizaLab.Id.Value}");
-            await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM representative WHERE id = {rep.Id.Value}");
+            await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM representative WHERE id IN ({rep.Id.Value}, {viaLabs.Id.Value})");
         }
     }
 }

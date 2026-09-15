@@ -72,6 +72,11 @@ internal sealed class LaboratoryConfiguration : IEntityTypeConfiguration<Laborat
         // Marketing rep — single, RESTRICT so an assigned rep can't be silently removed (BR-4).
         b.HasOne<Representative>().WithMany().HasForeignKey(x => x.MarketingRepId).OnDelete(DeleteBehavior.Restrict);
 
+        // Lab responsible (type LabResponsible, validated in the handlers) — the rep who collects the lab's money; RESTRICT
+        // so an assigned rep can't be deleted out from under it. Moved here from Area.AreaResponsibleId (2026-09-16).
+        b.HasOne<Representative>().WithMany().HasForeignKey(x => x.ResponsibleRepId).OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(x => x.ResponsibleRepId);
+
         // Contacts — child entities inside the aggregate (CASCADE).
         b.OwnsMany(x => x.Contacts, c =>
         {

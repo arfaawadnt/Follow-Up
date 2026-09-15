@@ -201,8 +201,6 @@ public sealed class Area : AggregateRoot<AreaId>, IAuditable
     public IReadOnlyCollection<RepresentativeId> TransferReps => _transferReps.AsReadOnly();
     /// <summary>The representative (type <c>AreaManager</c>) who manages this area; null when unassigned.</summary>
     public RepresentativeId? AreaManagerId { get; private set; }
-    /// <summary>The representative (type <c>AreaResponsible</c>) responsible for this area day to day; null when unassigned.</summary>
-    public RepresentativeId? AreaResponsibleId { get; private set; }
     /// <summary>An operator-maintained "real" display name, never touched by the Oracle sync (SRS FR-18).</summary>
     public string? RealName { get; private set; }
     /// <summary>Operator-managed "Percentage Deal" flag: the area is settled as a percentage of its income. Never
@@ -256,8 +254,6 @@ public sealed class Area : AggregateRoot<AreaId>, IAuditable
     /// <summary>Assigns (or clears, with null) the area's manager. Type/existence is validated by the caller.</summary>
     public void AssignManager(RepresentativeId? repId) => AreaManagerId = repId;
 
-    /// <summary>Assigns (or clears, with null) the area's responsible. Type/existence is validated by the caller.</summary>
-    public void AssignResponsible(RepresentativeId? repId) => AreaResponsibleId = repId;
 
     /// <summary>Sets the operator-maintained real name. Independent of Oracle sync (never overwritten by ApplyOracle).</summary>
     public void SetRealName(string? realName) => RealName = string.IsNullOrWhiteSpace(realName) ? null : realName.Trim();

@@ -87,6 +87,7 @@ function parseGeo(text: string): { lat: number; lng: number } | null {
           <div class="field"><label>{{ 'payer_type' | t : 'Payer type' }}</label><select class="select" [(ngModel)]="f.payer"><option value="">—</option>@for (p of payers(); track p) { <option [value]="p">{{ p }}</option> }</select></div>
           <div class="field"><label>{{ 'contract' | t : 'Contract' }}</label><select class="select" [(ngModel)]="f.contractType"><option value="">—</option>@for (c of contracts(); track c) { <option [value]="c">{{ c }}</option> }</select></div>
           <div class="field"><label>{{ 'marketing_rep' | t : 'Marketing rep' }}</label><select class="select" [(ngModel)]="f.marketingRepId"><option value="">—</option>@for (r of marketingReps(); track r.id) { <option [value]="r.id">{{ r.fullName }}</option> }</select></div>
+          <div class="field"><label>{{ 'lab_responsible' | t : 'Lab Responsible' }}</label><select class="select" [(ngModel)]="f.responsibleRepId"><option value="">—</option>@for (r of responsibleReps(); track r.id) { <option [value]="r.id">{{ r.fullName }}</option> }</select></div>
           <div class="field"><label>{{ 'preferred_channel' | t : 'Preferred channel' }}</label><select class="select" [(ngModel)]="f.preferredChannel"><option value="">—</option>@for (c of channels; track c) { <option [value]="c">{{ c }}</option> }</select></div>
         </div>
         <div class="field" style="margin-top:10px"><label>{{ 'collection_rep' | t : 'Collection rep' }}</label>
@@ -196,6 +197,7 @@ export class LabDetailComponent {
 
   readonly collectorReps = () => this.reps().filter((r) => r.type === 'Collector' || r.type === 'Scanning');
   readonly marketingReps = () => this.reps().filter((r) => r.type === 'Marketing');
+  readonly responsibleReps = () => this.reps().filter((r) => r.type === 'LabResponsible');
   readonly selectedCollectors = () => this.collectorIds.map((id) => this.reps().find((r) => r.id === id)).filter((r): r is RepListItem => !!r);
   readonly availableCollectors = () => this.collectorReps().filter((r) => !this.collectorIds.includes(r.id));
 
@@ -220,7 +222,7 @@ export class LabDetailComponent {
     name: '', code: '', segment: 'C', status: 'Scanned', category: '', mappingCode: '', isEncrypted: false, credit: false, branch: '',
     licenseNo: '', licenseDate: null as string | null, avgMonthlySamples: null as number | null,
     governorate: '', city: '', area: '', address: '', geo: '',
-    payer: '', contractType: '', marketingRepId: '', preferredChannel: '',
+    payer: '', contractType: '', marketingRepId: '', responsibleRepId: '', preferredChannel: '',
     time1: '', time2: '',
   };
 
@@ -253,7 +255,7 @@ export class LabDetailComponent {
           licenseNo: l.licenseNo ?? '', licenseDate: l.licenseDate, avgMonthlySamples: l.avgMonthlySamples,
           governorate: l.governorate ?? '', city: l.city ?? '', area: l.area ?? '', address: l.address ?? '',
           geo: l.latitude != null && l.longitude != null ? `${l.latitude}, ${l.longitude}` : '',
-          payer: l.payer ?? '', contractType: l.contractType ?? '', marketingRepId: l.marketingRepId ?? '',
+          payer: l.payer ?? '', contractType: l.contractType ?? '', marketingRepId: l.marketingRepId ?? '', responsibleRepId: l.responsibleRepId ?? '',
           preferredChannel: l.preferredChannel ?? '',
           time1: (l.visitTimes[0] ?? '').slice(0, 5), time2: (l.visitTimes[1] ?? '').slice(0, 5),
         };
@@ -360,7 +362,7 @@ export class LabDetailComponent {
       longitude: canGeo ? geo?.lng ?? null : l.longitude,
       workDays: this.workDays.map((d) => DAY_NAMES[d]),
       visitTimes: [this.f.time1, this.f.time2].filter(Boolean),
-      collectorRepIds: this.collectorIds, marketingRepId: this.f.marketingRepId || null,
+      collectorRepIds: this.collectorIds, marketingRepId: this.f.marketingRepId || null, responsibleRepId: this.f.responsibleRepId || null,
       contacts,
     }).subscribe({
       next: () => {

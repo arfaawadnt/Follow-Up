@@ -68,7 +68,7 @@ public static class AdminEndpoints
         { var id = await m.Send(cmd, ct); return Results.Created($"/api/v1/setup/areas/{id}", new { id }); }).WithTags("Setup");
         api.MapPut("/setup/areas/{id:guid}", async (Guid id, AreaBody b, IMediator m, CancellationToken ct) =>
         {
-            await m.Send(new UpdateAreaCommand(id, b.Name, b.CityId, b.TransportationRequired, b.RealName, b.AreaManagerId, b.AreaResponsibleId,
+            await m.Send(new UpdateAreaCommand(id, b.Name, b.CityId, b.TransportationRequired, b.RealName, b.AreaManagerId,
             b.PercentageDeal, b.Percentage), ct); return Results.NoContent();
         }).WithTags("Setup");
         api.MapDelete("/setup/areas/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>
@@ -82,7 +82,7 @@ public static class AdminEndpoints
     public sealed record AssignSegmentsBody(string? Month = null);
     public sealed record CityBody(string Name, string Governorate, string? RealName = null);
     public sealed record AreaBody(string Name, Guid CityId, bool TransportationRequired, string? RealName = null,
-        Guid? AreaManagerId = null, Guid? AreaResponsibleId = null,
+        Guid? AreaManagerId = null,
         bool PercentageDeal = false, decimal? Percentage = null);
 
     public static void MapSettingsAndRetentionEndpoints(this RouteGroupBuilder api)

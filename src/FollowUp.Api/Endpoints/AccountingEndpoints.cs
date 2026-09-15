@@ -18,7 +18,7 @@ public static class AccountingEndpoints
         string UserType, Guid? PerformedByUserId, Guid? PerformedByRepId);
     public sealed record DeductionBody(DateOnly Date, Guid AreaId, string Reason, decimal Value, string? Notes, DateOnly? PeriodFrom, DateOnly? PeriodTo,
         string? Basis = null);
-    public sealed record CollectionBody(DateOnly Date, Guid LaboratoryId, string Type, IReadOnlyList<Guid> RepIds,
+    public sealed record CollectionBody(DateOnly Date, string Type, IReadOnlyList<CollectionShareInput> Shares,
         decimal Cash, decimal Bank, string? Iban, string? DoneBy, string? Notes);
     public sealed record RepIncomeBody(DateOnly Date, Guid RepresentativeId, decimal Amount, string? Notes);
 
@@ -99,12 +99,12 @@ public static class AccountingEndpoints
             Results.Ok(await m.Send(new RecalculateDeductionsCommand(), ct))).WithTags(tag);
 
         // ---- Collections ----
-        api.MapGet("/accounting/collections", async (DateOnly from, DateOnly to, Guid? laboratoryId, Guid? repId, IMediator m, CancellationToken ct) =>
-            Results.Ok(await m.Send(new GetCollectionsQuery(from, to, laboratoryId, repId), ct))).WithTags(tag);
+        api.MapGet("/accounting/collections", async (DateOnly from, DateOnly to, Guid? repId, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetCollectionsQuery(from, to, repId), ct))).WithTags(tag);
         api.MapPost("/accounting/collections", async (CollectionBody b, IMediator m, CancellationToken ct) =>
-        { var id = await m.Send(new CreateCollectionCommand(b.Date, b.LaboratoryId, b.Type, b.RepIds, b.Cash, b.Bank, b.Iban, b.DoneBy, b.Notes), ct); return Results.Created($"/api/v1/accounting/collections/{id}", new { id }); }).WithTags(tag);
+        { var id = await m.Send(new CreateCollectionCommand(b.Date, b.Type, b.Shares, b.Cash, b.Bank, b.Iban, b.DoneBy, b.Notes), ct); return Results.Created($"/api/v1/accounting/collections/{id}", new { id }); }).WithTags(tag);
         api.MapPut("/accounting/collections/{id:guid}", async (Guid id, CollectionBody b, IMediator m, CancellationToken ct) =>
-        { await m.Send(new UpdateCollectionCommand(id, b.Date, b.Type, b.RepIds, b.Cash, b.Bank, b.Iban, b.DoneBy, b.Notes), ct); return Results.NoContent(); }).WithTags(tag);
+        { await m.Send(new UpdateCollectionCommand(id, b.Date, b.Type, b.Shares, b.Cash, b.Bank, b.Iban, b.DoneBy, b.Notes), ct); return Results.NoContent(); }).WithTags(tag);
         api.MapDelete("/accounting/collections/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>
         { await m.Send(new DeleteCollectionCommand(id), ct); return Results.NoContent(); }).WithTags(tag);
 

@@ -53,9 +53,14 @@ public sealed record DeductionDto(Guid Id, long Serial, DateOnly Date, Guid Area
 /// <summary>A server-suggested deduction value and the basis it was computed from (shown beside the editable field).</summary>
 public sealed record DeductionSuggestionDto(decimal Value, string Basis);
 
-public sealed record CollectionDto(Guid Id, long Serial, DateOnly Date, Guid LaboratoryId, string LabDisplayCode, string LabName,
-    string Type, IReadOnlyList<Guid> RepIds, IReadOnlyList<string> RepNames, decimal Cash, decimal Bank, decimal Total,
+/// <summary>One rep's part of a collection (the amount that rep handed in). For a Single collection it is the total.</summary>
+public sealed record CollectionShareDto(Guid RepId, string RepName, decimal Amount);
+/// <summary>A collection belongs to its reps (a Lab Responsible collects from many labs), so there is no lab on it.</summary>
+public sealed record CollectionDto(Guid Id, long Serial, DateOnly Date, string Type, IReadOnlyList<CollectionShareDto> Shares,
+    IReadOnlyList<Guid> RepIds, IReadOnlyList<string> RepNames, decimal Cash, decimal Bank, decimal Total,
     string? Iban, string? DoneBy, string? Notes);
+/// <summary>Write-side share: the rep and the amount they handed in.</summary>
+public sealed record CollectionShareInput(Guid RepId, decimal Amount);
 
 /// <summary>One statement line. Kind: OracleIncome (derived from the rep's labs' synced income), ManualIncome (a
 /// RepIncomeEntry, deletable via SourceId), or Collection (Credit). Balance is the running Debit − Credit.</summary>
@@ -76,7 +81,8 @@ public interface IAccountingQueries
     Task<IReadOnlyList<PenaltyActorDto>> PenaltyActorsAsync(PenaltyUser userType, OrgScope scope, CancellationToken ct);
     Task<IReadOnlyList<DeductionDto>> DeductionsAsync(DateOnly from, DateOnly to, Guid? areaId, OrgScope scope, CancellationToken ct);
     Task<DeductionSuggestionDto> SuggestDeductionAsync(Guid areaId, DeductionReason reason, DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct);
-    Task<IReadOnlyList<CollectionDto>> CollectionsAsync(DateOnly from, DateOnly to, Guid? laboratoryId, Guid? repId, OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
+    /// <summary>Collections whose reps are all visible in the caller's rep scope (a collection is the reps' act, not a lab's).</summary>
+    Task<IReadOnlyList<CollectionDto>> CollectionsAsync(DateOnly from, DateOnly to, Guid? repId, OrgScope scope, CancellationToken ct);
     Task<RepStatementDto?> RepStatementAsync(Guid repId, DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct);
 }
 
@@ -205,14 +211,14 @@ public sealed class SuggestDeductionHandler : IQueryHandler<SuggestDeductionQuer
         _q.SuggestDeductionAsync(r.AreaId, EnumParse.Name<DeductionReason>(r.Reason, nameof(r.Reason)), r.From, r.To, _user.Scope, ct);
 }
 
-public sealed record GetCollectionsQuery(DateOnly From, DateOnly To, Guid? LaboratoryId, Guid? RepId) : IQuery<IReadOnlyList<CollectionDto>>, IAuthorizedRequest
+public sealed record GetCollectionsQuery(DateOnly From, DateOnly To, Guid? RepId) : IQuery<IReadOnlyList<CollectionDto>>, IAuthorizedRequest
 { public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ViewAccounting }; }
 public sealed class GetCollectionsHandler : IQueryHandler<GetCollectionsQuery, IReadOnlyList<CollectionDto>>
 {
     private readonly IAccountingQueries _q; private readonly ICurrentUser _user;
     public GetCollectionsHandler(IAccountingQueries q, ICurrentUser user) { _q = q; _user = user; }
     public Task<IReadOnlyList<CollectionDto>> Handle(GetCollectionsQuery r, CancellationToken ct) =>
-        _q.CollectionsAsync(r.From, r.To, r.LaboratoryId, r.RepId, _user.Scope, _user.Has(Privileges.ShowEncryptedLabs), ct);
+        _q.CollectionsAsync(r.From, r.To, r.RepId, _user.Scope, ct);
 }
 
 public sealed record GetRepStatementQuery(Guid RepresentativeId, DateOnly From, DateOnly To) : IQuery<RepStatementDto>, IAuthorizedRequest
@@ -788,49 +794,61 @@ public sealed class RecalculateDeductionsHandler : ICommandHandler<RecalculateDe
 
 // ---- Commands: collections ----
 
-public sealed record CreateCollectionCommand(DateOnly Date, Guid LaboratoryId, string Type, IReadOnlyList<Guid> RepIds,
+/// <summary>Shared rules of Create/Update: type, shares (count per type, distinct reps, positive amounts summing to the total
+/// for a group), amounts and IBAN. The domain re-checks all of it; these give field-level 400s.</summary>
+internal static class CollectionRules
+{
+    public static void Apply<T>(AbstractValidator<T> v, Func<T, string> type, Func<T, IReadOnlyList<CollectionShareInput>> shares,
+        Func<T, decimal> cash, Func<T, decimal> bank, Func<T, string?> iban, Func<T, string?> doneBy, Func<T, string?> notes)
+    {
+        v.RuleFor(x => type(x)).Must(EnumParse.IsValid<CollectionType>).WithMessage("Type must be Single or Group.").OverridePropertyName("Type");
+        v.RuleFor(x => shares(x)).NotNull().Must(s => s.Count > 0).WithMessage("Select at least one rep.").OverridePropertyName("Shares");
+        v.RuleFor(x => shares(x)).Must(s => s.Select(x => x.RepId).Distinct().Count() == s.Count).When(x => shares(x) is not null)
+            .WithMessage("A rep appears once on a collection.").OverridePropertyName("Shares");
+        v.RuleFor(x => shares(x)).Must(s => s.Count == 1).When(x => shares(x) is not null && type(x) == nameof(CollectionType.Single))
+            .WithMessage("A single collection names exactly one rep.").OverridePropertyName("Shares");
+        v.RuleFor(x => shares(x)).Must(s => s.Count >= 2).When(x => shares(x) is not null && type(x) == nameof(CollectionType.Group))
+            .WithMessage("A group collection names at least two reps.").OverridePropertyName("Shares");
+        v.RuleFor(x => shares(x)).Must(s => s.All(x => x.Amount > 0)).When(x => shares(x) is not null && type(x) == nameof(CollectionType.Group))
+            .WithMessage("Enter each rep's collected amount (greater than zero).").OverridePropertyName("Shares");
+        v.RuleFor(x => shares(x)).Must((x, s) => s.Sum(y => y.Amount) == cash(x) + bank(x)).When(x => shares(x) is not null && type(x) == nameof(CollectionType.Group))
+            .WithMessage("The reps' amounts must add up to cash + bank.").OverridePropertyName("Shares");
+        v.RuleFor(x => cash(x)).GreaterThanOrEqualTo(0).OverridePropertyName("Cash");
+        v.RuleFor(x => bank(x)).GreaterThanOrEqualTo(0).OverridePropertyName("Bank");
+        v.RuleFor(x => x).Must(x => cash(x) + bank(x) > 0).WithMessage("Enter a cash or bank amount.").OverridePropertyName("Cash");
+        v.RuleFor(x => iban(x)).Must(EnumParse.IsValid<IbanOption>).When(x => bank(x) > 0).WithMessage("Select the IBAN (12, 16 or 18) for a bank amount.").OverridePropertyName("Iban");
+        v.RuleFor(x => doneBy(x)).MaximumLength(200).OverridePropertyName("DoneBy");
+        v.RuleFor(x => notes(x)).MaximumLength(500).OverridePropertyName("Notes");
+    }
+}
+
+public sealed record CreateCollectionCommand(DateOnly Date, string Type, IReadOnlyList<CollectionShareInput> Shares,
     decimal Cash, decimal Bank, string? Iban, string? DoneBy, string? Notes) : ICommand<Guid>, IAuthorizedRequest
 { public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageAccounting }; }
 public sealed class CreateCollectionValidator : AbstractValidator<CreateCollectionCommand>
 {
-    public CreateCollectionValidator()
-    {
-        RuleFor(x => x.LaboratoryId).NotEmpty();
-        RuleFor(x => x.Type).Must(EnumParse.IsValid<CollectionType>).WithMessage("Type must be Single or Group.");
-        RuleFor(x => x.RepIds).NotNull().Must(r => r.Count > 0).WithMessage("Select at least one rep.");
-        RuleFor(x => x.RepIds).Must(r => r.Count == 1).When(x => x.Type == nameof(CollectionType.Single)).WithMessage("A single collection names exactly one rep.");
-        RuleFor(x => x.RepIds).Must(r => r.Distinct().Count() >= 2).When(x => x.Type == nameof(CollectionType.Group)).WithMessage("A group collection names at least two reps.");
-        RuleFor(x => x.Cash).GreaterThanOrEqualTo(0);
-        RuleFor(x => x.Bank).GreaterThanOrEqualTo(0);
-        RuleFor(x => x).Must(x => x.Cash + x.Bank > 0).WithMessage("Enter a cash or bank amount.");
-        RuleFor(x => x.Iban).Must(EnumParse.IsValid<IbanOption>).When(x => x.Bank > 0).WithMessage("Select the IBAN (12, 16 or 18) for a bank amount.");
-        RuleFor(x => x.DoneBy).MaximumLength(200);
-        RuleFor(x => x.Notes).MaximumLength(500);
-    }
+    public CreateCollectionValidator() => CollectionRules.Apply(this, x => x.Type, x => x.Shares, x => x.Cash, x => x.Bank, x => x.Iban, x => x.DoneBy, x => x.Notes);
 }
 public sealed class CreateCollectionHandler : ICommandHandler<CreateCollectionCommand, Guid>
 {
-    private readonly ICollectionRepository _repo; private readonly ILaboratoryRepository _labs;
-    private readonly IRepresentativeRepository _reps; private readonly ITreasuryRepository _treasuries; private readonly ITreasuryEntryRepository _entries;
-    private readonly ICurrentUser _user;
-    public CreateCollectionHandler(ICollectionRepository repo, ILaboratoryRepository labs, IRepresentativeRepository reps,
+    private readonly ICollectionRepository _repo; private readonly IRepresentativeRepository _reps; private readonly ICollectionRouting _routing;
+    private readonly ITreasuryRepository _treasuries; private readonly ITreasuryEntryRepository _entries; private readonly ICurrentUser _user;
+    public CreateCollectionHandler(ICollectionRepository repo, IRepresentativeRepository reps, ICollectionRouting routing,
         ITreasuryRepository treasuries, ITreasuryEntryRepository entries, ICurrentUser user)
-    { _repo = repo; _labs = labs; _reps = reps; _treasuries = treasuries; _entries = entries; _user = user; }
+    { _repo = repo; _reps = reps; _routing = routing; _treasuries = treasuries; _entries = entries; _user = user; }
 
     public async Task<Guid> Handle(CreateCollectionCommand r, CancellationToken ct)
     {
-        var lab = await _labs.GetByIdAsync(new LaboratoryId(r.LaboratoryId), ct) ?? throw new NotFoundException("Laboratory", r.LaboratoryId);
-        _user.EnsureInScope(lab);
-        var repIds = await CollectionSupport.ResolveRepsAsync(r.RepIds, _reps, _user, ct);
-        var c = Collection.Create(lab.Id, r.Date, EnumParse.Name<CollectionType>(r.Type, nameof(r.Type)), repIds, r.Cash, r.Bank,
+        var shares = await CollectionSupport.ResolveSharesAsync(r.Shares, _reps, _user, ct);
+        var c = Collection.Create(r.Date, EnumParse.Name<CollectionType>(r.Type, nameof(r.Type)), shares, r.Cash, r.Bank,
             r.Bank > 0 ? EnumParse.Name<IbanOption>(r.Iban!, nameof(r.Iban)) : null, r.DoneBy, r.Notes);
         _repo.Add(c);
-        await CollectionTreasurySync.UpsertAsync(c, lab, _treasuries, _entries, _reps, ct); // same transaction
+        await CollectionTreasurySync.UpsertAsync(c, _routing, _treasuries, _entries, _reps, ct); // same transaction
         return c.Id.Value;
     }
 }
 
-public sealed record UpdateCollectionCommand(Guid Id, DateOnly Date, string Type, IReadOnlyList<Guid> RepIds,
+public sealed record UpdateCollectionCommand(Guid Id, DateOnly Date, string Type, IReadOnlyList<CollectionShareInput> Shares,
     decimal Cash, decimal Bank, string? Iban, string? DoneBy, string? Notes) : ICommand, IAuthorizedRequest
 { public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageAccounting }; }
 public sealed class UpdateCollectionValidator : AbstractValidator<UpdateCollectionCommand>
@@ -838,36 +856,25 @@ public sealed class UpdateCollectionValidator : AbstractValidator<UpdateCollecti
     public UpdateCollectionValidator()
     {
         RuleFor(x => x.Id).NotEmpty();
-        RuleFor(x => x.Type).Must(EnumParse.IsValid<CollectionType>).WithMessage("Type must be Single or Group.");
-        RuleFor(x => x.RepIds).NotNull().Must(r => r.Count > 0).WithMessage("Select at least one rep.");
-        RuleFor(x => x.RepIds).Must(r => r.Count == 1).When(x => x.Type == nameof(CollectionType.Single)).WithMessage("A single collection names exactly one rep.");
-        RuleFor(x => x.RepIds).Must(r => r.Distinct().Count() >= 2).When(x => x.Type == nameof(CollectionType.Group)).WithMessage("A group collection names at least two reps.");
-        RuleFor(x => x.Cash).GreaterThanOrEqualTo(0);
-        RuleFor(x => x.Bank).GreaterThanOrEqualTo(0);
-        RuleFor(x => x).Must(x => x.Cash + x.Bank > 0).WithMessage("Enter a cash or bank amount.");
-        RuleFor(x => x.Iban).Must(EnumParse.IsValid<IbanOption>).When(x => x.Bank > 0).WithMessage("Select the IBAN (12, 16 or 18) for a bank amount.");
-        RuleFor(x => x.DoneBy).MaximumLength(200);
-        RuleFor(x => x.Notes).MaximumLength(500);
+        CollectionRules.Apply(this, x => x.Type, x => x.Shares, x => x.Cash, x => x.Bank, x => x.Iban, x => x.DoneBy, x => x.Notes);
     }
 }
 public sealed class UpdateCollectionHandler : ICommandHandler<UpdateCollectionCommand>
 {
-    private readonly ICollectionRepository _repo; private readonly ILaboratoryRepository _labs;
-    private readonly IRepresentativeRepository _reps; private readonly ITreasuryRepository _treasuries; private readonly ITreasuryEntryRepository _entries;
-    private readonly ICurrentUser _user;
-    public UpdateCollectionHandler(ICollectionRepository repo, ILaboratoryRepository labs, IRepresentativeRepository reps,
+    private readonly ICollectionRepository _repo; private readonly IRepresentativeRepository _reps; private readonly ICollectionRouting _routing;
+    private readonly ITreasuryRepository _treasuries; private readonly ITreasuryEntryRepository _entries; private readonly ICurrentUser _user;
+    public UpdateCollectionHandler(ICollectionRepository repo, IRepresentativeRepository reps, ICollectionRouting routing,
         ITreasuryRepository treasuries, ITreasuryEntryRepository entries, ICurrentUser user)
-    { _repo = repo; _labs = labs; _reps = reps; _treasuries = treasuries; _entries = entries; _user = user; }
+    { _repo = repo; _reps = reps; _routing = routing; _treasuries = treasuries; _entries = entries; _user = user; }
 
     public async Task<Unit> Handle(UpdateCollectionCommand r, CancellationToken ct)
     {
         var c = await _repo.GetByIdAsync(new CollectionId(r.Id), ct) ?? throw new NotFoundException("Collection", r.Id);
-        var lab = await _labs.GetByIdAsync(c.LaboratoryId, ct) ?? throw new NotFoundException("Laboratory", c.LaboratoryId.Value);
-        _user.EnsureInScope(lab);
-        var repIds = await CollectionSupport.ResolveRepsAsync(r.RepIds, _reps, _user, ct);
-        c.Update(r.Date, EnumParse.Name<CollectionType>(r.Type, nameof(r.Type)), repIds, r.Cash, r.Bank,
+        await CollectionSupport.EnsureRepsInScopeAsync(c, _reps, _user, ct); // the existing reps gate the edit (fail-closed)
+        var shares = await CollectionSupport.ResolveSharesAsync(r.Shares, _reps, _user, ct);
+        c.Update(r.Date, EnumParse.Name<CollectionType>(r.Type, nameof(r.Type)), shares, r.Cash, r.Bank,
             r.Bank > 0 ? EnumParse.Name<IbanOption>(r.Iban!, nameof(r.Iban)) : null, r.DoneBy, r.Notes);
-        await CollectionTreasurySync.UpsertAsync(c, lab, _treasuries, _entries, _reps, ct);
+        await CollectionTreasurySync.UpsertAsync(c, _routing, _treasuries, _entries, _reps, ct);
         return Unit.Value;
     }
 }
@@ -877,14 +884,13 @@ public sealed record DeleteCollectionCommand(Guid Id) : ICommand, IAuthorizedReq
 public sealed class DeleteCollectionValidator : AbstractValidator<DeleteCollectionCommand> { public DeleteCollectionValidator() => RuleFor(x => x.Id).NotEmpty(); }
 public sealed class DeleteCollectionHandler : ICommandHandler<DeleteCollectionCommand>
 {
-    private readonly ICollectionRepository _repo; private readonly ILaboratoryRepository _labs; private readonly ITreasuryEntryRepository _entries; private readonly ICurrentUser _user;
-    public DeleteCollectionHandler(ICollectionRepository repo, ILaboratoryRepository labs, ITreasuryEntryRepository entries, ICurrentUser user)
-    { _repo = repo; _labs = labs; _entries = entries; _user = user; }
+    private readonly ICollectionRepository _repo; private readonly IRepresentativeRepository _reps; private readonly ITreasuryEntryRepository _entries; private readonly ICurrentUser _user;
+    public DeleteCollectionHandler(ICollectionRepository repo, IRepresentativeRepository reps, ITreasuryEntryRepository entries, ICurrentUser user)
+    { _repo = repo; _reps = reps; _entries = entries; _user = user; }
     public async Task<Unit> Handle(DeleteCollectionCommand r, CancellationToken ct)
     {
         var c = await _repo.GetByIdAsync(new CollectionId(r.Id), ct) ?? throw new NotFoundException("Collection", r.Id);
-        var lab = await _labs.GetByIdAsync(c.LaboratoryId, ct);
-        if (lab is not null) _user.EnsureInScope(lab);
+        await CollectionSupport.EnsureRepsInScopeAsync(c, _reps, _user, ct);
         await CollectionTreasurySync.RemoveAsync(c, _entries, ct); // refuses once the treasury has validated the cash
         _repo.Remove(c);
         return Unit.Value;
@@ -892,20 +898,22 @@ public sealed class DeleteCollectionHandler : ICommandHandler<DeleteCollectionCo
 }
 
 /// <summary>
-/// Keeps a collection's cash mirrored into the treasury serving the lab's branch (operator decision, 2026-09-16): the
-/// entry is created with the collection, refreshed when it changes, removed when it is deleted, and carries the
-/// collection's particulars. A lab with no serving branch, or a branch no active treasury covers, gets no entry (the
-/// collection is never blocked; the daily automation links it once a treasury covers the branch). When several active
-/// treasuries share the branch the first by name is used. Runs inside the collection command's transaction.
+/// Keeps a collection's cash mirrored into the treasury serving the collecting rep's branch (operator decision,
+/// 2026-09-16; the branch comes from <see cref="ICollectionRouting"/> now that a collection has no lab): the entry is
+/// created with the collection, refreshed when it changes, removed when it is deleted, and carries the collection's
+/// particulars. A collection whose reps resolve to no branch, or to a branch no active treasury covers, gets no entry
+/// (the collection is never blocked; "Sync collections" / the daily automation link it once a treasury covers the
+/// branch). When several active treasuries share the branch the first by name is used. Runs inside the command's transaction.
 /// </summary>
 public static class CollectionTreasurySync
 {
     /// <summary>Creates or refreshes the mirroring entry. Returns false when no treasury can receive it.</summary>
-    public static async Task<bool> UpsertAsync(Collection collection, Laboratory lab, ITreasuryRepository treasuries, ITreasuryEntryRepository entries,
-        IRepresentativeRepository reps, CancellationToken ct)
+    public static async Task<bool> UpsertAsync(Collection collection, ICollectionRouting routing, ITreasuryRepository treasuries,
+        ITreasuryEntryRepository entries, IRepresentativeRepository reps, CancellationToken ct)
     {
         var existing = await entries.GetByCollectionAsync(collection.Id, ct);
-        var treasury = string.IsNullOrWhiteSpace(lab.Branch) ? null : (await treasuries.GetActiveByBranchAsync(lab.Branch, ct)).FirstOrDefault();
+        var branch = collection.Cash.Amount <= 0 ? null : await routing.ServingBranchAsync(collection.RepIds, ct);
+        var treasury = string.IsNullOrWhiteSpace(branch) ? null : (await treasuries.GetActiveByBranchAsync(branch, ct)).FirstOrDefault();
         if (treasury is null || collection.Cash.Amount <= 0)
         {
             // Nothing to receive it (or no cash any more): a not-yet-validated mirror is dropped; a validated one is kept
@@ -915,8 +923,8 @@ public static class CollectionTreasurySync
         }
         var repNames = new List<string>();
         foreach (var id in collection.RepIds) repNames.Add((await reps.GetByIdAsync(id, ct))?.FullName ?? "—");
-        if (existing is null) entries.Add(TreasuryEntry.FromCollection(treasury.Id, collection, lab.Name, repNames));
-        else existing.RefreshFromCollection(collection, lab.Name, repNames);
+        if (existing is null) entries.Add(TreasuryEntry.FromCollection(treasury.Id, collection, repNames));
+        else existing.RefreshFromCollection(collection, repNames);
         return true;
     }
 
@@ -933,17 +941,32 @@ public static class CollectionTreasurySync
 
 internal static class CollectionSupport
 {
-    /// <summary>Every rep on a collection must exist and be within the caller's scope (fail-closed, like the lab).</summary>
-    public static async Task<List<RepresentativeId>> ResolveRepsAsync(IReadOnlyList<Guid> ids, IRepresentativeRepository reps, ICurrentUser user, CancellationToken ct)
+    /// <summary>Every rep on a collection must exist, be within the caller's scope (fail-closed) and be a Lab Responsible
+    /// — the only type that collects labs' money (operator decision, 2026-09-16).</summary>
+    public static async Task<List<(RepresentativeId RepId, decimal Amount)>> ResolveSharesAsync(IReadOnlyList<CollectionShareInput> shares,
+        IRepresentativeRepository reps, ICurrentUser user, CancellationToken ct)
     {
-        var result = new List<RepresentativeId>();
-        foreach (var id in ids.Distinct())
+        var result = new List<(RepresentativeId, decimal)>();
+        foreach (var s in shares)
         {
-            var rep = await reps.GetByIdAsync(new RepresentativeId(id), ct) ?? throw new NotFoundException("Representative", id);
+            var rep = await reps.GetByIdAsync(new RepresentativeId(s.RepId), ct) ?? throw new NotFoundException("Representative", s.RepId);
             user.EnsureInScope(rep);
-            result.Add(rep.Id);
+            if (rep.Type != RepresentativeType.LabResponsible)
+                throw new Common.Exceptions.ValidationException(new Dictionary<string, string[]>
+                { ["Shares"] = new[] { $"{rep.FullName} is not a Lab Responsible; only Lab Responsible reps collect." } });
+            result.Add((rep.Id, s.Amount));
         }
         return result;
+    }
+
+    /// <summary>An existing collection may be edited/deleted only by a caller who can see all of its reps (record-level scope).</summary>
+    public static async Task EnsureRepsInScopeAsync(Collection c, IRepresentativeRepository reps, ICurrentUser user, CancellationToken ct)
+    {
+        foreach (var id in c.RepIds)
+        {
+            var rep = await reps.GetByIdAsync(id, ct);
+            if (rep is not null) user.EnsureInScope(rep);
+        }
     }
 }
 

@@ -44,6 +44,8 @@ public sealed record UpdateLaboratoryCommand : ICommand, IAuthorizedRequest
     public IReadOnlyList<string> VisitTimes { get; init; } = Array.Empty<string>();
     public IReadOnlyList<Guid> CollectorRepIds { get; init; } = Array.Empty<Guid>();
     public Guid? MarketingRepId { get; init; }
+    /// <summary>The lab's responsible (type LabResponsible) — the rep who collects its money; null clears it.</summary>
+    public Guid? ResponsibleRepId { get; init; }
     public IReadOnlyList<NewContact> Contacts { get; init; } = Array.Empty<NewContact>();
 
     public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.UpdateLabs, Privileges.ManageLabs };
@@ -66,12 +68,14 @@ public sealed class UpdateLaboratoryHandler : ICommandHandler<UpdateLaboratoryCo
     private readonly ILaboratoryRepository _repository;
     private readonly ICurrentUser _currentUser;
     private readonly Setup.ISetupQueries _setup;
+    private readonly IRepresentativeRepository _reps;
 
-    public UpdateLaboratoryHandler(ILaboratoryRepository repository, ICurrentUser currentUser, Setup.ISetupQueries setup)
+    public UpdateLaboratoryHandler(ILaboratoryRepository repository, ICurrentUser currentUser, Setup.ISetupQueries setup, IRepresentativeRepository reps)
     {
         _repository = repository;
         _currentUser = currentUser;
         _setup = setup;
+        _reps = reps;
     }
 
     public async Task<Unit> Handle(UpdateLaboratoryCommand request, CancellationToken ct)
@@ -101,6 +105,8 @@ public sealed class UpdateLaboratoryHandler : ICommandHandler<UpdateLaboratoryCo
         lab.SetSchedule(CreateLaboratoryHandler.BuildSchedule(request.WorkDays, request.VisitTimes));
         lab.AssignCollectors(request.CollectorRepIds.Select(c => new RepresentativeId(c)));
         lab.AssignMarketing(request.MarketingRepId is { } m ? new RepresentativeId(m) : null);
+        lab.AssignResponsible(await RepRoleSupport.ResolveAsync(request.ResponsibleRepId,
+            RepresentativeType.LabResponsible, nameof(request.ResponsibleRepId), _reps, _currentUser, ct));
 
         // Replace contacts (FR-3: contacts saved with the lab in one transaction).
         foreach (var existing in lab.Contacts.ToList())

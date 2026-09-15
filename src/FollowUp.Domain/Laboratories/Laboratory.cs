@@ -72,6 +72,9 @@ public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAudit
     public IReadOnlyCollection<RepresentativeId> CollectorRepIds => _collectorRepIds.AsReadOnly();
     public IReadOnlyCollection<string> ImagePaths => _imagePaths.AsReadOnly();
     public RepresentativeId? MarketingRepId { get; private set; }
+    /// <summary>The representative (type <c>LabResponsible</c>) responsible for this lab day to day — the one who collects
+    /// its money; null when unassigned. Operator-managed, never touched by the Oracle sync.</summary>
+    public RepresentativeId? ResponsibleRepId { get; private set; }
 
     // Loyalty snapshot (per-YM history lives in lab_loyalty_ledger).
     public int MonthlyTarget { get; private set; }
@@ -208,6 +211,9 @@ public sealed class Laboratory : AggregateRoot<LaboratoryId>, IVersioned, IAudit
 
     /// <summary>Assigns the marketing rep (BR-4 — exactly one at a time; pass null to clear).</summary>
     public void AssignMarketing(RepresentativeId? repId) => MarketingRepId = repId;
+
+    /// <summary>Assigns (or clears, with null) the lab's responsible. Type/existence is validated by the caller.</summary>
+    public void AssignResponsible(RepresentativeId? repId) => ResponsibleRepId = repId;
 
     public void SetLoyalty(int monthlyTarget, int points, string? tier)
     {

@@ -1,42 +1,61 @@
 using FluentAssertions;
 using FollowUp.Domain.Common;
+using FollowUp.Domain.Laboratories;
 using FollowUp.Domain.Reference;
 using FollowUp.Domain.Representatives;
 using Xunit;
 
 namespace FollowUp.Domain.Tests.Reference;
 
-/// <summary>Area management roles: the two new rep types and an area's manager/responsible assignment.</summary>
+/// <summary>
+/// Management roles: the rep types AreaManager / LabResponsible, an area's manager assignment and a lab's responsible
+/// assignment (the responsible moved from the area to the lab on 2026-09-16).
+/// </summary>
 public class AreaRolesTests
 {
     [Fact]
-    public void Representative_type_gains_area_responsible_and_area_manager()
+    public void Representative_type_has_lab_responsible_and_area_manager()
     {
         Enumeration.GetAll<RepresentativeType>().Should().HaveCount(6);
-        Enumeration.FromName<RepresentativeType>("AreaResponsible").Should().BeSameAs(RepresentativeType.AreaResponsible);
+        Enumeration.FromName<RepresentativeType>("LabResponsible").Should().BeSameAs(RepresentativeType.LabResponsible);
         Enumeration.FromName<RepresentativeType>("AreaManager").Should().BeSameAs(RepresentativeType.AreaManager);
-        // Stable ids — persisted by Name, but the ids must never collide with the existing four.
-        RepresentativeType.AreaResponsible.Id.Should().Be(5);
+        // Stable ids — persisted by Name, but the ids must never collide with the existing four. LabResponsible keeps
+        // the id of the AreaResponsible it replaced (rows are renamed by migration).
+        RepresentativeType.LabResponsible.Id.Should().Be(5);
         RepresentativeType.AreaManager.Id.Should().Be(6);
+        FluentActions.Invoking(() => Enumeration.FromName<RepresentativeType>("AreaResponsible")).Should().Throw<Exception>("the old name is gone");
     }
 
     [Fact]
-    public void An_area_can_be_assigned_and_cleared_a_manager_and_a_responsible()
+    public void An_area_can_be_assigned_and_cleared_a_manager()
     {
         var area = Area.Create("Nasr City", CityId.New(), transportationRequired: false);
         area.AreaManagerId.Should().BeNull("unassigned by default");
-        area.AreaResponsibleId.Should().BeNull();
 
         var manager = RepresentativeId.New();
-        var responsible = RepresentativeId.New();
         area.AssignManager(manager);
-        area.AssignResponsible(responsible);
         area.AreaManagerId.Should().Be(manager);
-        area.AreaResponsibleId.Should().Be(responsible);
 
         area.AssignManager(null);
         area.AreaManagerId.Should().BeNull("assignment can be cleared");
-        area.AreaResponsibleId.Should().Be(responsible, "clearing one role leaves the other untouched");
+    }
+
+    [Fact]
+    public void A_lab_can_be_assigned_and_cleared_a_responsible_and_the_oracle_sync_never_touches_it()
+    {
+        var lab = Laboratory.Register(LabCode.Create("MGL-7001"), "Alpha Lab", "B");
+        lab.ResponsibleRepId.Should().BeNull("unassigned by default");
+
+        var responsible = RepresentativeId.New();
+        lab.AssignResponsible(responsible);
+        lab.ResponsibleRepId.Should().Be(responsible);
+
+        // Operator-managed like the marketing rep: the Oracle master sync rewrites the descriptive fields only.
+        lab.ApplyOracleMaster("Alpha Lab (Oracle)", "Cat", "BR-1", "Cairo", null, null, null, null);
+        lab.ResponsibleRepId.Should().Be(responsible, "the sync must not clear an operator's assignment");
+
+        lab.AssignResponsible(null);
+        lab.ResponsibleRepId.Should().BeNull("assignment can be cleared");
     }
 
     [Fact]

@@ -250,13 +250,14 @@ public sealed class TreasuryEntry : AggregateRoot<TreasuryEntryId>, IAuditable
 
     // ---- AutoCollection ----
 
-    /// <summary>Mirrors a collection's cash as a pending debit of the treasury serving the lab's branch.</summary>
-    public static TreasuryEntry FromCollection(TreasuryId treasuryId, Collection collection, string labName, IEnumerable<string> repNames)
+    /// <summary>Mirrors a collection's cash as a pending debit of the treasury serving the collecting rep's branch.</summary>
+    /// <param name="repNames">Display names of the collection's reps, in <see cref="Collection.Shares"/> order.</param>
+    public static TreasuryEntry FromCollection(TreasuryId treasuryId, Collection collection, IEnumerable<string> repNames)
     {
         if (collection.Cash.Amount <= 0) throw new DomainException("Only a collection with a cash amount is mirrored into a treasury.");
         var e = new TreasuryEntry(TreasuryEntryId.New(), treasuryId, TreasuryEntryOrigin.AutoCollection)
         { CollectionId = collection.Id, ValidationStatus = TreasuryValidationStatus.Pending, Credit = Money.Zero };
-        e.RefreshFromCollection(collection, labName, repNames);
+        e.RefreshFromCollection(collection, repNames);
         return e;
     }
 
@@ -266,7 +267,7 @@ public sealed class TreasuryEntry : AggregateRoot<TreasuryEntryId>, IAuditable
     /// collected cash itself changed — then validation is re-opened (Pending) and the debit resets to the new cash.
     /// Operator notes are kept.
     /// </summary>
-    public void RefreshFromCollection(Collection collection, string labName, IEnumerable<string> repNames)
+    public void RefreshFromCollection(Collection collection, IEnumerable<string> repNames)
     {
         if (Origin != TreasuryEntryOrigin.AutoCollection || CollectionId != collection.Id)
             throw new DomainException("This treasury entry does not mirror that collection.");
@@ -274,9 +275,15 @@ public sealed class TreasuryEntry : AggregateRoot<TreasuryEntryId>, IAuditable
         var cashChanged = CollectedCash is null || CollectedCash.Value.Amount != collection.Cash.Amount;
         Date = collection.Date;
         CollectedCash = collection.Cash;
-        var reps = string.Join(", ", repNames.Where(n => !string.IsNullOrWhiteSpace(n)));
+        // "Name 600.00, Other 400.00" for a group; just the name for a single collection (the whole amount is theirs).
+        var names = repNames.ToList();
+        var reps = string.Join(", ", collection.Shares.Select((s, i) =>
+        {
+            var name = i < names.Count && !string.IsNullOrWhiteSpace(names[i]) ? names[i] : "—";
+            return collection.Type == CollectionType.Group ? $"{name} {s.Amount.Amount:0.00}" : name;
+        }));
         SystemNote = AccountingGuards.Optional(
-            $"Collection · {labName} · {collection.Date:dd/MM/yyyy} · {collection.Type.Name} · rep(s) {reps} · cash {collection.Cash.Amount:0.00}"
+            $"Collection · {collection.Date:dd/MM/yyyy} · {collection.Type.Name} · rep(s) {reps} · cash {collection.Cash.Amount:0.00}"
             + (collection.Bank.Amount > 0 ? $" (bank {collection.Bank.Amount:0.00} not in treasury)" : "")
             + (string.IsNullOrWhiteSpace(collection.DoneBy) ? "" : $" · done by {collection.DoneBy}"), 1000);
         if (ValidationStatus == TreasuryValidationStatus.Pending || cashChanged)
@@ -586,22 +593,29 @@ public sealed class Deduction : AggregateRoot<DeductionId>, IAuditable
 
 // ---- Collection ----
 
+/// <summary>One rep's part of a collection: the amount (cash + bank) that rep handed in. Persisted as jsonb on the collection.</summary>
+public readonly record struct CollectionShare(RepresentativeId RepId, Money Amount);
+
 /// <summary>
-/// Money collected from a lab by one rep (Single) or several (Group), split into Cash and Bank. A bank amount must name
-/// the IBAN it was paid into; with no bank amount the IBAN is cleared.
+/// Money collected by one rep (Single) or several (Group) and handed in, split into Cash and Bank. A collection is the
+/// rep's act, not a lab's (a Lab Responsible collects from many labs), so it carries no lab; each rep's share is recorded
+/// and, for a group, the shares must add up exactly to Cash + Bank. Only <c>LabResponsible</c> reps collect — enforced
+/// by the application layer, which also knows the reps' types.
 /// </summary>
 public sealed class Collection : AggregateRoot<CollectionId>, IAuditable
 {
-    private readonly List<RepresentativeId> _repIds = new();
+    private readonly List<CollectionShare> _shares = new();
 
     private Collection() { } // EF
-    private Collection(CollectionId id, LaboratoryId labId) : base(id) { LaboratoryId = labId; }
+    private Collection(CollectionId id) : base(id) { }
 
     public long Serial { get; private set; }
     public DateOnly Date { get; private set; }
-    public LaboratoryId LaboratoryId { get; private set; }
     public CollectionType Type { get; private set; } = null!;
-    public IReadOnlyCollection<RepresentativeId> RepIds => _repIds.AsReadOnly();
+    /// <summary>Per-rep amounts, in the order entered. Σ = <see cref="Total"/>.</summary>
+    public IReadOnlyCollection<CollectionShare> Shares => _shares.AsReadOnly();
+    /// <summary>The reps on this collection, in the order entered (derived from <see cref="Shares"/>).</summary>
+    public IReadOnlyList<RepresentativeId> RepIds => _shares.Select(s => s.RepId).ToList();
     public Money Cash { get; private set; }
     public Money Bank { get; private set; }
     public IbanOption? Iban { get; private set; }
@@ -615,33 +629,53 @@ public sealed class Collection : AggregateRoot<CollectionId>, IAuditable
     public DateTimeOffset? UpdatedAt { get; private set; }
     public string? UpdatedBy { get; private set; }
 
-    public static Collection Create(LaboratoryId labId, DateOnly date, CollectionType type, IEnumerable<RepresentativeId> reps,
+    /// <summary>The amount this rep handed in on this collection; zero when the rep is not on it.</summary>
+    public Money ShareOf(RepresentativeId repId) => _shares.Where(s => s.RepId == repId).Select(s => s.Amount).FirstOrDefault(Money.Zero);
+
+    /// <param name="shares">(rep, amount) pairs. For a Single collection the one amount is taken as the total whatever was
+    /// passed; for a Group each amount must be positive and they must sum to cash + bank.</param>
+    public static Collection Create(DateOnly date, CollectionType type, IEnumerable<(RepresentativeId RepId, decimal Amount)> shares,
         decimal cash, decimal bank, IbanOption? iban, string? doneBy, string? notes)
     {
-        var c = new Collection(CollectionId.New(), labId);
-        c.Update(date, type, reps, cash, bank, iban, doneBy, notes);
+        var c = new Collection(CollectionId.New());
+        c.Update(date, type, shares, cash, bank, iban, doneBy, notes);
         return c;
     }
 
-    public void Update(DateOnly date, CollectionType type, IEnumerable<RepresentativeId> reps,
+    public void Update(DateOnly date, CollectionType type, IEnumerable<(RepresentativeId RepId, decimal Amount)> shares,
         decimal cash, decimal bank, IbanOption? iban, string? doneBy, string? notes)
     {
-        var repList = reps.Distinct().ToList();
+        var list = shares.ToList();
         Type = type ?? throw new DomainException("A collection type is required.");
-        if (type == CollectionType.Single && repList.Count != 1) throw new DomainException("A single collection names exactly one rep.");
-        if (type == CollectionType.Group && repList.Count < 2) throw new DomainException("A group collection names at least two reps.");
+        if (list.Count == 0) throw new DomainException("A collection names at least one rep.");
+        if (list.Select(s => s.RepId).Distinct().Count() != list.Count) throw new DomainException("A rep appears once on a collection.");
+        if (type == CollectionType.Single && list.Count != 1) throw new DomainException("A single collection names exactly one rep.");
+        if (type == CollectionType.Group && list.Count < 2) throw new DomainException("A group collection names at least two reps.");
 
         var c = AccountingGuards.NonNegative(cash, "Cash");
         var b = AccountingGuards.NonNegative(bank, "Bank");
-        if (c.Amount + b.Amount <= 0) throw new DomainException("A collection must carry a cash or bank amount.");
+        var total = c + b;
+        if (total.Amount <= 0) throw new DomainException("A collection must carry a cash or bank amount.");
         if (b.Amount > 0 && iban is null) throw new DomainException("A bank amount requires the IBAN it was paid into.");
+
+        List<CollectionShare> resolved;
+        if (type == CollectionType.Single)
+            resolved = new List<CollectionShare> { new(list[0].RepId, total) }; // one rep → the whole amount is theirs
+        else
+        {
+            if (list.Any(s => s.Amount <= 0)) throw new DomainException("Each rep's collected amount must be greater than zero.");
+            var sum = list.Sum(s => s.Amount);
+            if (sum != total.Amount)
+                throw new DomainException($"The reps' amounts ({sum:0.00}) must add up to cash + bank ({total.Amount:0.00}).");
+            resolved = list.Select(s => new CollectionShare(s.RepId, new Money(s.Amount))).ToList();
+        }
 
         Date = date; Cash = c; Bank = b;
         Iban = b.Amount > 0 ? iban : null; // no bank amount → no IBAN, so a stale account can never linger
         DoneBy = AccountingGuards.Optional(doneBy, 200);
         Notes = AccountingGuards.Optional(notes, 500);
-        _repIds.Clear();
-        _repIds.AddRange(repList);
+        _shares.Clear();
+        _shares.AddRange(resolved);
     }
 }
 

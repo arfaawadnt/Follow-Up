@@ -96,6 +96,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Common.Abstractions.ISegmentAssignmentRunner, Jobs.SegmentAssignmentRunner>();
         services.AddScoped<Application.Common.Abstractions.IDeductionAutomationRunner, Jobs.DeductionAutomationRunner>();
         services.AddScoped<Application.Common.Abstractions.ICollectionTreasurySync, Jobs.CollectionTreasurySyncRunner>();
+        services.AddScoped<Application.Common.Abstractions.ICollectionRouting, Persistence.Queries.CollectionRouting>();
         services.AddSingleton<Application.Common.Abstractions.IAttachmentStorage, Gateways.LocalAttachmentStorage>();
 
         services.AddSingleton<IFileStorage, Gateways.LocalFileStorage>();

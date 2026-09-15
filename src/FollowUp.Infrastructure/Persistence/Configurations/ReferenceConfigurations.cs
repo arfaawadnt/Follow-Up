@@ -80,15 +80,12 @@ internal sealed class AreaConfiguration : IEntityTypeConfiguration<Area>
         b.HasOne<City>().WithMany().HasForeignKey(x => x.CityId).OnDelete(DeleteBehavior.Restrict);
         b.HasIndex(x => x.CityId);
 
-        // Area management roles: an optional manager and responsible, each a representative of the matching
-        // type (AreaManager / AreaResponsible — validated in the handlers). Restrict so a rep with an area
-        // assignment can't be deleted out from under it.
+        // Area management role: an optional manager, a representative of type AreaManager (validated in the handlers).
+        // Restrict so a rep with an area assignment can't be deleted out from under it. (The day-to-day responsible
+        // moved to the laboratory — Laboratory.ResponsibleRepId — on 2026-09-16.)
         b.HasOne<FollowUp.Domain.Representatives.Representative>().WithMany()
             .HasForeignKey(x => x.AreaManagerId).OnDelete(DeleteBehavior.Restrict);
-        b.HasOne<FollowUp.Domain.Representatives.Representative>().WithMany()
-            .HasForeignKey(x => x.AreaResponsibleId).OnDelete(DeleteBehavior.Restrict);
         b.HasIndex(x => x.AreaManagerId);
-        b.HasIndex(x => x.AreaResponsibleId);
     }
 }
 

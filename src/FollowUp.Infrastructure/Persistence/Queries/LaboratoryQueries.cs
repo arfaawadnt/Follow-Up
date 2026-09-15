@@ -66,7 +66,8 @@ internal sealed class LaboratoryQueries : ILaboratoryQueries
 
         var repNames = await ResolveRepNamesAsync(
             labs.SelectMany(l => l.CollectorRepIds)
-                .Concat(labs.Where(l => l.MarketingRepId != null).Select(l => l.MarketingRepId!.Value)), ct);
+                .Concat(labs.Where(l => l.MarketingRepId != null).Select(l => l.MarketingRepId!.Value))
+                .Concat(labs.Where(l => l.ResponsibleRepId != null).Select(l => l.ResponsibleRepId!.Value)), ct);
 
         var items = labs.Select(l => new LabListItemDto(
             // Per-lab confidentiality: only labs flagged encrypted are masked for non-privileged users.
@@ -77,7 +78,8 @@ internal sealed class LaboratoryQueries : ILaboratoryQueries
             l.CollectorRepIds.Select(c => repNames.GetValueOrDefault(c, "—")).ToList(),
             l.MarketingRepId is { } m ? repNames.GetValueOrDefault(m) : null,
             l.IsEncrypted && !canSeeEncrypted, l.Source.ToString(),
-            l.CollectorRepIds.Select(c => c.Value).ToList(), l.Credit)).ToList();
+            l.CollectorRepIds.Select(c => c.Value).ToList(), l.Credit,
+            l.ResponsibleRepId is { } resp ? repNames.GetValueOrDefault(resp) : null)).ToList();
 
         return PagedResult<LabListItemDto>.Create(items, total, criteria.Page, criteria.PageSize);
     }
@@ -101,7 +103,7 @@ internal sealed class LaboratoryQueries : ILaboratoryQueries
             lab.Schedule.WorkDays.Select(d => d.ToString()).ToList(),
             lab.Schedule.VisitTimes.Select(t => t.ToString("HH:mm")).ToList(),
             lab.Contacts.Select(c => new ContactDto(c.Id.Value, c.Name, c.Role.ToString(), c.Phone, c.Birthday)).ToList(),
-            lab.RowVersion, lab.Credit);
+            lab.RowVersion, lab.Credit, lab.ResponsibleRepId?.Value);
     }
 
     public async Task<string> NextCodeAsync(CancellationToken ct)
@@ -154,13 +156,14 @@ internal sealed class RepresentativeQueries : IRepresentativeQueries
             .Select(r => new { r.Id, r.FullName, r.Type, r.GoalDuration, r.GoalType, r.Metric, r.Target, r.Salary, r.Phone, r.IsActive, r.Branch, r.Governorate, r.City, r.Area, r.EmploymentType, r.AppointedOn, r.Source })
             .ToListAsync(ct);
 
-        // Assigned-lab counts (collector across the jsonb list, or marketing rep) — materialize and count in memory.
-        var labReps = await _db.Laboratories.AsNoTracking().Select(l => new { l.CollectorRepIds, l.MarketingRepId }).ToListAsync(ct);
+        // Assigned-lab counts (collector across the jsonb list, marketing rep, or lab responsible) — materialize and count in memory.
+        var labReps = await _db.Laboratories.AsNoTracking().Select(l => new { l.CollectorRepIds, l.MarketingRepId, l.ResponsibleRepId }).ToListAsync(ct);
         var counts = new Dictionary<Domain.Representatives.RepresentativeId, int>();
         foreach (var lr in labReps)
         {
             foreach (var c in lr.CollectorRepIds) counts[c] = counts.GetValueOrDefault(c) + 1;
             if (lr.MarketingRepId is { } mk) counts[mk] = counts.GetValueOrDefault(mk) + 1;
+            if (lr.ResponsibleRepId is { } rs) counts[rs] = counts.GetValueOrDefault(rs) + 1;
         }
 
         var items = rows.Select(r => new Application.Features.Representatives.Contracts.RepListItemDto(
