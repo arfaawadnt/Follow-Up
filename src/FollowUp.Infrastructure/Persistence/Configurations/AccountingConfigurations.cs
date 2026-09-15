@@ -1,4 +1,5 @@
 using FollowUp.Domain.Accounting;
+using FollowUp.Domain.Identity;
 using FollowUp.Domain.Laboratories;
 using FollowUp.Domain.Reference;
 using FollowUp.Domain.Representatives;
@@ -82,7 +83,16 @@ internal sealed class PenaltyRecordConfiguration : IEntityTypeConfiguration<Pena
         b.Property(x => x.RightTestCode).HasMaxLength(32).IsRequired();
         b.Property(x => x.RightTestName).HasMaxLength(200).IsRequired();
         b.Property(x => x.RightValue);
-        b.Property(x => x.User).HasColumnName("penalty_user"); // "user" is a reserved word in PostgreSQL
+        b.Property(x => x.UserType).HasColumnName("penalty_user"); // "user" is a reserved word in PostgreSQL
+        // "Performed by": exactly one of the two, matching the user type (domain invariant + ck_penalty_record_performed_by).
+        // Restrict, like every accounting reference: users and reps are deactivated, never hard-deleted, so the row's
+        // attribution can never dangle.
+        b.Property(x => x.PerformedByUserId);
+        b.Property(x => x.PerformedByRepId);
+        b.HasOne<AppUser>().WithMany().HasForeignKey(x => x.PerformedByUserId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne<Representative>().WithMany().HasForeignKey(x => x.PerformedByRepId).OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(x => x.PerformedByUserId);
+        b.HasIndex(x => x.PerformedByRepId);
         b.Ignore(x => x.PenaltyAmount); // derived: wrong − right
         b.HasOne<Laboratory>().WithMany().HasForeignKey(x => x.LaboratoryId).OnDelete(DeleteBehavior.Restrict);
         b.HasIndex(x => new { x.LaboratoryId, x.Date });

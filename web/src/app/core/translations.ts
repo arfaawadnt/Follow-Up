@@ -1305,6 +1305,9 @@ export const TRANSLATIONS = {
     page_accounting: "Accounting",
     page_email_reports: "Email Reports",
     priv_confirm_checkin: "Confirm (Lab Checkin)",
+    user_type: "User Type",
+    user_type_user: "User Type / User",
+    select_user: "Select…",
   },
   ar: {
     /* --- UI-003: folded from inline bilingual ternaries --- */
@@ -2601,5 +2604,8 @@ export const TRANSLATIONS = {
     page_accounting: "الحسابات",
     page_email_reports: "تقارير البريد الإلكتروني",
     priv_confirm_checkin: "تأكيد (استلام المختبر)",
+    user_type: "نوع المستخدم",
+    user_type_user: "نوع المستخدم / المستخدم",
+    select_user: "اختر…",
   }
 };

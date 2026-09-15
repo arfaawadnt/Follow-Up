@@ -202,8 +202,12 @@ export interface TreasuryEntryDto {
 export interface PenaltyDto {
   id: string; serial: number; date: string; laboratoryId: string; labDisplayCode: string; labName: string;
   accNo: string; patientName: string; wrongTestCode: string; wrongTestName: string; wrongValue: number;
-  rightTestCode: string; rightTestName: string; rightValue: number; penalty: number; user: string;
+  rightTestCode: string; rightTestName: string; rightValue: number; penalty: number;
+  /** Who made the error: the kind (Rep / DataEntry / Technician) plus the resolved person. */
+  userType: string; performedById: string | null; performedByName: string | null;
 }
+/** A person a penalty can be attributed to (GET /accounting/penalty-actors?userType=…); `detail` = rep type for reps. */
+export interface PenaltyActorDto { id: string; name: string; detail: string | null; }
 export interface DeductionDto {
   id: string; serial: number; date: string; areaId: string; areaName: string; reason: string; value: number;
   notes: string | null; periodFrom: string | null; periodTo: string | null;

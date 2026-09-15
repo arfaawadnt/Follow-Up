@@ -51,7 +51,7 @@ public sealed class AccountingPersistenceTests
             var city = City.FromOracle($"C-{tag}", $"City {tag}", "Cairo"); db.Cities.Add(city);
             var area = Area.FromOracle($"A-{tag}", $"Area {tag}", city.Id); db.Areas.Add(area);
 
-            var penalty = PenaltyRecord.Create(lab.Id, D, "ACC-1", "Patient", "T1", "Wrong", 300m, "T2", "Right", 120m, PenaltyUser.Technician);
+            var penalty = PenaltyRecord.Create(lab.Id, D, "ACC-1", "Patient", "T1", "Wrong", 300m, "T2", "Right", 120m, PenaltyUser.Rep, null, r1.Id);
             db.PenaltyRecords.Add(penalty);
             var deduction = Deduction.Create(area.Id, D, DeductionReason.PercentageDeal, 987.65m, "Sept", new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30));
             db.Deductions.Add(deduction);
@@ -82,7 +82,9 @@ public sealed class AccountingPersistenceTests
             e2.Credit.Amount.Should().Be(120.5m); e2.Debit.Amount.Should().Be(0m); e2.ReasonId.Should().Be(new TreasuryReasonId(reasonId));
 
             var penalty = await db.PenaltyRecords.AsNoTracking().SingleAsync(p => p.Id == new PenaltyRecordId(penaltyId));
-            penalty.User.Should().BeSameAs(PenaltyUser.Technician, "enumeration persisted by name");
+            penalty.UserType.Should().BeSameAs(PenaltyUser.Rep, "enumeration persisted by name");
+            penalty.PerformedByRepId.Should().Be(new RepresentativeId(rep1), "the performed-by link round-trips");
+            penalty.PerformedByUserId.Should().BeNull();
             penalty.PenaltyAmount.Amount.Should().Be(180m);
 
             var deduction = await db.Deductions.AsNoTracking().SingleAsync(d => d.Id == new DeductionId(deductionId));
@@ -151,8 +153,9 @@ public sealed class AccountingPersistenceTests
         db.Laboratories.Add(lab);
         var stat = DailyLabStatistic.For(D, lab.Code.Value.ToUpperInvariant()); stat.Set(5, 20, new Money(1000m)); db.DailyLabStatistics.Add(stat);
         // Two penalties in the period for that lab: (300−120) + (50−80) = 180 − 30 = 150.
-        db.PenaltyRecords.Add(PenaltyRecord.Create(lab.Id, D, "A1", "P", "T1", "W", 300m, "T2", "R", 120m, PenaltyUser.Rep));
-        db.PenaltyRecords.Add(PenaltyRecord.Create(lab.Id, D, "A2", "P", "T3", "W", 50m, "T4", "R", 80m, PenaltyUser.DataEntry));
+        var rep = NewRep(tag); db.Representatives.Add(rep);
+        db.PenaltyRecords.Add(PenaltyRecord.Create(lab.Id, D, "A1", "P", "T1", "W", 300m, "T2", "R", 120m, PenaltyUser.Rep, null, rep.Id));
+        db.PenaltyRecords.Add(PenaltyRecord.Create(lab.Id, D, "A2", "P", "T3", "W", 50m, "T4", "R", 80m, PenaltyUser.Rep, null, rep.Id));
         await db.SaveChangesAsync();
 
         var pct = await queries.SuggestDeductionAsync(area.Id.Value, DeductionReason.PercentageDeal, D, D, OrgScope.Global, CancellationToken.None);

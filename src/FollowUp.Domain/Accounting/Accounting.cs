@@ -1,4 +1,5 @@
 using FollowUp.Domain.Common;
+using FollowUp.Domain.Identity;
 using FollowUp.Domain.Laboratories;
 using FollowUp.Domain.Reference;
 using FollowUp.Domain.Representatives;
@@ -215,7 +216,12 @@ public sealed class PenaltyRecord : AggregateRoot<PenaltyRecordId>, IAuditable
     public string RightTestCode { get; private set; } = null!;
     public string RightTestName { get; private set; } = null!;
     public Money RightValue { get; private set; }
-    public PenaltyUser User { get; private set; } = null!;
+    /// <summary>Who made the error, by kind: a representative, a data-entry user or a technician.</summary>
+    public PenaltyUser UserType { get; private set; } = null!;
+    /// <summary>The system user who made the error — set exactly when <see cref="UserType"/> is DataEntry or Technician.</summary>
+    public AppUserId? PerformedByUserId { get; private set; }
+    /// <summary>The representative who made the error — set exactly when <see cref="UserType"/> is Rep.</summary>
+    public RepresentativeId? PerformedByRepId { get; private set; }
 
     /// <summary>The penalty = wrong − right (may be negative when the right test was the dearer one).</summary>
     public Money PenaltyAmount => WrongValue - RightValue;
@@ -227,16 +233,19 @@ public sealed class PenaltyRecord : AggregateRoot<PenaltyRecordId>, IAuditable
 
     public static PenaltyRecord Create(LaboratoryId labId, DateOnly date, string accNo, string patientName,
         string wrongTestCode, string wrongTestName, decimal wrongValue,
-        string rightTestCode, string rightTestName, decimal rightValue, PenaltyUser user)
+        string rightTestCode, string rightTestName, decimal rightValue,
+        PenaltyUser userType, AppUserId? performedByUserId, RepresentativeId? performedByRepId)
     {
         var p = new PenaltyRecord(PenaltyRecordId.New(), labId);
-        p.Update(date, accNo, patientName, wrongTestCode, wrongTestName, wrongValue, rightTestCode, rightTestName, rightValue, user);
+        p.Update(date, accNo, patientName, wrongTestCode, wrongTestName, wrongValue, rightTestCode, rightTestName, rightValue,
+            userType, performedByUserId, performedByRepId);
         return p;
     }
 
     public void Update(DateOnly date, string accNo, string patientName,
         string wrongTestCode, string wrongTestName, decimal wrongValue,
-        string rightTestCode, string rightTestName, decimal rightValue, PenaltyUser user)
+        string rightTestCode, string rightTestName, decimal rightValue,
+        PenaltyUser userType, AppUserId? performedByUserId, RepresentativeId? performedByRepId)
     {
         Date = date;
         AccNo = AccountingGuards.Required(accNo, "Acc No", 50);
@@ -247,7 +256,22 @@ public sealed class PenaltyRecord : AggregateRoot<PenaltyRecordId>, IAuditable
         RightTestCode = AccountingGuards.Required(rightTestCode, "Right test", 32);
         RightTestName = AccountingGuards.Required(rightTestName, "Right test name", 200);
         RightValue = AccountingGuards.NonNegative(rightValue, "Right test value");
-        User = user ?? throw new DomainException("The responsible user is required.");
+        UserType = userType ?? throw new DomainException("The user type is required.");
+
+        // Exactly one "performed by" link, and it must match the user type: a Rep penalty names a representative,
+        // a DataEntry / Technician penalty names a system user. Mirrored by ck_penalty_record_performed_by in the DB.
+        if (userType == PenaltyUser.Rep)
+        {
+            if (performedByRepId is null) throw new DomainException("Select the representative who made the error.");
+            if (performedByUserId is not null) throw new DomainException("A representative penalty cannot also name a system user.");
+        }
+        else
+        {
+            if (performedByUserId is null) throw new DomainException("Select the system user who made the error.");
+            if (performedByRepId is not null) throw new DomainException("A data-entry / technician penalty cannot also name a representative.");
+        }
+        PerformedByUserId = performedByUserId;
+        PerformedByRepId = performedByRepId;
     }
 }
 

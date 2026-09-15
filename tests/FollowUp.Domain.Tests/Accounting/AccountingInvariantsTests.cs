@@ -60,22 +60,51 @@ public class AccountingInvariantsTests
     [Fact]
     public void Penalty_amount_is_wrong_minus_right_and_may_be_negative()
     {
-        var p = PenaltyRecord.Create(LaboratoryId.New(), D, "ACC-1", "Patient", "T1", "Wrong test", 300m, "T2", "Right test", 120m, PenaltyUser.Rep);
+        var rep = FollowUp.Domain.Representatives.RepresentativeId.New();
+        var p = PenaltyRecord.Create(LaboratoryId.New(), D, "ACC-1", "Patient", "T1", "Wrong test", 300m, "T2", "Right test", 120m, PenaltyUser.Rep, null, rep);
         p.PenaltyAmount.Amount.Should().Be(180m, "the over-charge is the penalty (operator decision)");
+        p.PerformedByRepId.Should().Be(rep);
 
-        p.Update(D, "ACC-1", "Patient", "T1", "Wrong", 100m, "T2", "Right", 250m, PenaltyUser.Technician);
+        var tech = FollowUp.Domain.Identity.AppUserId.New();
+        p.Update(D, "ACC-1", "Patient", "T1", "Wrong", 100m, "T2", "Right", 250m, PenaltyUser.Technician, tech, null);
         p.PenaltyAmount.Amount.Should().Be(-150m, "an under-charge is a negative penalty and must not be clamped");
-        p.User.Should().BeSameAs(PenaltyUser.Technician);
+        p.UserType.Should().BeSameAs(PenaltyUser.Technician);
+        p.PerformedByUserId.Should().Be(tech);
+        p.PerformedByRepId.Should().BeNull("re-attributing to a system user releases the representative link");
     }
 
     [Fact]
     public void A_penalty_requires_its_identifying_fields_and_non_negative_values()
     {
         var lab = LaboratoryId.New();
-        FluentActions.Invoking(() => PenaltyRecord.Create(lab, D, "", "Patient", "T1", "W", 1m, "T2", "R", 1m, PenaltyUser.Rep))
+        var rep = FollowUp.Domain.Representatives.RepresentativeId.New();
+        FluentActions.Invoking(() => PenaltyRecord.Create(lab, D, "", "Patient", "T1", "W", 1m, "T2", "R", 1m, PenaltyUser.Rep, null, rep))
             .Should().Throw<DomainException>().WithMessage("*Acc No is required*");
-        FluentActions.Invoking(() => PenaltyRecord.Create(lab, D, "A", "Patient", "T1", "W", -1m, "T2", "R", 1m, PenaltyUser.Rep))
+        FluentActions.Invoking(() => PenaltyRecord.Create(lab, D, "A", "Patient", "T1", "W", -1m, "T2", "R", 1m, PenaltyUser.Rep, null, rep))
             .Should().Throw<DomainException>().WithMessage("*cannot be negative*");
+    }
+
+    [Fact]
+    public void A_penalty_names_exactly_the_person_matching_its_user_type()
+    {
+        var lab = LaboratoryId.New();
+        var rep = FollowUp.Domain.Representatives.RepresentativeId.New();
+        var user = FollowUp.Domain.Identity.AppUserId.New();
+        PenaltyRecord Make(PenaltyUser type, FollowUp.Domain.Identity.AppUserId? u, FollowUp.Domain.Representatives.RepresentativeId? r) =>
+            PenaltyRecord.Create(lab, D, "A", "P", "T1", "W", 1m, "T2", "R", 1m, type, u, r);
+
+        // Rep → a representative, and only a representative.
+        FluentActions.Invoking(() => Make(PenaltyUser.Rep, null, null)).Should().Throw<DomainException>().WithMessage("*representative*");
+        FluentActions.Invoking(() => Make(PenaltyUser.Rep, user, rep)).Should().Throw<DomainException>().WithMessage("*cannot also name a system user*");
+        Make(PenaltyUser.Rep, null, rep).PerformedByRepId.Should().Be(rep);
+
+        // DataEntry / Technician → a system user, and only a system user.
+        foreach (var type in new[] { PenaltyUser.DataEntry, PenaltyUser.Technician })
+        {
+            FluentActions.Invoking(() => Make(type, null, null)).Should().Throw<DomainException>().WithMessage("*system user*");
+            FluentActions.Invoking(() => Make(type, user, rep)).Should().Throw<DomainException>().WithMessage("*cannot also name a representative*");
+            Make(type, user, null).PerformedByUserId.Should().Be(user);
+        }
     }
 
     // ---- Deduction ----

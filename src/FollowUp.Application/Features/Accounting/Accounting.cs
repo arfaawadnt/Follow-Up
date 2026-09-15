@@ -29,7 +29,12 @@ public sealed record TreasuryEntryDto(Guid Id, long Serial, DateOnly Date, Guid 
 
 public sealed record PenaltyDto(Guid Id, long Serial, DateOnly Date, Guid LaboratoryId, string LabDisplayCode, string LabName,
     string AccNo, string PatientName, string WrongTestCode, string WrongTestName, decimal WrongValue,
-    string RightTestCode, string RightTestName, decimal RightValue, decimal Penalty, string User);
+    string RightTestCode, string RightTestName, decimal RightValue, decimal Penalty,
+    string UserType, Guid? PerformedById, string? PerformedByName);
+
+/// <summary>A person a penalty can be attributed to: an in-scope active representative (UserType = Rep) or an active
+/// system user (DataEntry / Technician). <c>Detail</c> carries the rep type for disambiguation.</summary>
+public sealed record PenaltyActorDto(Guid Id, string Name, string? Detail);
 
 public sealed record DeductionDto(Guid Id, long Serial, DateOnly Date, Guid AreaId, string AreaName, string Reason, decimal Value,
     string? Notes, DateOnly? PeriodFrom, DateOnly? PeriodTo);
@@ -55,6 +60,7 @@ public interface IAccountingQueries
     Task<IReadOnlyList<TreasuryDto>> TreasuriesAsync(OrgScope scope, CancellationToken ct);
     Task<IReadOnlyList<TreasuryEntryDto>> TreasuryEntriesAsync(DateOnly from, DateOnly to, Guid? treasuryId, OrgScope scope, CancellationToken ct);
     Task<IReadOnlyList<PenaltyDto>> PenaltiesAsync(DateOnly from, DateOnly to, Guid? laboratoryId, OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
+    Task<IReadOnlyList<PenaltyActorDto>> PenaltyActorsAsync(PenaltyUser userType, OrgScope scope, CancellationToken ct);
     Task<IReadOnlyList<DeductionDto>> DeductionsAsync(DateOnly from, DateOnly to, Guid? areaId, OrgScope scope, CancellationToken ct);
     Task<DeductionSuggestionDto> SuggestDeductionAsync(Guid areaId, DeductionReason reason, DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct);
     Task<IReadOnlyList<CollectionDto>> CollectionsAsync(DateOnly from, DateOnly to, Guid? laboratoryId, Guid? repId, OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
@@ -128,6 +134,18 @@ public sealed class GetPenaltiesHandler : IQueryHandler<GetPenaltiesQuery, IRead
     public GetPenaltiesHandler(IAccountingQueries q, ICurrentUser user) { _q = q; _user = user; }
     public Task<IReadOnlyList<PenaltyDto>> Handle(GetPenaltiesQuery r, CancellationToken ct) =>
         _q.PenaltiesAsync(r.From, r.To, r.LaboratoryId, _user.Scope, _user.Has(Privileges.ShowEncryptedLabs), ct);
+}
+
+/// <summary>The people a penalty can be attributed to for a user type — the "User" picker of the record dialog.
+/// Recording needs ManageAccounting, so the lookup is gated the same way (it lists usernames, cf. IDN-9).</summary>
+public sealed record GetPenaltyActorsQuery(string UserType) : IQuery<IReadOnlyList<PenaltyActorDto>>, IAuthorizedRequest
+{ public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageAccounting }; }
+public sealed class GetPenaltyActorsHandler : IQueryHandler<GetPenaltyActorsQuery, IReadOnlyList<PenaltyActorDto>>
+{
+    private readonly IAccountingQueries _q; private readonly ICurrentUser _user;
+    public GetPenaltyActorsHandler(IAccountingQueries q, ICurrentUser user) { _q = q; _user = user; }
+    public Task<IReadOnlyList<PenaltyActorDto>> Handle(GetPenaltyActorsQuery r, CancellationToken ct) =>
+        _q.PenaltyActorsAsync(EnumParse.Name<PenaltyUser>(r.UserType, nameof(r.UserType)), _user.Scope, ct);
 }
 
 public sealed record GetDeductionsQuery(DateOnly From, DateOnly To, Guid? AreaId) : IQuery<IReadOnlyList<DeductionDto>>, IAuthorizedRequest
@@ -360,7 +378,8 @@ public sealed class DeleteTreasuryEntryHandler : ICommandHandler<DeleteTreasuryE
 // ---- Commands: penalty statement ----
 
 public sealed record CreatePenaltyCommand(DateOnly Date, Guid LaboratoryId, string AccNo, string PatientName,
-    string WrongTestCode, string WrongTestName, decimal WrongValue, string RightTestCode, string RightTestName, decimal RightValue, string User)
+    string WrongTestCode, string WrongTestName, decimal WrongValue, string RightTestCode, string RightTestName, decimal RightValue,
+    string UserType, Guid? PerformedByUserId, Guid? PerformedByRepId)
     : ICommand<Guid>, IAuthorizedRequest
 { public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageAccounting }; }
 public sealed class CreatePenaltyValidator : AbstractValidator<CreatePenaltyCommand>
@@ -376,26 +395,30 @@ public sealed class CreatePenaltyValidator : AbstractValidator<CreatePenaltyComm
         RuleFor(x => x.RightTestName).NotEmpty().MaximumLength(200);
         RuleFor(x => x.WrongValue).GreaterThanOrEqualTo(0);
         RuleFor(x => x.RightValue).GreaterThanOrEqualTo(0);
-        RuleFor(x => x.User).Must(EnumParse.IsValid<PenaltyUser>).WithMessage("User must be Rep, DataEntry or Technician.");
+        PenaltyActorRules.Apply(this, x => x.UserType, x => x.PerformedByUserId, x => x.PerformedByRepId);
     }
 }
 public sealed class CreatePenaltyHandler : ICommandHandler<CreatePenaltyCommand, Guid>
 {
-    private readonly IPenaltyRecordRepository _repo; private readonly ILaboratoryRepository _labs; private readonly ICurrentUser _user;
-    public CreatePenaltyHandler(IPenaltyRecordRepository repo, ILaboratoryRepository labs, ICurrentUser user) { _repo = repo; _labs = labs; _user = user; }
+    private readonly IPenaltyRecordRepository _repo; private readonly ILaboratoryRepository _labs;
+    private readonly IRepresentativeRepository _reps; private readonly IAppUserRepository _users; private readonly ICurrentUser _user;
+    public CreatePenaltyHandler(IPenaltyRecordRepository repo, ILaboratoryRepository labs, IRepresentativeRepository reps, IAppUserRepository users, ICurrentUser user)
+    { _repo = repo; _labs = labs; _reps = reps; _users = users; _user = user; }
     public async Task<Guid> Handle(CreatePenaltyCommand r, CancellationToken ct)
     {
         var lab = await _labs.GetByIdAsync(new LaboratoryId(r.LaboratoryId), ct) ?? throw new NotFoundException("Laboratory", r.LaboratoryId);
         _user.EnsureInScope(lab);
+        var (userId, repId) = await PenaltyActorSupport.ResolveAsync(r.PerformedByUserId, r.PerformedByRepId, _reps, _users, _user, ct);
         var p = PenaltyRecord.Create(lab.Id, r.Date, r.AccNo, r.PatientName, r.WrongTestCode, r.WrongTestName, r.WrongValue,
-            r.RightTestCode, r.RightTestName, r.RightValue, EnumParse.Name<PenaltyUser>(r.User, nameof(r.User)));
+            r.RightTestCode, r.RightTestName, r.RightValue, EnumParse.Name<PenaltyUser>(r.UserType, nameof(r.UserType)), userId, repId);
         _repo.Add(p);
         return p.Id.Value;
     }
 }
 
 public sealed record UpdatePenaltyCommand(Guid Id, DateOnly Date, string AccNo, string PatientName,
-    string WrongTestCode, string WrongTestName, decimal WrongValue, string RightTestCode, string RightTestName, decimal RightValue, string User)
+    string WrongTestCode, string WrongTestName, decimal WrongValue, string RightTestCode, string RightTestName, decimal RightValue,
+    string UserType, Guid? PerformedByUserId, Guid? PerformedByRepId)
     : ICommand, IAuthorizedRequest
 { public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageAccounting }; }
 public sealed class UpdatePenaltyValidator : AbstractValidator<UpdatePenaltyCommand>
@@ -411,21 +434,70 @@ public sealed class UpdatePenaltyValidator : AbstractValidator<UpdatePenaltyComm
         RuleFor(x => x.RightTestName).NotEmpty().MaximumLength(200);
         RuleFor(x => x.WrongValue).GreaterThanOrEqualTo(0);
         RuleFor(x => x.RightValue).GreaterThanOrEqualTo(0);
-        RuleFor(x => x.User).Must(EnumParse.IsValid<PenaltyUser>).WithMessage("User must be Rep, DataEntry or Technician.");
+        PenaltyActorRules.Apply(this, x => x.UserType, x => x.PerformedByUserId, x => x.PerformedByRepId);
     }
 }
 public sealed class UpdatePenaltyHandler : ICommandHandler<UpdatePenaltyCommand>
 {
-    private readonly IPenaltyRecordRepository _repo; private readonly ILaboratoryRepository _labs; private readonly ICurrentUser _user;
-    public UpdatePenaltyHandler(IPenaltyRecordRepository repo, ILaboratoryRepository labs, ICurrentUser user) { _repo = repo; _labs = labs; _user = user; }
+    private readonly IPenaltyRecordRepository _repo; private readonly ILaboratoryRepository _labs;
+    private readonly IRepresentativeRepository _reps; private readonly IAppUserRepository _users; private readonly ICurrentUser _user;
+    public UpdatePenaltyHandler(IPenaltyRecordRepository repo, ILaboratoryRepository labs, IRepresentativeRepository reps, IAppUserRepository users, ICurrentUser user)
+    { _repo = repo; _labs = labs; _reps = reps; _users = users; _user = user; }
     public async Task<Unit> Handle(UpdatePenaltyCommand r, CancellationToken ct)
     {
         var p = await _repo.GetByIdAsync(new PenaltyRecordId(r.Id), ct) ?? throw new NotFoundException("PenaltyRecord", r.Id);
         var lab = await _labs.GetByIdAsync(p.LaboratoryId, ct) ?? throw new NotFoundException("Laboratory", p.LaboratoryId.Value);
         _user.EnsureInScope(lab);
+        var (userId, repId) = await PenaltyActorSupport.ResolveAsync(r.PerformedByUserId, r.PerformedByRepId, _reps, _users, _user, ct);
         p.Update(r.Date, r.AccNo, r.PatientName, r.WrongTestCode, r.WrongTestName, r.WrongValue,
-            r.RightTestCode, r.RightTestName, r.RightValue, EnumParse.Name<PenaltyUser>(r.User, nameof(r.User)));
+            r.RightTestCode, r.RightTestName, r.RightValue, EnumParse.Name<PenaltyUser>(r.UserType, nameof(r.UserType)), userId, repId);
         return Unit.Value;
+    }
+}
+
+/// <summary>Shape rules for a penalty's "performed by" person, shared by the create and update validators: a valid user
+/// type, and exactly the matching id — a representative for Rep, a system user for DataEntry / Technician.</summary>
+internal static class PenaltyActorRules
+{
+    public static void Apply<T>(AbstractValidator<T> v, System.Linq.Expressions.Expression<Func<T, string>> userType,
+        System.Linq.Expressions.Expression<Func<T, Guid?>> userId, System.Linq.Expressions.Expression<Func<T, Guid?>> repId)
+    {
+        var typeOf = userType.Compile();
+        v.RuleFor(userType).Must(EnumParse.IsValid<PenaltyUser>).WithMessage("User type must be Rep, DataEntry or Technician.");
+        v.When(x => string.Equals(typeOf(x), nameof(PenaltyUser.Rep), StringComparison.OrdinalIgnoreCase), () =>
+        {
+            v.RuleFor(repId).NotEmpty().WithMessage("Select the representative who made the error.");
+            v.RuleFor(userId).Null().WithMessage("A representative penalty cannot also name a system user.");
+        }).Otherwise(() =>
+        {
+            v.RuleFor(userId).NotEmpty().WithMessage("Select the system user who made the error.");
+            v.RuleFor(repId).Null().WithMessage("A data-entry / technician penalty cannot also name a representative.");
+        });
+    }
+}
+
+/// <summary>Resolves the "performed by" person: the representative must exist and lie within the caller's org-scope
+/// (record-scope rule); the system user must exist and be active. Returns the typed ids for the domain factory.</summary>
+internal static class PenaltyActorSupport
+{
+    public static async Task<(AppUserId? UserId, RepresentativeId? RepId)> ResolveAsync(Guid? performedByUserId, Guid? performedByRepId,
+        IRepresentativeRepository reps, IAppUserRepository users, ICurrentUser caller, CancellationToken ct)
+    {
+        RepresentativeId? repId = null; AppUserId? userId = null;
+        if (performedByRepId is { } rid)
+        {
+            var rep = await reps.GetByIdAsync(new RepresentativeId(rid), ct) ?? throw new NotFoundException("Representative", rid);
+            caller.EnsureInScope(rep);
+            repId = rep.Id;
+        }
+        if (performedByUserId is { } uid)
+        {
+            var user = await users.GetByIdAsync(new AppUserId(uid), ct) ?? throw new NotFoundException("User", uid);
+            if (!user.IsActive)
+                throw new Common.Exceptions.ValidationException(new Dictionary<string, string[]> { ["performedByUserId"] = new[] { "The selected user is inactive." } });
+            userId = user.Id;
+        }
+        return (userId, repId);
     }
 }
 

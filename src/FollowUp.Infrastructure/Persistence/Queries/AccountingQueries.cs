@@ -60,14 +60,40 @@ internal sealed class AccountingQueries : IAccountingQueries
         var rows = await q.OrderByDescending(p => p.Date).ThenByDescending(p => p.Serial).ToListAsync(ct);
         var labs = await LabRowsAsync(rows.Select(p => p.LaboratoryId), ct);
 
+        // Resolve the "performed by" names in two set-based lookups (reps and system users) rather than per row.
+        var repIds = rows.Where(p => p.PerformedByRepId is not null).Select(p => p.PerformedByRepId!.Value).Distinct().ToList();
+        var userIds = rows.Where(p => p.PerformedByUserId is not null).Select(p => p.PerformedByUserId!.Value).Distinct().ToList();
+        var repNames = repIds.Count == 0 ? new Dictionary<RepresentativeId, string>()
+            : await _db.Representatives.AsNoTracking().Where(r => repIds.Contains(r.Id)).ToDictionaryAsync(r => r.Id, r => r.FullName, ct);
+        var userNames = userIds.Count == 0 ? new Dictionary<AppUserId, string>()
+            : await _db.Users.AsNoTracking().Where(u => userIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.Username, ct);
+
         return rows.Select(p =>
         {
             labs.TryGetValue(p.LaboratoryId, out var lab);
+            string? performedBy = p.PerformedByRepId is { } rid ? repNames.GetValueOrDefault(rid)
+                : p.PerformedByUserId is { } uid ? userNames.GetValueOrDefault(uid) : null;
             return new PenaltyDto(p.Id.Value, p.Serial, p.Date, p.LaboratoryId.Value,
                 lab is null ? "—" : DisplayCode.For(lab.Code.Value, lab.IsEncrypted, canSeeEncrypted), lab?.Name ?? "—",
                 p.AccNo, p.PatientName, p.WrongTestCode, p.WrongTestName, p.WrongValue.Amount,
-                p.RightTestCode, p.RightTestName, p.RightValue.Amount, p.PenaltyAmount.Amount, p.User.Name);
+                p.RightTestCode, p.RightTestName, p.RightValue.Amount, p.PenaltyAmount.Amount,
+                p.UserType.Name, p.PerformedByRepId?.Value ?? p.PerformedByUserId?.Value, performedBy);
         }).ToList();
+    }
+
+    public async Task<IReadOnlyList<PenaltyActorDto>> PenaltyActorsAsync(PenaltyUser userType, OrgScope scope, CancellationToken ct)
+    {
+        if (userType == PenaltyUser.Rep)
+        {
+            // Reps are org-scoped like every rep-linked read; the rep type is carried so the picker can disambiguate.
+            var reps = await _db.Representatives.ApplyScope(scope).AsNoTracking().Where(r => r.IsActive)
+                .Select(r => new { r.Id, r.FullName, r.Type }).ToListAsync(ct);
+            return reps.OrderBy(r => r.FullName, StringComparer.OrdinalIgnoreCase)
+                .Select(r => new PenaltyActorDto(r.Id.Value, r.FullName, r.Type.Name)).ToList();
+        }
+        var users = await _db.Users.AsNoTracking().Where(u => u.IsActive).Select(u => new { u.Id, u.Username }).ToListAsync(ct);
+        return users.OrderBy(u => u.Username, StringComparer.OrdinalIgnoreCase)
+            .Select(u => new PenaltyActorDto(u.Id.Value, u.Username, null)).ToList();
     }
 
     // ---- Deductions ----

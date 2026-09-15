@@ -9,7 +9,7 @@ import { AuthService } from '../../core/auth.service';
 import { ToastService } from '../../core/toast.service';
 import { UiService } from '../../core/ui.service';
 import { TranslatePipe } from '../../core/i18n';
-import { LabListItem, PagedResult, PenaltyDto, TestLookup } from '../../core/models';
+import { LabListItem, PagedResult, PenaltyActorDto, PenaltyDto, TestLookup } from '../../core/models';
 import { ACC_STYLES, PENALTY_USERS, dayName, firstOfMonth, money } from './accounting.util';
 
 type Opt = { value: string; label: string };
@@ -57,7 +57,7 @@ type Opt = { value: string; label: string };
             <th>{{ 'acc_no' | t : 'Acc No' }}</th><th>{{ 'patient_name' | t : 'Patient Name' }}</th>
             <th>{{ 'wrong_test' | t : 'Wrong Test' }}</th><th class="r">{{ 'value' | t : 'Value' }}</th>
             <th>{{ 'right_test' | t : 'Right Test' }}</th><th class="r">{{ 'value' | t : 'Value' }}</th>
-            <th class="r">{{ 'penalty' | t : 'Penalty' }}</th><th>{{ 'user_role' | t : 'User' }}</th>
+            <th class="r">{{ 'penalty' | t : 'Penalty' }}</th><th>{{ 'user_type_user' | t : 'User Type / User' }}</th>
             @if (canManage()) { <th class="ar">{{ 'actions' | t : 'Actions' }}</th> }
           </tr></thead>
           <tbody>
@@ -69,7 +69,7 @@ type Opt = { value: string; label: string };
                 <td>{{ p.wrongTestName }} <span class="small muted">{{ p.wrongTestCode }}</span></td><td class="r mono">{{ p.wrongValue | number:'1.2-2' }}</td>
                 <td>{{ p.rightTestName }} <span class="small muted">{{ p.rightTestCode }}</span></td><td class="r mono">{{ p.rightValue | number:'1.2-2' }}</td>
                 <td class="r mono" [class.pos]="p.penalty > 0" [class.neg]="p.penalty < 0">{{ p.penalty | number:'1.2-2' }}</td>
-                <td>{{ userLabel(p.user) }}</td>
+                <td>{{ userLabel(p.userType) }} / {{ p.performedByName || '—' }}</td>
                 @if (canManage()) {
                   <td class="ar actions">
                     <button class="icon-btn" title="Edit" (click)="openEdit(p)">✎</button>
@@ -107,8 +107,10 @@ type Opt = { value: string; label: string };
               <div class="field"><label>{{ 'value' | t : 'Value' }} *</label><input class="input" type="number" min="0" step="0.01" [(ngModel)]="f.wrongValue"></div>
               <div class="field"><label>{{ 'right_test' | t : 'Right Test' }} *</label><app-filter-select [ngModel]="f.rightKey" (ngModelChange)="pickTest('right', $event)" [options]="testOptions()" [clearable]="true" placeholder="—"></app-filter-select></div>
               <div class="field"><label>{{ 'value' | t : 'Value' }} *</label><input class="input" type="number" min="0" step="0.01" [(ngModel)]="f.rightValue"></div>
-              <div class="field"><label>{{ 'user_role' | t : 'User' }} *</label>
-                <select class="select" [(ngModel)]="f.user">@for (u of users; track u) { <option [value]="u">{{ userLabel(u) }}</option> }</select></div>
+              <div class="field"><label>{{ 'user_type' | t : 'User Type' }} *</label>
+                <select class="select" [ngModel]="f.userType" (ngModelChange)="pickUserType($event)">@for (u of users; track u) { <option [value]="u">{{ userLabel(u) }}</option> }</select></div>
+              <div class="field"><label>{{ 'user' | t : 'User' }} *</label>
+                <app-filter-select [(ngModel)]="f.performedById" [options]="actorOptions()" [clearable]="true" [placeholder]="'select_user' | t : 'Select…'"></app-filter-select></div>
               <div class="field"><label>{{ 'penalty' | t : 'Penalty' }}</label><input class="input" [value]="(f.wrongValue ?? 0) - (f.rightValue ?? 0) | number:'1.2-2'" disabled></div>
             </div>
           </div>
@@ -129,6 +131,9 @@ export class PenaltiesComponent {
   private readonly ui = inject(UiService);
   readonly ddmy = ddmy;
   readonly users = PENALTY_USERS;
+  /** The people the "User" picker offers for the selected user type (reps for Rep, active system users otherwise). */
+  readonly actors = signal<PenaltyActorDto[]>([]);
+  readonly actorOptions = computed<Opt[]>(() => this.actors().map((a) => ({ value: a.id, label: a.detail ? `${a.name} (${a.detail})` : a.name })));
 
   readonly loading = signal(true);
   readonly busy = signal(false);
@@ -167,15 +172,23 @@ export class PenaltiesComponent {
 
   private blank() {
     return { date: localToday(), laboratoryId: '', accNo: '', patientName: '', wrongKey: '', wrongTestCode: '', wrongTestName: '', wrongValue: null as number | null,
-      rightKey: '', rightTestCode: '', rightTestName: '', rightValue: null as number | null, user: 'Rep' };
+      rightKey: '', rightTestCode: '', rightTestName: '', rightValue: null as number | null, userType: 'Rep', performedById: '' };
   }
-  openNew(): void { this.editId = null; this.f = this.blank(); this.dlg.set(true); }
+  /** Loads the picker for a user type; a type change clears the chosen person since the lists are disjoint. */
+  loadActors(userType: string): void {
+    this.actors.set([]);
+    this.api.get<PenaltyActorDto[]>('/accounting/penalty-actors', { userType }).subscribe({ next: (r) => this.actors.set(r), error: () => {} });
+  }
+  pickUserType(userType: string): void { this.f.userType = userType; this.f.performedById = ''; this.loadActors(userType); }
+  openNew(): void { this.editId = null; this.f = this.blank(); this.loadActors(this.f.userType); this.dlg.set(true); }
   openEdit(p: PenaltyDto): void {
     this.editId = p.id;
     const key = (code: string) => this.tests().find((t) => t.code === code)?.testType;
     this.f = { date: p.date, laboratoryId: p.laboratoryId, accNo: p.accNo, patientName: p.patientName,
       wrongKey: `${p.wrongTestCode}|${key(p.wrongTestCode) ?? ''}`, wrongTestCode: p.wrongTestCode, wrongTestName: p.wrongTestName, wrongValue: p.wrongValue,
-      rightKey: `${p.rightTestCode}|${key(p.rightTestCode) ?? ''}`, rightTestCode: p.rightTestCode, rightTestName: p.rightTestName, rightValue: p.rightValue, user: p.user };
+      rightKey: `${p.rightTestCode}|${key(p.rightTestCode) ?? ''}`, rightTestCode: p.rightTestCode, rightTestName: p.rightTestName, rightValue: p.rightValue,
+      userType: p.userType, performedById: p.performedById ?? '' };
+    this.loadActors(p.userType);
     this.dlg.set(true);
   }
   pickTest(side: 'wrong' | 'right', key: string): void {
@@ -187,14 +200,17 @@ export class PenaltiesComponent {
   valid(): boolean {
     const f = this.f;
     return !!f.date && !!f.laboratoryId && !!f.accNo.trim() && !!f.patientName.trim() && !!f.wrongTestCode && !!f.rightTestCode
-      && f.wrongValue !== null && f.wrongValue >= 0 && f.rightValue !== null && f.rightValue >= 0 && !!f.user;
+      && f.wrongValue !== null && f.wrongValue >= 0 && f.rightValue !== null && f.rightValue >= 0 && !!f.userType && !!f.performedById;
   }
   save(): void {
     if (!this.valid()) return;
     this.busy.set(true);
     const body = { date: this.f.date, laboratoryId: this.f.laboratoryId, accNo: this.f.accNo.trim(), patientName: this.f.patientName.trim(),
       wrongTestCode: this.f.wrongTestCode, wrongTestName: this.f.wrongTestName, wrongValue: this.f.wrongValue,
-      rightTestCode: this.f.rightTestCode, rightTestName: this.f.rightTestName, rightValue: this.f.rightValue, user: this.f.user };
+      rightTestCode: this.f.rightTestCode, rightTestName: this.f.rightTestName, rightValue: this.f.rightValue, userType: this.f.userType,
+      // Exactly one of the two, matching the type — the server enforces the same rule.
+      performedByRepId: this.f.userType === 'Rep' ? this.f.performedById : null,
+      performedByUserId: this.f.userType === 'Rep' ? null : this.f.performedById };
     const req = this.editId ? this.api.put(`/accounting/penalties/${this.editId}`, body) : this.api.post('/accounting/penalties', body);
     req.subscribe({ next: () => { this.busy.set(false); this.dlg.set(false); this.toast.success('Penalty saved.'); this.load(); }, error: () => this.busy.set(false) });
   }
@@ -203,10 +219,10 @@ export class PenaltiesComponent {
     this.api.delete(`/accounting/penalties/${p.id}`).subscribe({ next: () => { this.toast.success('Penalty deleted.'); this.load(); } });
   }
 
-  private static readonly HEADER = ['Serial', 'Day', 'Date', 'Lab', 'Code', 'Acc No', 'Patient Name', 'Wrong Test', 'Value', 'Right Test', 'Value', 'Penalty', 'User'];
+  private static readonly HEADER = ['Serial', 'Day', 'Date', 'Lab', 'Code', 'Acc No', 'Patient Name', 'Wrong Test', 'Value', 'Right Test', 'Value', 'Penalty', 'User Type / User'];
   private exportRows() {
     return this.rows().map((p) => [p.serial, this.day(p.date), ddmy(p.date), p.labName, p.labDisplayCode, p.accNo, p.patientName,
-      `${p.wrongTestName} (${p.wrongTestCode})`, money(p.wrongValue), `${p.rightTestName} (${p.rightTestCode})`, money(p.rightValue), money(p.penalty), this.userLabel(p.user)]);
+      `${p.wrongTestName} (${p.wrongTestCode})`, money(p.wrongValue), `${p.rightTestName} (${p.rightTestCode})`, money(p.rightValue), money(p.penalty), `${this.userLabel(p.userType)} / ${p.performedByName ?? '—'}`]);
   }
   exportExcel(): void { exportXlsx(`penalty-statement-${localToday()}.xlsx`, PenaltiesComponent.HEADER, this.exportRows()); }
   exportPdf(): void { printTable(`Penalty Statement (${ddmy(this.from)} → ${ddmy(this.to)})`, PenaltiesComponent.HEADER, this.exportRows()); }

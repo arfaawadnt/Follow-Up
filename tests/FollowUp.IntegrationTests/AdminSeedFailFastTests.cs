@@ -25,7 +25,7 @@ public sealed class AdminSeedFailFastTests
 
         using var scope = _fx.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FollowUpDbContext>();
-        await db.Database.ExecuteSqlRawAsync("DELETE FROM user_session; DELETE FROM app_user;");
+        await db.Database.ExecuteSqlRawAsync("DELETE FROM penalty_record; DELETE FROM user_session; DELETE FROM app_user;" /* penalty_record RESTRICTs app_user (performed_by_user_id) */);
         var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
 
         var act = () => seeder.SeedAsync(null);
@@ -47,7 +47,7 @@ public sealed class AdminSeedFailFastTests
 
         using var scope = _fx.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FollowUpDbContext>();
-        await db.Database.ExecuteSqlRawAsync("DELETE FROM user_session; DELETE FROM app_user;");
+        await db.Database.ExecuteSqlRawAsync("DELETE FROM penalty_record; DELETE FROM user_session; DELETE FROM app_user;" /* penalty_record RESTRICTs app_user (performed_by_user_id) */);
         var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
 
         // Seed with the canonical password other tests authenticate against, so the shared admin is left in the

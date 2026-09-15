@@ -13,7 +13,8 @@ public static class AccountingEndpoints
     public sealed record TreasuryBody(string Name, IReadOnlyList<string> Branches, bool IsActive = true);
     public sealed record TreasuryEntryBody(Guid TreasuryId, DateOnly Date, decimal Debit, decimal Credit, Guid ReasonId, string? Notes);
     public sealed record PenaltyBody(DateOnly Date, Guid LaboratoryId, string AccNo, string PatientName,
-        string WrongTestCode, string WrongTestName, decimal WrongValue, string RightTestCode, string RightTestName, decimal RightValue, string User);
+        string WrongTestCode, string WrongTestName, decimal WrongValue, string RightTestCode, string RightTestName, decimal RightValue,
+        string UserType, Guid? PerformedByUserId, Guid? PerformedByRepId);
     public sealed record DeductionBody(DateOnly Date, Guid AreaId, string Reason, decimal Value, string? Notes, DateOnly? PeriodFrom, DateOnly? PeriodTo);
     public sealed record CollectionBody(DateOnly Date, Guid LaboratoryId, string Type, IReadOnlyList<Guid> RepIds,
         decimal Cash, decimal Bank, string? Iban, string? DoneBy, string? Notes);
@@ -51,16 +52,19 @@ public static class AccountingEndpoints
         // ---- Penalty statement ----
         api.MapGet("/accounting/penalties", async (DateOnly from, DateOnly to, Guid? laboratoryId, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetPenaltiesQuery(from, to, laboratoryId), ct))).WithTags(tag);
+        // The "User" picker of the record dialog: reps for UserType=Rep, active system users otherwise.
+        api.MapGet("/accounting/penalty-actors", async (string userType, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetPenaltyActorsQuery(userType), ct))).WithTags(tag);
         api.MapPost("/accounting/penalties", async (PenaltyBody b, IMediator m, CancellationToken ct) =>
         {
             var id = await m.Send(new CreatePenaltyCommand(b.Date, b.LaboratoryId, b.AccNo, b.PatientName, b.WrongTestCode, b.WrongTestName, b.WrongValue,
-                b.RightTestCode, b.RightTestName, b.RightValue, b.User), ct);
+                b.RightTestCode, b.RightTestName, b.RightValue, b.UserType, b.PerformedByUserId, b.PerformedByRepId), ct);
             return Results.Created($"/api/v1/accounting/penalties/{id}", new { id });
         }).WithTags(tag);
         api.MapPut("/accounting/penalties/{id:guid}", async (Guid id, PenaltyBody b, IMediator m, CancellationToken ct) =>
         {
             await m.Send(new UpdatePenaltyCommand(id, b.Date, b.AccNo, b.PatientName, b.WrongTestCode, b.WrongTestName, b.WrongValue,
-                b.RightTestCode, b.RightTestName, b.RightValue, b.User), ct);
+                b.RightTestCode, b.RightTestName, b.RightValue, b.UserType, b.PerformedByUserId, b.PerformedByRepId), ct);
             return Results.NoContent();
         }).WithTags(tag);
         api.MapDelete("/accounting/penalties/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>

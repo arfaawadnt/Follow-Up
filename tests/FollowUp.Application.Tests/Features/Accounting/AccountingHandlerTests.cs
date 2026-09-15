@@ -4,6 +4,7 @@ using FollowUp.Application.Features.Accounting;
 using FollowUp.Application.Tests.Common;
 using FollowUp.Domain.Accounting;
 using FollowUp.Domain.Common;
+using FollowUp.Domain.Identity;
 using FollowUp.Domain.Laboratories;
 using FollowUp.Domain.Reference;
 using FollowUp.Domain.Representatives;
@@ -60,34 +61,96 @@ public class AccountingHandlerTests
 
     // ---- Penalty ----
 
+    private static AppUser SystemUser(bool active = true)
+    {
+        var u = AppUser.Create("clerk", new FakePasswordHasher().Hash("pw12345678"), RoleId.New());
+        if (!active) u.Deactivate();
+        return u;
+    }
+    private static CreatePenaltyCommand Penalty(Guid labId, string userType, Guid? performedByUserId, Guid? performedByRepId) =>
+        new(D, labId, "ACC-9", "Patient", "T1", "Wrong", 300m, "T2", "Right", 120m, userType, performedByUserId, performedByRepId);
+
     [Fact]
-    public async Task Create_penalty_stores_the_record_against_an_in_scope_lab()
+    public async Task Create_penalty_stores_the_record_against_an_in_scope_lab_attributed_to_a_system_user()
     {
         var labs = new FakeLaboratoryRepository(); var lab = Lab(); labs.Store.Add(lab);
+        var users = new FakeAppUserRepository(); var clerk = SystemUser(); users.Store.Add(clerk);
         var repo = new FakePenaltyRecordRepository();
-        var handler = new CreatePenaltyHandler(repo, labs, new FakeCurrentUser());
+        var handler = new CreatePenaltyHandler(repo, labs, new FakeRepresentativeRepository(), users, new FakeCurrentUser());
 
-        var id = await handler.Handle(new CreatePenaltyCommand(D, lab.Id.Value, "ACC-9", "Patient", "T1", "Wrong", 300m, "T2", "Right", 120m, "DataEntry"), CancellationToken.None);
+        var id = await handler.Handle(Penalty(lab.Id.Value, "DataEntry", clerk.Id.Value, null), CancellationToken.None);
 
         var p = repo.Store.Single(x => x.Id.Value == id);
         p.PenaltyAmount.Amount.Should().Be(180m);
-        p.User.Should().BeSameAs(PenaltyUser.DataEntry);
+        p.UserType.Should().BeSameAs(PenaltyUser.DataEntry);
+        p.PerformedByUserId.Should().Be(clerk.Id);
+        p.PerformedByRepId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Create_penalty_attributed_to_a_rep_requires_the_rep_to_exist_and_be_in_scope()
+    {
+        var labs = new FakeLaboratoryRepository(); var lab = Lab(); lab.PlaceInHierarchy(null, "Giza", null, null); labs.Store.Add(lab);
+        var reps = new FakeRepresentativeRepository(); var rep = Rep(); rep.AssignScope(null, "Cairo"); reps.Store.Add(rep);
+        var repo = new FakePenaltyRecordRepository();
+
+        // Unknown representative → 404.
+        await FluentActions.Awaiting(() => new CreatePenaltyHandler(repo, labs, reps, new FakeAppUserRepository(), new FakeCurrentUser())
+                .Handle(Penalty(lab.Id.Value, "Rep", null, Guid.NewGuid()), CancellationToken.None))
+            .Should().ThrowAsync<NotFoundException>();
+
+        // The lab is in the Giza-scoped caller's scope but the rep (Cairo) is not → 403 by the record-scope rule, nothing stored.
+        var giza = new FakeCurrentUser { Scope = OrgScope.Create(new[] { "*" }, new[] { "Giza" }, new[] { "*" }, new[] { "*" }, new[] { "*" }, new[] { "*" }) };
+        await FluentActions.Awaiting(() => new CreatePenaltyHandler(repo, labs, reps, new FakeAppUserRepository(), giza)
+                .Handle(Penalty(lab.Id.Value, "Rep", null, rep.Id.Value), CancellationToken.None))
+            .Should().ThrowAsync<ForbiddenException>();
+        repo.Store.Should().BeEmpty();
+
+        // Global caller → stored with the representative link and no user link.
+        var id = await new CreatePenaltyHandler(repo, labs, reps, new FakeAppUserRepository(), new FakeCurrentUser())
+            .Handle(Penalty(lab.Id.Value, "Rep", null, rep.Id.Value), CancellationToken.None);
+        var stored = repo.Store.Single(x => x.Id.Value == id);
+        stored.UserType.Should().BeSameAs(PenaltyUser.Rep);
+        stored.PerformedByRepId.Should().Be(rep.Id);
+        stored.PerformedByUserId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Create_penalty_attributed_to_a_system_user_requires_an_existing_active_user()
+    {
+        var labs = new FakeLaboratoryRepository(); var lab = Lab(); labs.Store.Add(lab);
+        var users = new FakeAppUserRepository(); var inactive = SystemUser(active: false); users.Store.Add(inactive);
+        var handler = new CreatePenaltyHandler(new FakePenaltyRecordRepository(), labs, new FakeRepresentativeRepository(), users, new FakeCurrentUser());
+
+        await FluentActions.Awaiting(() => handler.Handle(Penalty(lab.Id.Value, "Technician", Guid.NewGuid(), null), CancellationToken.None))
+            .Should().ThrowAsync<NotFoundException>("an unknown user id");
+        await FluentActions.Awaiting(() => handler.Handle(Penalty(lab.Id.Value, "Technician", inactive.Id.Value, null), CancellationToken.None))
+            .Should().ThrowAsync<FollowUp.Application.Common.Exceptions.ValidationException>("a deactivated user cannot be blamed for new errors");
     }
 
     [Fact]
     public async Task Create_penalty_for_an_unknown_lab_is_not_found()
     {
-        var handler = new CreatePenaltyHandler(new FakePenaltyRecordRepository(), new FakeLaboratoryRepository(), new FakeCurrentUser());
-        await FluentActions.Awaiting(() => handler.Handle(new CreatePenaltyCommand(D, Guid.NewGuid(), "A", "P", "T1", "W", 1m, "T2", "R", 1m, "Rep"), CancellationToken.None))
+        var handler = new CreatePenaltyHandler(new FakePenaltyRecordRepository(), new FakeLaboratoryRepository(), new FakeRepresentativeRepository(), new FakeAppUserRepository(), new FakeCurrentUser());
+        await FluentActions.Awaiting(() => handler.Handle(Penalty(Guid.NewGuid(), "Rep", null, Guid.NewGuid()), CancellationToken.None))
             .Should().ThrowAsync<NotFoundException>();
     }
 
     [Fact]
-    public void Penalty_validator_rejects_an_unknown_user_role()
+    public void Penalty_validator_requires_exactly_the_person_matching_the_user_type()
     {
-        var result = new CreatePenaltyValidator().Validate(new CreatePenaltyCommand(D, Guid.NewGuid(), "A", "P", "T1", "W", 1m, "T2", "R", 1m, "Janitor"));
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == nameof(CreatePenaltyCommand.User));
+        var v = new CreatePenaltyValidator();
+        var lab = Guid.NewGuid(); var someone = Guid.NewGuid();
+
+        v.Validate(Penalty(lab, "Janitor", someone, null)).Errors.Should().Contain(e => e.PropertyName == nameof(CreatePenaltyCommand.UserType));
+        v.Validate(Penalty(lab, "Rep", null, null)).Errors.Should().Contain(e => e.PropertyName == nameof(CreatePenaltyCommand.PerformedByRepId), "Rep needs a representative");
+        v.Validate(Penalty(lab, "Rep", someone, someone)).Errors.Should().Contain(e => e.PropertyName == nameof(CreatePenaltyCommand.PerformedByUserId), "Rep cannot also name a user");
+        v.Validate(Penalty(lab, "DataEntry", null, null)).Errors.Should().Contain(e => e.PropertyName == nameof(CreatePenaltyCommand.PerformedByUserId), "DataEntry needs a system user");
+        v.Validate(Penalty(lab, "Technician", someone, someone)).Errors.Should().Contain(e => e.PropertyName == nameof(CreatePenaltyCommand.PerformedByRepId), "Technician cannot also name a rep");
+
+        v.Validate(Penalty(lab, "Rep", null, someone)).IsValid.Should().BeTrue();
+        v.Validate(Penalty(lab, "DataEntry", someone, null)).IsValid.Should().BeTrue();
+        v.Validate(Penalty(lab, "Technician", someone, null)).IsValid.Should().BeTrue();
     }
 
     // ---- Deduction ----
