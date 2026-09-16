@@ -619,9 +619,10 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
     }
 
     /// <summary>
-    /// Upserts per-lab daily statistics (date, lab code) from the LabStats feed. Aggregates the doctor-grained
-    /// Oracle rows to the lab grain in memory, then bulk-loads the existing rows in the range once (one query,
-    /// not one-per-row) so a multi-year backfill stays a single scan + in-memory diff.
+    /// Upserts per-lab daily statistics (date, lab code, registration branch) from the LabStats feed. Aggregates the
+    /// Oracle rows to that grain in memory, then bulk-loads the existing rows in the range once (one query, not
+    /// one-per-row) so a multi-year backfill stays a single scan + in-memory diff. Rows synced before the branch split
+    /// (branch "") disappear from a re-synced window like any other stale key.
     /// </summary>
     private async Task<int> UpsertLabStatsAsync(IReadOnlyList<OracleRow> rows, DateOnly from, DateOnly to, CancellationToken ct)
     {
@@ -629,7 +630,7 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
 
         // Fold Oracle rows to (date, lab code): the query is already lab-grained, but guard against any
         // duplicate keys (e.g. duplicate doctor names) by summing.
-        var agg = new Dictionary<(DateOnly, string), (int reg, int test, decimal income)>();
+        var agg = new Dictionary<(DateOnly, string, string), (int reg, int test, decimal income)>();
         foreach (var row in rows)
         {
             var v = row.Values;
@@ -641,26 +642,27 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
 
             var date = DateOnly.FromDateTime(Convert.ToDateTime(dateObj));
             var labCode = code.ToUpperInvariant();
+            var branch = DailyLabStatistic.NormalizeBranch(v.TryGetValue(OracleColumns.Branch, out var brObj) ? Convert.ToString(brObj) : null);
             var reg = v.TryGetValue(OracleColumns.RegCount, out var rc) && rc is not null ? Convert.ToInt32(rc) : 0;
             var test = v.TryGetValue(OracleColumns.TestCount, out var tc) && tc is not null ? Convert.ToInt32(tc) : 0;
             var inc = v.TryGetValue(OracleColumns.Income, out var ic) && ic is not null ? Convert.ToDecimal(ic) : 0m;
 
-            var key = (date, labCode);
+            var key = (date, labCode, branch);
             var cur = agg.TryGetValue(key, out var x) ? x : default;
             agg[key] = (cur.reg + reg, cur.test + test, cur.income + (inc < 0m ? 0m : inc));
         }
 
         var existing = (await _labStats.GetRangeAsync(from, to, ct))
-            .ToDictionary(s => (s.Date, s.LabCode));
+            .ToDictionary(s => (s.Date, s.LabCode, s.Branch));
         var upserted = 0;
-        foreach (var ((date, labCode), val) in agg)
+        foreach (var ((date, labCode, branch), val) in agg)
         {
             var income = new Money(val.income);
-            if (existing.TryGetValue((date, labCode), out var stat))
+            if (existing.TryGetValue((date, labCode, branch), out var stat))
                 stat.Set(val.reg, val.test, income);
             else
             {
-                stat = DailyLabStatistic.For(date, labCode);
+                stat = DailyLabStatistic.For(date, labCode, branch);
                 stat.Set(val.reg, val.test, income);
                 _labStats.Add(stat);
             }
@@ -671,7 +673,7 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
         // collapses duplicate lab codes onto one (MIN), the dropped codes' prior rows would otherwise linger and
         // inflate totals; likewise a lab that stops appearing on a day should not keep a stale row. Re-syncing a
         // window replaces it wholesale (mirrors the TestStats upsert).
-        foreach (var stale in existing.Values.Where(s => !agg.ContainsKey((s.Date, s.LabCode))))
+        foreach (var stale in existing.Values.Where(s => !agg.ContainsKey((s.Date, s.LabCode, s.Branch))))
             _labStats.Remove(stale);
 
         return upserted;

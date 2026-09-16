@@ -60,6 +60,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
         <div class="field"><label>{{ 'lab_status' | t : 'Lab Status' }}</label><app-filter-select [options]="statuses()" [ngModel]="status()" (ngModelChange)="status.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><label>{{ 'category' | t : 'Category' }}</label><app-filter-select [multiple]="true" [options]="categories()" [ngModel]="category()" (ngModelChange)="category.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><label>{{ 'serving_branch' | t : 'Serving branch' }}</label><app-filter-select [multiple]="true" [options]="branches()" [ngModel]="branch()" (ngModelChange)="branch.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
+        <div class="field"><label>{{ 'reg_branch' | t : 'Reg branch' }}</label><app-filter-select [multiple]="true" [options]="regBranches()" [ngModel]="regBranch()" (ngModelChange)="regBranch.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><label>{{ 'sort_by' | t : 'Sort By' }}</label><select class="select" [ngModel]="sortBy()" (ngModelChange)="sortBy.set($event)">
           <option value="tests_desc">{{ 'sort_tests_desc' | t : 'Total Tests (High → Low)' }}</option>
           <option value="tests_asc">{{ 'sort_tests_asc' | t : 'Total Tests (Low → High)' }}</option>
@@ -167,6 +168,7 @@ export class LabStatsComponent {
   readonly status = signal('');
   readonly category = signal<string[]>([]);
   readonly branch = signal<string[]>([]);
+  readonly regBranch = signal<string[]>([]);
   readonly sortBy = signal<'tests_desc' | 'tests_asc' | 'income_desc' | 'income_asc'>('tests_desc');
   readonly view = signal<View>('monthly');
   readonly metric = signal<Metric>('count');
@@ -186,6 +188,7 @@ export class LabStatsComponent {
   readonly statuses = computed(() => [...new Set(this.rows().map((s) => s.status).filter((v): v is string => !!v))].sort());
   readonly categories = computed(() => [...new Set(this.rows().map((s) => s.category).filter((v): v is string => !!v))].sort());
   readonly branches = computed(() => [...new Set(this.rows().map((s) => s.branch).filter((v): v is string => !!v))].sort());
+  readonly regBranches = computed(() => [...new Set(this.rows().map((s) => s.regBranch).filter((v): v is string => !!v))].sort());
 
   readonly filtered = computed(() => {
     const q = this.q().trim().toLowerCase();
@@ -197,7 +200,8 @@ export class LabStatsComponent {
       (!this.segment() || s.segment === this.segment()) &&
       (!this.status() || s.status === this.status()) &&
       (!this.category().length || this.category().includes(s.category ?? '')) &&
-      (!this.branch().length || this.branch().includes(s.branch ?? '')));
+      (!this.branch().length || this.branch().includes(s.branch ?? '')) &&
+      (!this.regBranch().length || this.regBranch().includes(s.regBranch ?? '')));
   });
   private periodKey(date: string): string { const v = this.view(); return v === 'yearly' ? date.slice(0, 4) : v === 'monthly' ? date.slice(0, 7) : date; }
   colLabel(c: string): string { if (this.view() === 'monthly' && c.length === 7) { const [y, m] = c.split('-'); return `${MO[+m - 1]} ${y}`; } return c; }
@@ -245,9 +249,9 @@ export class LabStatsComponent {
     const f = this.filtered();
     const tests = f.reduce((a, s) => a + s.testCount, 0);
     const labs = new Set(f.map((s) => s.labCode)).size;
-    // Each row is one (lab, day) statistic = one lab visit; average per lab per visit divides by visits,
-    // not by distinct labs (a lab active over N days is N visits, not one).
-    const visits = f.length;
+    // A lab's day may be split over several registration branches; a "visit" is one (lab, day), so count the
+    // distinct pairs rather than the rows. Average per lab per visit divides by visits, not by distinct labs.
+    const visits = new Set(f.map((s) => `${s.labCode}|${s.date}`)).size;
     return { tests, income: f.reduce((a, s) => a + s.income, 0), labs, visits, avg: visits ? tests / visits : 0 };
   });
 

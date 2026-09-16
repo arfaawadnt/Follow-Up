@@ -192,6 +192,8 @@ export interface LabStat {
   date: string; labCode: string; name: string | null; category: string | null; segment: string | null;
   governorate: string | null; city: string | null; area: string | null; branch: string | null; status: string | null;
   registrations: number; testCount: number; income: number;
+  /** Registration branch (where the registrations were made); null for rows synced before the split or imported from xlsx. */
+  regBranch: string | null;
 }
 export interface RepPerformanceRow {
   repId: string; name: string; type: string; goalType: string; metric: string | null; goalDuration: string;

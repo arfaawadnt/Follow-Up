@@ -8,31 +8,39 @@ public readonly record struct DailyLabStatisticId(Guid Value)
 }
 
 /// <summary>
-/// Daily per-lab volumes keyed by (date, lab code) (SRS FR-13). Populated by xlsx import and by Oracle sync;
-/// upserted by key. Income is money at fixed precision.
+/// Daily per-lab volumes keyed by (date, lab code, registration branch) (SRS FR-13). Populated by xlsx import (branch
+/// unknown → "") and by the Oracle sync, which since 2026-09-16 splits a lab's day by the branch the registrations were
+/// made at (reg.branch_code) so the Lab Statistics page can filter by "Reg Branch". Every consumer that wants a lab's
+/// day total sums the rows of that (date, lab code). Income is money at fixed precision.
 /// </summary>
 public sealed class DailyLabStatistic : AggregateRoot<DailyLabStatisticId>
 {
     private DailyLabStatistic() { } // EF
 
-    private DailyLabStatistic(DailyLabStatisticId id, DateOnly date, string labCode)
+    private DailyLabStatistic(DailyLabStatisticId id, DateOnly date, string labCode, string branch)
         : base(id)
     {
         Date = date;
         LabCode = labCode;
+        Branch = branch;
     }
 
     public DateOnly Date { get; private set; }
     public string LabCode { get; private set; } = null!;
+    /// <summary>Registration branch CODE (Oracle reg.branch_code, uppercased); "" when unknown (xlsx import, rows synced before 2026-09-16).</summary>
+    public string Branch { get; private set; } = "";
     public int Registrations { get; private set; }
     public int TestCount { get; private set; }
     public Money Income { get; private set; }
 
-    public static DailyLabStatistic For(DateOnly date, string labCode)
+    public static DailyLabStatistic For(DateOnly date, string labCode, string? branch = null)
     {
         if (string.IsNullOrWhiteSpace(labCode)) throw new DomainException("Lab code is required.");
-        return new DailyLabStatistic(DailyLabStatisticId.New(), date, labCode.Trim().ToUpperInvariant());
+        return new DailyLabStatistic(DailyLabStatisticId.New(), date, labCode.Trim().ToUpperInvariant(), NormalizeBranch(branch));
     }
+
+    /// <summary>The key form of a registration branch code: trimmed, uppercased, "" for none.</summary>
+    public static string NormalizeBranch(string? branch) => string.IsNullOrWhiteSpace(branch) ? "" : branch.Trim().ToUpperInvariant();
 
     public void Set(int registrations, int testCount, Money income)
     {

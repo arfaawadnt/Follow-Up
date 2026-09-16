@@ -32,10 +32,12 @@ internal sealed class DailyLabStatisticConfiguration : IEntityTypeConfiguration<
 
         b.Property(x => x.Date);
         b.Property(x => x.LabCode).HasMaxLength(32).IsRequired();
+        b.Property(x => x.Branch).HasMaxLength(32).IsRequired().HasDefaultValue(""); // registration branch code; "" = unknown
         b.Property(x => x.Registrations);
         b.Property(x => x.TestCount);
         b.Property(x => x.Income); // Money -> numeric(18,2) via convention
-        b.HasIndex(x => new { x.Date, x.LabCode }).IsUnique();
+        b.HasIndex(x => new { x.Date, x.LabCode, x.Branch }).IsUnique();
+        b.HasIndex(x => new { x.Date, x.LabCode }); // every "lab day total" consumer sums the branch rows of a (date, lab)
     }
 }
 

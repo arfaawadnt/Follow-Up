@@ -9,8 +9,12 @@ using FollowUp.Domain.Statistics;
 
 namespace FollowUp.Application.Features.LabStats;
 
+/// <summary>One (date, lab, registration branch) row. <c>Branch</c> is the lab's SERVING branch (lab master);
+/// <c>RegBranch</c> is the branch the registrations were made at (name when the Branches reference knows the code, else
+/// the code; null for rows synced before the split or imported from xlsx).</summary>
 public sealed record LabStatDto(DateOnly Date, string LabCode, string? Name, string? Category, string? Segment,
-    string? Governorate, string? City, string? Area, string? Branch, string? Status, int Registrations, int TestCount, decimal Income);
+    string? Governorate, string? City, string? Area, string? Branch, string? Status, int Registrations, int TestCount, decimal Income,
+    string? RegBranch = null);
 public sealed record ImportSummary(int Processed, int Upserted, int Skipped, IReadOnlyList<string> Warnings);
 
 public interface ILabStatsQueries
@@ -75,7 +79,8 @@ public sealed class ImportLabStatsHandler : ICommandHandler<ImportLabStatsComman
             var testCount = ImportParsing.Int(row, "TestCount");
             var income = ImportParsing.Decimal(row, "Income");
 
-            var stat = await _repository.GetAsync(date, labCode, ct);
+            // The workbook carries no registration branch: it feeds the branch-less row of the (date, lab).
+            var stat = await _repository.GetAsync(date, labCode, "", ct);
             if (stat is null)
             {
                 stat = DailyLabStatistic.For(date, labCode);
