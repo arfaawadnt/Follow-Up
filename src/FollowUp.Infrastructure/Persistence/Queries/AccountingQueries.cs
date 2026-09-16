@@ -4,6 +4,7 @@ using FollowUp.Application.Features.Accounting;
 using FollowUp.Domain.Accounting;
 using FollowUp.Domain.Identity;
 using FollowUp.Domain.Laboratories;
+using FollowUp.Domain.Operations;
 using FollowUp.Domain.Reference;
 using FollowUp.Domain.Representatives;
 using Microsoft.EntityFrameworkCore;
@@ -223,6 +224,14 @@ internal sealed class AccountingQueries : IAccountingQueries
             lines.Add((kv.Key, 0, "OracleIncome", kv.Value, 0m, "Synced income of the rep's collector labs", null));
         foreach (var e in manual)
             lines.Add((e.Date, 1, "ManualIncome", e.Amount.Amount, 0m, e.Notes, e.Id.Value));
+
+        // Debit 3 — the Lab Responsible's real-income sheet: what the labs actually paid that day (incl. delayed payments).
+        var sheet = await _db.RepLabIncomes.AsNoTracking().Where(e => e.RepresentativeId == rid && e.Date >= from && e.Date <= to).ToListAsync(ct);
+        foreach (var g in sheet.GroupBy(e => e.Date))
+        {
+            var total = g.Sum(e => e.Paid.Amount + e.DelayedPayment.Amount);
+            if (total != 0m) lines.Add((g.Key, 1, "RealIncome", total, 0m, $"Real income sheet · {g.Count()} lab(s)", null));
+        }
         foreach (var c in collections)
             lines.Add((c.Date, 2, "Collection", 0m, c.ShareOf(rid).Amount, c.Notes ?? (c.Bank.Amount > 0 ? $"Bank (IBAN {c.Iban?.Name})" : "Cash"), c.Id.Value));
 
@@ -237,6 +246,79 @@ internal sealed class AccountingQueries : IAccountingQueries
     }
 
     // ---- helpers ----
+
+    // ---- Real income sheet (Lab Responsible × area × date) ----
+
+    public async Task<IReadOnlyList<RealIncomeRepDto>> RealIncomeRepsAsync(Guid areaId, OrgScope scope, CancellationToken ct)
+    {
+        var area = await _db.Areas.AsNoTracking().FirstOrDefaultAsync(a => a.Id == new AreaId(areaId), ct);
+        if (area is null) return Array.Empty<RealIncomeRepDto>();
+        var responsibles = await _db.Laboratories.ApplyScope(scope).AsNoTracking()
+            .Where(l => l.Area == area.Name && l.ResponsibleRepId != null).Select(l => l.ResponsibleRepId!.Value).ToListAsync(ct);
+        var counts = responsibles.GroupBy(r => r).ToDictionary(g => g.Key, g => g.Count());
+        var ids = counts.Keys.ToList();
+        var reps = await _db.Representatives.ApplyScope(scope).AsNoTracking().Where(r => ids.Contains(r.Id)).OrderBy(r => r.FullName).ToListAsync(ct);
+        return reps.Select(r => new RealIncomeRepDto(r.Id.Value, r.FullName, counts[r.Id])).ToList();
+    }
+
+    public async Task<IReadOnlyList<RealIncomeLabDto>> RealIncomeLabsAsync(Guid areaId, OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
+    {
+        var area = await _db.Areas.AsNoTracking().FirstOrDefaultAsync(a => a.Id == new AreaId(areaId), ct);
+        if (area is null) return Array.Empty<RealIncomeLabDto>();
+        var labs = await _db.Laboratories.ApplyScope(scope).AsNoTracking().Where(l => l.Area == area.Name).OrderBy(l => l.Name)
+            .Select(l => new { l.Id, l.Code, l.IsEncrypted, l.Name }).ToListAsync(ct);
+        return labs.Select(l => new RealIncomeLabDto(l.Id.Value, DisplayCode.For(l.Code.Value, l.IsEncrypted, canSeeEncrypted), l.Name)).ToList();
+    }
+
+    public async Task<RealIncomeSheetDto?> RealIncomeSheetAsync(Guid areaId, DateOnly date, Guid repId, OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
+    {
+        var area = await _db.Areas.AsNoTracking().FirstOrDefaultAsync(a => a.Id == new AreaId(areaId), ct);
+        if (area is null) return null;
+        var rid = new RepresentativeId(repId);
+        var rep = await _db.Representatives.ApplyScope(scope).AsNoTracking().FirstOrDefaultAsync(r => r.Id == rid, ct);
+        if (rep is null) return null;
+
+        var labs = await _db.Laboratories.ApplyScope(scope).AsNoTracking().Where(l => l.Area == area.Name)
+            .Select(l => new { l.Id, l.Code, l.IsEncrypted, l.Name, l.ResponsibleRepId }).ToListAsync(ct);
+        var labIds = labs.Select(l => l.Id).ToList();
+
+        // A "record visit" = a check-in with samples on the date (Visited, or Received afterwards): today's board + the archive.
+        var visited = VisitStatus.Visited; var received = VisitStatus.Received;
+        var live = await _db.DailyVisits.AsNoTracking()
+            .Where(v => v.VisitDate == date && labIds.Contains(v.LaboratoryId) && (v.Status == visited || v.Status == received))
+            .Select(v => new { v.LaboratoryId, v.TotalRequired, v.SampleCount }).ToListAsync(ct);
+        var archived = await _db.VisitHistory.AsNoTracking()
+            .Where(h => h.VisitDate == date && labIds.Contains(h.LaboratoryId) && (h.Status == visited.Name || h.Status == received.Name))
+            .Select(h => new { h.LaboratoryId, h.TotalRequired, h.SampleCount }).ToListAsync(ct);
+        var visits = live.Concat(archived).GroupBy(v => v.LaboratoryId).ToDictionary(g => g.Key, g => (
+            Required: g.Any(x => x.TotalRequired != null) ? g.Sum(x => x.TotalRequired ?? 0) : (int?)null,
+            Samples: g.Any(x => x.SampleCount != null) ? g.Sum(x => x.SampleCount ?? 0) : (int?)null));
+
+        var entries = (await _db.RepLabIncomes.AsNoTracking().Where(e => e.RepresentativeId == rid && e.Date == date).ToListAsync(ct))
+            .ToDictionary(e => e.LaboratoryId);
+
+        // Rows = the rep's labs with a recorded visit that day ∪ labs the rep already entered for that day.
+        var rowLabs = labs.Where(l => (l.ResponsibleRepId == rid && visits.ContainsKey(l.Id)) || entries.ContainsKey(l.Id)).OrderBy(l => l.Name).ToList();
+        var rowIds = rowLabs.Select(l => l.Id).ToList();
+        var codes = rowLabs.Select(l => l.Code.Value.ToUpperInvariant()).ToList();
+        var ldm = (await _db.DailyLabStatistics.AsNoTracking().Where(s => s.Date == date && codes.Contains(s.LabCode.ToUpper())).ToListAsync(ct))
+            .GroupBy(s => s.LabCode.ToUpperInvariant()).ToDictionary(g => g.Key, g => g.Sum(s => s.Income.Amount));
+        var penalties = (await _db.PenaltyRecords.AsNoTracking().Where(p => p.Date == date && rowIds.Contains(p.LaboratoryId)).ToListAsync(ct))
+            .GroupBy(p => p.LaboratoryId).ToDictionary(g => g.Key, g => g.Sum(p => p.PenaltyAmount.Amount));
+        // Remaining carried from earlier days (any rep): Σ(total required − paid) − Σ delayed payments before the date.
+        var previous = (await _db.RepLabIncomes.AsNoTracking().Where(e => e.Date < date && rowIds.Contains(e.LaboratoryId)).ToListAsync(ct))
+            .GroupBy(e => e.LaboratoryId).ToDictionary(g => g.Key, g => g.Sum(e => e.TotalRequired.Amount - e.Paid.Amount - e.DelayedPayment.Amount));
+
+        var rows = rowLabs.Select(l =>
+        {
+            visits.TryGetValue(l.Id, out var v); entries.TryGetValue(l.Id, out var e);
+            return new RealIncomeRowDto(l.Id.Value, DisplayCode.For(l.Code.Value, l.IsEncrypted, canSeeEncrypted), l.Name,
+                visits.ContainsKey(l.Id), v.Required, v.Samples,
+                ldm.GetValueOrDefault(l.Code.Value.ToUpperInvariant()), penalties.GetValueOrDefault(l.Id), previous.GetValueOrDefault(l.Id),
+                e?.Id.Value, e?.Samples ?? 0, e?.TotalRequired.Amount ?? 0m, e?.Paid.Amount ?? 0m, e?.Remaining.Amount ?? 0m, e?.DelayedPayment.Amount ?? 0m, e?.Notes);
+        }).ToList();
+        return new RealIncomeSheetDto(date, area.Id.Value, area.Name, rep.Id.Value, rep.FullName, rows);
+    }
 
     private async Task<Dictionary<LaboratoryId, LabRow>> LabRowsAsync(IEnumerable<LaboratoryId> ids, CancellationToken ct)
     {

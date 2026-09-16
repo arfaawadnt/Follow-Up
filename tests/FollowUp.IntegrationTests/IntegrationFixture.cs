@@ -77,6 +77,7 @@ DELETE FROM penalty_record;
 DELETE FROM treasury_entry;  -- before collection: AutoCollection rows RESTRICT their collection
 DELETE FROM collection;
 DELETE FROM rep_income_entry;
+DELETE FROM rep_lab_income;
 DELETE FROM laboratory;
 -- Release the area management-role FK (Restrict → representative) so a test that then deletes reps stays FK-safe;
 -- reference rows themselves are intentionally left in place.

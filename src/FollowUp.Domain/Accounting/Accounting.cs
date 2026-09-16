@@ -75,6 +75,7 @@ public readonly record struct PenaltyRecordId(Guid Value) { public static Penalt
 public readonly record struct DeductionId(Guid Value) { public static DeductionId New() => new(Guid.NewGuid()); public override string ToString() => Value.ToString(); }
 public readonly record struct CollectionId(Guid Value) { public static CollectionId New() => new(Guid.NewGuid()); public override string ToString() => Value.ToString(); }
 public readonly record struct RepIncomeEntryId(Guid Value) { public static RepIncomeEntryId New() => new(Guid.NewGuid()); public override string ToString() => Value.ToString(); }
+public readonly record struct RepLabIncomeId(Guid Value) { public static RepLabIncomeId New() => new(Guid.NewGuid()); public override string ToString() => Value.ToString(); }
 
 // ---- Shared guards ----
 
@@ -705,5 +706,58 @@ public sealed class RepIncomeEntry : AggregateRoot<RepIncomeEntryId>, IAuditable
     {
         if (amount <= 0) throw new DomainException("The income amount must be greater than zero.");
         return new RepIncomeEntry(RepIncomeEntryId.New(), repId) { Date = date, Amount = new Money(amount), Notes = AccountingGuards.Optional(notes, 500) };
+    }
+}
+
+// ---- Rep Statement: the Lab Responsible's daily real-income sheet ----
+
+/// <summary>
+/// One line of a Lab Responsible's daily "real income" sheet (operator decision, 2026-09-16): what the rep reports for
+/// ONE lab on ONE date — samples, the amount the lab had to pay (<see cref="TotalRequired"/>), what it actually paid
+/// (<see cref="Paid"/>), what it paid against earlier days' remaining (<see cref="DelayedPayment"/>) and notes.
+/// <see cref="Remaining"/> = TotalRequired − Paid carries to later days as that lab's "remaining for previous data"
+/// (Σ remaining − Σ delayed payments of earlier lines). The rep's real income for a date = Σ(Paid + DelayedPayment).
+/// One line per (rep, lab, date); an all-zero line with no notes is not worth storing (<see cref="IsEmpty"/>).
+/// </summary>
+public sealed class RepLabIncome : AggregateRoot<RepLabIncomeId>, IAuditable
+{
+    private RepLabIncome() { } // EF
+    private RepLabIncome(RepLabIncomeId id, RepresentativeId repId, LaboratoryId labId, DateOnly date) : base(id)
+    { RepresentativeId = repId; LaboratoryId = labId; Date = date; }
+
+    public long Serial { get; private set; }
+    public DateOnly Date { get; private set; }
+    public RepresentativeId RepresentativeId { get; private set; }
+    public LaboratoryId LaboratoryId { get; private set; }
+    public int Samples { get; private set; }
+    public Money TotalRequired { get; private set; }
+    public Money Paid { get; private set; }
+    public Money DelayedPayment { get; private set; }
+    public string? Notes { get; private set; }
+
+    public Money Remaining => TotalRequired - Paid;
+    public bool IsEmpty => Samples == 0 && TotalRequired.Amount == 0 && Paid.Amount == 0 && DelayedPayment.Amount == 0 && Notes is null;
+
+    public DateTimeOffset CreatedAt { get; private set; }
+    public string CreatedBy { get; private set; } = null!;
+    public DateTimeOffset? UpdatedAt { get; private set; }
+    public string? UpdatedBy { get; private set; }
+
+    public static RepLabIncome Create(RepresentativeId repId, LaboratoryId labId, DateOnly date, int samples, decimal totalRequired, decimal paid, decimal delayedPayment, string? notes)
+    {
+        var e = new RepLabIncome(RepLabIncomeId.New(), repId, labId, date);
+        e.Update(samples, totalRequired, paid, delayedPayment, notes);
+        return e;
+    }
+
+    public void Update(int samples, decimal totalRequired, decimal paid, decimal delayedPayment, string? notes)
+    {
+        if (samples < 0) throw new DomainException("Samples cannot be negative.");
+        var required = AccountingGuards.NonNegative(totalRequired, "Total required");
+        var p = AccountingGuards.NonNegative(paid, "Paid");
+        var d = AccountingGuards.NonNegative(delayedPayment, "Delayed payment");
+        if (p > required) throw new DomainException("Paid cannot exceed the total required; record the excess as a delayed payment.");
+        Samples = samples; TotalRequired = required; Paid = p; DelayedPayment = d;
+        Notes = AccountingGuards.Optional(notes, 500);
     }
 }

@@ -198,6 +198,15 @@ public sealed class FakeRepIncomeEntryRepository : IRepIncomeEntryRepository
     public void Remove(Domain.Accounting.RepIncomeEntry entry) => Store.Remove(entry);
 }
 
+public sealed class FakeRepLabIncomeRepository : IRepLabIncomeRepository
+{
+    public readonly List<Domain.Accounting.RepLabIncome> Store = new();
+    public Task<IReadOnlyList<Domain.Accounting.RepLabIncome>> GetForRepDateAsync(RepresentativeId repId, DateOnly date, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Domain.Accounting.RepLabIncome>>(Store.Where(x => x.RepresentativeId == repId && x.Date == date).ToList());
+    public void Add(Domain.Accounting.RepLabIncome entry) => Store.Add(entry);
+    public void Remove(Domain.Accounting.RepLabIncome entry) => Store.Remove(entry);
+}
+
 public sealed class FakeDailyVisitRepository : IDailyVisitRepository
 {
     public readonly List<DailyVisit> Store = new();

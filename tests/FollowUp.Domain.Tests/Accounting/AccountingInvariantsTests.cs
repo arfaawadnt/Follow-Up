@@ -311,4 +311,23 @@ public class AccountingInvariantsTests
         FluentActions.Invoking(() => RepIncomeEntry.Create(RepresentativeId.New(), D, 0m, null))
             .Should().Throw<DomainException>().WithMessage("*greater than zero*");
     }
+
+    [Fact]
+    public void A_real_income_sheet_line_keeps_paid_within_total_required_and_derives_the_remaining()
+    {
+        var rep = RepresentativeId.New(); var lab = LaboratoryId.New();
+        var line = RepLabIncome.Create(rep, lab, D, 12, 1000m, 700m, 150m, "  partly paid ");
+        line.Remaining.Amount.Should().Be(300m);
+        line.Notes.Should().Be("partly paid");
+        line.IsEmpty.Should().BeFalse();
+
+        FluentActions.Invoking(() => line.Update(-1, 1000m, 0m, 0m, null)).Should().Throw<DomainException>().WithMessage("*Samples*");
+        FluentActions.Invoking(() => line.Update(1, -5m, 0m, 0m, null)).Should().Throw<DomainException>().WithMessage("*Total required*");
+        FluentActions.Invoking(() => line.Update(1, 100m, 120m, 0m, null)).Should().Throw<DomainException>().WithMessage("*cannot exceed*");
+        FluentActions.Invoking(() => line.Update(1, 100m, 50m, -1m, null)).Should().Throw<DomainException>().WithMessage("*Delayed payment*");
+        line.Remaining.Amount.Should().Be(300m, "a refused update leaves the line untouched");
+
+        line.Update(0, 0m, 0m, 0m, "   ");
+        line.IsEmpty.Should().BeTrue("all zero and no notes — the sheet drops such a line");
+    }
 }

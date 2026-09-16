@@ -83,6 +83,7 @@ public sealed class FollowUpDbContext : DbContext
     public DbSet<Domain.Accounting.Deduction> Deductions => Set<Domain.Accounting.Deduction>();
     public DbSet<Domain.Accounting.Collection> Collections => Set<Domain.Accounting.Collection>();
     public DbSet<Domain.Accounting.RepIncomeEntry> RepIncomeEntries => Set<Domain.Accounting.RepIncomeEntry>();
+    public DbSet<Domain.Accounting.RepLabIncome> RepLabIncomes => Set<Domain.Accounting.RepLabIncome>();
 
     // Infrastructure
     public DbSet<Outbox.OutboxMessage> OutboxMessages => Set<Outbox.OutboxMessage>();
@@ -156,6 +157,7 @@ public sealed class FollowUpDbContext : DbContext
         c.Properties<Domain.Accounting.DeductionId>().HaveConversion<DeductionIdConverter>();
         c.Properties<Domain.Accounting.CollectionId>().HaveConversion<CollectionIdConverter>();
         c.Properties<Domain.Accounting.RepIncomeEntryId>().HaveConversion<RepIncomeEntryIdConverter>();
+        c.Properties<Domain.Accounting.RepLabIncomeId>().HaveConversion<RepLabIncomeIdConverter>();
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

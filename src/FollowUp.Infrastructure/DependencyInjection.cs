@@ -188,6 +188,7 @@ public static class DependencyInjection
         services.AddScoped<IDeductionRepository, DeductionRepository>();
         services.AddScoped<ICollectionRepository, CollectionRepository>();
         services.AddScoped<IRepIncomeEntryRepository, RepIncomeEntryRepository>();
+        services.AddScoped<IRepLabIncomeRepository, RepLabIncomeRepository>();
         return services;
     }
 }

@@ -460,4 +460,39 @@ public class AccountingHandlerTests
         repo.Store.Single(x => x.Id.Value == id).Amount.Amount.Should().Be(1500m);
         new CreateRepIncomeEntryValidator().Validate(new CreateRepIncomeEntryCommand(D, rep.Id.Value, 0m, null)).IsValid.Should().BeFalse("must be positive");
     }
+
+    // ---- Real income sheet ----
+
+    [Fact]
+    public async Task Saving_the_real_income_sheet_creates_updates_and_removes_lines_and_needs_a_lab_responsible()
+    {
+        var reps = new FakeRepresentativeRepository(); var rep = LabResp("Resp"); var collector = Rep("Collector"); reps.Store.Add(rep); reps.Store.Add(collector);
+        var labs = new FakeLaboratoryRepository(); var a = Lab(); var b = Lab(); labs.Store.AddRange(new[] { a, b });
+        var repo = new FakeRepLabIncomeRepository();
+        var handler = new SaveRealIncomeSheetHandler(repo, reps, labs, new FakeCurrentUser());
+        RealIncomeRowInput Row(Laboratory lab, int samples, decimal required, decimal paid, decimal delayed = 0m, string? notes = null) =>
+            new(lab.Id.Value, samples, required, paid, delayed, notes);
+
+        // Create: two labs, one of them all-zero (skipped).
+        await handler.Handle(new SaveRealIncomeSheetCommand(D, rep.Id.Value, new[] { Row(a, 10, 1000m, 600m, 50m, "first"), Row(b, 0, 0m, 0m) }), CancellationToken.None);
+        var line = repo.Store.Should().ContainSingle().Subject;
+        line.LaboratoryId.Should().Be(a.Id); line.Paid.Amount.Should().Be(600m); line.Remaining.Amount.Should().Be(400m); line.DelayedPayment.Amount.Should().Be(50m);
+
+        // Update the existing line, add the second lab; then clear the first (removed) while keeping the second.
+        await handler.Handle(new SaveRealIncomeSheetCommand(D, rep.Id.Value, new[] { Row(a, 10, 1000m, 1000m), Row(b, 3, 200m, 200m) }), CancellationToken.None);
+        repo.Store.Should().HaveCount(2); repo.Store.Single(x => x.LaboratoryId == a.Id).Remaining.Amount.Should().Be(0m);
+        await handler.Handle(new SaveRealIncomeSheetCommand(D, rep.Id.Value, new[] { Row(a, 0, 0m, 0m) }), CancellationToken.None);
+        repo.Store.Should().ContainSingle(x => x.LaboratoryId == b.Id, "an all-zero row removes its line; rows not sent are untouched");
+
+        // Only a Lab Responsible has a sheet; an unknown lab is not found.
+        await FluentActions.Awaiting(() => handler.Handle(new SaveRealIncomeSheetCommand(D, collector.Id.Value, new[] { Row(a, 1, 10m, 10m) }), CancellationToken.None))
+            .Should().ThrowAsync<ValidationException>();
+        await FluentActions.Awaiting(() => handler.Handle(new SaveRealIncomeSheetCommand(D, rep.Id.Value, new[] { new RealIncomeRowInput(Guid.NewGuid(), 1, 10m, 10m, 0m, null) }), CancellationToken.None))
+            .Should().ThrowAsync<NotFoundException>();
+
+        var v = new SaveRealIncomeSheetValidator();
+        v.Validate(new SaveRealIncomeSheetCommand(D, rep.Id.Value, new[] { Row(a, 1, 100m, 120m) })).IsValid.Should().BeFalse("paid above total required");
+        v.Validate(new SaveRealIncomeSheetCommand(D, rep.Id.Value, new[] { Row(a, 1, 100m, 50m), Row(a, 1, 100m, 50m) })).IsValid.Should().BeFalse("a lab appears once");
+        v.Validate(new SaveRealIncomeSheetCommand(D, rep.Id.Value, new[] { Row(a, 1, 100m, 50m, 20m) })).IsValid.Should().BeTrue();
+    }
 }

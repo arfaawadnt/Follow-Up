@@ -21,6 +21,7 @@ public static class AccountingEndpoints
     public sealed record CollectionBody(DateOnly Date, string Type, IReadOnlyList<CollectionShareInput> Shares,
         decimal Cash, decimal Bank, string? Iban, string? DoneBy, string? Notes);
     public sealed record RepIncomeBody(DateOnly Date, Guid RepresentativeId, decimal Amount, string? Notes);
+    public sealed record RealIncomeSheetBody(DateOnly Date, Guid RepresentativeId, IReadOnlyList<RealIncomeRowInput> Rows);
 
     public static void MapAccountingEndpoints(this RouteGroupBuilder api)
     {
@@ -115,5 +116,15 @@ public static class AccountingEndpoints
         { var id = await m.Send(new CreateRepIncomeEntryCommand(b.Date, b.RepresentativeId, b.Amount, b.Notes), ct); return Results.Created($"/api/v1/accounting/rep-income/{id}", new { id }); }).WithTags(tag);
         api.MapDelete("/accounting/rep-income/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>
         { await m.Send(new DeleteRepIncomeEntryCommand(id), ct); return Results.NoContent(); }).WithTags(tag);
+
+        // ---- Real income sheet (Lab Responsible × area × date) ----
+        api.MapGet("/accounting/real-income/reps", async (Guid areaId, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetRealIncomeRepsQuery(areaId), ct))).WithTags(tag);
+        api.MapGet("/accounting/real-income/labs", async (Guid areaId, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetRealIncomeLabsQuery(areaId), ct))).WithTags(tag);
+        api.MapGet("/accounting/real-income/sheet", async (Guid areaId, DateOnly date, Guid repId, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetRealIncomeSheetQuery(areaId, date, repId), ct))).WithTags(tag);
+        api.MapPut("/accounting/real-income/sheet", async (RealIncomeSheetBody b, IMediator m, CancellationToken ct) =>
+        { await m.Send(new SaveRealIncomeSheetCommand(b.Date, b.RepresentativeId, b.Rows), ct); return Results.NoContent(); }).WithTags(tag);
     }
 }

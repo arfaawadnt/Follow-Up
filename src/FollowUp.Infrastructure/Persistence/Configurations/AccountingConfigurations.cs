@@ -191,6 +191,31 @@ internal sealed class CollectionConfiguration : IEntityTypeConfiguration<Collect
     }
 }
 
+internal sealed class RepLabIncomeConfiguration : IEntityTypeConfiguration<RepLabIncome>
+{
+    public void Configure(EntityTypeBuilder<RepLabIncome> b)
+    {
+        b.ToTable("rep_lab_income");
+        b.HasKey(x => x.Id);
+        b.IgnoreDomainEvents();
+        b.MapAuditable();
+        b.Property(x => x.Serial).UseIdentityAlwaysColumn();
+        b.Property(x => x.Date);
+        b.Property(x => x.Samples);
+        b.Property(x => x.TotalRequired);
+        b.Property(x => x.Paid);
+        b.Property(x => x.DelayedPayment);
+        b.Property(x => x.Notes).HasMaxLength(500);
+        b.Ignore(x => x.Remaining); // derived: total required − paid
+        b.Ignore(x => x.IsEmpty);
+        b.HasOne<Representative>().WithMany().HasForeignKey(x => x.RepresentativeId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne<Laboratory>().WithMany().HasForeignKey(x => x.LaboratoryId).OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(x => new { x.RepresentativeId, x.LaboratoryId, x.Date }).IsUnique(); // one line per rep × lab × date
+        b.HasIndex(x => new { x.LaboratoryId, x.Date });                                 // "remaining for previous data" scan
+        b.HasIndex(x => x.Serial).IsUnique();
+    }
+}
+
 internal sealed class RepIncomeEntryConfiguration : IEntityTypeConfiguration<RepIncomeEntry>
 {
     public void Configure(EntityTypeBuilder<RepIncomeEntry> b)

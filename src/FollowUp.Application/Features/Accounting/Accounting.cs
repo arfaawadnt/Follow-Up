@@ -63,8 +63,20 @@ public sealed record CollectionDto(Guid Id, long Serial, DateOnly Date, string T
 public sealed record CollectionShareInput(Guid RepId, decimal Amount);
 
 /// <summary>One statement line. Kind: OracleIncome (derived from the rep's labs' synced income), ManualIncome (a
-/// RepIncomeEntry, deletable via SourceId), or Collection (Credit). Balance is the running Debit − Credit.</summary>
+/// RepIncomeEntry, deletable via SourceId — legacy, superseded by the sheet), RealIncome (Σ Paid + DelayedPayment of the
+/// rep's real-income sheet for the date), or Collection (Credit). Balance is the running Debit − Credit.</summary>
 public sealed record RepStatementRowDto(DateOnly Date, string Kind, decimal Debit, decimal Credit, string? Notes, decimal Balance, Guid? SourceId);
+/// <summary>A Lab Responsible linked to the area (responsible for at least one of its labs), for the sheet's rep picker.</summary>
+public sealed record RealIncomeRepDto(Guid Id, string FullName, int LabCount);
+/// <summary>A lab of the area, for adding a row the visits did not produce.</summary>
+public sealed record RealIncomeLabDto(Guid Id, string DisplayCode, string Name);
+/// <summary>One sheet row: view-only context (visit, LDM income, penalty, remaining carried from earlier days) + the rep's entry.</summary>
+public sealed record RealIncomeRowDto(Guid LaboratoryId, string LabDisplayCode, string LabName, bool HasVisit, int? VisitTotalRequired, int? VisitSamples,
+    decimal LdmIncome, decimal Penalty, decimal PreviousRemaining,
+    Guid? EntryId, int Samples, decimal TotalRequired, decimal Paid, decimal Remaining, decimal DelayedPayment, string? Notes);
+public sealed record RealIncomeSheetDto(DateOnly Date, Guid AreaId, string AreaName, Guid RepresentativeId, string RepName, IReadOnlyList<RealIncomeRowDto> Rows);
+public sealed record RealIncomeRowInput(Guid LaboratoryId, int Samples, decimal TotalRequired, decimal Paid, decimal DelayedPayment, string? Notes);
+
 public sealed record RepStatementDto(Guid RepresentativeId, string RepName, IReadOnlyList<RepStatementRowDto> Rows,
     decimal TotalDebit, decimal TotalCredit, decimal Balance);
 
@@ -84,6 +96,13 @@ public interface IAccountingQueries
     /// <summary>Collections whose reps are all visible in the caller's rep scope (a collection is the reps' act, not a lab's).</summary>
     Task<IReadOnlyList<CollectionDto>> CollectionsAsync(DateOnly from, DateOnly to, Guid? repId, OrgScope scope, CancellationToken ct);
     Task<RepStatementDto?> RepStatementAsync(Guid repId, DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct);
+    /// <summary>Lab Responsibles responsible for at least one (in-scope) lab of the area.</summary>
+    Task<IReadOnlyList<RealIncomeRepDto>> RealIncomeRepsAsync(Guid areaId, OrgScope scope, CancellationToken ct);
+    /// <summary>The area's (in-scope) labs, for adding a sheet row by hand.</summary>
+    Task<IReadOnlyList<RealIncomeLabDto>> RealIncomeLabsAsync(Guid areaId, OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
+    /// <summary>The rep's sheet for the area and date: the rep's labs with a recorded visit that day plus labs already
+    /// entered; null when the area or the rep is not visible.</summary>
+    Task<RealIncomeSheetDto?> RealIncomeSheetAsync(Guid areaId, DateOnly date, Guid repId, OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
 }
 
 /// <summary>Treasury rows are org-scoped on the Branch dimension: visible when the scope is wildcard on Branches or
@@ -219,6 +238,34 @@ public sealed class GetCollectionsHandler : IQueryHandler<GetCollectionsQuery, I
     public GetCollectionsHandler(IAccountingQueries q, ICurrentUser user) { _q = q; _user = user; }
     public Task<IReadOnlyList<CollectionDto>> Handle(GetCollectionsQuery r, CancellationToken ct) =>
         _q.CollectionsAsync(r.From, r.To, r.RepId, _user.Scope, ct);
+}
+
+public sealed record GetRealIncomeRepsQuery(Guid AreaId) : IQuery<IReadOnlyList<RealIncomeRepDto>>, IAuthorizedRequest
+{ public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ViewAccounting }; }
+public sealed class GetRealIncomeRepsHandler : IQueryHandler<GetRealIncomeRepsQuery, IReadOnlyList<RealIncomeRepDto>>
+{
+    private readonly IAccountingQueries _q; private readonly ICurrentUser _user;
+    public GetRealIncomeRepsHandler(IAccountingQueries q, ICurrentUser user) { _q = q; _user = user; }
+    public Task<IReadOnlyList<RealIncomeRepDto>> Handle(GetRealIncomeRepsQuery r, CancellationToken ct) => _q.RealIncomeRepsAsync(r.AreaId, _user.Scope, ct);
+}
+public sealed record GetRealIncomeLabsQuery(Guid AreaId) : IQuery<IReadOnlyList<RealIncomeLabDto>>, IAuthorizedRequest
+{ public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ViewAccounting }; }
+public sealed class GetRealIncomeLabsHandler : IQueryHandler<GetRealIncomeLabsQuery, IReadOnlyList<RealIncomeLabDto>>
+{
+    private readonly IAccountingQueries _q; private readonly ICurrentUser _user;
+    public GetRealIncomeLabsHandler(IAccountingQueries q, ICurrentUser user) { _q = q; _user = user; }
+    public Task<IReadOnlyList<RealIncomeLabDto>> Handle(GetRealIncomeLabsQuery r, CancellationToken ct) =>
+        _q.RealIncomeLabsAsync(r.AreaId, _user.Scope, _user.Has(Privileges.ShowEncryptedLabs), ct);
+}
+public sealed record GetRealIncomeSheetQuery(Guid AreaId, DateOnly Date, Guid RepresentativeId) : IQuery<RealIncomeSheetDto>, IAuthorizedRequest
+{ public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ViewAccounting }; }
+public sealed class GetRealIncomeSheetHandler : IQueryHandler<GetRealIncomeSheetQuery, RealIncomeSheetDto>
+{
+    private readonly IAccountingQueries _q; private readonly ICurrentUser _user;
+    public GetRealIncomeSheetHandler(IAccountingQueries q, ICurrentUser user) { _q = q; _user = user; }
+    public async Task<RealIncomeSheetDto> Handle(GetRealIncomeSheetQuery r, CancellationToken ct) =>
+        await _q.RealIncomeSheetAsync(r.AreaId, r.Date, r.RepresentativeId, _user.Scope, _user.Has(Privileges.ShowEncryptedLabs), ct)
+        ?? throw new NotFoundException("RealIncomeSheet", r.RepresentativeId);
 }
 
 public sealed record GetRepStatementQuery(Guid RepresentativeId, DateOnly From, DateOnly To) : IQuery<RepStatementDto>, IAuthorizedRequest
@@ -994,6 +1041,61 @@ public sealed class CreateRepIncomeEntryHandler : ICommandHandler<CreateRepIncom
         var e = RepIncomeEntry.Create(rep.Id, r.Date, r.Amount, r.Notes);
         _repo.Add(e);
         return e.Id.Value;
+    }
+}
+
+/// <summary>
+/// Saves a Lab Responsible's real-income sheet for one date: every row shown is sent back; a row is created, updated, or
+/// — when it comes back all-zero with no notes — removed. Rows not in the payload are left untouched.
+/// </summary>
+public sealed record SaveRealIncomeSheetCommand(DateOnly Date, Guid RepresentativeId, IReadOnlyList<RealIncomeRowInput> Rows) : ICommand, IAuthorizedRequest
+{ public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageAccounting }; }
+public sealed class SaveRealIncomeSheetValidator : AbstractValidator<SaveRealIncomeSheetCommand>
+{
+    public SaveRealIncomeSheetValidator()
+    {
+        RuleFor(x => x.RepresentativeId).NotEmpty();
+        RuleFor(x => x.Rows).NotNull();
+        RuleFor(x => x.Rows).Must(r => r.Select(x => x.LaboratoryId).Distinct().Count() == r.Count).When(x => x.Rows is not null).WithMessage("A lab appears once on the sheet.");
+        RuleForEach(x => x.Rows).ChildRules(row =>
+        {
+            row.RuleFor(r => r.LaboratoryId).NotEmpty();
+            row.RuleFor(r => r.Samples).GreaterThanOrEqualTo(0);
+            row.RuleFor(r => r.TotalRequired).GreaterThanOrEqualTo(0);
+            row.RuleFor(r => r.Paid).GreaterThanOrEqualTo(0);
+            row.RuleFor(r => r.DelayedPayment).GreaterThanOrEqualTo(0);
+            row.RuleFor(r => r.Paid).LessThanOrEqualTo(r => r.TotalRequired).WithMessage("Paid cannot exceed the total required.");
+            row.RuleFor(r => r.Notes).MaximumLength(500);
+        });
+    }
+}
+public sealed class SaveRealIncomeSheetHandler : ICommandHandler<SaveRealIncomeSheetCommand>
+{
+    private readonly IRepLabIncomeRepository _repo; private readonly IRepresentativeRepository _reps; private readonly ILaboratoryRepository _labs; private readonly ICurrentUser _user;
+    public SaveRealIncomeSheetHandler(IRepLabIncomeRepository repo, IRepresentativeRepository reps, ILaboratoryRepository labs, ICurrentUser user)
+    { _repo = repo; _reps = reps; _labs = labs; _user = user; }
+
+    public async Task<Unit> Handle(SaveRealIncomeSheetCommand r, CancellationToken ct)
+    {
+        var rep = await _reps.GetByIdAsync(new RepresentativeId(r.RepresentativeId), ct) ?? throw new NotFoundException("Representative", r.RepresentativeId);
+        _user.EnsureInScope(rep);
+        if (rep.Type != RepresentativeType.LabResponsible)
+            throw new Common.Exceptions.ValidationException(new Dictionary<string, string[]> { ["representativeId"] = new[] { "Real income is recorded per Lab Responsible." } });
+        var existing = (await _repo.GetForRepDateAsync(rep.Id, r.Date, ct)).ToDictionary(e => e.LaboratoryId);
+        foreach (var row in r.Rows)
+        {
+            var lab = await _labs.GetByIdAsync(new LaboratoryId(row.LaboratoryId), ct) ?? throw new NotFoundException("Laboratory", row.LaboratoryId);
+            _user.EnsureInScope(lab);
+            var empty = row.Samples == 0 && row.TotalRequired == 0 && row.Paid == 0 && row.DelayedPayment == 0 && string.IsNullOrWhiteSpace(row.Notes);
+            if (existing.TryGetValue(lab.Id, out var line))
+            {
+                if (empty) _repo.Remove(line);
+                else line.Update(row.Samples, row.TotalRequired, row.Paid, row.DelayedPayment, row.Notes);
+            }
+            else if (!empty)
+                _repo.Add(RepLabIncome.Create(rep.Id, lab.Id, r.Date, row.Samples, row.TotalRequired, row.Paid, row.DelayedPayment, row.Notes));
+        }
+        return Unit.Value;
     }
 }
 

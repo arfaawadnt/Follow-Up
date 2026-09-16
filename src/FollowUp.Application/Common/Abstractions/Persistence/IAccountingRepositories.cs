@@ -68,3 +68,11 @@ public interface IRepIncomeEntryRepository
     void Add(RepIncomeEntry entry);
     void Remove(RepIncomeEntry entry);
 }
+
+public interface IRepLabIncomeRepository
+{
+    /// <summary>The rep's sheet lines of one date (tracked) — the save command upserts against them.</summary>
+    Task<IReadOnlyList<RepLabIncome>> GetForRepDateAsync(FollowUp.Domain.Representatives.RepresentativeId repId, DateOnly date, CancellationToken ct);
+    void Add(RepLabIncome entry);
+    void Remove(RepLabIncome entry);
+}

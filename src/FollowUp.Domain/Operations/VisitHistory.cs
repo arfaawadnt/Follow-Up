@@ -43,6 +43,8 @@ public sealed class VisitHistory : AggregateRoot<VisitHistoryId>
     public int? SampleCount { get; private set; }
     public bool AdminChecked { get; private set; }
     public DateTimeOffset ArchivedAt { get; private set; }
+    /// <summary>The "total required" the collector recorded at check-in (null on rows archived before 2026-09-16).</summary>
+    public int? TotalRequired { get; private set; }
 
     // Lifecycle-stage snapshot (nullable; null on rows archived before these were captured).
     public TimeOnly? ScheduledTime { get; private set; }
@@ -61,6 +63,7 @@ public sealed class VisitHistory : AggregateRoot<VisitHistoryId>
         new(VisitHistoryId.New(), visit.Id, visit.LaboratoryId, visit.CollectorRepId, visit.VisitDate,
             visit.Status.Name, visit.SampleCount, visit.AdminChecked, archivedAt)
         {
+            TotalRequired = visit.TotalRequired,
             ScheduledTime = visit.ScheduledTime,
             CheckedInAt = visit.CheckedInAt,
             TransferConfirmedAt = visit.TransferConfirmedAt,

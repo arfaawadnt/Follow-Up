@@ -77,3 +77,4 @@ public sealed class PenaltyRecordIdConverter : ValueConverter<FollowUp.Domain.Ac
 public sealed class DeductionIdConverter : ValueConverter<FollowUp.Domain.Accounting.DeductionId, Guid> { public DeductionIdConverter() : base(x => x.Value, v => new FollowUp.Domain.Accounting.DeductionId(v)) { } }
 public sealed class CollectionIdConverter : ValueConverter<FollowUp.Domain.Accounting.CollectionId, Guid> { public CollectionIdConverter() : base(x => x.Value, v => new FollowUp.Domain.Accounting.CollectionId(v)) { } }
 public sealed class RepIncomeEntryIdConverter : ValueConverter<FollowUp.Domain.Accounting.RepIncomeEntryId, Guid> { public RepIncomeEntryIdConverter() : base(x => x.Value, v => new FollowUp.Domain.Accounting.RepIncomeEntryId(v)) { } }
+public sealed class RepLabIncomeIdConverter : ValueConverter<FollowUp.Domain.Accounting.RepLabIncomeId, Guid> { public RepLabIncomeIdConverter() : base(x => x.Value, v => new FollowUp.Domain.Accounting.RepLabIncomeId(v)) { } }

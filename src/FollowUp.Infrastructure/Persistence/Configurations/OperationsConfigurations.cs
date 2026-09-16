@@ -60,6 +60,7 @@ internal sealed class VisitHistoryConfiguration : IEntityTypeConfiguration<Visit
         b.Property(x => x.SampleCount);
         b.Property(x => x.AdminChecked);
         b.Property(x => x.ArchivedAt);
+        b.Property(x => x.TotalRequired);
 
         // Lifecycle-stage snapshot (FR-8 report; nullable on rows archived before these existed).
         b.Property(x => x.ScheduledTime);
