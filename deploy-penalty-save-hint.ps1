@@ -44,7 +44,7 @@ if ($fixed -ne $html) {
 if ($fixed -match 'media="print"') { throw "ABORT: CSP fix failed (print-onload still present in index.html)." }
 
 # Payload guard: the Penalty Statement chunk must carry the missing-fields hint.
-$ok = @(Get-ChildItem "$srcWeb*.js" | Where-Object { (Get-Content $_.FullName -Raw) -match "Please fill: " })
+$ok = @(Get-ChildItem "$srcWeb\*.js" | Where-Object { (Get-Content $_.FullName -Raw) -match "Please fill: " })
 if ($ok.Count -eq 0) { throw "ABORT: no bundle file carries the missing-fields hint - rebuild (pass -Build)." }
 Write-Host "Payload OK."
 
