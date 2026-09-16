@@ -110,11 +110,11 @@ internal sealed class PenaltyRecordConfiguration : IEntityTypeConfiguration<Pena
         b.Property(x => x.Date);
         b.Property(x => x.AccNo).HasMaxLength(50).IsRequired();
         b.Property(x => x.PatientName).HasMaxLength(200).IsRequired();
-        b.Property(x => x.WrongTestCode).HasMaxLength(32).IsRequired();
-        b.Property(x => x.WrongTestName).HasMaxLength(200).IsRequired();
+        b.Property(x => x.WrongTestCode).HasMaxLength(32);   // nullable since 2026-09-16: a LabRequest penalty may name one test only
+        b.Property(x => x.WrongTestName).HasMaxLength(200);  // (ck_penalty_record_tests keeps staff penalties two-sided)
         b.Property(x => x.WrongValue);
-        b.Property(x => x.RightTestCode).HasMaxLength(32).IsRequired();
-        b.Property(x => x.RightTestName).HasMaxLength(200).IsRequired();
+        b.Property(x => x.RightTestCode).HasMaxLength(32);
+        b.Property(x => x.RightTestName).HasMaxLength(200);
         b.Property(x => x.RightValue);
         b.Property(x => x.UserType).HasColumnName("penalty_user"); // "user" is a reserved word in PostgreSQL
         // "Performed by": exactly one of the two, matching the user type (domain invariant + ck_penalty_record_performed_by).

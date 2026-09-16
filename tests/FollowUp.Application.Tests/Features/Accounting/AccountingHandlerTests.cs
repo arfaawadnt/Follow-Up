@@ -154,6 +154,10 @@ public class AccountingHandlerTests
         v.Validate(Penalty(lab, "DataEntry", someone, null)).IsValid.Should().BeTrue();
         v.Validate(Penalty(lab, "Technician", someone, null)).IsValid.Should().BeTrue();
         v.Validate(Penalty(lab, "LabRequest", null, null)).IsValid.Should().BeTrue("a lab request names nobody");
+        v.Validate(new CreatePenaltyCommand(D, lab, "A", "P", "T1", "Wrong", 300m, null, null, 0m, "LabRequest", null, null)).IsValid.Should().BeTrue("a lab request may name one test only");
+        v.Validate(new CreatePenaltyCommand(D, lab, "A", "P", null, null, 0m, null, null, 0m, "LabRequest", null, null)).IsValid.Should().BeFalse("a lab request needs at least one test");
+        v.Validate(new CreatePenaltyCommand(D, lab, "A", "P", "T1", "Wrong", 300m, null, null, 0m, "DataEntry", someone, null)).IsValid.Should().BeFalse("a staff penalty needs both tests");
+        v.Validate(new CreatePenaltyCommand(D, lab, "A", "P", "T1", null, 300m, "T2", "Right", 100m, "DataEntry", someone, null)).IsValid.Should().BeFalse("a test code needs its name");
         v.Validate(Penalty(lab, "LabRequest", someone, null)).Errors.Should().Contain(e => e.PropertyName == nameof(CreatePenaltyCommand.PerformedByUserId), "a lab request names no user");
         v.Validate(Penalty(lab, "LabRequest", null, someone)).Errors.Should().Contain(e => e.PropertyName == nameof(CreatePenaltyCommand.PerformedByRepId), "a lab request names no rep");
     }

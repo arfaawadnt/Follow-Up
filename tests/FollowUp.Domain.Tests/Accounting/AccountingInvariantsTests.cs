@@ -173,6 +173,20 @@ public class AccountingInvariantsTests
         // LabRequest → nobody: the lab asked for the wrong test.
         var labRequest = Make(PenaltyUser.LabRequest, null, null);
         labRequest.PerformedByRepId.Should().BeNull(); labRequest.PerformedByUserId.Should().BeNull();
+        labRequest.PenaltyAmount.Amount.Should().Be(2m, "a lab request is charged for BOTH values (1 + 1), a staff penalty for the difference");
+        Make(PenaltyUser.Rep, null, rep).PenaltyAmount.Amount.Should().Be(0m);
+
+        // Tests: a staff penalty needs both; a lab request at least one, and a missing test carries no value.
+        PenaltyRecord Tests(PenaltyUser type, string? wrong, decimal wv, string? right, decimal rv) =>
+            PenaltyRecord.Create(lab, D, "A", "P", wrong, wrong is null ? null : "W", wv, right, right is null ? null : "R", rv, type,
+                type == PenaltyUser.LabRequest ? null : user, null);
+        FluentActions.Invoking(() => Tests(PenaltyUser.DataEntry, "T1", 5m, null, 0m)).Should().Throw<DomainException>().WithMessage("*Both*");
+        var wrongOnly = Tests(PenaltyUser.LabRequest, "T1", 250m, null, 0m);
+        wrongOnly.RightTestCode.Should().BeNull(); wrongOnly.RightValue.Amount.Should().Be(0m); wrongOnly.PenaltyAmount.Amount.Should().Be(250m);
+        var rightOnly = Tests(PenaltyUser.LabRequest, null, 0m, "T2", 90m);
+        rightOnly.WrongTestCode.Should().BeNull(); rightOnly.PenaltyAmount.Amount.Should().Be(90m);
+        FluentActions.Invoking(() => Tests(PenaltyUser.LabRequest, null, 0m, null, 0m)).Should().Throw<DomainException>().WithMessage("*at least one test*");
+        FluentActions.Invoking(() => Tests(PenaltyUser.LabRequest, "T1", 5m, null, 7m)).Should().Throw<DomainException>().WithMessage("*needs a right test*");
         FluentActions.Invoking(() => Make(PenaltyUser.LabRequest, user, null)).Should().Throw<DomainException>().WithMessage("*names no person*");
         FluentActions.Invoking(() => Make(PenaltyUser.LabRequest, null, rep)).Should().Throw<DomainException>().WithMessage("*names no person*");
     }

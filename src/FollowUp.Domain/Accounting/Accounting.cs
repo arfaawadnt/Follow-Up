@@ -389,11 +389,13 @@ public sealed class PenaltyRecord : AggregateRoot<PenaltyRecordId>, IAuditable
     public LaboratoryId LaboratoryId { get; private set; }
     public string AccNo { get; private set; } = null!;
     public string PatientName { get; private set; } = null!;
-    public string WrongTestCode { get; private set; } = null!;
-    public string WrongTestName { get; private set; } = null!;
+    /// <summary>Both tests are required for a staff penalty (Rep / DataEntry / Technician); a LabRequest penalty names at
+    /// least one of them — a missing test carries a zero value.</summary>
+    public string? WrongTestCode { get; private set; }
+    public string? WrongTestName { get; private set; }
     public Money WrongValue { get; private set; }
-    public string RightTestCode { get; private set; } = null!;
-    public string RightTestName { get; private set; } = null!;
+    public string? RightTestCode { get; private set; }
+    public string? RightTestName { get; private set; }
     public Money RightValue { get; private set; }
     /// <summary>Who made the error, by kind: a representative, a data-entry user or a technician.</summary>
     public PenaltyUser UserType { get; private set; } = null!;
@@ -403,7 +405,9 @@ public sealed class PenaltyRecord : AggregateRoot<PenaltyRecordId>, IAuditable
     public RepresentativeId? PerformedByRepId { get; private set; }
 
     /// <summary>The penalty = wrong − right (may be negative when the right test was the dearer one).</summary>
-    public Money PenaltyAmount => WrongValue - RightValue;
+    /// <summary>Staff penalty = wrong − right (what our side's error cost, may be negative). Lab-request penalty = wrong + right:
+    /// the lab asked for the wrong test and is charged for both (operator decision, 2026-09-16).</summary>
+    public Money PenaltyAmount => UserType == PenaltyUser.LabRequest ? WrongValue + RightValue : WrongValue - RightValue;
 
     public DateTimeOffset CreatedAt { get; private set; }
     public string CreatedBy { get; private set; } = null!;
@@ -411,8 +415,8 @@ public sealed class PenaltyRecord : AggregateRoot<PenaltyRecordId>, IAuditable
     public string? UpdatedBy { get; private set; }
 
     public static PenaltyRecord Create(LaboratoryId labId, DateOnly date, string accNo, string patientName,
-        string wrongTestCode, string wrongTestName, decimal wrongValue,
-        string rightTestCode, string rightTestName, decimal rightValue,
+        string? wrongTestCode, string? wrongTestName, decimal wrongValue,
+        string? rightTestCode, string? rightTestName, decimal rightValue,
         PenaltyUser userType, AppUserId? performedByUserId, RepresentativeId? performedByRepId)
     {
         var p = new PenaltyRecord(PenaltyRecordId.New(), labId);
@@ -422,20 +426,32 @@ public sealed class PenaltyRecord : AggregateRoot<PenaltyRecordId>, IAuditable
     }
 
     public void Update(DateOnly date, string accNo, string patientName,
-        string wrongTestCode, string wrongTestName, decimal wrongValue,
-        string rightTestCode, string rightTestName, decimal rightValue,
+        string? wrongTestCode, string? wrongTestName, decimal wrongValue,
+        string? rightTestCode, string? rightTestName, decimal rightValue,
         PenaltyUser userType, AppUserId? performedByUserId, RepresentativeId? performedByRepId)
     {
         Date = date;
         AccNo = AccountingGuards.Required(accNo, "Acc No", 50);
         PatientName = AccountingGuards.Required(patientName, "Patient name", 200);
-        WrongTestCode = AccountingGuards.Required(wrongTestCode, "Wrong test", 32);
-        WrongTestName = AccountingGuards.Required(wrongTestName, "Wrong test name", 200);
-        WrongValue = AccountingGuards.NonNegative(wrongValue, "Wrong test value");
-        RightTestCode = AccountingGuards.Required(rightTestCode, "Right test", 32);
-        RightTestName = AccountingGuards.Required(rightTestName, "Right test name", 200);
-        RightValue = AccountingGuards.NonNegative(rightValue, "Right test value");
         UserType = userType ?? throw new DomainException("The user type is required.");
+
+        // Tests: a staff penalty compares the wrong booking with the right one, so both are required. A lab-request penalty
+        // may carry only one of them (the lab asked for a test it should not have, or missed one). A missing test has no value.
+        var hasWrong = !string.IsNullOrWhiteSpace(wrongTestCode); var hasRight = !string.IsNullOrWhiteSpace(rightTestCode);
+        if (userType == PenaltyUser.LabRequest)
+        {
+            if (!hasWrong && !hasRight) throw new DomainException("A lab-request penalty names at least one test (wrong or right).");
+        }
+        else if (!hasWrong || !hasRight)
+            throw new DomainException("Both the wrong test and the right test are required.");
+        WrongTestCode = hasWrong ? AccountingGuards.Required(wrongTestCode, "Wrong test", 32) : null;
+        WrongTestName = hasWrong ? AccountingGuards.Required(wrongTestName, "Wrong test name", 200) : null;
+        WrongValue = hasWrong ? AccountingGuards.NonNegative(wrongValue, "Wrong test value")
+            : wrongValue == 0m ? Money.Zero : throw new DomainException("A wrong-test value needs a wrong test.");
+        RightTestCode = hasRight ? AccountingGuards.Required(rightTestCode, "Right test", 32) : null;
+        RightTestName = hasRight ? AccountingGuards.Required(rightTestName, "Right test name", 200) : null;
+        RightValue = hasRight ? AccountingGuards.NonNegative(rightValue, "Right test value")
+            : rightValue == 0m ? Money.Zero : throw new DomainException("A right-test value needs a right test.");
 
         // Exactly one "performed by" link, and it must match the user type: a Rep penalty names a representative,
         // a DataEntry / Technician penalty names a system user, a LabRequest penalty names nobody (the lab asked for

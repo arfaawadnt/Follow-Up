@@ -14,7 +14,7 @@ public static class AccountingEndpoints
     public sealed record TreasuryEntryBody(Guid TreasuryId, DateOnly Date, decimal Debit, decimal Credit, Guid ReasonId, string? Notes);
     public sealed record ValidateEntryBody(decimal ReceivedAmount, string? Note);
     public sealed record PenaltyBody(DateOnly Date, Guid LaboratoryId, string AccNo, string PatientName,
-        string WrongTestCode, string WrongTestName, decimal WrongValue, string RightTestCode, string RightTestName, decimal RightValue,
+        string? WrongTestCode, string? WrongTestName, decimal WrongValue, string? RightTestCode, string? RightTestName, decimal RightValue,
         string UserType, Guid? PerformedByUserId, Guid? PerformedByRepId);
     public sealed record DeductionBody(DateOnly Date, Guid AreaId, string Reason, decimal Value, string? Notes, DateOnly? PeriodFrom, DateOnly? PeriodTo,
         string? Basis = null);

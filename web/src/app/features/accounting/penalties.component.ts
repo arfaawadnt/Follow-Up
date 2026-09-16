@@ -68,8 +68,8 @@ type Opt = { value: string; label: string };
                 <td class="mono">{{ i + 1 }}</td><td>{{ day(p.date) }}</td><td>{{ ddmy(p.date) }}</td>
                 <td><b>{{ p.labName }}</b> <span class="small muted">{{ p.labDisplayCode }}</span></td>
                 <td>{{ p.accNo }}</td><td>{{ p.patientName }}</td>
-                <td>{{ p.wrongTestName }} <span class="small muted">{{ p.wrongTestCode }}</span></td><td class="r mono">{{ p.wrongValue | number:'1.2-2' }}</td>
-                <td>{{ p.rightTestName }} <span class="small muted">{{ p.rightTestCode }}</span></td><td class="r mono">{{ p.rightValue | number:'1.2-2' }}</td>
+                <td>{{ p.wrongTestName || '—' }} <span class="small muted">{{ p.wrongTestCode }}</span></td><td class="r mono">{{ p.wrongValue | number:'1.2-2' }}</td>
+                <td>{{ p.rightTestName || '—' }} <span class="small muted">{{ p.rightTestCode }}</span></td><td class="r mono">{{ p.rightValue | number:'1.2-2' }}</td>
                 <td class="r mono" [class.pos]="p.penalty > 0" [class.neg]="p.penalty < 0">{{ p.penalty | number:'1.2-2' }}</td>
                 <td>{{ userLabel(p.userType) }} / {{ p.performedByName || '—' }}</td>
                 @if (canManage()) {
@@ -105,9 +105,9 @@ type Opt = { value: string; label: string };
               <div class="field" style="grid-column:1/-1"><label>{{ 'lab' | t : 'Lab' }} *</label><app-filter-select [(ngModel)]="f.laboratoryId" [options]="labOptions()" [clearable]="true" placeholder="—" [disabled]="!!editId"></app-filter-select></div>
               <div class="field"><label>{{ 'acc_no' | t : 'Acc No' }} *</label><input class="input" [(ngModel)]="f.accNo" maxlength="50"></div>
               <div class="field"><label>{{ 'patient_name' | t : 'Patient Name' }} *</label><input class="input" [(ngModel)]="f.patientName" maxlength="200"></div>
-              <div class="field"><label>{{ 'wrong_test' | t : 'Wrong Test' }} *</label><app-filter-select [ngModel]="f.wrongKey" (ngModelChange)="pickTest('wrong', $event)" [options]="testOptions()" [clearable]="true" placeholder="—"></app-filter-select></div>
+              <div class="field"><label>{{ 'wrong_test' | t : 'Wrong Test' }}{{ f.userType === 'LabRequest' ? '' : ' *' }}</label><app-filter-select [ngModel]="f.wrongKey" (ngModelChange)="pickTest('wrong', $event)" [options]="testOptions()" [clearable]="true" placeholder="—"></app-filter-select></div>
               <div class="field"><label>{{ 'value' | t : 'Value' }} *</label><input class="input" type="number" min="0" step="0.01" [(ngModel)]="f.wrongValue"></div>
-              <div class="field"><label>{{ 'right_test' | t : 'Right Test' }} *</label><app-filter-select [ngModel]="f.rightKey" (ngModelChange)="pickTest('right', $event)" [options]="testOptions()" [clearable]="true" placeholder="—"></app-filter-select></div>
+              <div class="field"><label>{{ 'right_test' | t : 'Right Test' }}{{ f.userType === 'LabRequest' ? '' : ' *' }}</label><app-filter-select [ngModel]="f.rightKey" (ngModelChange)="pickTest('right', $event)" [options]="testOptions()" [clearable]="true" placeholder="—"></app-filter-select></div>
               <div class="field"><label>{{ 'value' | t : 'Value' }} *</label><input class="input" type="number" min="0" step="0.01" [(ngModel)]="f.rightValue"></div>
               <div class="field"><label>{{ 'user_type' | t : 'User Type' }} *</label>
                 <select class="select" [ngModel]="f.userType" (ngModelChange)="pickUserType($event)">@for (u of users; track u) { <option [value]="u">{{ userLabel(u) }}</option> }</select></div>
@@ -117,7 +117,8 @@ type Opt = { value: string; label: string };
                 <div class="field"><label>{{ 'user' | t : 'User' }} *</label>
                   <app-filter-select [(ngModel)]="f.performedById" [options]="actorOptions()" [clearable]="true" [placeholder]="'select_user' | t : 'Select…'"></app-filter-select></div>
               }
-              <div class="field"><label>{{ 'penalty' | t : 'Penalty' }}</label><input class="input" [value]="(f.wrongValue ?? 0) - (f.rightValue ?? 0) | number:'1.2-2'" disabled></div>
+              <div class="field"><label>{{ 'penalty' | t : 'Penalty' }} <span class="small muted">{{ f.userType === 'LabRequest' ? ('wrong + right') : ('wrong − right') }}</span></label><input class="input" [value]="penaltyPreview() | number:'1.2-2'" disabled></div>
+              @if (f.userType === 'LabRequest') { <div class="field" style="grid-column:1/-1"><div class="small muted">{{ 'lab_request_tests_hint' | t : 'A lab request needs at least one test (wrong or right); the lab is charged for both values.' }}</div></div> }
             </div>
           </div>
           <div class="as-dlg-foot" style="align-items:center;gap:12px">
@@ -190,10 +191,10 @@ export class PenaltiesComponent {
   openNew(): void { this.editId = null; this.f = this.blank(); this.loadActors(this.f.userType); this.dlg.set(true); }
   openEdit(p: PenaltyDto): void {
     this.editId = p.id;
-    const key = (code: string) => this.tests().find((t) => t.code === code)?.testType;
+    const key = (code: string | null) => this.tests().find((t) => t.code === code)?.testType;
     this.f = { date: p.date, laboratoryId: p.laboratoryId, accNo: p.accNo, patientName: p.patientName,
-      wrongKey: `${p.wrongTestCode}|${key(p.wrongTestCode) ?? ''}`, wrongTestCode: p.wrongTestCode, wrongTestName: p.wrongTestName, wrongValue: p.wrongValue,
-      rightKey: `${p.rightTestCode}|${key(p.rightTestCode) ?? ''}`, rightTestCode: p.rightTestCode, rightTestName: p.rightTestName, rightValue: p.rightValue,
+      wrongKey: p.wrongTestCode ? `${p.wrongTestCode}|${key(p.wrongTestCode) ?? ''}` : '', wrongTestCode: p.wrongTestCode ?? '', wrongTestName: p.wrongTestName ?? '', wrongValue: p.wrongTestCode ? p.wrongValue : null,
+      rightKey: p.rightTestCode ? `${p.rightTestCode}|${key(p.rightTestCode) ?? ''}` : '', rightTestCode: p.rightTestCode ?? '', rightTestName: p.rightTestName ?? '', rightValue: p.rightTestCode ? p.rightValue : null,
       userType: p.userType, performedById: p.performedById ?? '' };
     this.loadActors(p.userType);
     this.dlg.set(true);
@@ -211,22 +212,36 @@ export class PenaltiesComponent {
     if (!f.laboratoryId) m.push('Lab');
     if (!f.accNo.trim()) m.push('Acc No');
     if (!f.patientName.trim()) m.push('Patient Name');
-    if (!f.wrongTestCode) m.push('Wrong Test');
-    if (f.wrongValue === null || f.wrongValue === undefined || Number(f.wrongValue) < 0 || isNaN(Number(f.wrongValue))) m.push('Wrong Test value');
-    if (!f.rightTestCode) m.push('Right Test');
-    if (f.rightValue === null || f.rightValue === undefined || Number(f.rightValue) < 0 || isNaN(Number(f.rightValue))) m.push('Right Test value');
+    const labRequest = f.userType === 'LabRequest';
+    const badValue = (v: number | null) => v === null || v === undefined || Number(v) < 0 || isNaN(Number(v));
+    if (labRequest) {
+      if (!f.wrongTestCode && !f.rightTestCode) m.push('Wrong or Right Test');
+      if (f.wrongTestCode && badValue(f.wrongValue)) m.push('Wrong Test value');
+      if (f.rightTestCode && badValue(f.rightValue)) m.push('Right Test value');
+    } else {
+      if (!f.wrongTestCode) m.push('Wrong Test');
+      if (badValue(f.wrongValue)) m.push('Wrong Test value');
+      if (!f.rightTestCode) m.push('Right Test');
+      if (badValue(f.rightValue)) m.push('Right Test value');
+    }
     if (!f.userType) m.push('User Type');
     if (f.userType !== 'LabRequest' && !f.performedById) m.push('User');
     return m;
   }
   valid(): boolean { return this.missing().length === 0; }
+  /** Staff penalty = wrong − right; lab request = wrong + right (a missing test counts 0). */
+  penaltyPreview(): number {
+    const w = this.f.wrongTestCode ? (this.f.wrongValue ?? 0) : 0; const r = this.f.rightTestCode ? (this.f.rightValue ?? 0) : 0;
+    return this.f.userType === 'LabRequest' ? w + r : w - r;
+  }
   save(): void {
     const missing = this.missing();
     if (missing.length) { this.toast.warning(`Please fill: ${missing.join(', ')}`); return; }
     this.busy.set(true);
     const body = { date: this.f.date, laboratoryId: this.f.laboratoryId, accNo: this.f.accNo.trim(), patientName: this.f.patientName.trim(),
-      wrongTestCode: this.f.wrongTestCode, wrongTestName: this.f.wrongTestName, wrongValue: this.f.wrongValue,
-      rightTestCode: this.f.rightTestCode, rightTestName: this.f.rightTestName, rightValue: this.f.rightValue, userType: this.f.userType,
+      // A test left empty (allowed for a lab request) goes as null with a zero value.
+      wrongTestCode: this.f.wrongTestCode || null, wrongTestName: this.f.wrongTestCode ? this.f.wrongTestName : null, wrongValue: this.f.wrongTestCode ? (this.f.wrongValue ?? 0) : 0,
+      rightTestCode: this.f.rightTestCode || null, rightTestName: this.f.rightTestCode ? this.f.rightTestName : null, rightValue: this.f.rightTestCode ? (this.f.rightValue ?? 0) : 0, userType: this.f.userType,
       // Exactly one of the two, matching the type (none for a lab request) — the server enforces the same rule.
       performedByRepId: this.f.userType === 'Rep' ? this.f.performedById : null,
       performedByUserId: this.f.userType === 'Rep' || this.f.userType === 'LabRequest' ? null : this.f.performedById || null };
@@ -241,7 +256,7 @@ export class PenaltiesComponent {
   private static readonly HEADER = ['Serial', 'Day', 'Date', 'Lab', 'Code', 'Acc No', 'Patient Name', 'Wrong Test', 'Value', 'Right Test', 'Value', 'Penalty', 'User Type / User'];
   private exportRows() {
     return this.rows().map((p, i) => [i + 1, this.day(p.date), ddmy(p.date), p.labName, p.labDisplayCode, p.accNo, p.patientName,
-      `${p.wrongTestName} (${p.wrongTestCode})`, money(p.wrongValue), `${p.rightTestName} (${p.rightTestCode})`, money(p.rightValue), money(p.penalty), `${this.userLabel(p.userType)} / ${p.performedByName ?? '—'}`]);
+      p.wrongTestCode ? `${p.wrongTestName} (${p.wrongTestCode})` : '', money(p.wrongValue), p.rightTestCode ? `${p.rightTestName} (${p.rightTestCode})` : '', money(p.rightValue), money(p.penalty), `${this.userLabel(p.userType)} / ${p.performedByName ?? '—'}`]);
   }
   exportExcel(): void { exportXlsx(`penalty-statement-${localToday()}.xlsx`, PenaltiesComponent.HEADER, this.exportRows()); }
   exportPdf(): void { printTable(`Penalty Statement (${ddmy(this.from)} → ${ddmy(this.to)})`, PenaltiesComponent.HEADER, this.exportRows()); }

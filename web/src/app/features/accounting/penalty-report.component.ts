@@ -72,8 +72,8 @@ interface Group { userType: string; label: string; rows: PenaltyDto[]; count: nu
                   <td class="mono">{{ i + 1 }}</td><td>{{ ddmy(p.date) }}</td><td>{{ day(p.date) }}</td>
                   <td><b>{{ p.labName }}</b> <span class="small muted">{{ p.labDisplayCode }}</span></td>
                   <td class="mono">{{ p.accNo }}</td><td>{{ p.patientName }}</td>
-                  <td>{{ p.wrongTestName }} <span class="small muted">({{ p.wrongTestCode }})</span></td><td class="r mono">{{ p.wrongValue | number:'1.2-2' }}</td>
-                  <td>{{ p.rightTestName }} <span class="small muted">({{ p.rightTestCode }})</span></td><td class="r mono">{{ p.rightValue | number:'1.2-2' }}</td>
+                  <td>{{ p.wrongTestName || '—' }} <span class="small muted">({{ p.wrongTestCode }})</span></td><td class="r mono">{{ p.wrongValue | number:'1.2-2' }}</td>
+                  <td>{{ p.rightTestName || '—' }} <span class="small muted">({{ p.rightTestCode }})</span></td><td class="r mono">{{ p.rightValue | number:'1.2-2' }}</td>
                   <td class="r mono" [class.neg]="p.penalty > 0" [class.pos]="p.penalty < 0" style="font-weight:700">{{ p.penalty | number:'1.2-2' }}</td>
                   <td>{{ p.performedByName || '—' }}</td>
                 </tr>
@@ -137,7 +137,7 @@ export class PenaltyReportComponent {
   exportExcel(): void {
     const rows = this.groups().flatMap((g) => [
       ...g.rows.map((p, i) => [g.label, i + 1, ddmy(p.date), this.day(p.date), p.labName, p.labDisplayCode, p.accNo, p.patientName,
-        `${p.wrongTestName} (${p.wrongTestCode})`, money(p.wrongValue), `${p.rightTestName} (${p.rightTestCode})`, money(p.rightValue), money(p.penalty), p.performedByName ?? '']),
+        `${p.wrongTestName ?? ''} (${p.wrongTestCode ?? ''})`, money(p.wrongValue), `${p.rightTestName ?? ''} (${p.rightTestCode ?? ''})`, money(p.rightValue), money(p.penalty), p.performedByName ?? '']),
       [`Subtotal · ${g.label}`, '', '', '', '', '', '', '', '', g.wrong, '', g.right, g.penalty, ''],
     ]);
     rows.push(['Grand total', '', '', '', '', '', '', '', '', this.k().wrong, '', this.k().right, this.k().penalty, '']);
@@ -152,7 +152,7 @@ export class PenaltyReportComponent {
       <h2>${e(g.label)} <span class="cnt">${g.count} record(s)</span></h2>
       <table><thead><tr><th>#</th><th>Date</th><th>Lab</th><th>Acc No</th><th>Patient</th><th>Wrong test</th><th class="r">Value</th><th>Right test</th><th class="r">Value</th><th class="r">Penalty</th><th>Performed by</th></tr></thead>
       <tbody>${g.rows.map((p, i) => `<tr><td>${i + 1}</td><td>${e(ddmy(p.date))}</td><td>${e(p.labName)} <small>${e(p.labDisplayCode)}</small></td><td>${e(p.accNo)}</td><td>${e(p.patientName)}</td>
-        <td>${e(p.wrongTestName)} <small>(${e(p.wrongTestCode)})</small></td><td class="r">${n(p.wrongValue)}</td><td>${e(p.rightTestName)} <small>(${e(p.rightTestCode)})</small></td><td class="r">${n(p.rightValue)}</td>
+        <td>${e(p.wrongTestName ?? '')} <small>(${e(p.wrongTestCode ?? '')})</small></td><td class="r">${n(p.wrongValue)}</td><td>${e(p.rightTestName ?? '')} <small>(${e(p.rightTestCode ?? '')})</small></td><td class="r">${n(p.rightValue)}</td>
         <td class="r b">${n(p.penalty)}</td><td>${e(p.performedByName ?? '—')}</td></tr>`).join('')}</tbody>
       <tfoot><tr><td colspan="6">Subtotal · ${e(g.label)}</td><td class="r">${n(g.wrong)}</td><td></td><td class="r">${n(g.right)}</td><td class="r b">${n(g.penalty)}</td><td></td></tr></tfoot></table>`).join('');
     const html = `<!doctype html><html><head><title>Penalty Report</title><style>

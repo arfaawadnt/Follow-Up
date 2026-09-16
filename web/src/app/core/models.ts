@@ -217,8 +217,10 @@ export interface CollectionTreasurySyncResult { linked: number; unplaced: number
 export interface TreasuryGrant { treasuryId: string; treasuryName: string; isActive: boolean; canView: boolean; canValidate: boolean; canUpdate: boolean; }
 export interface PenaltyDto {
   id: string; serial: number; date: string; laboratoryId: string; labDisplayCode: string; labName: string;
-  accNo: string; patientName: string; wrongTestCode: string; wrongTestName: string; wrongValue: number;
-  rightTestCode: string; rightTestName: string; rightValue: number; penalty: number;
+  accNo: string; patientName: string; wrongTestCode: string | null; wrongTestName: string | null; wrongValue: number;
+  rightTestCode: string | null; rightTestName: string | null; rightValue: number;
+  /** Staff penalty = wrong − right; lab-request penalty = wrong + right (the lab is charged for both). */
+  penalty: number;
   /** Who made the error: the kind (Rep / DataEntry / Technician) plus the resolved person. */
   userType: string; performedById: string | null; performedByName: string | null;
 }

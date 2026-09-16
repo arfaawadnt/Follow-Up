@@ -37,8 +37,8 @@ public sealed record TreasuryGrantDto(Guid TreasuryId, string TreasuryName, bool
 public sealed record TreasuryGrantInput(Guid TreasuryId, bool CanView, bool CanValidate, bool CanUpdate);
 
 public sealed record PenaltyDto(Guid Id, long Serial, DateOnly Date, Guid LaboratoryId, string LabDisplayCode, string LabName,
-    string AccNo, string PatientName, string WrongTestCode, string WrongTestName, decimal WrongValue,
-    string RightTestCode, string RightTestName, decimal RightValue, decimal Penalty,
+    string AccNo, string PatientName, string? WrongTestCode, string? WrongTestName, decimal WrongValue,
+    string? RightTestCode, string? RightTestName, decimal RightValue, decimal Penalty,
     string UserType, Guid? PerformedById, string? PerformedByName);
 
 /// <summary>A person a penalty can be attributed to: an in-scope active representative (UserType = Rep) or an active
@@ -586,7 +586,7 @@ public sealed class SetTreasuryGrantsHandler : ICommandHandler<SetTreasuryGrants
 // ---- Commands: penalty statement ----
 
 public sealed record CreatePenaltyCommand(DateOnly Date, Guid LaboratoryId, string AccNo, string PatientName,
-    string WrongTestCode, string WrongTestName, decimal WrongValue, string RightTestCode, string RightTestName, decimal RightValue,
+    string? WrongTestCode, string? WrongTestName, decimal WrongValue, string? RightTestCode, string? RightTestName, decimal RightValue,
     string UserType, Guid? PerformedByUserId, Guid? PerformedByRepId)
     : ICommand<Guid>, IAuthorizedRequest
 { public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageAccounting }; }
@@ -597,10 +597,7 @@ public sealed class CreatePenaltyValidator : AbstractValidator<CreatePenaltyComm
         RuleFor(x => x.LaboratoryId).NotEmpty();
         RuleFor(x => x.AccNo).NotEmpty().MaximumLength(50);
         RuleFor(x => x.PatientName).NotEmpty().MaximumLength(200);
-        RuleFor(x => x.WrongTestCode).NotEmpty().MaximumLength(32);
-        RuleFor(x => x.WrongTestName).NotEmpty().MaximumLength(200);
-        RuleFor(x => x.RightTestCode).NotEmpty().MaximumLength(32);
-        RuleFor(x => x.RightTestName).NotEmpty().MaximumLength(200);
+        PenaltyTestRules.Apply(this, x => x.UserType, x => x.WrongTestCode, x => x.WrongTestName, x => x.RightTestCode, x => x.RightTestName);
         RuleFor(x => x.WrongValue).GreaterThanOrEqualTo(0);
         RuleFor(x => x.RightValue).GreaterThanOrEqualTo(0);
         PenaltyActorRules.Apply(this, x => x.UserType, x => x.PerformedByUserId, x => x.PerformedByRepId);
@@ -628,7 +625,7 @@ public sealed class CreatePenaltyHandler : ICommandHandler<CreatePenaltyCommand,
 }
 
 public sealed record UpdatePenaltyCommand(Guid Id, DateOnly Date, string AccNo, string PatientName,
-    string WrongTestCode, string WrongTestName, decimal WrongValue, string RightTestCode, string RightTestName, decimal RightValue,
+    string? WrongTestCode, string? WrongTestName, decimal WrongValue, string? RightTestCode, string? RightTestName, decimal RightValue,
     string UserType, Guid? PerformedByUserId, Guid? PerformedByRepId)
     : ICommand, IAuthorizedRequest
 { public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageAccounting }; }
@@ -639,10 +636,7 @@ public sealed class UpdatePenaltyValidator : AbstractValidator<UpdatePenaltyComm
         RuleFor(x => x.Id).NotEmpty();
         RuleFor(x => x.AccNo).NotEmpty().MaximumLength(50);
         RuleFor(x => x.PatientName).NotEmpty().MaximumLength(200);
-        RuleFor(x => x.WrongTestCode).NotEmpty().MaximumLength(32);
-        RuleFor(x => x.WrongTestName).NotEmpty().MaximumLength(200);
-        RuleFor(x => x.RightTestCode).NotEmpty().MaximumLength(32);
-        RuleFor(x => x.RightTestName).NotEmpty().MaximumLength(200);
+        PenaltyTestRules.Apply(this, x => x.UserType, x => x.WrongTestCode, x => x.WrongTestName, x => x.RightTestCode, x => x.RightTestName);
         RuleFor(x => x.WrongValue).GreaterThanOrEqualTo(0);
         RuleFor(x => x.RightValue).GreaterThanOrEqualTo(0);
         PenaltyActorRules.Apply(this, x => x.UserType, x => x.PerformedByUserId, x => x.PerformedByRepId);
@@ -704,6 +698,29 @@ public static class PenaltyDeductionSync
     {
         var existing = await deductions.GetByPenaltyAsync(penalty.Id, ct);
         if (existing is not null) deductions.Remove(existing);
+    }
+}
+
+/// <summary>Test rules shared by the create and update validators: a staff penalty needs both tests; a LabRequest penalty
+/// at least one (code and name go together). The domain re-checks the same rule.</summary>
+internal static class PenaltyTestRules
+{
+    public static void Apply<T>(AbstractValidator<T> v, Func<T, string> userType, Func<T, string?> wrongCode, Func<T, string?> wrongName,
+        Func<T, string?> rightCode, Func<T, string?> rightName)
+    {
+        v.RuleFor(x => wrongCode(x)).MaximumLength(32).OverridePropertyName("WrongTestCode");
+        v.RuleFor(x => wrongName(x)).MaximumLength(200).OverridePropertyName("WrongTestName");
+        v.RuleFor(x => rightCode(x)).MaximumLength(32).OverridePropertyName("RightTestCode");
+        v.RuleFor(x => rightName(x)).MaximumLength(200).OverridePropertyName("RightTestName");
+        v.RuleFor(x => x).Must(x => string.IsNullOrWhiteSpace(wrongCode(x)) == string.IsNullOrWhiteSpace(wrongName(x)))
+            .WithMessage("The wrong test needs both a code and a name.").OverridePropertyName("WrongTestName");
+        v.RuleFor(x => x).Must(x => string.IsNullOrWhiteSpace(rightCode(x)) == string.IsNullOrWhiteSpace(rightName(x)))
+            .WithMessage("The right test needs both a code and a name.").OverridePropertyName("RightTestName");
+        bool isLabRequest(T x) => string.Equals(userType(x), nameof(PenaltyUser.LabRequest), StringComparison.OrdinalIgnoreCase);
+        v.RuleFor(x => x).Must(x => !string.IsNullOrWhiteSpace(wrongCode(x)) || !string.IsNullOrWhiteSpace(rightCode(x)))
+            .When(isLabRequest).WithMessage("A lab-request penalty names at least one test (wrong or right).").OverridePropertyName("WrongTestCode");
+        v.RuleFor(x => x).Must(x => !string.IsNullOrWhiteSpace(wrongCode(x)) && !string.IsNullOrWhiteSpace(rightCode(x)))
+            .When(x => !isLabRequest(x)).WithMessage("Both the wrong test and the right test are required.").OverridePropertyName("WrongTestCode");
     }
 }
 
