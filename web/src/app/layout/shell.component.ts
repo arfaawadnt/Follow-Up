@@ -116,13 +116,14 @@ export class ShellComponent implements AfterViewChecked, OnDestroy {
       { id: 'reports', key: 'reports', icon: 'trending-up', path: '/reports', privilege: 'ViewReports' },
       { id: 'rep_intervals', key: 'rep_intervals', icon: 'clock', path: '/rep-intervals', privilege: 'ViewReports' },
     ]},
-    // Accounting — the five money-ledger report pages (ViewAccounting; recording needs ManageAccounting).
+    // Accounting — the money-ledger report pages (ViewAccounting; recording needs ManageAccounting).
     { titleKey: 'accounting', items: [
       { id: 'acc_penalties', key: 'acc_penalties', icon: 'alert-triangle', path: '/accounting/penalties', privilege: 'ViewAccounting' },
       { id: 'acc_deductions', key: 'acc_deductions', icon: 'minus-circle', path: '/accounting/deductions', privilege: 'ViewAccounting' },
       { id: 'acc_treasury', key: 'acc_treasury', icon: 'landmark', path: '/accounting/treasury', privilege: 'ViewAccounting' },
       { id: 'acc_collections', key: 'acc_collections', icon: 'wallet', path: '/accounting/collections', privilege: 'ViewAccounting' },
       { id: 'acc_rep_statement', key: 'acc_rep_statement', icon: 'file-text', path: '/accounting/rep-statement', privilege: 'ViewAccounting' },
+      { id: 'acc_rep_income', key: 'acc_rep_income', icon: 'coins', path: '/accounting/rep-income', privilege: 'ViewAccounting' },
     ]},
     { titleKey: 'field_and_marketing', items: [
       { id: 'marketing', key: 'marketing', icon: 'map-pin', path: '/marketing', privilege: 'ViewMarketing' },

@@ -40,6 +40,7 @@ export const routes: Routes = [
       { path: 'accounting/treasury', loadComponent: () => import('./features/accounting/treasury.component').then((m) => m.TreasuryComponent) },
       { path: 'accounting/collections', loadComponent: () => import('./features/accounting/collections.component').then((m) => m.CollectionsComponent) },
       { path: 'accounting/rep-statement', loadComponent: () => import('./features/accounting/rep-statement.component').then((m) => m.RepStatementComponent) },
+      { path: 'accounting/rep-income', loadComponent: () => import('./features/accounting/rep-income.component').then((m) => m.RepIncomeComponent) },
 
       // Field & marketing
       { path: 'marketing', loadComponent: () => import('./features/marketing/marketing.component').then((m) => m.MarketingComponent) },
