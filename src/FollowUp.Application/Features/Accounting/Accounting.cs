@@ -681,6 +681,13 @@ public static class PenaltyDeductionSync
     public static async Task<bool> UpsertAsync(PenaltyRecord penalty, Laboratory lab, IAreaRepository areas, IDeductionRepository deductions, CancellationToken ct)
     {
         var existing = await deductions.GetByPenaltyAsync(penalty.Id, ct);
+        if (penalty.UserType == PenaltyUser.LabRequest)
+        {
+            // The lab asked for the wrong test: charged to the lab through the Rep Income sheet, never deducted from
+            // the area. A penalty re-typed to LabRequest loses its mirror.
+            if (existing is not null) deductions.Remove(existing);
+            return false;
+        }
         var area = string.IsNullOrWhiteSpace(lab.Area) ? null : await areas.GetByNameAsync(lab.Area, ct);
         if (area is null)
         {
@@ -708,12 +715,20 @@ internal static class PenaltyActorRules
         System.Linq.Expressions.Expression<Func<T, Guid?>> userId, System.Linq.Expressions.Expression<Func<T, Guid?>> repId)
     {
         var typeOf = userType.Compile();
-        v.RuleFor(userType).Must(EnumParse.IsValid<PenaltyUser>).WithMessage("User type must be Rep, DataEntry or Technician.");
+        v.RuleFor(userType).Must(EnumParse.IsValid<PenaltyUser>).WithMessage("User type must be Rep, DataEntry, Technician or LabRequest.");
         v.When(x => string.Equals(typeOf(x), nameof(PenaltyUser.Rep), StringComparison.OrdinalIgnoreCase), () =>
         {
             v.RuleFor(repId).NotEmpty().WithMessage("Select the representative who made the error.");
             v.RuleFor(userId).Null().WithMessage("A representative penalty cannot also name a system user.");
-        }).Otherwise(() =>
+        });
+        v.When(x => string.Equals(typeOf(x), nameof(PenaltyUser.LabRequest), StringComparison.OrdinalIgnoreCase), () =>
+        {
+            v.RuleFor(repId).Null().WithMessage("A lab-request penalty names no person.");
+            v.RuleFor(userId).Null().WithMessage("A lab-request penalty names no person.");
+        });
+        v.When(x => EnumParse.IsValid<PenaltyUser>(typeOf(x))
+            && !string.Equals(typeOf(x), nameof(PenaltyUser.Rep), StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(typeOf(x), nameof(PenaltyUser.LabRequest), StringComparison.OrdinalIgnoreCase), () =>
         {
             v.RuleFor(userId).NotEmpty().WithMessage("Select the system user who made the error.");
             v.RuleFor(repId).Null().WithMessage("A data-entry / technician penalty cannot also name a representative.");

@@ -100,6 +100,7 @@ internal sealed class AccountingQueries : IAccountingQueries
 
     public async Task<IReadOnlyList<PenaltyActorDto>> PenaltyActorsAsync(PenaltyUser userType, OrgScope scope, CancellationToken ct)
     {
+        if (userType == PenaltyUser.LabRequest) return Array.Empty<PenaltyActorDto>(); // the lab asked for the wrong test — nobody to pick
         if (userType == PenaltyUser.Rep)
         {
             // Reps are org-scoped like every rep-linked read; the rep type is carried so the picker can disambiguate.
@@ -343,7 +344,10 @@ internal sealed class AccountingQueries : IAccountingQueries
         var codes = rowLabs.Select(l => l.Code.Value.ToUpperInvariant()).ToList();
         var ldm = (await _db.DailyLabStatistics.AsNoTracking().Where(s => s.Date == date && codes.Contains(s.LabCode.ToUpper())).ToListAsync(ct))
             .GroupBy(s => s.LabCode.ToUpperInvariant()).ToDictionary(g => g.Key, g => g.Sum(s => s.Income.Amount));
-        var penalties = (await _db.PenaltyRecords.AsNoTracking().Where(p => p.Date == date && rowIds.Contains(p.LaboratoryId)).ToListAsync(ct))
+        // Only lab-request penalties are the lab's to pay (Rep / DataEntry / Technician ones are our side's fault and go
+        // to the area's deductions instead).
+        var labRequest = PenaltyUser.LabRequest;
+        var penalties = (await _db.PenaltyRecords.AsNoTracking().Where(p => p.Date == date && p.UserType == labRequest && rowIds.Contains(p.LaboratoryId)).ToListAsync(ct))
             .GroupBy(p => p.LaboratoryId).ToDictionary(g => g.Key, g => g.Sum(p => p.PenaltyAmount.Amount));
         // Remaining carried from earlier days (any rep): Σ(total required − paid) − Σ delayed payments before the date.
         var previous = (await _db.RepLabIncomes.AsNoTracking().Where(e => e.Date < date && rowIds.Contains(e.LaboratoryId)).ToListAsync(ct))

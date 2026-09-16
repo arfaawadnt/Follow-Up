@@ -1,6 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { ddmy, exportXlsx, localToday, printTable } from '../../shared/export.util';
 import { DateInputComponent } from '../../shared/date-input.component';
 import { FilterSelectComponent } from '../../shared/filter-select.component';
@@ -10,7 +11,7 @@ import { ToastService } from '../../core/toast.service';
 import { UiService } from '../../core/ui.service';
 import { TranslatePipe } from '../../core/i18n';
 import { LabLookup, PenaltyActorDto, PenaltyDto, TestLookup } from '../../core/models';
-import { ACC_STYLES, PENALTY_USERS, dayName, firstOfMonth, money } from './accounting.util';
+import { ACC_STYLES, PENALTY_USERS, dayName, firstOfMonth, money, penaltyUserLabel } from './accounting.util';
 
 type Opt = { value: string; label: string };
 
@@ -21,12 +22,13 @@ type Opt = { value: string; label: string };
 @Component({
   selector: 'app-acc-penalties',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, TranslatePipe, DateInputComponent, FilterSelectComponent],
+  imports: [FormsModule, DecimalPipe, TranslatePipe, DateInputComponent, FilterSelectComponent, RouterLink],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'accounting' | t : 'Accounting' }} / {{ 'acc_penalties' | t : 'Penalty Statement' }}</div><h1>{{ 'acc_penalties' | t : 'Penalty Statement' }}</h1></div>
       <div class="pagehead-actions">
         @if (canManage()) { <button class="btn btn-p" (click)="openNew()">{{ 'record_penalty' | t : 'Record penalty' }}</button> }
+        <a class="btn btn-s" routerLink="/accounting/penalty-report">{{ 'acc_penalty_report' | t : 'Penalty Report' }}</a>
         <button class="btn btn-s" (click)="exportExcel()">{{ 'export_excel' | t : 'Export Excel' }}</button>
         <button class="btn btn-s" (click)="exportPdf()">{{ 'export_pdf' | t : 'Export PDF' }}</button>
       </div>
@@ -109,8 +111,12 @@ type Opt = { value: string; label: string };
               <div class="field"><label>{{ 'value' | t : 'Value' }} *</label><input class="input" type="number" min="0" step="0.01" [(ngModel)]="f.rightValue"></div>
               <div class="field"><label>{{ 'user_type' | t : 'User Type' }} *</label>
                 <select class="select" [ngModel]="f.userType" (ngModelChange)="pickUserType($event)">@for (u of users; track u) { <option [value]="u">{{ userLabel(u) }}</option> }</select></div>
-              <div class="field"><label>{{ 'user' | t : 'User' }} *</label>
-                <app-filter-select [(ngModel)]="f.performedById" [options]="actorOptions()" [clearable]="true" [placeholder]="'select_user' | t : 'Select…'"></app-filter-select></div>
+              @if (f.userType === 'LabRequest') {
+                <div class="field"><label>{{ 'user' | t : 'User' }}</label><div class="small muted" style="padding-top:8px">{{ 'lab_request_hint' | t : 'The lab asked for the wrong test: charged to the lab (Rep Income), not deducted from the area.' }}</div></div>
+              } @else {
+                <div class="field"><label>{{ 'user' | t : 'User' }} *</label>
+                  <app-filter-select [(ngModel)]="f.performedById" [options]="actorOptions()" [clearable]="true" [placeholder]="'select_user' | t : 'Select…'"></app-filter-select></div>
+              }
               <div class="field"><label>{{ 'penalty' | t : 'Penalty' }}</label><input class="input" [value]="(f.wrongValue ?? 0) - (f.rightValue ?? 0) | number:'1.2-2'" disabled></div>
             </div>
           </div>
@@ -161,7 +167,7 @@ export class PenaltiesComponent {
 
   canManage(): boolean { return this.auth.has('ManageAccounting'); }
   day(d: string | null): string { return dayName(d, this.ui.lang()); }
-  userLabel(u: string): string { return u === 'DataEntry' ? 'Data Entry' : u; }
+  userLabel(u: string): string { return penaltyUserLabel(u); }
 
   load(): void {
     this.loading.set(true);
@@ -200,7 +206,7 @@ export class PenaltiesComponent {
   valid(): boolean {
     const f = this.f;
     return !!f.date && !!f.laboratoryId && !!f.accNo.trim() && !!f.patientName.trim() && !!f.wrongTestCode && !!f.rightTestCode
-      && f.wrongValue !== null && f.wrongValue >= 0 && f.rightValue !== null && f.rightValue >= 0 && !!f.userType && !!f.performedById;
+      && f.wrongValue !== null && f.wrongValue >= 0 && f.rightValue !== null && f.rightValue >= 0 && !!f.userType && (f.userType === 'LabRequest' || !!f.performedById);
   }
   save(): void {
     if (!this.valid()) return;
@@ -208,9 +214,9 @@ export class PenaltiesComponent {
     const body = { date: this.f.date, laboratoryId: this.f.laboratoryId, accNo: this.f.accNo.trim(), patientName: this.f.patientName.trim(),
       wrongTestCode: this.f.wrongTestCode, wrongTestName: this.f.wrongTestName, wrongValue: this.f.wrongValue,
       rightTestCode: this.f.rightTestCode, rightTestName: this.f.rightTestName, rightValue: this.f.rightValue, userType: this.f.userType,
-      // Exactly one of the two, matching the type — the server enforces the same rule.
+      // Exactly one of the two, matching the type (none for a lab request) — the server enforces the same rule.
       performedByRepId: this.f.userType === 'Rep' ? this.f.performedById : null,
-      performedByUserId: this.f.userType === 'Rep' ? null : this.f.performedById };
+      performedByUserId: this.f.userType === 'Rep' || this.f.userType === 'LabRequest' ? null : this.f.performedById || null };
     const req = this.editId ? this.api.put(`/accounting/penalties/${this.editId}`, body) : this.api.post('/accounting/penalties', body);
     req.subscribe({ next: () => { this.busy.set(false); this.dlg.set(false); this.toast.success('Penalty saved.'); this.load(); }, error: () => this.busy.set(false) });
   }

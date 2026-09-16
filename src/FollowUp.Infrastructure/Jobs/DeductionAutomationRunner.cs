@@ -48,7 +48,8 @@ internal sealed class DeductionAutomationRunner : IDeductionAutomationRunner
         // ---- 1. Penalty reconcile ---------------------------------------------------------------------------------
         var mirrored = await _db.Deductions.AsNoTracking().Where(d => d.PenaltyRecordId != null).Select(d => d.PenaltyRecordId!.Value).ToListAsync(ct);
         var mirroredSet = mirrored.ToHashSet();
-        var unlinked = await _db.PenaltyRecords.AsNoTracking().Where(p => !mirrored.Contains(p.Id)).ToListAsync(ct);
+        var labRequest = PenaltyUser.LabRequest; // lab-request penalties are the lab's to pay (Rep Income), never a deduction
+        var unlinked = await _db.PenaltyRecords.AsNoTracking().Where(p => !mirrored.Contains(p.Id) && p.UserType != labRequest).ToListAsync(ct);
         var linked = 0; var unplaced = 0;
         if (unlinked.Count > 0)
         {

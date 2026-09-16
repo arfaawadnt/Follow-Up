@@ -6,6 +6,8 @@
 #                       delayed_payment, notes; Restrict FKs to representative + laboratory; CHECK non-negative and
 #                       paid <= total_required). visit_history gains total_required (copied at archive time from now on;
 #                       null on older rows). Additive only - no data is touched.
+#   PenaltyLabRequest : SQL-only - ck_penalty_record_performed_by now also allows penalty_user = LabRequest with NO
+#                       performed-by person (Rep still needs a rep; DataEntry/Technician a system user). Additive.
 #   (LabResponsibleAndRepCollections applies too if this box still runs the pre-PR-#19 schema.)
 #   Domain        : RepLabIncome aggregate (Remaining = TotalRequired - Paid; IsEmpty); VisitHistory.TotalRequired
 #   Application   : GET real-income reps/labs/sheet queries; SaveRealIncomeSheetCommand (upsert per lab; all-zero row =
@@ -14,7 +16,12 @@
 #                   already entered; LDM income from daily_lab_statistic, penalty = wrong - right, remaining carried from earlier days)
 #   Api           : GET /accounting/real-income/reps|labs|sheet, PUT /accounting/real-income/sheet,
 #                   GET /accounting/statement?by=Responsible|Area|Lab&id=&from=&to= (rep-statement/{repId} kept)
-#   wwwroot       : NEW nav page Accounting -> "Rep Income" (route /accounting/rep-income, ViewAccounting): the daily
+#   Penalties     : new user type "Lab Request" (nobody to pick; charged to the lab -> counted in the Rep Income sheet's
+#                   Penalty column; NOT mirrored into the area's deductions, incl. the nightly reconcile). Rep / Data Entry /
+#                   Technician penalties keep flowing to Deductions and are the scope of the new Penalty Report.
+#   wwwroot       : NEW nav page Accounting -> "Penalty Report" (/accounting/penalty-report, ViewAccounting): penalties
+#                   grouped by user type with subtotals + grand total, filters date/user type/lab, formal Print + Excel.
+#                   NEW nav page Accounting -> "Rep Income" (route /accounting/rep-income, ViewAccounting): the daily
 #                   real-income sheet (view-only context + rep inputs, "Add lab", Save sheet, Print + Excel,
 #                   "Sync LDM income" = pull that date's LabStats feed from Oracle now; POST /accounting/real-income/sync-ldm).
 #                   Rep Statement page - "View by" Lab Responsible / Area / Lab statement + a link to Rep Income; the old
@@ -144,7 +151,8 @@ if ($healthy) {
     Write-Host "  1. Accounting -> Rep Income (new nav page): pick Area, Date, Lab Responsible -> Load."
     Write-Host "  2. Enter Samples / Total required / Paid / Delayed payment / Notes per lab; 'Add lab' for a lab without a recorded visit; Save sheet."
     Write-Host "  3. 'Print' prints the real-income report for that date and responsible."
-    Write-Host "  4. Statement: 'View by' Lab Responsible / Area / Lab; the day shows a 'Real income' debit = sum(paid + delayed) of the sheet."
+    Write-Host "  4. Accounting -> Penalty Statement -> Record penalty: user type 'Lab Request' needs no person; Accounting -> Penalty Report groups Rep / Data Entry / Technician penalties."
+    Write-Host "  5. Statement: 'View by' Lab Responsible / Area / Lab; the day shows a 'Real income' debit = sum(paid + delayed) of the sheet."
 } else {
     Write-Warning "Service status: $((Get-Service FollowUp).Status); health check did not pass within 90s."
     Write-Warning "Check C:\FollowUp\app\logs for a migration or startup failure."

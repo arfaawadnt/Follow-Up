@@ -66,7 +66,9 @@ public sealed class RealIncomeSheetTests
             db.VisitHistory.Add(VisitHistory.ArchiveFrom(v2, DateTimeOffset.UtcNow));
 
             var s = DailyLabStatistic.For(D, l1.Code.Value.ToUpperInvariant()); s.Set(3, 10, new Money(1234.5m)); db.DailyLabStatistics.Add(s);
-            db.PenaltyRecords.Add(PenaltyRecord.Create(l1.Id, D, "ACC-1", "Patient", "T1", "Wrong", 300m, "T2", "Right", 120m, PenaltyUser.Rep, null, rep.Id));
+            // Only the lab-request penalty (300 − 120) is the lab's to pay; the rep's own penalty (500 − 100) goes to the area's deductions.
+            db.PenaltyRecords.Add(PenaltyRecord.Create(l1.Id, D, "ACC-1", "Patient", "T1", "Wrong", 300m, "T2", "Right", 120m, PenaltyUser.LabRequest, null, null));
+            db.PenaltyRecords.Add(PenaltyRecord.Create(l1.Id, D, "ACC-2", "Patient", "T1", "Wrong", 500m, "T2", "Right", 100m, PenaltyUser.Rep, null, rep.Id));
             // Earlier sheet lines of L1: remaining 200 (D-2) and a 50 delayed payment (D-1) → 150 carried into D.
             db.RepLabIncomes.Add(RepLabIncome.Create(rep.Id, l1.Id, D.AddDays(-2), 5, 500m, 300m, 0m, null));
             db.RepLabIncomes.Add(RepLabIncome.Create(rep.Id, l1.Id, D.AddDays(-1), 2, 100m, 100m, 50m, null));
@@ -93,7 +95,7 @@ public sealed class RealIncomeSheetTests
             var row = sheet.Rows.Should().ContainSingle().Subject;
             row.LaboratoryId.Should().Be(l1.Id.Value);
             row.HasVisit.Should().BeTrue(); row.VisitTotalRequired.Should().Be(900); row.VisitSamples.Should().Be(7);
-            row.LdmIncome.Should().Be(1234.5m); row.Penalty.Should().Be(180m, "wrong − right");
+            row.LdmIncome.Should().Be(1234.5m); row.Penalty.Should().Be(180m, "wrong − right of the LAB-REQUEST penalty only");
             row.PreviousRemaining.Should().Be(150m, "(500 − 300) + (100 − 100) − 50 delayed");
             row.EntryId.Should().BeNull(); row.TotalRequired.Should().Be(0m);
 
@@ -137,6 +139,9 @@ public sealed class RealIncomeSheetTests
             (await queries.StatementAsync(StatementBy.Lab, Guid.NewGuid(), D, D, OrgScope.Global, CancellationToken.None)).Should().BeNull();
 
             // DB guards.
+            var repPenaltyId = await db.PenaltyRecords.AsNoTracking().Where(p => p.LaboratoryId == l1.Id && p.AccNo == "ACC-2").Select(p => p.Id.Value).SingleAsync();
+            var retype = () => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE penalty_record SET penalty_user = 'LabRequest' WHERE id = {repPenaltyId}");
+            (await retype.Should().ThrowAsync<Npgsql.PostgresException>()).Which.SqlState.Should().Be("23514", "a lab-request penalty names nobody (ck_penalty_record_performed_by)");
             var dup = () => db.Database.ExecuteSqlInterpolatedAsync($@"
 INSERT INTO rep_lab_income (id, date, representative_id, laboratory_id, samples, total_required, paid, delayed_payment, created_at, created_by)
 VALUES ({Guid.NewGuid()}, {D}, {rep.Id.Value}, {l1.Id.Value}, 1, 10, 5, 0, now(), 'test')");

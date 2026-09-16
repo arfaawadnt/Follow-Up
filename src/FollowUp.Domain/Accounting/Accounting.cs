@@ -20,6 +20,9 @@ public sealed class PenaltyUser : Enumeration
     public static readonly PenaltyUser Rep = new(1, nameof(Rep));
     public static readonly PenaltyUser DataEntry = new(2, nameof(DataEntry));
     public static readonly PenaltyUser Technician = new(3, nameof(Technician));
+    /// <summary>The lab itself asked for the wrong test: nobody on our side is at fault. Charged to the lab — it appears
+    /// on the Rep Income sheet's Penalty column and is NOT mirrored into the area's deductions (2026-09-16).</summary>
+    public static readonly PenaltyUser LabRequest = new(4, nameof(LabRequest));
     private PenaltyUser(int id, string name) : base(id, name) { }
 }
 
@@ -435,8 +438,14 @@ public sealed class PenaltyRecord : AggregateRoot<PenaltyRecordId>, IAuditable
         UserType = userType ?? throw new DomainException("The user type is required.");
 
         // Exactly one "performed by" link, and it must match the user type: a Rep penalty names a representative,
-        // a DataEntry / Technician penalty names a system user. Mirrored by ck_penalty_record_performed_by in the DB.
-        if (userType == PenaltyUser.Rep)
+        // a DataEntry / Technician penalty names a system user, a LabRequest penalty names nobody (the lab asked for
+        // the wrong test). Mirrored by ck_penalty_record_performed_by in the DB.
+        if (userType == PenaltyUser.LabRequest)
+        {
+            if (performedByRepId is not null || performedByUserId is not null)
+                throw new DomainException("A lab-request penalty names no person: the lab asked for the wrong test.");
+        }
+        else if (userType == PenaltyUser.Rep)
         {
             if (performedByRepId is null) throw new DomainException("Select the representative who made the error.");
             if (performedByUserId is not null) throw new DomainException("A representative penalty cannot also name a system user.");

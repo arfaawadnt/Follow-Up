@@ -19,7 +19,7 @@ public class AccountingInvariantsTests
     [Fact]
     public void Enumerations_expose_the_agreed_fixed_values()
     {
-        Enumeration.GetAll<PenaltyUser>().Select(e => e.Name).Should().BeEquivalentTo(new[] { "Rep", "DataEntry", "Technician" });
+        Enumeration.GetAll<PenaltyUser>().Select(e => e.Name).Should().BeEquivalentTo(new[] { "Rep", "DataEntry", "Technician", "LabRequest" });
         Enumeration.GetAll<DeductionReason>().Select(e => e.Name).Should().BeEquivalentTo(new[] { "Transportation", "Penalty", "PercentageDeal" });
         Enumeration.GetAll<CollectionType>().Select(e => e.Name).Should().BeEquivalentTo(new[] { "Single", "Group" });
         // The IBAN is a fixed three-value pick (operator decision), persisted by these names.
@@ -169,6 +169,12 @@ public class AccountingInvariantsTests
             FluentActions.Invoking(() => Make(type, user, rep)).Should().Throw<DomainException>().WithMessage("*cannot also name a representative*");
             Make(type, user, null).PerformedByUserId.Should().Be(user);
         }
+
+        // LabRequest → nobody: the lab asked for the wrong test.
+        var labRequest = Make(PenaltyUser.LabRequest, null, null);
+        labRequest.PerformedByRepId.Should().BeNull(); labRequest.PerformedByUserId.Should().BeNull();
+        FluentActions.Invoking(() => Make(PenaltyUser.LabRequest, user, null)).Should().Throw<DomainException>().WithMessage("*names no person*");
+        FluentActions.Invoking(() => Make(PenaltyUser.LabRequest, null, rep)).Should().Throw<DomainException>().WithMessage("*names no person*");
     }
 
     // ---- Deduction ----

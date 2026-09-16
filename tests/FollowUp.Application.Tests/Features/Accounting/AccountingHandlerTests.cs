@@ -153,6 +153,31 @@ public class AccountingHandlerTests
         v.Validate(Penalty(lab, "Rep", null, someone)).IsValid.Should().BeTrue();
         v.Validate(Penalty(lab, "DataEntry", someone, null)).IsValid.Should().BeTrue();
         v.Validate(Penalty(lab, "Technician", someone, null)).IsValid.Should().BeTrue();
+        v.Validate(Penalty(lab, "LabRequest", null, null)).IsValid.Should().BeTrue("a lab request names nobody");
+        v.Validate(Penalty(lab, "LabRequest", someone, null)).Errors.Should().Contain(e => e.PropertyName == nameof(CreatePenaltyCommand.PerformedByUserId), "a lab request names no user");
+        v.Validate(Penalty(lab, "LabRequest", null, someone)).Errors.Should().Contain(e => e.PropertyName == nameof(CreatePenaltyCommand.PerformedByRepId), "a lab request names no rep");
+    }
+
+    [Fact]
+    public async Task A_lab_request_penalty_is_recorded_without_a_deduction_and_retyping_to_it_drops_the_mirror()
+    {
+        var labs = new FakeLaboratoryRepository(); var lab = Lab(); lab.PlaceInHierarchy(null, "Giza", null, "Nasr City"); labs.Store.Add(lab);
+        var areas = new FakeAreaRepository(); areas.Store.Add(Area.Create("Nasr City", CityId.New(), false));
+        var users = new FakeAppUserRepository(); var clerk = SystemUser(); users.Store.Add(clerk);
+        var repo = new FakePenaltyRecordRepository(); var deductions = new FakeDeductionRepository(); var me = new FakeCurrentUser();
+
+        var id = await new CreatePenaltyHandler(repo, labs, new FakeRepresentativeRepository(), users, deductions, areas, me)
+            .Handle(Penalty(lab.Id.Value, "LabRequest", null, null), CancellationToken.None);
+        var p = repo.Store.Single(x => x.Id.Value == id);
+        p.UserType.Should().BeSameAs(PenaltyUser.LabRequest); p.PerformedByUserId.Should().BeNull(); p.PerformedByRepId.Should().BeNull();
+        deductions.Store.Should().BeEmpty("a lab-request penalty is the lab's to pay — it is not deducted from the area");
+
+        // Re-typed to DataEntry it gains a mirror; back to LabRequest the mirror goes.
+        var update = new UpdatePenaltyHandler(repo, labs, new FakeRepresentativeRepository(), users, deductions, areas, me);
+        await update.Handle(new UpdatePenaltyCommand(id, D, "ACC-9", "Patient", "T1", "Wrong", 300m, "T2", "Right", 120m, "DataEntry", clerk.Id.Value, null), CancellationToken.None);
+        deductions.Store.Should().ContainSingle();
+        await update.Handle(new UpdatePenaltyCommand(id, D, "ACC-9", "Patient", "T1", "Wrong", 300m, "T2", "Right", 120m, "LabRequest", null, null), CancellationToken.None);
+        deductions.Store.Should().BeEmpty();
     }
 
     // ---- Deduction ----

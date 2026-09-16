@@ -21,7 +21,10 @@ export function money(v: number | null | undefined): number { return Math.round(
 
 /** Fixed value sets, mirroring the domain enumerations (persisted by name). */
 export const IBAN_OPTIONS = ['12', '16', '18'];
-export const PENALTY_USERS = ['Rep', 'DataEntry', 'Technician'];
+export const PENALTY_USERS = ['Rep', 'DataEntry', 'Technician', 'LabRequest'];
+/** The user types whose penalties are our side's fault (deducted from the area; the Penalty Report groups them). */
+export const PENALTY_STAFF_USERS = ['Rep', 'DataEntry', 'Technician'];
+export function penaltyUserLabel(u: string): string { return u === 'DataEntry' ? 'Data Entry' : u === 'LabRequest' ? 'Lab Request' : u; }
 export const DEDUCTION_REASONS = ['Transportation', 'Penalty', 'PercentageDeal'];
 export const COLLECTION_TYPES = ['Single', 'Group'];
 

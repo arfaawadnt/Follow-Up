@@ -119,6 +119,7 @@ export class ShellComponent implements AfterViewChecked, OnDestroy {
     // Accounting — the money-ledger report pages (ViewAccounting; recording needs ManageAccounting).
     { titleKey: 'accounting', items: [
       { id: 'acc_penalties', key: 'acc_penalties', icon: 'alert-triangle', path: '/accounting/penalties', privilege: 'ViewAccounting' },
+      { id: 'acc_penalty_report', key: 'acc_penalty_report', icon: 'clipboard-list', path: '/accounting/penalty-report', privilege: 'ViewAccounting' },
       { id: 'acc_deductions', key: 'acc_deductions', icon: 'minus-circle', path: '/accounting/deductions', privilege: 'ViewAccounting' },
       { id: 'acc_treasury', key: 'acc_treasury', icon: 'landmark', path: '/accounting/treasury', privilege: 'ViewAccounting' },
       { id: 'acc_collections', key: 'acc_collections', icon: 'wallet', path: '/accounting/collections', privilege: 'ViewAccounting' },

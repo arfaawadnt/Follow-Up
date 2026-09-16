@@ -36,6 +36,7 @@ export const routes: Routes = [
 
       // Accounting
       { path: 'accounting/penalties', loadComponent: () => import('./features/accounting/penalties.component').then((m) => m.PenaltiesComponent) },
+      { path: 'accounting/penalty-report', loadComponent: () => import('./features/accounting/penalty-report.component').then((m) => m.PenaltyReportComponent) },
       { path: 'accounting/deductions', loadComponent: () => import('./features/accounting/deductions.component').then((m) => m.DeductionsComponent) },
       { path: 'accounting/treasury', loadComponent: () => import('./features/accounting/treasury.component').then((m) => m.TreasuryComponent) },
       { path: 'accounting/collections', loadComponent: () => import('./features/accounting/collections.component').then((m) => m.CollectionsComponent) },
