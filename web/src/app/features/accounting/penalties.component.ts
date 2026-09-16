@@ -120,9 +120,10 @@ type Opt = { value: string; label: string };
               <div class="field"><label>{{ 'penalty' | t : 'Penalty' }}</label><input class="input" [value]="(f.wrongValue ?? 0) - (f.rightValue ?? 0) | number:'1.2-2'" disabled></div>
             </div>
           </div>
-          <div class="as-dlg-foot">
+          <div class="as-dlg-foot" style="align-items:center;gap:12px">
+            @if (missing().length) { <span class="small" style="color:var(--red-600,#dc2626);margin-inline-end:auto">{{ 'missing_fields' | t : 'Missing' }}: {{ missing().join(', ') }}</span> }
             <button class="btn btn-s" (click)="dlg.set(false)">{{ 'cancel' | t : 'Cancel' }}</button>
-            <button class="btn btn-p" [disabled]="busy() || !valid()" (click)="save()">{{ 'save' | t : 'Save' }}</button>
+            <button class="btn btn-p" [disabled]="busy()" (click)="save()">{{ 'save' | t : 'Save' }}</button>
           </div>
         </div>
       </div>
@@ -203,13 +204,25 @@ export class PenaltiesComponent {
     if (side === 'wrong') { this.f.wrongKey = key; this.f.wrongTestCode = t?.code ?? ''; this.f.wrongTestName = t?.name ?? ''; }
     else { this.f.rightKey = key; this.f.rightTestCode = t?.code ?? ''; this.f.rightTestName = t?.name ?? ''; }
   }
-  valid(): boolean {
-    const f = this.f;
-    return !!f.date && !!f.laboratoryId && !!f.accNo.trim() && !!f.patientName.trim() && !!f.wrongTestCode && !!f.rightTestCode
-      && f.wrongValue !== null && f.wrongValue >= 0 && f.rightValue !== null && f.rightValue >= 0 && !!f.userType && (f.userType === 'LabRequest' || !!f.performedById);
+  /** The starred fields still empty or invalid — shown beside Save so a disabled save is never a mystery. */
+  missing(): string[] {
+    const f = this.f; const m: string[] = [];
+    if (!f.date) m.push('Date');
+    if (!f.laboratoryId) m.push('Lab');
+    if (!f.accNo.trim()) m.push('Acc No');
+    if (!f.patientName.trim()) m.push('Patient Name');
+    if (!f.wrongTestCode) m.push('Wrong Test');
+    if (f.wrongValue === null || f.wrongValue === undefined || Number(f.wrongValue) < 0 || isNaN(Number(f.wrongValue))) m.push('Wrong Test value');
+    if (!f.rightTestCode) m.push('Right Test');
+    if (f.rightValue === null || f.rightValue === undefined || Number(f.rightValue) < 0 || isNaN(Number(f.rightValue))) m.push('Right Test value');
+    if (!f.userType) m.push('User Type');
+    if (f.userType !== 'LabRequest' && !f.performedById) m.push('User');
+    return m;
   }
+  valid(): boolean { return this.missing().length === 0; }
   save(): void {
-    if (!this.valid()) return;
+    const missing = this.missing();
+    if (missing.length) { this.toast.warning(`Please fill: ${missing.join(', ')}`); return; }
     this.busy.set(true);
     const body = { date: this.f.date, laboratoryId: this.f.laboratoryId, accNo: this.f.accNo.trim(), patientName: this.f.patientName.trim(),
       wrongTestCode: this.f.wrongTestCode, wrongTestName: this.f.wrongTestName, wrongValue: this.f.wrongValue,
