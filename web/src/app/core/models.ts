@@ -250,6 +250,8 @@ export interface CollectionDto {
 }
 export interface RepStatementRow { date: string; kind: string; debit: number; credit: number; notes: string | null; balance: number; sourceId: string | null; }
 export interface RepStatement { representativeId: string; repName: string; rows: RepStatementRow[]; totalDebit: number; totalCredit: number; balance: number; }
+/** Statement by dimension (Responsible | Area | Lab). */
+export interface Statement { by: string; subjectId: string; subjectName: string; rows: RepStatementRow[]; totalDebit: number; totalCredit: number; balance: number; }
 /** Real-income sheet (Rep Statement page): a Lab Responsible's per-lab entries for one area and date. */
 export interface RealIncomeRep { id: string; fullName: string; labCount: number; }
 export interface RealIncomeLab { id: string; displayCode: string; name: string; }

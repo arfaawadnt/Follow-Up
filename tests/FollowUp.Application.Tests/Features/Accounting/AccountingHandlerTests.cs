@@ -1,5 +1,6 @@
 using FluentAssertions;
 using FollowUp.Application.Common.Exceptions;
+using FollowUp.Application.Common.Security;
 using FollowUp.Application.Features.Accounting;
 using FollowUp.Application.Tests.Common;
 using FollowUp.Domain.Accounting;
@@ -459,6 +460,37 @@ public class AccountingHandlerTests
 
         repo.Store.Single(x => x.Id.Value == id).Amount.Amount.Should().Be(1500m);
         new CreateRepIncomeEntryValidator().Validate(new CreateRepIncomeEntryCommand(D, rep.Id.Value, 0m, null)).IsValid.Should().BeFalse("must be positive");
+    }
+
+    // ---- Statement by dimension ----
+
+    [Fact]
+    public async Task Statement_by_an_unknown_dimension_is_a_validation_error()
+    {
+        var handler = new GetStatementHandler(new StubAccountingQueries(), new FakeCurrentUser());
+        await FluentActions.Awaiting(() => handler.Handle(new GetStatementQuery("Branch", Guid.NewGuid(), D, D), CancellationToken.None))
+            .Should().ThrowAsync<ValidationException>();
+        await FluentActions.Awaiting(() => handler.Handle(new GetStatementQuery(StatementBy.Area, Guid.NewGuid(), D, D), CancellationToken.None))
+            .Should().ThrowAsync<NotFoundException>("the stub knows no subject");
+    }
+
+    /// <summary>Read-side stub: every statement subject is unknown (null).</summary>
+    private sealed class StubAccountingQueries : IAccountingQueries
+    {
+        public Task<StatementDto?> StatementAsync(string by, Guid id, DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct) => Task.FromResult<StatementDto?>(null);
+        public Task<IReadOnlyList<TreasuryReasonDto>> TreasuryReasonsAsync(CancellationToken ct) => throw new NotSupportedException();
+        public Task<IReadOnlyList<TreasuryDto>> TreasuriesAsync(OrgScope scope, TreasuryAccessMap access, CancellationToken ct) => throw new NotSupportedException();
+        public Task<IReadOnlyList<TreasuryEntryDto>> TreasuryEntriesAsync(DateOnly from, DateOnly to, Guid? treasuryId, OrgScope scope, TreasuryAccessMap access, CancellationToken ct) => throw new NotSupportedException();
+        public Task<IReadOnlyList<TreasuryGrantDto>> TreasuryGrantsAsync(RoleId roleId, CancellationToken ct) => throw new NotSupportedException();
+        public Task<IReadOnlyList<PenaltyDto>> PenaltiesAsync(DateOnly from, DateOnly to, Guid? laboratoryId, OrgScope scope, bool canSeeEncrypted, CancellationToken ct) => throw new NotSupportedException();
+        public Task<IReadOnlyList<PenaltyActorDto>> PenaltyActorsAsync(PenaltyUser userType, OrgScope scope, CancellationToken ct) => throw new NotSupportedException();
+        public Task<IReadOnlyList<DeductionDto>> DeductionsAsync(DateOnly from, DateOnly to, Guid? areaId, OrgScope scope, CancellationToken ct) => throw new NotSupportedException();
+        public Task<DeductionSuggestionDto> SuggestDeductionAsync(Guid areaId, DeductionReason reason, DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct) => throw new NotSupportedException();
+        public Task<IReadOnlyList<CollectionDto>> CollectionsAsync(DateOnly from, DateOnly to, Guid? repId, OrgScope scope, CancellationToken ct) => throw new NotSupportedException();
+        public Task<RepStatementDto?> RepStatementAsync(Guid repId, DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct) => throw new NotSupportedException();
+        public Task<IReadOnlyList<RealIncomeRepDto>> RealIncomeRepsAsync(Guid areaId, OrgScope scope, CancellationToken ct) => throw new NotSupportedException();
+        public Task<IReadOnlyList<RealIncomeLabDto>> RealIncomeLabsAsync(Guid areaId, OrgScope scope, bool canSeeEncrypted, CancellationToken ct) => throw new NotSupportedException();
+        public Task<RealIncomeSheetDto?> RealIncomeSheetAsync(Guid areaId, DateOnly date, Guid repId, OrgScope scope, bool canSeeEncrypted, CancellationToken ct) => throw new NotSupportedException();
     }
 
     // ---- Real income sheet ----

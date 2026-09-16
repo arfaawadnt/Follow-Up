@@ -12,10 +12,11 @@
 #                   remove; only a LabResponsible has a sheet); Rep Statement gains kind "RealIncome" = sum(paid + delayed) per day
 #   Infrastructure: sheet query (rep's labs of the area with a recorded visit that day - live board + archive - plus labs
 #                   already entered; LDM income from daily_lab_statistic, penalty = wrong - right, remaining carried from earlier days)
-#   Api           : GET /accounting/real-income/reps|labs|sheet, PUT /accounting/real-income/sheet
-#   wwwroot       : Rep Statement page - tabs "Statement" / "Real income"; the old "Add real income" dialog is gone
-#                   (legacy manual lines stay visible and deletable); sheet grid with view-only context + rep inputs,
-#                   "Add lab" for a lab without a recorded visit, Save sheet, exports
+#   Api           : GET /accounting/real-income/reps|labs|sheet, PUT /accounting/real-income/sheet,
+#                   GET /accounting/statement?by=Responsible|Area|Lab&id=&from=&to= (rep-statement/{repId} kept)
+#   wwwroot       : Rep Statement page - "View by" Lab Responsible / Area / Lab statement; "Real income" button opens the
+#                   sheet as a POPUP (view-only context + rep inputs, "Add lab", Save sheet, Print + Excel); the old
+#                   "Add real income" dialog is gone (legacy manual lines stay visible and deletable)
 #
 # TO KNOW AFTER THIS RELEASE:
 #   - The sheet lists a Lab Responsible's labs (Lab detail -> Lab Responsible) inside the chosen Area (lab.Area = area name)
@@ -137,9 +138,10 @@ for ($i = 0; $i -lt 45; $i++) {
 if ($healthy) {
     Write-Host "Service is up and healthy. Backup at $backup"
     Write-Host "Next (Ctrl+F5):"
-    Write-Host "  1. Accounting -> Rep Statement -> tab 'Real income': pick Area, Date, Lab Responsible -> Load."
+    Write-Host "  1. Accounting -> Rep Statement -> button 'Real income' (popup): pick Area, Date, Lab Responsible -> Load."
     Write-Host "  2. Enter Samples / Total required / Paid / Delayed payment / Notes per lab; 'Add lab' for a lab without a recorded visit; Save sheet."
-    Write-Host "  3. Tab 'Statement': the day shows a 'Real income' debit = sum(paid + delayed payment) of the sheet."
+    Write-Host "  3. 'Print' in the popup prints the real-income report for that date and responsible."
+    Write-Host "  4. Statement: 'View by' Lab Responsible / Area / Lab; the day shows a 'Real income' debit = sum(paid + delayed) of the sheet."
 } else {
     Write-Warning "Service status: $((Get-Service FollowUp).Status); health check did not pass within 90s."
     Write-Warning "Check C:\FollowUp\app\logs for a migration or startup failure."

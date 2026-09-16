@@ -196,44 +196,84 @@ internal sealed class AccountingQueries : IAccountingQueries
 
     public async Task<RepStatementDto?> RepStatementAsync(Guid repId, DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct)
     {
-        var rid = new RepresentativeId(repId);
-        // The rep must be visible in the caller's scope (geographic dims) — otherwise "not found", never a leak.
-        var rep = await _db.Representatives.ApplyScope(scope).AsNoTracking().FirstOrDefaultAsync(r => r.Id == rid, ct);
-        if (rep is null) return null;
+        var st = await StatementAsync(StatementBy.Responsible, repId, from, to, scope, ct);
+        return st is null ? null : new RepStatementDto(st.SubjectId, st.SubjectName, st.Rows, st.TotalDebit, st.TotalCredit, st.Balance);
+    }
 
-        // Debit 1 — Oracle-derived income: Σ synced daily income of the labs this rep is the assigned collector for
-        // (operator decision). CollectorRepIds is a jsonb list, so the membership test runs in memory.
-        var labCodes = (await _db.Laboratories.AsNoTracking().Select(l => new { l.Code, l.CollectorRepIds }).ToListAsync(ct))
-            .Where(l => l.CollectorRepIds.Contains(rid)).Select(l => l.Code.Value.ToUpperInvariant())
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var stats = await _db.DailyLabStatistics.AsNoTracking().Where(s => s.Date >= from && s.Date <= to).ToListAsync(ct);
-        var oracleByDay = stats.Where(s => codesContains(s.LabCode)).GroupBy(s => s.Date)
-            .ToDictionary(g => g.Key, g => g.Aggregate(0m, (acc, s) => acc + s.Income.Amount));
-        bool codesContains(string code) => labCodes.Contains(code);
-
-        // Debit 2 — manually recorded real income.
-        var manual = await _db.RepIncomeEntries.AsNoTracking()
-            .Where(e => e.RepresentativeId == rid && e.Date >= from && e.Date <= to).ToListAsync(ct);
-
-        // Credit — this rep's share of the collections they took part in (jsonb list → in memory).
-        var collections = (await _db.Collections.AsNoTracking().Where(c => c.Date >= from && c.Date <= to).ToListAsync(ct))
-            .Where(c => c.RepIds.Contains(rid)).ToList();
+    /// <summary>
+    /// Statement by dimension. Debit = the synced (Oracle) income of the subject's labs per day + the real-income sheet
+    /// (Σ paid + delayed payment per day) [+ legacy manual lines, Responsible only]; Credit = the rep's share of
+    /// collections (Responsible only — a collection belongs to its reps, not to a lab or an area). The subject must be
+    /// visible in the caller's scope — otherwise null ("not found", never a leak).
+    /// Responsible labs = the labs the rep is responsible for ∪ the labs the rep is the assigned collector of (the
+    /// pre-2026-09-16 rule, kept so collector reps' statements stay meaningful).
+    /// </summary>
+    public async Task<StatementDto?> StatementAsync(string by, Guid id, DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct)
+    {
+        string subjectName; RepresentativeId? rid = null; List<LaboratoryId> labIds; HashSet<string> labCodes;
+        switch (by)
+        {
+            case StatementBy.Responsible:
+                {
+                    var r = new RepresentativeId(id);
+                    var rep = await _db.Representatives.ApplyScope(scope).AsNoTracking().FirstOrDefaultAsync(x => x.Id == r, ct);
+                    if (rep is null) return null;
+                    rid = r; subjectName = rep.FullName;
+                    // CollectorRepIds is a jsonb list, so the membership test runs in memory.
+                    var labs = (await _db.Laboratories.ApplyScope(scope).AsNoTracking().Select(l => new { l.Id, l.Code, l.CollectorRepIds, l.ResponsibleRepId }).ToListAsync(ct))
+                        .Where(l => l.ResponsibleRepId == r || l.CollectorRepIds.Contains(r)).ToList();
+                    labIds = labs.Select(l => l.Id).ToList(); labCodes = labs.Select(l => l.Code.Value.ToUpperInvariant()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    break;
+                }
+            case StatementBy.Area:
+                {
+                    var areas = await VisibleAreasAsync(scope, ct);
+                    if (!areas.TryGetValue(new AreaId(id), out var areaName)) return null;
+                    subjectName = areaName;
+                    var labs = await _db.Laboratories.ApplyScope(scope).AsNoTracking().Where(l => l.Area == areaName).Select(l => new { l.Id, l.Code }).ToListAsync(ct);
+                    labIds = labs.Select(l => l.Id).ToList(); labCodes = labs.Select(l => l.Code.Value.ToUpperInvariant()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    break;
+                }
+            case StatementBy.Lab:
+                {
+                    var lab = await _db.Laboratories.ApplyScope(scope).AsNoTracking().Where(l => l.Id == new LaboratoryId(id)).Select(l => new { l.Id, l.Code, l.Name }).FirstOrDefaultAsync(ct);
+                    if (lab is null) return null;
+                    subjectName = lab.Name; labIds = new List<LaboratoryId> { lab.Id }; labCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { lab.Code.Value.ToUpperInvariant() };
+                    break;
+                }
+            default: return null;
+        }
 
         var lines = new List<(DateOnly Date, int Order, string Kind, decimal Debit, decimal Credit, string? Notes, Guid? SourceId)>();
-        foreach (var kv in oracleByDay.Where(kv => kv.Value != 0m))
-            lines.Add((kv.Key, 0, "OracleIncome", kv.Value, 0m, "Synced income of the rep's collector labs", null));
-        foreach (var e in manual)
-            lines.Add((e.Date, 1, "ManualIncome", e.Amount.Amount, 0m, e.Notes, e.Id.Value));
 
-        // Debit 3 — the Lab Responsible's real-income sheet: what the labs actually paid that day (incl. delayed payments).
-        var sheet = await _db.RepLabIncomes.AsNoTracking().Where(e => e.RepresentativeId == rid && e.Date >= from && e.Date <= to).ToListAsync(ct);
-        foreach (var g in sheet.GroupBy(e => e.Date))
+        // Debit 1 — Oracle-derived income of the subject's labs, one line per day.
+        if (labCodes.Count > 0)
+        {
+            var stats = await _db.DailyLabStatistics.AsNoTracking().Where(s => s.Date >= from && s.Date <= to).ToListAsync(ct);
+            foreach (var kv in stats.Where(s => labCodes.Contains(s.LabCode)).GroupBy(s => s.Date).Select(g => (g.Key, Sum: g.Sum(s => s.Income.Amount))).Where(x => x.Sum != 0m))
+                lines.Add((kv.Key, 0, "OracleIncome", kv.Sum, 0m, "Synced income of the subject's labs", null));
+        }
+
+        // Debit 2 — the real-income sheet: what the labs actually paid (incl. delayed payments), one line per day.
+        var sheetQuery = _db.RepLabIncomes.AsNoTracking().Where(e => e.Date >= from && e.Date <= to);
+        sheetQuery = rid is { } rr ? sheetQuery.Where(e => e.RepresentativeId == rr) : sheetQuery.Where(e => labIds.Contains(e.LaboratoryId));
+        foreach (var g in (await sheetQuery.ToListAsync(ct)).GroupBy(e => e.Date))
         {
             var total = g.Sum(e => e.Paid.Amount + e.DelayedPayment.Amount);
             if (total != 0m) lines.Add((g.Key, 1, "RealIncome", total, 0m, $"Real income sheet · {g.Count()} lab(s)", null));
         }
-        foreach (var c in collections)
-            lines.Add((c.Date, 2, "Collection", 0m, c.ShareOf(rid).Amount, c.Notes ?? (c.Bank.Amount > 0 ? $"Bank (IBAN {c.Iban?.Name})" : "Cash"), c.Id.Value));
+
+        if (rid is { } repId)
+        {
+            // Debit 3 — legacy manually recorded real income (Responsible only).
+            var manual = await _db.RepIncomeEntries.AsNoTracking().Where(e => e.RepresentativeId == repId && e.Date >= from && e.Date <= to).ToListAsync(ct);
+            foreach (var e in manual) lines.Add((e.Date, 1, "ManualIncome", e.Amount.Amount, 0m, e.Notes, e.Id.Value));
+
+            // Credit — this rep's share of the collections they took part in (jsonb list → in memory).
+            var collections = (await _db.Collections.AsNoTracking().Where(c => c.Date >= from && c.Date <= to).ToListAsync(ct)).Where(c => c.RepIds.Contains(repId));
+            foreach (var c in collections)
+                lines.Add((c.Date, 2, "Collection", 0m, c.ShareOf(repId).Amount, c.Notes ?? (c.Bank.Amount > 0 ? $"Bank (IBAN {c.Iban?.Name})" : "Cash"), c.Id.Value));
+        }
 
         var rows = new List<RepStatementRowDto>();
         decimal balance = 0m, totalDebit = 0m, totalCredit = 0m;
@@ -242,7 +282,7 @@ internal sealed class AccountingQueries : IAccountingQueries
             balance += l.Debit - l.Credit; totalDebit += l.Debit; totalCredit += l.Credit;
             rows.Add(new RepStatementRowDto(l.Date, l.Kind, l.Debit, l.Credit, l.Notes, balance, l.SourceId));
         }
-        return new RepStatementDto(repId, rep.FullName, rows, totalDebit, totalCredit, balance);
+        return new StatementDto(by, id, subjectName, rows, totalDebit, totalCredit, balance);
     }
 
     // ---- helpers ----

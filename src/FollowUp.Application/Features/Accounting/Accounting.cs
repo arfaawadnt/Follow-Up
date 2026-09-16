@@ -77,6 +77,18 @@ public sealed record RealIncomeRowDto(Guid LaboratoryId, string LabDisplayCode, 
 public sealed record RealIncomeSheetDto(DateOnly Date, Guid AreaId, string AreaName, Guid RepresentativeId, string RepName, IReadOnlyList<RealIncomeRowDto> Rows);
 public sealed record RealIncomeRowInput(Guid LaboratoryId, int Samples, decimal TotalRequired, decimal Paid, decimal DelayedPayment, string? Notes);
 
+/// <summary>The dimension a statement is drawn for: one Lab Responsible (the classic rep statement), one Area (all its
+/// labs) or one Lab. Collections and legacy manual lines only exist on the Responsible dimension.</summary>
+public static class StatementBy
+{
+    public const string Responsible = "Responsible";
+    public const string Area = "Area";
+    public const string Lab = "Lab";
+    public static readonly string[] All = { Responsible, Area, Lab };
+}
+public sealed record StatementDto(string By, Guid SubjectId, string SubjectName, IReadOnlyList<RepStatementRowDto> Rows,
+    decimal TotalDebit, decimal TotalCredit, decimal Balance);
+
 public sealed record RepStatementDto(Guid RepresentativeId, string RepName, IReadOnlyList<RepStatementRowDto> Rows,
     decimal TotalDebit, decimal TotalCredit, decimal Balance);
 
@@ -96,6 +108,8 @@ public interface IAccountingQueries
     /// <summary>Collections whose reps are all visible in the caller's rep scope (a collection is the reps' act, not a lab's).</summary>
     Task<IReadOnlyList<CollectionDto>> CollectionsAsync(DateOnly from, DateOnly to, Guid? repId, OrgScope scope, CancellationToken ct);
     Task<RepStatementDto?> RepStatementAsync(Guid repId, DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct);
+    /// <summary>Statement by <see cref="StatementBy"/> dimension; null when the subject is not visible in scope.</summary>
+    Task<StatementDto?> StatementAsync(string by, Guid id, DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct);
     /// <summary>Lab Responsibles responsible for at least one (in-scope) lab of the area.</summary>
     Task<IReadOnlyList<RealIncomeRepDto>> RealIncomeRepsAsync(Guid areaId, OrgScope scope, CancellationToken ct);
     /// <summary>The area's (in-scope) labs, for adding a sheet row by hand.</summary>
@@ -266,6 +280,20 @@ public sealed class GetRealIncomeSheetHandler : IQueryHandler<GetRealIncomeSheet
     public async Task<RealIncomeSheetDto> Handle(GetRealIncomeSheetQuery r, CancellationToken ct) =>
         await _q.RealIncomeSheetAsync(r.AreaId, r.Date, r.RepresentativeId, _user.Scope, _user.Has(Privileges.ShowEncryptedLabs), ct)
         ?? throw new NotFoundException("RealIncomeSheet", r.RepresentativeId);
+}
+
+public sealed record GetStatementQuery(string By, Guid Id, DateOnly From, DateOnly To) : IQuery<StatementDto>, IAuthorizedRequest
+{ public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ViewAccounting }; }
+public sealed class GetStatementHandler : IQueryHandler<GetStatementQuery, StatementDto>
+{
+    private readonly IAccountingQueries _q; private readonly ICurrentUser _user;
+    public GetStatementHandler(IAccountingQueries q, ICurrentUser user) { _q = q; _user = user; }
+    public async Task<StatementDto> Handle(GetStatementQuery r, CancellationToken ct)
+    {
+        if (!StatementBy.All.Contains(r.By))
+            throw new Common.Exceptions.ValidationException(new Dictionary<string, string[]> { ["by"] = new[] { "View by must be Responsible, Area or Lab." } });
+        return await _q.StatementAsync(r.By, r.Id, r.From, r.To, _user.Scope, ct) ?? throw new NotFoundException(r.By, r.Id);
+    }
 }
 
 public sealed record GetRepStatementQuery(Guid RepresentativeId, DateOnly From, DateOnly To) : IQuery<RepStatementDto>, IAuthorizedRequest

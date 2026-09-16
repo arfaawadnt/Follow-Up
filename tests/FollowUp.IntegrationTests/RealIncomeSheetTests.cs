@@ -119,6 +119,22 @@ public sealed class RealIncomeSheetTests
             var st = await queries.RepStatementAsync(rep.Id.Value, D, D, OrgScope.Global, CancellationToken.None);
             var real = st!.Rows.Should().ContainSingle(r => r.Kind == "RealIncome").Subject;
             real.Debit.Should().Be(850m); real.Notes.Should().Contain("2 lab");
+            // Same figures through the dimensional statement; the Responsible view also counts the responsible's labs' synced income.
+            var byRep = await queries.StatementAsync(StatementBy.Responsible, rep.Id.Value, D, D, OrgScope.Global, CancellationToken.None);
+            byRep!.SubjectName.Should().Be(rep.FullName);
+            byRep.Rows.Should().Contain(r => r.Kind == "RealIncome" && r.Debit == 850m);
+            byRep.Rows.Should().Contain(r => r.Kind == "OracleIncome" && r.Debit == 1234.5m, "L1 is the rep's lab and has synced income that day");
+            // By Area: every lab of the area — the other responsible's L3 has no sheet line, so real income stays 850; synced income 1234.5.
+            var byArea = await queries.StatementAsync(StatementBy.Area, area.Id.Value, D, D, OrgScope.Global, CancellationToken.None);
+            byArea!.SubjectName.Should().Be(area.Name);
+            byArea.Rows.Should().Contain(r => r.Kind == "RealIncome" && r.Debit == 850m);
+            byArea.Rows.Should().Contain(r => r.Kind == "OracleIncome" && r.Debit == 1234.5m);
+            byArea.Rows.Should().NotContain(r => r.Kind == "Collection" || r.Kind == "ManualIncome", "collections belong to reps, not areas");
+            // By Lab: L2 has only its hand-entered line.
+            var byLab = await queries.StatementAsync(StatementBy.Lab, l2.Id.Value, D, D, OrgScope.Global, CancellationToken.None);
+            byLab!.SubjectName.Should().Be(l2.Name);
+            byLab.Rows.Should().ContainSingle().Which.Debit.Should().Be(100m);
+            (await queries.StatementAsync(StatementBy.Lab, Guid.NewGuid(), D, D, OrgScope.Global, CancellationToken.None)).Should().BeNull();
 
             // DB guards.
             var dup = () => db.Database.ExecuteSqlInterpolatedAsync($@"
