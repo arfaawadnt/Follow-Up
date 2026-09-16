@@ -1127,6 +1127,21 @@ public sealed class SaveRealIncomeSheetHandler : ICommandHandler<SaveRealIncomeS
     }
 }
 
+/// <summary>
+/// Rep Income page: pulls the LDM (Oracle) lab statistics for ONE date on demand — the same LabStats feed the nightly
+/// labstats-sync runs at 00:05 for the previous day — so the sheet's "LDM income" column is current before the rep's
+/// figures are compared with it. ManageAccounting (it rewrites that day's daily_lab_statistic rows).
+/// </summary>
+public sealed record SyncRealIncomeLdmCommand(DateOnly Date) : ICommand<OracleSyncResult>, IAuthorizedRequest
+{ public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageAccounting }; }
+public sealed class SyncRealIncomeLdmValidator : AbstractValidator<SyncRealIncomeLdmCommand> { public SyncRealIncomeLdmValidator() => RuleFor(x => x.Date).NotEmpty(); }
+public sealed class SyncRealIncomeLdmHandler : ICommandHandler<SyncRealIncomeLdmCommand, OracleSyncResult>
+{
+    private readonly IOracleSyncRunner _runner;
+    public SyncRealIncomeLdmHandler(IOracleSyncRunner runner) => _runner = runner;
+    public Task<OracleSyncResult> Handle(SyncRealIncomeLdmCommand r, CancellationToken ct) => _runner.RunLabStatsAsync(r.Date, r.Date, manual: true, ct);
+}
+
 public sealed record DeleteRepIncomeEntryCommand(Guid Id) : ICommand, IAuthorizedRequest
 { public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageAccounting }; }
 public sealed class DeleteRepIncomeEntryValidator : AbstractValidator<DeleteRepIncomeEntryCommand> { public DeleteRepIncomeEntryValidator() => RuleFor(x => x.Id).NotEmpty(); }

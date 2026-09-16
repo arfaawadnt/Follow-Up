@@ -22,6 +22,7 @@ public static class AccountingEndpoints
         decimal Cash, decimal Bank, string? Iban, string? DoneBy, string? Notes);
     public sealed record RepIncomeBody(DateOnly Date, Guid RepresentativeId, decimal Amount, string? Notes);
     public sealed record RealIncomeSheetBody(DateOnly Date, Guid RepresentativeId, IReadOnlyList<RealIncomeRowInput> Rows);
+    public sealed record SyncLdmBody(DateOnly Date);
 
     public static void MapAccountingEndpoints(this RouteGroupBuilder api)
     {
@@ -129,5 +130,8 @@ public static class AccountingEndpoints
             Results.Ok(await m.Send(new GetRealIncomeSheetQuery(areaId, date, repId), ct))).WithTags(tag);
         api.MapPut("/accounting/real-income/sheet", async (RealIncomeSheetBody b, IMediator m, CancellationToken ct) =>
         { await m.Send(new SaveRealIncomeSheetCommand(b.Date, b.RepresentativeId, b.Rows), ct); return Results.NoContent(); }).WithTags(tag);
+        // Pull that day's LDM lab statistics from Oracle now (the "LDM income" column of the sheet).
+        api.MapPost("/accounting/real-income/sync-ldm", async (SyncLdmBody b, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new SyncRealIncomeLdmCommand(b.Date), ct))).WithTags(tag);
     }
 }

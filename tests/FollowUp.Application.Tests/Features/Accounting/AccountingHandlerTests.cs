@@ -1,3 +1,4 @@
+using FollowUp.Application.Common.Abstractions;
 using FluentAssertions;
 using FollowUp.Application.Common.Exceptions;
 using FollowUp.Application.Common.Security;
@@ -491,6 +492,29 @@ public class AccountingHandlerTests
         public Task<IReadOnlyList<RealIncomeRepDto>> RealIncomeRepsAsync(Guid areaId, OrgScope scope, CancellationToken ct) => throw new NotSupportedException();
         public Task<IReadOnlyList<RealIncomeLabDto>> RealIncomeLabsAsync(Guid areaId, OrgScope scope, bool canSeeEncrypted, CancellationToken ct) => throw new NotSupportedException();
         public Task<RealIncomeSheetDto?> RealIncomeSheetAsync(Guid areaId, DateOnly date, Guid repId, OrgScope scope, bool canSeeEncrypted, CancellationToken ct) => throw new NotSupportedException();
+    }
+
+    // ---- Real income sheet: LDM sync on demand ----
+
+    [Fact]
+    public async Task Sync_ldm_for_the_sheet_runs_the_lab_statistics_feed_for_that_single_day()
+    {
+        var runner = new RecordingOracleRunner();
+        var r = await new SyncRealIncomeLdmHandler(runner).Handle(new SyncRealIncomeLdmCommand(D), CancellationToken.None);
+        runner.LabStatsCalls.Should().Equal((D, D, true));
+        r.Ran.Should().BeTrue();
+        new SyncRealIncomeLdmValidator().Validate(new SyncRealIncomeLdmCommand(default)).IsValid.Should().BeFalse("a date is required");
+    }
+
+    private sealed class RecordingOracleRunner : IOracleSyncRunner
+    {
+        public readonly List<(DateOnly From, DateOnly To, bool Manual)> LabStatsCalls = new();
+        public Task<OracleSyncResult> RunLabStatsAsync(DateOnly from, DateOnly to, bool manual, CancellationToken ct)
+        { LabStatsCalls.Add((from, to, manual)); return Task.FromResult(new OracleSyncResult(true, "ok", 0, 3)); }
+        public Task<OracleSyncResult> RunAsync(bool manual, CancellationToken ct) => throw new NotSupportedException();
+        public Task<OracleSyncResult> RunTestStatsAsync(DateOnly from, DateOnly to, bool manual, CancellationToken ct) => throw new NotSupportedException();
+        public Task<OracleSyncResult> RunDetailedStatsAsync(DateOnly from, DateOnly to, bool manual, CancellationToken ct) => throw new NotSupportedException();
+        public Task<OracleSyncResult> RunNightlyStatsAsync(DateOnly from, DateOnly to, bool manual, CancellationToken ct) => throw new NotSupportedException();
     }
 
     // ---- Real income sheet ----

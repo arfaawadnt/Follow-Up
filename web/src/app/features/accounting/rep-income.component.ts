@@ -35,13 +35,14 @@ type SheetRow = RealIncomeRow & { samplesIn: number | null; requiredIn: number |
       <div><div class="breadcrumbs">Home / {{ 'accounting' | t : 'Accounting' }} / {{ 'acc_rep_income' | t : 'Rep Income' }}</div><h1>{{ 'acc_rep_income' | t : 'Rep Income' }}</h1></div>
       <div class="pagehead-actions">
         @if (canManage()) { <button class="btn btn-p" [disabled]="busy() || !sheet() || !sheetValid()" (click)="saveSheet()">{{ 'save_sheet' | t : 'Save sheet' }}</button> }
+        @if (canManage()) { <button class="btn btn-s" [disabled]="syncing() || !date" (click)="syncLdm()" [title]="'sync_ldm_hint' | t : 'Pull this date from LDM (Oracle) now'">{{ syncing() ? ('loading' | t : 'Loading…') : ('sync_ldm' | t : 'Sync LDM income') }}</button> }
         <button class="btn btn-s" [disabled]="!sheet()" (click)="printSheet()">{{ 'print' | t : 'Print' }}</button>
         <button class="btn btn-s" [disabled]="!sheet()" (click)="exportSheetExcel()">{{ 'export_excel' | t : 'Export Excel' }}</button>
       </div>
     </div>
 
     <div class="kpis" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px">
-      <div class="kpi kpi-blue"><div class="lbl">{{ 'ldm_income' | t : 'LDM income' }}</div><div class="val">{{ sk().ldm | number:'1.2-2' }}</div><div class="sub">{{ 'view_only' | t : 'View only' }}</div></div>
+      <div class="kpi kpi-blue"><div class="lbl">{{ 'ldm_income' | t : 'LDM income' }}</div><div class="val">{{ sk().ldm | number:'1.2-2' }}</div><div class="sub">{{ 'sync_ldm_hint' | t : 'Nightly LDM sync at 00:05, or Sync LDM income' }}</div></div>
       <div class="kpi kpi-teal"><div class="lbl">{{ 'total_required' | t : 'Total required' }}</div><div class="val">{{ sk().required | number:'1.2-2' }}</div><div class="sub">{{ 'rep_entry' | t : 'Rep data' }}</div></div>
       <div class="kpi kpi-green"><div class="lbl">{{ 'paid' | t : 'Paid' }}</div><div class="val">{{ sk().paid | number:'1.2-2' }}</div><div class="sub">+ {{ 'delayed_payment' | t : 'Delayed payment' }} {{ sk().delayed | number:'1.2-2' }}</div></div>
       <div class="kpi kpi-amber"><div class="lbl">{{ 'remaining' | t : 'Remaining' }}</div><div class="val">{{ sk().remaining | number:'1.2-2' }}</div><div class="sub">{{ 'prev_remaining' | t : 'Remaining (previous)' }} {{ sk().previous | number:'1.2-2' }}</div></div>
@@ -129,6 +130,7 @@ export class RepIncomeComponent {
   readonly ddmy = ddmy;
 
   readonly busy = signal(false);
+  readonly syncing = signal(false);
   readonly areas = signal<AreaOpt[]>([]);
   readonly sheetReps = signal<RealIncomeRep[]>([]);
   readonly sheetLabs = signal<RealIncomeLab[]>([]);
@@ -160,6 +162,21 @@ export class RepIncomeComponent {
 
   canManage(): boolean { return this.auth.has('ManageAccounting'); }
   day(d: string | null): string { return dayName(d, this.ui.lang()); }
+
+  /** Pulls the selected date's lab statistics from LDM (Oracle) now, then reloads the sheet so "LDM income" is current. */
+  syncLdm(): void {
+    if (!this.date) return;
+    this.syncing.set(true);
+    this.api.post<{ ran: boolean; status: string; statsUpserted: number }>('/accounting/real-income/sync-ldm', { date: this.date }).subscribe({
+      next: (r) => {
+        this.syncing.set(false);
+        if (!r.ran) { this.toast.warning(`LDM sync did not run (${r.status}).`); return; }
+        this.toast.success(`LDM income synced for ${ddmy(this.date)}: ${r.statsUpserted} lab-day record(s).`);
+        if (this.sheet()) this.loadSheet();
+      },
+      error: () => this.syncing.set(false),
+    });
+  }
 
   setArea(id: string): void {
     this.areaId = id; this.sheetRepId = ''; this.sheetReps.set([]); this.sheetLabs.set([]); this.sheet.set(null); this.rows.set([]);

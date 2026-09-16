@@ -15,7 +15,8 @@
 #   Api           : GET /accounting/real-income/reps|labs|sheet, PUT /accounting/real-income/sheet,
 #                   GET /accounting/statement?by=Responsible|Area|Lab&id=&from=&to= (rep-statement/{repId} kept)
 #   wwwroot       : NEW nav page Accounting -> "Rep Income" (route /accounting/rep-income, ViewAccounting): the daily
-#                   real-income sheet (view-only context + rep inputs, "Add lab", Save sheet, Print + Excel).
+#                   real-income sheet (view-only context + rep inputs, "Add lab", Save sheet, Print + Excel,
+#                   "Sync LDM income" = pull that date's LabStats feed from Oracle now; POST /accounting/real-income/sync-ldm).
 #                   Rep Statement page - "View by" Lab Responsible / Area / Lab statement + a link to Rep Income; the old
 #                   "Add real income" dialog is gone (legacy manual lines stay visible and deletable)
 #
