@@ -29,6 +29,13 @@ export interface RecordVisitContext {
 @Component({
   selector: 'app-record-visit-dialog',
   imports: [FormsModule, TranslatePipe],
+  // The dialog owns its modal styles: the host pages' .dlg rules never reach this component (style encapsulation), so
+  // without these the form floated unboxed over the page, taller than the viewport and under the top bar.
+  styles: [`
+    .overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:1000;padding:16px}
+    .dlg{background:var(--white,#fff);border-radius:12px;padding:22px;width:min(92vw,460px);max-height:90vh;overflow-y:auto;box-shadow:0 16px 48px rgba(0,0,0,.25);border:1px solid var(--slate-150,#edebe9)}
+    .field label{display:block;font-size:12px;color:var(--slate-700,#605e5c);margin-bottom:4px}
+  `],
   template: `
     <div class="overlay" (click)="closed.emit()">
       <div class="dlg" (click)="$event.stopPropagation()">
