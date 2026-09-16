@@ -1,4 +1,4 @@
-import { Component, ElementRef, HostListener, Input, OnDestroy, forwardRef, inject, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, Input, OnDestroy, computed, forwardRef, inject, signal } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 
 export interface FilterOption { value: string; label: string; }
@@ -12,6 +12,9 @@ export interface FilterOption { value: string; label: string; }
  * - `options` accepts a plain `string[]` (label = value) or `{ value, label }[]` for id/label pairs.
  * Works with `[(ngModel)]` / `[ngModel]`+`(ngModelChange)`; the popup is fixed-positioned like app-date-input
  * so no ancestor `overflow` can clip it.
+ * Scales to very long lists (the lab pickers carry ~13k options): the option list is normalised ONCE per `options`
+ * reference (computed signals — never per change-detection pass), labels resolve through a Map, and the popup renders at
+ * most `maxVisible` matches with a "+N more — type to narrow" footer instead of thousands of DOM nodes.
  */
 @Component({
   selector: 'app-filter-select',
@@ -54,6 +57,7 @@ export interface FilterOption { value: string; label: string; }
                 <button type="button" class="fs-opt" [class.fs-sel]="single() === o.value" (click)="pickSingle(o.value)">{{ o.label }}</button>
               }
             } @empty { <div class="fs-empty">{{ noneLabel }}</div> }
+            @if (hiddenCount() > 0) { <div class="fs-empty">+{{ hiddenCount() }} {{ moreLabel }}</div> }
           </div>
         </div>
       }
@@ -87,7 +91,12 @@ export interface FilterOption { value: string; label: string; }
   `],
 })
 export class FilterSelectComponent implements ControlValueAccessor, OnDestroy {
-  @Input() options: (string | FilterOption)[] = [];
+  private readonly _options = signal<(string | FilterOption)[]>([]);
+  @Input() set options(v: (string | FilterOption)[] | null | undefined) { this._options.set(v ?? []); }
+  get options(): (string | FilterOption)[] { return this._options(); }
+  /** Upper bound on rendered options; the rest are summarised in the footer until the search narrows them. */
+  @Input() maxVisible = 200;
+  @Input() moreLabel = 'more — type to narrow';
   @Input() multiple = false;
   /** Single-mode value that means "no filter" — set to 'All' for pages that use that sentinel ('' by default). */
   @Input() allValue = '';
@@ -116,13 +125,19 @@ export class FilterSelectComponent implements ControlValueAccessor, OnDestroy {
   constructor() { document.addEventListener('scroll', this.scrollHandler, true); }
   ngOnDestroy(): void { document.removeEventListener('scroll', this.scrollHandler, true); }
 
-  private norm(): FilterOption[] {
-    return this.options.map((o) => (typeof o === 'string' ? { value: o, label: o } : o));
-  }
-  private labelOf(value: string): string {
-    const o = this.norm().find((x) => x.value === value);
-    return o ? o.label : value;
-  }
+  /** Options as {value,label} — recomputed only when the `options` reference changes. */
+  private readonly normalized = computed<FilterOption[]>(() => this._options().map((o) => (typeof o === 'string' ? { value: o, label: o } : o)));
+  private readonly labels = computed(() => new Map(this.normalized().map((o) => [o.value, o.label] as const)));
+  /** Every option matching the search (used for "Select all"); `visible` is the rendered, capped prefix of it. */
+  private readonly matches = computed<FilterOption[]>(() => {
+    const q = this.query().trim().toLowerCase();
+    const all = this.normalized();
+    return q ? all.filter((o) => o.label.toLowerCase().includes(q)) : all;
+  });
+  readonly visible = computed<FilterOption[]>(() => { const m = this.matches(); return m.length > this.maxVisible ? m.slice(0, this.maxVisible) : m; });
+  readonly hiddenCount = computed(() => this.matches().length - this.visible().length);
+  private norm(): FilterOption[] { return this.normalized(); }
+  private labelOf(value: string): string { return this.labels().get(value) ?? value; }
 
   // --- ControlValueAccessor ---
   writeValue(v: string | string[] | null): void {
@@ -142,12 +157,7 @@ export class FilterSelectComponent implements ControlValueAccessor, OnDestroy {
     }
     return this.isEmpty() ? this.placeholder : this.labelOf(this.single());
   }
-  showSearch(): boolean { return this.options.length > this.searchThreshold; }
-  visible(): FilterOption[] {
-    const q = this.query().trim().toLowerCase();
-    const all = this.norm();
-    return q ? all.filter((o) => o.label.toLowerCase().includes(q)) : all;
-  }
+  showSearch(): boolean { return this.normalized().length > this.searchThreshold; }
 
   // --- selection (operates on values) ---
   has(value: string): boolean { return this.multi().includes(value); }
@@ -158,8 +168,9 @@ export class FilterSelectComponent implements ControlValueAccessor, OnDestroy {
     this.multi.set(next);
     this.onChange(next);
   }
+  /** Selects every option matching the current search — not just the rendered prefix. */
   selectAllVisible(): void {
-    const set = new Set([...this.multi(), ...this.visible().map((o) => o.value)]);
+    const set = new Set([...this.multi(), ...this.matches().map((o) => o.value)]);
     const next = this.norm().map((o) => o.value).filter((v) => set.has(v));
     this.multi.set(next);
     this.onChange(next);

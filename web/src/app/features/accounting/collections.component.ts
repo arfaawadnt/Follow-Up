@@ -100,7 +100,7 @@ type ShareRow = { repId: string; amount: number | null };
                 </div>
               } @else {
                 <div class="field" style="grid-column:1/-1"><label>{{ 'acc_reps' | t : 'Reps' }} *</label>
-                  <app-filter-select [multiple]="true" [ngModel]="groupRepIds()" (ngModelChange)="setGroupReps($event)" [options]="repOptions()" placeholder="—" [searchPlaceholder]="'search_responsibles' | t : 'Search responsibles…'"></app-filter-select>
+                  <app-filter-select [multiple]="true" [ngModel]="f.groupIds" (ngModelChange)="setGroupReps($event)" [options]="repOptions()" placeholder="—" [searchPlaceholder]="'search_responsibles' | t : 'Search responsibles…'"></app-filter-select>
                   <div class="small muted" style="margin-top:4px">{{ 'only_lab_responsibles' | t : 'Only Lab Responsible reps collect' }}</div>
                 </div>
               }
@@ -183,19 +183,21 @@ export class CollectionsComponent {
     this.api.get<CollectionDto[]>('/accounting/collections', params).subscribe({ next: (r) => { this.rows.set(r); this.loading.set(false); }, error: () => this.loading.set(false) });
   }
 
-  private blank() { return { date: localToday(), type: 'Single', shares: [] as ShareRow[], cash: null as number | null, bank: null as number | null, iban: '', doneBy: '', notes: '' }; }
+  /** `groupIds` mirrors `shares` for the multi-select's [ngModel]: a STABLE array reference, rebuilt only when the selection
+   *  changes (a getter returning a fresh array each change-detection pass would make ngModel re-write the control every cycle). */
+  private blank() { return { date: localToday(), type: 'Single', shares: [] as ShareRow[], groupIds: [] as string[], cash: null as number | null, bank: null as number | null, iban: '', doneBy: '', notes: '' }; }
   openNew(): void { this.editId = null; this.f = this.blank(); this.dlg.set(true); }
   openEdit(c: CollectionDto): void {
     this.editId = c.id;
-    this.f = { date: c.date, type: c.type, shares: c.shares.map((s) => ({ repId: s.repId, amount: s.amount })), cash: c.cash, bank: c.bank, iban: c.iban ?? '', doneBy: c.doneBy ?? '', notes: c.notes ?? '' };
+    this.f = { date: c.date, type: c.type, shares: c.shares.map((s) => ({ repId: s.repId, amount: s.amount })), groupIds: c.shares.map((s) => s.repId), cash: c.cash, bank: c.bank, iban: c.iban ?? '', doneBy: c.doneBy ?? '', notes: c.notes ?? '' };
     this.dlg.set(true);
   }
   /** Switching Single ↔ Group keeps at most one rep for Single so the rule "exactly one rep" is visible immediately. */
-  setType(t: string): void { this.f.type = t; if (t === 'Single' && this.f.shares.length > 1) this.f.shares = [this.f.shares[0]]; }
-  setSingleRep(id: string): void { this.f.shares = id ? [{ repId: id, amount: null }] : []; }
-  groupRepIds(): string[] { return this.f.shares.map((s) => s.repId); }
+  setType(t: string): void { this.f.type = t; if (t === 'Single' && this.f.shares.length > 1) this.setShares([this.f.shares[0]]); }
+  setSingleRep(id: string): void { this.setShares(id ? [{ repId: id, amount: null }] : []); }
   /** Keeps the amounts already typed for reps that stay selected; new reps start empty. */
-  setGroupReps(ids: string[]): void { this.f.shares = (ids ?? []).map((id) => this.f.shares.find((s) => s.repId === id) ?? { repId: id, amount: null }); }
+  setGroupReps(ids: string[]): void { this.setShares((ids ?? []).map((id) => this.f.shares.find((s) => s.repId === id) ?? { repId: id, amount: null })); }
+  private setShares(shares: ShareRow[]): void { this.f.shares = shares; this.f.groupIds = shares.map((s) => s.repId); }
   /** No bank amount → no IBAN (mirrors the domain rule). */
   setBank(v: number | null): void { this.f.bank = v; if (!v || v <= 0) this.f.iban = ''; }
   formTotal(): number { return money((this.f.cash ?? 0) + (this.f.bank ?? 0)); }
