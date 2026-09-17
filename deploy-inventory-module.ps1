@@ -80,7 +80,8 @@ if (-not (Test-Path "$srcWeb\index.html")) { throw "Missing $srcWeb\index.html -
 # Payload guards (refuse a stale build).
 if (-not (Select-String -Path "$srcBin\FollowUp.Infrastructure.dll" -Pattern 'InventoryModule' -Quiet)) { throw "ABORT: FollowUp.Infrastructure.dll lacks the InventoryModule migration - rebuild (pass -Build)." }
 if (-not (Select-String -Path "$srcBin\FollowUp.Domain.dll" -Pattern 'StockMovement' -Quiet)) { throw "ABORT: FollowUp.Domain.dll lacks the Inventory aggregates - rebuild (pass -Build)." }
-if (-not (Select-String -Path "$srcBin\FollowUp.Api.dll" -Pattern 'inventory/purchase-orders' -Quiet)) { throw "ABORT: FollowUp.Api.dll lacks the inventory endpoints - rebuild (pass -Build)." }
+# Type names sit in the metadata as UTF-8 (searchable); route strings are UTF-16 in the binary and are NOT.
+if (-not (Select-String -Path "$srcBin\FollowUp.Api.dll" -Pattern 'InventoryEndpoints' -Quiet)) { throw "ABORT: FollowUp.Api.dll lacks the inventory endpoints - rebuild (pass -Build)." }
 $chunk = Get-ChildItem "$srcWeb\*.js" | Where-Object { (Get-Content $_.FullName -Raw) -match 'inventory/purchase-orders' } | Select-Object -First 1
 if (-not $chunk) { throw "ABORT: no bundle file carries the Inventory pages (inventory/purchase-orders) - rebuild (pass -Build)." }
 Write-Host "Payload OK ($($chunk.Name) carries the Inventory UI)."
