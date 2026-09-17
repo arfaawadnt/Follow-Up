@@ -86,8 +86,8 @@ export class ShellComponent implements AfterViewChecked, OnDestroy {
 
   private static readonly COLLAPSE_KEY = 'fu.sidebarCollapsed';
   readonly collapsed = signal(ShellComponent.readCollapsed());
-  // Groups collapsed by default, by index. The Accounting group (index 2) shifted B2B / System from 3,4 → 4,5.
-  private readonly collapsedGroups = signal<Record<number, boolean>>({ 4: true, 5: true });
+  // Groups collapsed by default, by index. Accounting (2) and Inventory (3) shifted B2B / System to 5,6.
+  private readonly collapsedGroups = signal<Record<number, boolean>>({ 5: true, 6: true });
 
   private static readCollapsed(): boolean {
     try { return localStorage.getItem(ShellComponent.COLLAPSE_KEY) === '1'; } catch { return false; }
@@ -125,6 +125,17 @@ export class ShellComponent implements AfterViewChecked, OnDestroy {
       { id: 'acc_collections', key: 'acc_collections', icon: 'wallet', path: '/accounting/collections', privilege: 'ViewAccounting' },
       { id: 'acc_rep_statement', key: 'acc_rep_statement', icon: 'file-text', path: '/accounting/rep-statement', privilege: 'ViewAccounting' },
       { id: 'acc_rep_income', key: 'acc_rep_income', icon: 'coins', path: '/accounting/rep-income', privilege: 'ViewAccounting' },
+    ]},
+    // Inventory — chemicals & consumables: stock, items, stores/partners, purchase orders, transfers, ledger, utilization
+    // (ViewInventory; recording needs ManageInventory).
+    { titleKey: 'inventory', items: [
+      { id: 'inv_stock', key: 'inv_stock', icon: 'boxes', path: '/inventory/stock', privilege: 'ViewInventory' },
+      { id: 'inv_items', key: 'inv_items', icon: 'package', path: '/inventory/items', privilege: 'ViewInventory' },
+      { id: 'inv_purchase_orders', key: 'inv_purchase_orders', icon: 'shopping-cart', path: '/inventory/purchase-orders', privilege: 'ViewInventory' },
+      { id: 'inv_transfers', key: 'inv_transfers', icon: 'arrow-left-right', path: '/inventory/transfers', privilege: 'ViewInventory' },
+      { id: 'inv_movements', key: 'inv_movements', icon: 'history', path: '/inventory/movements', privilege: 'ViewInventory' },
+      { id: 'inv_utilization', key: 'inv_utilization', icon: 'gauge', path: '/inventory/utilization', privilege: 'ViewInventory' },
+      { id: 'inv_setup', key: 'inv_setup', icon: 'warehouse', path: '/inventory/setup', privilege: 'ViewInventory' },
     ]},
     { titleKey: 'field_and_marketing', items: [
       { id: 'marketing', key: 'marketing', icon: 'map-pin', path: '/marketing', privilege: 'ViewMarketing' },

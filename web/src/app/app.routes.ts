@@ -42,6 +42,13 @@ export const routes: Routes = [
       { path: 'accounting/collections', loadComponent: () => import('./features/accounting/collections.component').then((m) => m.CollectionsComponent) },
       { path: 'accounting/rep-statement', loadComponent: () => import('./features/accounting/rep-statement.component').then((m) => m.RepStatementComponent) },
       { path: 'accounting/rep-income', loadComponent: () => import('./features/accounting/rep-income.component').then((m) => m.RepIncomeComponent) },
+      { path: 'inventory/stock', loadComponent: () => import('./features/inventory/inventory-stock.component').then((m) => m.InventoryStockComponent) },
+      { path: 'inventory/items', loadComponent: () => import('./features/inventory/inventory-items.component').then((m) => m.InventoryItemsComponent) },
+      { path: 'inventory/purchase-orders', loadComponent: () => import('./features/inventory/purchase-orders.component').then((m) => m.PurchaseOrdersComponent) },
+      { path: 'inventory/transfers', loadComponent: () => import('./features/inventory/stock-transfers.component').then((m) => m.StockTransfersComponent) },
+      { path: 'inventory/movements', loadComponent: () => import('./features/inventory/stock-movements.component').then((m) => m.StockMovementsComponent) },
+      { path: 'inventory/utilization', loadComponent: () => import('./features/inventory/inventory-utilization.component').then((m) => m.InventoryUtilizationComponent) },
+      { path: 'inventory/setup', loadComponent: () => import('./features/inventory/inventory-setup.component').then((m) => m.InventorySetupComponent) },
 
       // Field & marketing
       { path: 'marketing', loadComponent: () => import('./features/marketing/marketing.component').then((m) => m.MarketingComponent) },

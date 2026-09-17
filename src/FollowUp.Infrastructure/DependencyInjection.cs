@@ -97,6 +97,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Common.Abstractions.IDeductionAutomationRunner, Jobs.DeductionAutomationRunner>();
         services.AddScoped<Application.Common.Abstractions.ICollectionTreasurySync, Jobs.CollectionTreasurySyncRunner>();
         services.AddScoped<Application.Common.Abstractions.ICollectionRouting, Persistence.Queries.CollectionRouting>();
+        services.AddScoped<Application.Common.Abstractions.IInventoryAlertRunner, Jobs.InventoryAlertRunner>();
         services.AddSingleton<Application.Common.Abstractions.IAttachmentStorage, Gateways.LocalAttachmentStorage>();
 
         services.AddSingleton<IFileStorage, Gateways.LocalFileStorage>();
@@ -145,6 +146,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Features.EmailReports.ISmtpConfigQueries, Emailing.SmtpConfigQueries>();
         services.AddScoped<Application.Features.EmailReports.IStatsEmailSubscriptionQueries, Emailing.StatsEmailSubscriptionQueries>();
         services.AddScoped<Application.Features.Accounting.IAccountingQueries, Persistence.Queries.AccountingQueries>();
+        services.AddScoped<Application.Features.Inventory.IInventoryQueries, Persistence.Queries.InventoryQueries>();
         return services;
     }
 
@@ -189,6 +191,16 @@ public static class DependencyInjection
         services.AddScoped<ICollectionRepository, CollectionRepository>();
         services.AddScoped<IRepIncomeEntryRepository, RepIncomeEntryRepository>();
         services.AddScoped<IRepLabIncomeRepository, RepLabIncomeRepository>();
+        // Inventory module
+        services.AddScoped<IManufacturerRepository, ManufacturerRepository>();
+        services.AddScoped<ISupplierRepository, SupplierRepository>();
+        services.AddScoped<IStoreRepository, StoreRepository>();
+        services.AddScoped<IInventoryItemRepository, InventoryItemRepository>();
+        services.AddScoped<IPurchaseOrderRepository, PurchaseOrderRepository>();
+        services.AddScoped<IGoodsReceiptRepository, GoodsReceiptRepository>();
+        services.AddScoped<IStockLotRepository, StockLotRepository>();
+        services.AddScoped<IStockMovementRepository, StockMovementRepository>();
+        services.AddScoped<IStockTransferRepository, StockTransferRepository>();
         return services;
     }
 }

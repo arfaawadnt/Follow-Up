@@ -108,3 +108,16 @@ public sealed class MonthlySegmentAssignmentJob
         return _runner.RunAsync(YearMonth.From(lastDayOfPrevMonth), manual: false, ct);
     }
 }
+
+/// <summary>
+/// Daily inventory alerts: evaluates stock limits and expiry dates and pushes one in-app summary per ViewInventory user
+/// (scoped to their branches). 06:00 Cairo, so the store staff see it at the start of the working day.
+/// </summary>
+[DisableConcurrentExecution(timeoutInSeconds: 300)]
+public sealed class InventoryAlertsJob
+{
+    private readonly IInventoryAlertRunner _runner;
+    private readonly IClock _clock;
+    public InventoryAlertsJob(IInventoryAlertRunner runner, IClock clock) { _runner = runner; _clock = clock; }
+    public Task RunAsync(CancellationToken ct) => _runner.RunAsync(_clock.CairoToday, manual: false, ct);
+}

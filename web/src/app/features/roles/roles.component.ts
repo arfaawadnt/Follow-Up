@@ -42,6 +42,9 @@ const MATRIX: MatrixRow[] = [
   { key: 'page_accounting', label: 'Accounting', view: 'ViewAccounting', add: null, update: null, special: [
     { priv: 'ManageAccounting', key: 'priv_manage', label: 'Manage' },
   ] },
+  { key: 'page_inventory', label: 'Inventory', view: 'ViewInventory', add: null, update: null, special: [
+    { priv: 'ManageInventory', key: 'priv_manage', label: 'Manage' },
+  ] },
   { key: 'page_marketing', label: 'Marketing', view: 'ViewMarketing', add: 'AddMarketing', update: 'UpdateMarketing', special: [] },
   { key: 'page_complaints', label: 'Complaints', view: 'ViewComplaints', add: 'AddComplaints', update: 'UpdateComplaints', special: [
     { priv: 'ManageComplaints', key: 'priv_manage', label: 'Manage' },

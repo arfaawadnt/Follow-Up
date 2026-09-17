@@ -78,6 +78,11 @@ public static class Privileges
     public const string ViewAccounting = nameof(ViewAccounting);
     public const string ManageAccounting = nameof(ManageAccounting);
 
+    // Inventory module (2026-09-17): stock, purchase orders, transfers, utilization are read under ViewInventory;
+    // maintaining master data and recording orders / receipts / issues / transfers needs ManageInventory (implies View).
+    public const string ViewInventory = nameof(ViewInventory);
+    public const string ManageInventory = nameof(ManageInventory);
+
     // Administration
     public const string ManageUsers = nameof(ManageUsers);
     public const string OracleIntegration = nameof(OracleIntegration);
@@ -102,6 +107,7 @@ public static class Privileges
         AddTestsetup, UpdateTestsetup, DeleteTestsetup, AddTeststats, AddLabStats, AddAreaStats,
         ManageUsers, OracleIntegration, ManageEmailReports, SetupRefs, SetupCities, SetupAreas,
         ViewAccounting, ManageAccounting,
+        ViewInventory, ManageInventory,
     };
 
     // Coarse → fine-grained expansions, plus documented cross-grants.
@@ -113,6 +119,7 @@ public static class Privileges
         [ManageTransfers] = new[] { ViewTransfers, ConfirmTransfers },
         [ViewReports] = new[] { ViewLabStats, ViewTeststats, ViewAreaStats, ViewDetailedStats },
         [ManageAccounting] = new[] { ViewAccounting },
+        [ManageInventory] = new[] { ViewInventory },
     };
 
     /// <summary>
