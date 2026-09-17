@@ -1584,6 +1584,762 @@ namespace FollowUp.Infrastructure.Migrations
                     b.ToTable("oracle_config", (string)null);
                 });
 
+            modelBuilder.Entity("FollowUp.Domain.Inventory.GoodsReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasDefaultValue("system")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("DeliveryNote")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("delivery_note");
+
+                    b.Property<string>("InvoiceNumber")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("invoice_number");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("notes");
+
+                    b.Property<Guid>("PurchaseOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("purchase_order_id");
+
+                    b.Property<DateOnly>("ReceivedDate")
+                        .HasColumnType("date")
+                        .HasColumnName("received_date");
+
+                    b.Property<long>("Serial")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("serial");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Serial"));
+
+                    b.Property<Guid>("StoreId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("store_id");
+
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supplier_id");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_goods_receipt");
+
+                    b.HasIndex("PurchaseOrderId")
+                        .HasDatabaseName("ix_goods_receipt_purchase_order_id");
+
+                    b.HasIndex("Serial")
+                        .IsUnique()
+                        .HasDatabaseName("ix_goods_receipt_serial");
+
+                    b.HasIndex("SupplierId")
+                        .HasDatabaseName("ix_goods_receipt_supplier_id");
+
+                    b.HasIndex("StoreId", "ReceivedDate")
+                        .HasDatabaseName("ix_goods_receipt_store_id_received_date");
+
+                    b.ToTable("goods_receipt", (string)null);
+                });
+
+            modelBuilder.Entity("FollowUp.Domain.Inventory.InventoryItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CatalogNumber")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("catalog_number");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasDefaultValue("system")
+                        .HasColumnName("created_by");
+
+                    b.Property<int>("ExpiryWarningDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("expiry_warning_days");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid>("ManufacturerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("manufacturer_id");
+
+                    b.Property<decimal>("MinStock")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)")
+                        .HasColumnName("min_stock");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("notes");
+
+                    b.Property<decimal>("ReorderQuantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)")
+                        .HasColumnName("reorder_quantity");
+
+                    b.Property<string>("StorageConditions")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("storage_conditions");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("unit");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_inventory_item");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("ix_inventory_item_code");
+
+                    b.HasIndex("ManufacturerId")
+                        .HasDatabaseName("ix_inventory_item_manufacturer_id");
+
+                    b.ToTable("inventory_item", (string)null);
+                });
+
+            modelBuilder.Entity("FollowUp.Domain.Inventory.Manufacturer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Country")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("country");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasDefaultValue("system")
+                        .HasColumnName("created_by");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("notes");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_manufacturer");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("ix_manufacturer_name");
+
+                    b.ToTable("manufacturer", (string)null);
+                });
+
+            modelBuilder.Entity("FollowUp.Domain.Inventory.PurchaseOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateOnly?>("ClosedOn")
+                        .HasColumnType("date")
+                        .HasColumnName("closed_on");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasDefaultValue("system")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateOnly?>("ExpectedDate")
+                        .HasColumnType("date")
+                        .HasColumnName("expected_date");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("notes");
+
+                    b.Property<DateOnly>("OrderDate")
+                        .HasColumnType("date")
+                        .HasColumnName("order_date");
+
+                    b.Property<DateOnly?>("OrderedOn")
+                        .HasColumnType("date")
+                        .HasColumnName("ordered_on");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("reference");
+
+                    b.Property<long>("Serial")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("serial");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Serial"));
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("StoreId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("store_id");
+
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supplier_id");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_purchase_order");
+
+                    b.HasIndex("Serial")
+                        .IsUnique()
+                        .HasDatabaseName("ix_purchase_order_serial");
+
+                    b.HasIndex("StoreId")
+                        .HasDatabaseName("ix_purchase_order_store_id");
+
+                    b.HasIndex("SupplierId")
+                        .HasDatabaseName("ix_purchase_order_supplier_id");
+
+                    b.HasIndex("OrderDate", "Status")
+                        .HasDatabaseName("ix_purchase_order_order_date_status");
+
+                    b.ToTable("purchase_order", (string)null);
+                });
+
+            modelBuilder.Entity("FollowUp.Domain.Inventory.StockLot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasDefaultValue("system")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateOnly?>("ExpiryDate")
+                        .HasColumnType("date")
+                        .HasColumnName("expiry_date");
+
+                    b.Property<DateOnly>("FirstReceivedOn")
+                        .HasColumnType("date")
+                        .HasColumnName("first_received_on");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("item_id");
+
+                    b.Property<string>("LotNumber")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("lot_number");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)")
+                        .HasColumnName("quantity");
+
+                    b.Property<Guid>("StoreId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("store_id");
+
+                    b.Property<decimal>("UnitCost")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("unit_cost");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_stock_lot");
+
+                    b.HasIndex("ExpiryDate")
+                        .HasDatabaseName("ix_stock_lot_expiry_date");
+
+                    b.HasIndex("StoreId", "ItemId")
+                        .HasDatabaseName("ix_stock_lot_store_id_item_id");
+
+                    b.HasIndex("ItemId", "StoreId", "LotNumber")
+                        .IsUnique()
+                        .HasDatabaseName("ix_stock_lot_item_id_store_id_lot_number");
+
+                    b.ToTable("stock_lot", (string)null);
+                });
+
+            modelBuilder.Entity("FollowUp.Domain.Inventory.StockMovement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("BalanceAfter")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)")
+                        .HasColumnName("balance_after");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasDefaultValue("system")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date")
+                        .HasColumnName("date");
+
+                    b.Property<DateOnly?>("ExpiryDate")
+                        .HasColumnType("date")
+                        .HasColumnName("expiry_date");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("item_id");
+
+                    b.Property<Guid>("LotId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lot_id");
+
+                    b.Property<string>("LotNumber")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("lot_number");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("notes");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)")
+                        .HasColumnName("quantity");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid?>("ReferenceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reference_id");
+
+                    b.Property<string>("ReferenceKind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("reference_kind");
+
+                    b.Property<long>("Serial")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("serial");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Serial"));
+
+                    b.Property<Guid>("StoreId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("store_id");
+
+                    b.Property<string>("TestCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("test_code");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("type");
+
+                    b.Property<decimal>("UnitCost")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("unit_cost");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_stock_movement");
+
+                    b.HasIndex("LotId")
+                        .HasDatabaseName("ix_stock_movement_lot_id");
+
+                    b.HasIndex("ReferenceId")
+                        .HasDatabaseName("ix_stock_movement_reference_id");
+
+                    b.HasIndex("Serial")
+                        .IsUnique()
+                        .HasDatabaseName("ix_stock_movement_serial");
+
+                    b.HasIndex("ItemId", "Date")
+                        .HasDatabaseName("ix_stock_movement_item_id_date");
+
+                    b.HasIndex("StoreId", "Date")
+                        .HasDatabaseName("ix_stock_movement_store_id_date");
+
+                    b.ToTable("stock_movement", (string)null);
+                });
+
+            modelBuilder.Entity("FollowUp.Domain.Inventory.StockTransfer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasDefaultValue("system")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date")
+                        .HasColumnName("date");
+
+                    b.Property<Guid>("FromStoreId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("from_store_id");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("notes");
+
+                    b.Property<string>("ReceiveNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("receive_notes");
+
+                    b.Property<DateOnly?>("ReceivedDate")
+                        .HasColumnType("date")
+                        .HasColumnName("received_date");
+
+                    b.Property<long>("Serial")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("serial");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Serial"));
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("ToStoreId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("to_store_id");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_stock_transfer");
+
+                    b.HasIndex("FromStoreId")
+                        .HasDatabaseName("ix_stock_transfer_from_store_id");
+
+                    b.HasIndex("Serial")
+                        .IsUnique()
+                        .HasDatabaseName("ix_stock_transfer_serial");
+
+                    b.HasIndex("ToStoreId")
+                        .HasDatabaseName("ix_stock_transfer_to_store_id");
+
+                    b.HasIndex("Date", "Status")
+                        .HasDatabaseName("ix_stock_transfer_date_status");
+
+                    b.ToTable("stock_transfer", (string)null);
+                });
+
+            modelBuilder.Entity("FollowUp.Domain.Inventory.Store", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Branch")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("branch");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasDefaultValue("system")
+                        .HasColumnName("created_by");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("location");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_store");
+
+                    b.HasIndex("Branch")
+                        .HasDatabaseName("ix_store_branch");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("ix_store_name");
+
+                    b.ToTable("store", (string)null);
+                });
+
+            modelBuilder.Entity("FollowUp.Domain.Inventory.Supplier", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("address");
+
+                    b.Property<string>("ContactPerson")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("contact_person");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasDefaultValue("system")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("email");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("notes");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("phone");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_supplier");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("ix_supplier_name");
+
+                    b.ToTable("supplier", (string)null);
+                });
+
             modelBuilder.Entity("FollowUp.Domain.Laboratories.Laboratory", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3016,6 +3772,14 @@ namespace FollowUp.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("Branch")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("")
+                        .HasColumnName("branch");
+
                     b.Property<DateOnly>("Date")
                         .HasColumnType("date")
                         .HasColumnName("date");
@@ -3043,8 +3807,11 @@ namespace FollowUp.Infrastructure.Migrations
                         .HasName("pk_daily_lab_statistic");
 
                     b.HasIndex("Date", "LabCode")
-                        .IsUnique()
                         .HasDatabaseName("ix_daily_lab_statistic_date_lab_code");
+
+                    b.HasIndex("Date", "LabCode", "Branch")
+                        .IsUnique()
+                        .HasDatabaseName("ix_daily_lab_statistic_date_lab_code_branch");
 
                     b.ToTable("daily_lab_statistic", (string)null);
                 });
@@ -3610,6 +4377,369 @@ namespace FollowUp.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_user_session_app_user_user_id");
+                });
+
+            modelBuilder.Entity("FollowUp.Domain.Inventory.GoodsReceipt", b =>
+                {
+                    b.HasOne("FollowUp.Domain.Inventory.PurchaseOrder", null)
+                        .WithMany()
+                        .HasForeignKey("PurchaseOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_goods_receipt_purchase_orders_purchase_order_id");
+
+                    b.HasOne("FollowUp.Domain.Inventory.Store", null)
+                        .WithMany()
+                        .HasForeignKey("StoreId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_goods_receipt_stores_store_id");
+
+                    b.HasOne("FollowUp.Domain.Inventory.Supplier", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_goods_receipt_suppliers_supplier_id");
+
+                    b.OwnsMany("FollowUp.Domain.Inventory.GoodsReceiptLine", "Lines", b1 =>
+                        {
+                            b1.Property<Guid>("Id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("id");
+
+                            b1.Property<DateOnly?>("ExpiryDate")
+                                .HasColumnType("date")
+                                .HasColumnName("expiry_date");
+
+                            b1.Property<Guid>("ItemId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("item_id");
+
+                            b1.Property<string>("LotNumber")
+                                .IsRequired()
+                                .HasMaxLength(64)
+                                .HasColumnType("character varying(64)")
+                                .HasColumnName("lot_number");
+
+                            b1.Property<Guid>("OrderLineId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("order_line_id");
+
+                            b1.Property<decimal>("Quantity")
+                                .HasPrecision(18, 3)
+                                .HasColumnType("numeric(18,3)")
+                                .HasColumnName("quantity");
+
+                            b1.Property<decimal>("UnitCost")
+                                .HasPrecision(18, 2)
+                                .HasColumnType("numeric(18,2)")
+                                .HasColumnName("unit_cost");
+
+                            b1.Property<Guid>("goods_receipt_id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("goods_receipt_id");
+
+                            b1.HasKey("Id")
+                                .HasName("pk_goods_receipt_line");
+
+                            b1.HasIndex("ItemId")
+                                .HasDatabaseName("ix_goods_receipt_line_item_id");
+
+                            b1.HasIndex("OrderLineId")
+                                .HasDatabaseName("ix_goods_receipt_line_order_line_id");
+
+                            b1.HasIndex("goods_receipt_id")
+                                .HasDatabaseName("ix_goods_receipt_line_goods_receipt_id");
+
+                            b1.ToTable("goods_receipt_line", (string)null);
+
+                            b1.HasOne("FollowUp.Domain.Inventory.InventoryItem", null)
+                                .WithMany()
+                                .HasForeignKey("ItemId")
+                                .OnDelete(DeleteBehavior.Restrict)
+                                .IsRequired()
+                                .HasConstraintName("fk_goods_receipt_line_inventory_items_item_id");
+
+                            b1.WithOwner()
+                                .HasForeignKey("goods_receipt_id")
+                                .HasConstraintName("fk_goods_receipt_line_goods_receipt_goods_receipt_id");
+                        });
+
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("FollowUp.Domain.Inventory.InventoryItem", b =>
+                {
+                    b.HasOne("FollowUp.Domain.Inventory.Manufacturer", null)
+                        .WithMany()
+                        .HasForeignKey("ManufacturerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_inventory_item_manufacturers_manufacturer_id");
+
+                    b.OwnsMany("FollowUp.Domain.Inventory.ItemTestLink", "TestLinks", b1 =>
+                        {
+                            b1.Property<Guid>("Id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("id");
+
+                            b1.Property<decimal>("QuantityPerTest")
+                                .HasPrecision(18, 3)
+                                .HasColumnType("numeric(18,3)")
+                                .HasColumnName("quantity_per_test");
+
+                            b1.Property<string>("TestCode")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("test_code");
+
+                            b1.Property<string>("TestName")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("character varying(200)")
+                                .HasColumnName("test_name");
+
+                            b1.Property<int>("TestType")
+                                .HasColumnType("integer")
+                                .HasColumnName("test_type");
+
+                            b1.Property<Guid>("inventory_item_id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("inventory_item_id");
+
+                            b1.HasKey("Id")
+                                .HasName("pk_inventory_item_test");
+
+                            b1.HasIndex("TestCode", "TestType")
+                                .HasDatabaseName("ix_inventory_item_test_test_code_test_type");
+
+                            b1.HasIndex("inventory_item_id", "TestCode", "TestType")
+                                .IsUnique()
+                                .HasDatabaseName("ix_inventory_item_test_inventory_item_id_test_code_test_type");
+
+                            b1.ToTable("inventory_item_test", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("inventory_item_id")
+                                .HasConstraintName("fk_inventory_item_test_inventory_item_inventory_item_id");
+                        });
+
+                    b.Navigation("TestLinks");
+                });
+
+            modelBuilder.Entity("FollowUp.Domain.Inventory.PurchaseOrder", b =>
+                {
+                    b.HasOne("FollowUp.Domain.Inventory.Store", null)
+                        .WithMany()
+                        .HasForeignKey("StoreId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_purchase_order_stores_store_id");
+
+                    b.HasOne("FollowUp.Domain.Inventory.Supplier", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_purchase_order_suppliers_supplier_id");
+
+                    b.OwnsMany("FollowUp.Domain.Inventory.PurchaseOrderLine", "Lines", b1 =>
+                        {
+                            b1.Property<Guid>("Id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("id");
+
+                            b1.Property<Guid>("ItemId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("item_id");
+
+                            b1.Property<string>("Notes")
+                                .HasMaxLength(300)
+                                .HasColumnType("character varying(300)")
+                                .HasColumnName("notes");
+
+                            b1.Property<decimal>("OrderedQuantity")
+                                .HasPrecision(18, 3)
+                                .HasColumnType("numeric(18,3)")
+                                .HasColumnName("ordered_quantity");
+
+                            b1.Property<decimal>("ReceivedQuantity")
+                                .HasPrecision(18, 3)
+                                .HasColumnType("numeric(18,3)")
+                                .HasColumnName("received_quantity");
+
+                            b1.Property<decimal>("UnitPrice")
+                                .HasPrecision(18, 2)
+                                .HasColumnType("numeric(18,2)")
+                                .HasColumnName("unit_price");
+
+                            b1.Property<Guid>("purchase_order_id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("purchase_order_id");
+
+                            b1.HasKey("Id")
+                                .HasName("pk_purchase_order_line");
+
+                            b1.HasIndex("ItemId")
+                                .HasDatabaseName("ix_purchase_order_line_item_id");
+
+                            b1.HasIndex("purchase_order_id", "ItemId")
+                                .IsUnique()
+                                .HasDatabaseName("ix_purchase_order_line_purchase_order_id_item_id");
+
+                            b1.ToTable("purchase_order_line", (string)null);
+
+                            b1.HasOne("FollowUp.Domain.Inventory.InventoryItem", null)
+                                .WithMany()
+                                .HasForeignKey("ItemId")
+                                .OnDelete(DeleteBehavior.Restrict)
+                                .IsRequired()
+                                .HasConstraintName("fk_purchase_order_line_inventory_item_item_id");
+
+                            b1.WithOwner()
+                                .HasForeignKey("purchase_order_id")
+                                .HasConstraintName("fk_purchase_order_line_purchase_order_purchase_order_id");
+                        });
+
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("FollowUp.Domain.Inventory.StockLot", b =>
+                {
+                    b.HasOne("FollowUp.Domain.Inventory.InventoryItem", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_stock_lot_inventory_item_item_id");
+
+                    b.HasOne("FollowUp.Domain.Inventory.Store", null)
+                        .WithMany()
+                        .HasForeignKey("StoreId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_stock_lot_stores_store_id");
+                });
+
+            modelBuilder.Entity("FollowUp.Domain.Inventory.StockMovement", b =>
+                {
+                    b.HasOne("FollowUp.Domain.Inventory.InventoryItem", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_stock_movement_inventory_item_item_id");
+
+                    b.HasOne("FollowUp.Domain.Inventory.StockLot", null)
+                        .WithMany()
+                        .HasForeignKey("LotId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_stock_movement_stock_lot_lot_id");
+
+                    b.HasOne("FollowUp.Domain.Inventory.Store", null)
+                        .WithMany()
+                        .HasForeignKey("StoreId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_stock_movement_stores_store_id");
+                });
+
+            modelBuilder.Entity("FollowUp.Domain.Inventory.StockTransfer", b =>
+                {
+                    b.HasOne("FollowUp.Domain.Inventory.Store", null)
+                        .WithMany()
+                        .HasForeignKey("FromStoreId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_stock_transfer_stores_from_store_id");
+
+                    b.HasOne("FollowUp.Domain.Inventory.Store", null)
+                        .WithMany()
+                        .HasForeignKey("ToStoreId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_stock_transfer_stores_to_store_id");
+
+                    b.OwnsMany("FollowUp.Domain.Inventory.StockTransferLine", "Lines", b1 =>
+                        {
+                            b1.Property<Guid>("Id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("id");
+
+                            b1.Property<DateOnly?>("ExpiryDate")
+                                .HasColumnType("date")
+                                .HasColumnName("expiry_date");
+
+                            b1.Property<Guid>("ItemId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("item_id");
+
+                            b1.Property<string>("LotNumber")
+                                .IsRequired()
+                                .HasMaxLength(64)
+                                .HasColumnType("character varying(64)")
+                                .HasColumnName("lot_number");
+
+                            b1.Property<decimal>("Quantity")
+                                .HasPrecision(18, 3)
+                                .HasColumnType("numeric(18,3)")
+                                .HasColumnName("quantity");
+
+                            b1.Property<decimal?>("ReceivedQuantity")
+                                .HasPrecision(18, 3)
+                                .HasColumnType("numeric(18,3)")
+                                .HasColumnName("received_quantity");
+
+                            b1.Property<Guid>("SourceLotId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("source_lot_id");
+
+                            b1.Property<decimal>("UnitCost")
+                                .HasPrecision(18, 2)
+                                .HasColumnType("numeric(18,2)")
+                                .HasColumnName("unit_cost");
+
+                            b1.Property<Guid>("stock_transfer_id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("stock_transfer_id");
+
+                            b1.HasKey("Id")
+                                .HasName("pk_stock_transfer_line");
+
+                            b1.HasIndex("ItemId")
+                                .HasDatabaseName("ix_stock_transfer_line_item_id");
+
+                            b1.HasIndex("SourceLotId")
+                                .HasDatabaseName("ix_stock_transfer_line_source_lot_id");
+
+                            b1.HasIndex("stock_transfer_id")
+                                .HasDatabaseName("ix_stock_transfer_line_stock_transfer_id");
+
+                            b1.ToTable("stock_transfer_line", (string)null);
+
+                            b1.HasOne("FollowUp.Domain.Inventory.InventoryItem", null)
+                                .WithMany()
+                                .HasForeignKey("ItemId")
+                                .OnDelete(DeleteBehavior.Restrict)
+                                .IsRequired()
+                                .HasConstraintName("fk_stock_transfer_line_inventory_item_item_id");
+
+                            b1.HasOne("FollowUp.Domain.Inventory.StockLot", null)
+                                .WithMany()
+                                .HasForeignKey("SourceLotId")
+                                .OnDelete(DeleteBehavior.Restrict)
+                                .IsRequired()
+                                .HasConstraintName("fk_stock_transfer_line_stock_lot_source_lot_id");
+
+                            b1.WithOwner()
+                                .HasForeignKey("stock_transfer_id")
+                                .HasConstraintName("fk_stock_transfer_line_stock_transfer_stock_transfer_id");
+                        });
+
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("FollowUp.Domain.Laboratories.Laboratory", b =>

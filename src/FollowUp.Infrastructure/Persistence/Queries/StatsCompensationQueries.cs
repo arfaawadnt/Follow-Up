@@ -28,17 +28,22 @@ internal sealed class LabStatsQueries : ILabStatsQueries
             q = q.Where(s => allowedCodes.Contains(s.LabCode));
         }
 
-        var rows = await q.OrderBy(s => s.Date).ThenBy(s => s.LabCode).ToListAsync(ct);
+        var rows = await q.OrderBy(s => s.Date).ThenBy(s => s.LabCode).ThenBy(s => s.Branch).ToListAsync(ct);
 
         // Enrich with lab profile (name/segment/location) by code — for the pivot rows.
         var labInfo = (await _db.Laboratories.AsNoTracking()
             .Select(l => new { l.Code, l.Name, l.Category, l.Segment, l.Governorate, l.City, l.Area, l.Branch, l.Status }).ToListAsync(ct))
             .GroupBy(l => l.Code.Value).ToDictionary(g => g.Key, g => g.First());
+        // Registration branch code → name via the Branches reference (BRANCH_CODE → BRANCH_NAME); unknown code stays a code.
+        var branchName = (await _db.RefItems.AsNoTracking().Where(r => r.Type == RefType.Branch)
+                .Select(r => new { r.Code, r.NameEn }).ToListAsync(ct))
+            .GroupBy(r => r.Code).ToDictionary(g => g.Key, g => g.First().NameEn, StringComparer.OrdinalIgnoreCase);
         return rows.Select(s =>
         {
             labInfo.TryGetValue(s.LabCode, out var l);
+            var regBranch = string.IsNullOrEmpty(s.Branch) ? null : branchName.TryGetValue(s.Branch, out var bn) ? bn : s.Branch;
             return new LabStatDto(s.Date, s.LabCode, l?.Name, l?.Category, l?.Segment, l?.Governorate, l?.City, l?.Area,
-                l?.Branch, l?.Status?.Name, s.Registrations, s.TestCount, s.Income.Amount);
+                l?.Branch, l?.Status?.Name, s.Registrations, s.TestCount, s.Income.Amount, regBranch);
         }).ToList();
     }
 

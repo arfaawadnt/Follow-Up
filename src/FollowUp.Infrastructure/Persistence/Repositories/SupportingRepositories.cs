@@ -18,8 +18,8 @@ internal sealed class DailyLabStatisticRepository : IDailyLabStatisticRepository
 {
     private readonly FollowUpDbContext _db;
     public DailyLabStatisticRepository(FollowUpDbContext db) => _db = db;
-    public Task<DailyLabStatistic?> GetAsync(DateOnly date, string labCode, CancellationToken ct) =>
-        _db.DailyLabStatistics.FirstOrDefaultAsync(x => x.Date == date && x.LabCode == labCode, ct);
+    public Task<DailyLabStatistic?> GetAsync(DateOnly date, string labCode, string branch, CancellationToken ct) =>
+        _db.DailyLabStatistics.FirstOrDefaultAsync(x => x.Date == date && x.LabCode == labCode && x.Branch == branch, ct);
     public async Task<IReadOnlyList<DailyLabStatistic>> GetRangeAsync(DateOnly from, DateOnly to, CancellationToken ct) =>
         await _db.DailyLabStatistics.Where(x => x.Date >= from && x.Date <= to).ToListAsync(ct);
     public void Add(DailyLabStatistic stat) => _db.DailyLabStatistics.Add(stat);

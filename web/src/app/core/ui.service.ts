@@ -20,7 +20,11 @@ export class UiService {
     });
     effect(() => {
       const lang = this.lang();
-      document.body.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
+      // The stylesheet's RTL layout rules (sidebar on the right, mirrored margins, badges…) key on html[dir="rtl"], so the
+      // direction must be stamped on <html> — the body attribute alone only flipped inline flow, not the fixed sidebar.
+      const dir = lang === 'ar' ? 'rtl' : 'ltr';
+      document.documentElement.setAttribute('dir', dir);
+      document.body.setAttribute('dir', dir);
       document.documentElement.lang = lang;
       localStorage.setItem('followup.lang', lang);
     });

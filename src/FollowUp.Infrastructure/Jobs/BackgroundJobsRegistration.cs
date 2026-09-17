@@ -90,6 +90,9 @@ public sealed class RecurringJobsInitializer : IHostedService
         // Deductions automation — 00:30 daily (Cairo), after the nightly stats pull has landed yesterday's income:
         // penalties → mirrored deductions, and the month's Percentage Deal deductions recalculated.
         _jobs.AddOrUpdate<DeductionAutomationJob>("deductions-automation", j => j.RunAsync(CancellationToken.None), "30 0 * * *", cairoOptions);
+        // Inventory alerts - 06:00 daily (Cairo): items at/below their stock limit, lots expiring within the warning window or
+        // already expired -> one in-app summary per ViewInventory user for the stores their branch scope covers.
+        _jobs.AddOrUpdate<InventoryAlertsJob>("inventory-alerts", j => j.RunAsync(CancellationToken.None), "0 6 * * *", cairoOptions);
 
         // Per-subscription daily statistics-email schedules (each has its own send time).
         try

@@ -52,6 +52,7 @@ public static class OracleDefaultQueries
     public const string LabStats =
         "SELECT TRUNC(r.reg_date) AS the_date, " +
         "dl.lab_code AS lab_code, " +
+        "r.branch_code AS branch, " +
         "COUNT(DISTINCT r.reg_key) AS reg_count, " +
         "COUNT(gt.test_code) AS test_count, " +
         "SUM(CASE WHEN gt.test_code IS NOT NULL THEN NVL(rss.patient_fee,0)+NVL(rss.insurance_fee,0) ELSE 0 END) AS income " +
@@ -66,7 +67,7 @@ public static class OracleDefaultQueries
         "LEFT JOIN global_tests2 gt ON gt.test_code = rss.service_code AND gt.test_type = rss.service_type AND gt.visible = 1 " +
         "WHERE r.doctor IS NOT NULL AND dl.lab_code IS NOT NULL " +
         "AND r.reg_date >= :from_date AND r.reg_date < :to_date " +
-        "GROUP BY TRUNC(r.reg_date), dl.lab_code";
+        "GROUP BY TRUNC(r.reg_date), dl.lab_code, r.branch_code";
 
     /// <summary>
     /// Per-test detail of the tests counted by <see cref="TestStats"/> whose registration does NOT resolve to any

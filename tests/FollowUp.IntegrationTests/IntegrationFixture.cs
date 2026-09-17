@@ -70,6 +70,7 @@ DELETE FROM monthly_sample;
 DELETE FROM outsource_sample;
 DELETE FROM marketing_visit;
 DELETE FROM complaint;
+DELETE FROM detailed_registration; -- window-replaced Oracle lines; a rerun on the same DB must not accumulate them
 -- Accounting ledgers hold Restrict FKs to laboratory / representative / area — clear them before the labs so the
 -- delete below stays FK-safe (treasury + treasury_reason are configuration and, like reference rows, are left in place).
 DELETE FROM deduction;       -- before penalty_record: AutoPenalty rows RESTRICT their penalty
@@ -78,6 +79,16 @@ DELETE FROM treasury_entry;  -- before collection: AutoCollection rows RESTRICT 
 DELETE FROM collection;
 DELETE FROM rep_income_entry;
 DELETE FROM rep_lab_income;
+-- Inventory: the ledger and the documents RESTRICT their master data; children cascade with their document.
+DELETE FROM stock_movement;
+DELETE FROM stock_transfer;
+DELETE FROM goods_receipt;
+DELETE FROM purchase_order;
+DELETE FROM stock_lot;
+DELETE FROM inventory_item;
+DELETE FROM store;
+DELETE FROM supplier;
+DELETE FROM manufacturer;
 DELETE FROM laboratory;
 -- Release the area management-role FK (Restrict → representative) so a test that then deletes reps stays FK-safe;
 -- reference rows themselves are intentionally left in place.

@@ -85,6 +85,17 @@ public sealed class FollowUpDbContext : DbContext
     public DbSet<Domain.Accounting.RepIncomeEntry> RepIncomeEntries => Set<Domain.Accounting.RepIncomeEntry>();
     public DbSet<Domain.Accounting.RepLabIncome> RepLabIncomes => Set<Domain.Accounting.RepLabIncome>();
 
+    // Inventory module
+    public DbSet<Domain.Inventory.Manufacturer> Manufacturers => Set<Domain.Inventory.Manufacturer>();
+    public DbSet<Domain.Inventory.Supplier> Suppliers => Set<Domain.Inventory.Supplier>();
+    public DbSet<Domain.Inventory.Store> Stores => Set<Domain.Inventory.Store>();
+    public DbSet<Domain.Inventory.InventoryItem> InventoryItems => Set<Domain.Inventory.InventoryItem>();
+    public DbSet<Domain.Inventory.PurchaseOrder> PurchaseOrders => Set<Domain.Inventory.PurchaseOrder>();
+    public DbSet<Domain.Inventory.GoodsReceipt> GoodsReceipts => Set<Domain.Inventory.GoodsReceipt>();
+    public DbSet<Domain.Inventory.StockLot> StockLots => Set<Domain.Inventory.StockLot>();
+    public DbSet<Domain.Inventory.StockMovement> StockMovements => Set<Domain.Inventory.StockMovement>();
+    public DbSet<Domain.Inventory.StockTransfer> StockTransfers => Set<Domain.Inventory.StockTransfer>();
+
     // Infrastructure
     public DbSet<Outbox.OutboxMessage> OutboxMessages => Set<Outbox.OutboxMessage>();
     public DbSet<Idempotency.IdempotencyRecord> IdempotencyRecords => Set<Idempotency.IdempotencyRecord>();
@@ -115,6 +126,10 @@ public sealed class FollowUpDbContext : DbContext
         c.Properties<Domain.Accounting.TreasuryValidationStatus>().HaveConversion<EnumerationConverter<Domain.Accounting.TreasuryValidationStatus>>().HaveMaxLength(32);
         c.Properties<Domain.Accounting.CollectionType>().HaveConversion<EnumerationConverter<Domain.Accounting.CollectionType>>().HaveMaxLength(32);
         c.Properties<Domain.Accounting.IbanOption>().HaveConversion<EnumerationConverter<Domain.Accounting.IbanOption>>().HaveMaxLength(32);
+        c.Properties<Domain.Inventory.ItemKind>().HaveConversion<EnumerationConverter<Domain.Inventory.ItemKind>>().HaveMaxLength(32);
+        c.Properties<Domain.Inventory.PurchaseOrderStatus>().HaveConversion<EnumerationConverter<Domain.Inventory.PurchaseOrderStatus>>().HaveMaxLength(32);
+        c.Properties<Domain.Inventory.TransferStatus>().HaveConversion<EnumerationConverter<Domain.Inventory.TransferStatus>>().HaveMaxLength(32);
+        c.Properties<Domain.Inventory.StockMovementType>().HaveConversion<EnumerationConverter<Domain.Inventory.StockMovementType>>().HaveMaxLength(32);
 
         // Strongly-typed ids
         c.Properties<AppUserId>().HaveConversion<AppUserIdConverter>();
@@ -158,6 +173,19 @@ public sealed class FollowUpDbContext : DbContext
         c.Properties<Domain.Accounting.CollectionId>().HaveConversion<CollectionIdConverter>();
         c.Properties<Domain.Accounting.RepIncomeEntryId>().HaveConversion<RepIncomeEntryIdConverter>();
         c.Properties<Domain.Accounting.RepLabIncomeId>().HaveConversion<RepLabIncomeIdConverter>();
+        c.Properties<Domain.Inventory.ManufacturerId>().HaveConversion<ManufacturerIdConverter>();
+        c.Properties<Domain.Inventory.SupplierId>().HaveConversion<SupplierIdConverter>();
+        c.Properties<Domain.Inventory.StoreId>().HaveConversion<StoreIdConverter>();
+        c.Properties<Domain.Inventory.InventoryItemId>().HaveConversion<InventoryItemIdConverter>();
+        c.Properties<Domain.Inventory.ItemTestLinkId>().HaveConversion<ItemTestLinkIdConverter>();
+        c.Properties<Domain.Inventory.PurchaseOrderId>().HaveConversion<PurchaseOrderIdConverter>();
+        c.Properties<Domain.Inventory.PurchaseOrderLineId>().HaveConversion<PurchaseOrderLineIdConverter>();
+        c.Properties<Domain.Inventory.GoodsReceiptId>().HaveConversion<GoodsReceiptIdConverter>();
+        c.Properties<Domain.Inventory.GoodsReceiptLineId>().HaveConversion<GoodsReceiptLineIdConverter>();
+        c.Properties<Domain.Inventory.StockLotId>().HaveConversion<StockLotIdConverter>();
+        c.Properties<Domain.Inventory.StockMovementId>().HaveConversion<StockMovementIdConverter>();
+        c.Properties<Domain.Inventory.StockTransferId>().HaveConversion<StockTransferIdConverter>();
+        c.Properties<Domain.Inventory.StockTransferLineId>().HaveConversion<StockTransferLineIdConverter>();
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

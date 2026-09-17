@@ -192,6 +192,8 @@ export interface LabStat {
   date: string; labCode: string; name: string | null; category: string | null; segment: string | null;
   governorate: string | null; city: string | null; area: string | null; branch: string | null; status: string | null;
   registrations: number; testCount: number; income: number;
+  /** Registration branch (where the registrations were made); null for rows synced before the split or imported from xlsx. */
+  regBranch: string | null;
 }
 export interface RepPerformanceRow {
   repId: string; name: string; type: string; goalType: string; metric: string | null; goalDuration: string;
@@ -263,3 +265,64 @@ export interface RealIncomeRow {
   entryId: string | null; samples: number; totalRequired: number; paid: number; remaining: number; delayedPayment: number; notes: string | null;
 }
 export interface RealIncomeSheet { date: string; areaId: string; areaName: string; representativeId: string; repName: string; rows: RealIncomeRow[]; }
+
+// ---- Inventory module ----
+export interface ManufacturerDto { id: string; name: string; country: string | null; notes: string | null; isActive: boolean; itemCount: number; }
+export interface SupplierDto { id: string; name: string; contactPerson: string | null; phone: string | null; email: string | null; address: string | null; notes: string | null; isActive: boolean; openOrders: number; }
+export interface StoreDto { id: string; name: string; branch: string; location: string | null; isActive: boolean; lotCount: number; stockValue: number; }
+export interface ItemTestLink { testCode: string; testType: number; testName: string; quantityPerTest: number; }
+export interface InventoryItemDto {
+  id: string; code: string; name: string; kind: string; manufacturerId: string; manufacturerName: string; catalogNumber: string | null;
+  unit: string; minStock: number; reorderQuantity: number; expiryWarningDays: number; storageConditions: string | null; notes: string | null; isActive: boolean;
+  /** Total on hand over the caller's visible stores. */
+  onHand: number; testLinks: ItemTestLink[];
+}
+/** Stock of one item summed over the visible (or the selected) store(s), with the alert flags. */
+export interface StockRow {
+  itemId: string; code: string; name: string; kind: string; unit: string; manufacturerName: string; minStock: number; reorderQuantity: number;
+  onHand: number; value: number; lotCount: number; expiringQuantity: number; expiredQuantity: number; nearestExpiry: string | null; isLow: boolean; isOut: boolean;
+}
+export interface StockLotDto {
+  id: string; itemId: string; itemCode: string; itemName: string; unit: string; storeId: string; storeName: string; lotNumber: string;
+  expiryDate: string | null; quantity: number; unitCost: number; value: number; firstReceivedOn: string;
+  /** Ok | Expiring | Expired */
+  status: string;
+}
+/** kind: LowStock | OutOfStock | Expiring | Expired */
+export interface InventoryAlert {
+  kind: string; itemId: string; itemCode: string; itemName: string; unit: string; storeId: string | null; storeName: string | null;
+  lotId: string | null; lotNumber: string | null; expiryDate: string | null; quantity: number; threshold: number | null; message: string;
+}
+export interface InventoryDashboard {
+  activeItems: number; stores: number; lotsWithStock: number; stockValue: number; lowStock: number; outOfStock: number; expiring: number; expired: number;
+  openPurchaseOrders: number; transfersInTransit: number; alerts: InventoryAlert[];
+}
+export interface InventoryAlertResult { lowStock: number; outOfStock: number; expiring: number; expired: number; recipients: number; }
+export interface PurchaseOrderLine {
+  id: string; itemId: string; itemCode: string; itemName: string; unit: string; orderedQuantity: number; unitPrice: number;
+  receivedQuantity: number; outstanding: number; lineTotal: number; notes: string | null;
+}
+export interface GoodsReceiptLine { id: string; orderLineId: string; itemId: string; itemCode: string; itemName: string; unit: string; quantity: number; lotNumber: string; expiryDate: string | null; unitCost: number; }
+export interface GoodsReceiptDto {
+  id: string; serial: number; number: string; purchaseOrderId: string; purchaseOrderNumber: string; storeId: string; storeName: string; supplierName: string;
+  receivedDate: string; deliveryNote: string | null; invoiceNumber: string | null; notes: string | null; receivedBy: string; lines: GoodsReceiptLine[];
+}
+export interface PurchaseOrderDto {
+  id: string; serial: number; number: string; supplierId: string; supplierName: string; storeId: string; storeName: string; orderDate: string; expectedDate: string | null;
+  /** Draft | Ordered | PartiallyReceived | Received | Closed | Cancelled */
+  status: string; reference: string | null; notes: string | null; orderedOn: string | null; closedOn: string | null; total: number;
+  orderedQuantity: number; receivedQuantity: number; createdBy: string; lines: PurchaseOrderLine[]; receipts: GoodsReceiptDto[];
+}
+export interface StockMovementDto {
+  id: string; serial: number; date: string; createdAt: string; type: string; itemId: string; itemCode: string; itemName: string; unit: string;
+  storeId: string; storeName: string; lotId: string; lotNumber: string; expiryDate: string | null; quantity: number; balanceAfter: number; unitCost: number;
+  referenceKind: string; referenceId: string | null; referenceNumber: string | null; reason: string | null; testCode: string | null; notes: string | null; performedBy: string;
+}
+export interface StockTransferLine { id: string; itemId: string; itemCode: string; itemName: string; unit: string; sourceLotId: string; lotNumber: string; expiryDate: string | null; quantity: number; receivedQuantity: number | null; unitCost: number; }
+export interface StockTransferDto {
+  id: string; serial: number; number: string; fromStoreId: string; fromStoreName: string; toStoreId: string; toStoreName: string; date: string;
+  /** InTransit | Received | Cancelled */
+  status: string; notes: string | null; receivedDate: string | null; receiveNotes: string | null; createdBy: string; canReceive: boolean; lines: StockTransferLine[];
+}
+export interface UtilizationTest { testCode: string; testType: number; testName: string; testCount: number; quantityPerTest: number; expected: number; }
+export interface UtilizationRow { itemId: string; itemCode: string; itemName: string; unit: string; testsPerformed: number; expected: number; actual: number; variance: number; utilizationPct: number | null; tests: UtilizationTest[]; }

@@ -5,7 +5,8 @@ namespace FollowUp.Application.Common.Abstractions.Persistence;
 /// <summary>Aggregate repository for <see cref="DailyLabStatistic"/> (upsert by date + lab code).</summary>
 public interface IDailyLabStatisticRepository
 {
-    Task<DailyLabStatistic?> GetAsync(DateOnly date, string labCode, CancellationToken ct);
+    /// <summary>One row of the (date, lab code, registration branch) key; pass "" for the branch-less (xlsx) row.</summary>
+    Task<DailyLabStatistic?> GetAsync(DateOnly date, string labCode, string branch, CancellationToken ct);
     /// <summary>Loads every statistic whose date falls in the inclusive range — used to bulk-upsert an Oracle sync
     /// without a per-row lookup.</summary>
     Task<IReadOnlyList<DailyLabStatistic>> GetRangeAsync(DateOnly from, DateOnly to, CancellationToken ct);
