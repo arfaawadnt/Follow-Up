@@ -54,9 +54,12 @@ const pad = (n: number) => String(n).padStart(2, '0');
   `,
   styles: [`
     :host { display: block; }
-    .di-wrap { position: relative; display: block; }
-    .di-text { width: 100%; padding-inline-end: 34px; }
-    .di-btn { position: absolute; inset-inline-end: 4px; top: 50%; transform: translateY(-50%);
+    /* The field is LTR as a whole (a dd/mm/yyyy value reads left-to-right even in an Arabic form), so the icon sits on the
+       right where the input's end padding is — otherwise, in an RTL page, inset-inline-end put the icon on the LEFT, over
+       the first digits, while the LTR input padded its right. */
+    .di-wrap { position: relative; display: block; direction: ltr; }
+    .di-text { width: 100%; padding-right: 34px; text-align: left; }
+    .di-btn { position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
       border: 0; background: transparent; cursor: pointer; font-size: 15px; line-height: 1; padding: 4px; border-radius: 6px; }
     .di-btn:disabled { opacity: .4; cursor: default; }
     .di-pop { position: fixed; z-index: 1000; width: 252px;
