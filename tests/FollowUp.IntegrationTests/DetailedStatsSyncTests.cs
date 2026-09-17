@@ -34,8 +34,9 @@ public sealed class DetailedStatsSyncTests
         using (var scope = _fx.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<FollowUpDbContext>();
-            var cfg = scope.ServiceProvider.GetRequiredService<IOracleConfigRepository>();
-            cfg.Add(OracleConfig.Create(enabled: true, intervalHours: 24));
+            // oracle_config is a single-row table that ResetAsync leaves in place — only seed it on a truly fresh database.
+            if (!await db.OracleConfigs.AnyAsync())
+                scope.ServiceProvider.GetRequiredService<IOracleConfigRepository>().Add(OracleConfig.Create(enabled: true, intervalHours: 24));
             db.DetailedRegistrations.Add(DetailedRegistration.Create(
                 new DateOnly(2026, 8, 15), "LAB1", "BR1", "ACC1", "Patient", "T1", 0, "Test",
                 100m, 0m, "Received", "Done"));
