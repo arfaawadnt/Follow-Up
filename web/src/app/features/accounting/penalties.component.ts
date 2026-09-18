@@ -17,7 +17,9 @@ type Opt = { value: string; label: string };
 
 /**
  * Penalty Statement — penalties recorded per lab (a wrong test booked instead of the right one). The penalty amount is
- * wrong − right, computed server-side; the Deductions page sums it per area.
+ * right − wrong for every user type, computed server-side: on the rep statement the right test is a debit and the wrong test a
+ * credit (a Rep penalty follows the representative who made it; the other types follow the lab's Lab Responsible), and the
+ * same net figure is the Penalty column of the Rep Income sheet.
  */
 @Component({
   selector: 'app-acc-penalties',
@@ -42,10 +44,11 @@ type Opt = { value: string; label: string };
     </div>
 
     <div class="card" style="padding:16px;margin-bottom:16px">
-      <div class="frm-grid" style="grid-template-columns:repeat(4,1fr);gap:12px;align-items:end">
+      <div class="frm-grid" style="grid-template-columns:1fr 1fr 1.5fr 2fr auto;gap:12px;align-items:end">
         <div class="field"><label>{{ 'start_date' | t }}</label><app-date-input [(ngModel)]="from"></app-date-input></div>
         <div class="field"><label>{{ 'end_date' | t }}</label><app-date-input [(ngModel)]="to"></app-date-input></div>
-        <div class="field"><label>{{ 'lab' | t : 'Lab' }}</label><app-filter-select [(ngModel)]="labId" [options]="labOptions()" [clearable]="true" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
+        <div class="field"><label>{{ 'area_2' | t : 'Area' }}</label><app-filter-select [ngModel]="areaId" (ngModelChange)="pickArea($event)" [options]="areaOptions()" [clearable]="true" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
+        <div class="field"><label>{{ 'lab' | t : 'Lab' }}</label><app-filter-select [(ngModel)]="labId" [options]="filteredLabOptions()" [clearable]="true" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply_filters' | t : 'Apply Filters' }}</button></div>
       </div>
     </div>
@@ -102,7 +105,8 @@ type Opt = { value: string; label: string };
             <div class="frm-grid" style="grid-template-columns:1fr 1fr;gap:12px">
               <div class="field"><label>{{ 'date' | t : 'Date' }} *</label><app-date-input [(ngModel)]="f.date"></app-date-input></div>
               <div class="field"><label>{{ 'day' | t : 'Day' }}</label><input class="input" [value]="day(f.date)" disabled></div>
-              <div class="field" style="grid-column:1/-1"><label>{{ 'lab' | t : 'Lab' }} *</label><app-filter-select [(ngModel)]="f.laboratoryId" [options]="labOptions()" [clearable]="true" placeholder="—" [disabled]="!!editId"></app-filter-select></div>
+              <div class="field"><label>{{ 'area_2' | t : 'Area' }}</label><app-filter-select [ngModel]="f.areaId" (ngModelChange)="pickDialogArea($event)" [options]="areaOptions()" [clearable]="true" [placeholder]="'all' | t : 'All'" [disabled]="!!editId"></app-filter-select></div>
+              <div class="field"><label>{{ 'lab' | t : 'Lab' }} *</label><app-filter-select [(ngModel)]="f.laboratoryId" [options]="dialogLabOptions()" [clearable]="true" placeholder="—" [disabled]="!!editId"></app-filter-select></div>
               <div class="field"><label>{{ 'acc_no' | t : 'Acc No' }} *</label><input class="input" [(ngModel)]="f.accNo" maxlength="50"></div>
               <div class="field"><label>{{ 'patient_name' | t : 'Patient Name' }} *</label><input class="input" [(ngModel)]="f.patientName" maxlength="200"></div>
               <div class="field"><label>{{ 'wrong_test' | t : 'Wrong Test' }}{{ f.userType === 'LabRequest' ? '' : ' *' }}</label><app-filter-select [ngModel]="f.wrongKey" (ngModelChange)="pickTest('wrong', $event)" [options]="testOptions()" [clearable]="true" placeholder="—"></app-filter-select></div>
@@ -112,13 +116,13 @@ type Opt = { value: string; label: string };
               <div class="field"><label>{{ 'user_type' | t : 'User Type' }} *</label>
                 <select class="select" [ngModel]="f.userType" (ngModelChange)="pickUserType($event)">@for (u of users; track u) { <option [value]="u">{{ userLabel(u) }}</option> }</select></div>
               @if (f.userType === 'LabRequest') {
-                <div class="field"><label>{{ 'user' | t : 'User' }}</label><div class="small muted" style="padding-top:8px">{{ 'lab_request_hint' | t : 'The lab asked for the wrong test: charged to the lab (Rep Income), not deducted from the area.' }}</div></div>
+                <div class="field"><label>{{ 'user' | t : 'User' }}</label><div class="small muted" style="padding-top:8px">{{ 'lab_request_hint' | t : 'The lab asked for the wrong test: the record is assigned to the lab Lab Responsible (right test = debit, wrong test = credit on the statement).' }}</div></div>
               } @else {
                 <div class="field"><label>{{ 'user' | t : 'User' }} *</label>
                   <app-filter-select [(ngModel)]="f.performedById" [options]="actorOptions()" [clearable]="true" [placeholder]="'select_user' | t : 'Select…'"></app-filter-select></div>
               }
-              <div class="field"><label>{{ 'penalty' | t : 'Penalty' }} <span class="small muted">{{ f.userType === 'LabRequest' ? ('wrong + right') : ('wrong − right') }}</span></label><input class="input" [value]="penaltyPreview() | number:'1.2-2'" disabled></div>
-              @if (f.userType === 'LabRequest') { <div class="field" style="grid-column:1/-1"><div class="small muted">{{ 'lab_request_tests_hint' | t : 'A lab request needs at least one test (wrong or right); the lab is charged for both values.' }}</div></div> }
+              <div class="field"><label>{{ 'penalty' | t : 'Penalty' }} <span class="small muted">right − wrong</span></label><input class="input" [value]="penaltyPreview() | number:'1.2-2'" disabled></div>
+              <div class="field" style="grid-column:1/-1"><div class="small muted">{{ 'penalty_statement_hint' | t : 'On the rep statement the right test value is a debit and the wrong test value a credit, each noted with this record.' }}@if (f.userType === 'LabRequest') { {{ 'lab_request_tests_hint' | t : 'A lab request needs at least one test (wrong or right).' }} }</div></div>
             </div>
           </div>
           <div class="as-dlg-foot" style="align-items:center;gap:12px">
@@ -149,11 +153,22 @@ export class PenaltiesComponent {
   readonly rows = signal<PenaltyDto[]>([]);
   readonly labs = signal<LabLookup[]>([]);
   readonly tests = signal<TestLookup[]>([]);
-  from = firstOfMonth(); to = localToday(); labId = '';
+  from = firstOfMonth(); to = localToday(); labId = ''; areaId = '';
   editId: string | null = null;
   f = this.blank();
 
   readonly labOptions = computed<Opt[]>(() => this.labs().map((l) => ({ value: l.id, label: `${l.displayCode} · ${l.name}` })));
+  readonly areas = signal<{ id: string; name: string }[]>([]);
+  readonly areaOptions = computed<Opt[]>(() => this.areas().map((a) => ({ value: a.id, label: a.name })));
+  private readonly pageArea = signal('');
+  private readonly dialogArea = signal('');
+  /** Labs carry their area by name; an area pick narrows the lab pickers (page filter and record dialog) to that area. */
+  private labsOf(areaId: string): Opt[] {
+    const name = this.areas().find((a) => a.id === areaId)?.name;
+    return this.labs().filter((l) => !name || l.area === name).map((l) => ({ value: l.id, label: `${l.displayCode} · ${l.name}` }));
+  }
+  readonly filteredLabOptions = computed<Opt[]>(() => this.labsOf(this.pageArea()));
+  readonly dialogLabOptions = computed<Opt[]>(() => this.labsOf(this.dialogArea()));
   // Test codes repeat across test types in the catalogue, so the option key carries both.
   readonly testOptions = computed<Opt[]>(() => this.tests().map((t) => ({ value: `${t.code}|${t.testType}`, label: `${t.code} · ${t.name}` })));
   readonly k = computed(() => {
@@ -164,6 +179,7 @@ export class PenaltiesComponent {
   constructor() {
     this.api.get<LabLookup[]>('/labs/lookup').subscribe({ next: (r) => this.labs.set(r), error: () => {} });
     this.api.get<TestLookup[]>('/test-lookup').subscribe({ next: (r) => this.tests.set(r), error: () => {} });
+    this.api.get<{ id: string; name: string }[]>('/setup/areas').subscribe({ next: (r) => this.areas.set(r), error: () => {} });
     this.load();
   }
 
@@ -175,11 +191,12 @@ export class PenaltiesComponent {
     this.loading.set(true);
     const params: Record<string, string> = { from: this.from, to: this.to };
     if (this.labId) params['laboratoryId'] = this.labId;
+    if (this.areaId) params['areaId'] = this.areaId;
     this.api.get<PenaltyDto[]>('/accounting/penalties', params).subscribe({ next: (r) => { this.rows.set(r); this.loading.set(false); }, error: () => this.loading.set(false) });
   }
 
   private blank() {
-    return { date: localToday(), laboratoryId: '', accNo: '', patientName: '', wrongKey: '', wrongTestCode: '', wrongTestName: '', wrongValue: null as number | null,
+    return { date: localToday(), areaId: '', laboratoryId: '', accNo: '', patientName: '', wrongKey: '', wrongTestCode: '', wrongTestName: '', wrongValue: null as number | null,
       rightKey: '', rightTestCode: '', rightTestName: '', rightValue: null as number | null, userType: 'Rep', performedById: '' };
   }
   /** Loads the picker for a user type; a type change clears the chosen person since the lists are disjoint. */
@@ -187,12 +204,15 @@ export class PenaltiesComponent {
     this.actors.set([]);
     this.api.get<PenaltyActorDto[]>('/accounting/penalty-actors', { userType }).subscribe({ next: (r) => this.actors.set(r), error: () => {} });
   }
+  pickArea(areaId: string): void { this.areaId = areaId ?? ''; this.pageArea.set(this.areaId); if (this.labId && !this.filteredLabOptions().some((o) => o.value === this.labId)) this.labId = ''; }
+  pickDialogArea(areaId: string): void { this.f.areaId = areaId ?? ''; this.dialogArea.set(this.f.areaId); if (this.f.laboratoryId && !this.dialogLabOptions().some((o) => o.value === this.f.laboratoryId)) this.f.laboratoryId = ''; }
   pickUserType(userType: string): void { this.f.userType = userType; this.f.performedById = ''; this.loadActors(userType); }
-  openNew(): void { this.editId = null; this.f = this.blank(); this.loadActors(this.f.userType); this.dlg.set(true); }
+  openNew(): void { this.editId = null; this.f = this.blank(); this.f.areaId = this.areaId; this.dialogArea.set(this.areaId); this.loadActors(this.f.userType); this.dlg.set(true); }
   openEdit(p: PenaltyDto): void {
     this.editId = p.id;
     const key = (code: string | null) => this.tests().find((t) => t.code === code)?.testType;
-    this.f = { date: p.date, laboratoryId: p.laboratoryId, accNo: p.accNo, patientName: p.patientName,
+    this.dialogArea.set('');
+    this.f = { date: p.date, areaId: '', laboratoryId: p.laboratoryId, accNo: p.accNo, patientName: p.patientName,
       wrongKey: p.wrongTestCode ? `${p.wrongTestCode}|${key(p.wrongTestCode) ?? ''}` : '', wrongTestCode: p.wrongTestCode ?? '', wrongTestName: p.wrongTestName ?? '', wrongValue: p.wrongTestCode ? p.wrongValue : null,
       rightKey: p.rightTestCode ? `${p.rightTestCode}|${key(p.rightTestCode) ?? ''}` : '', rightTestCode: p.rightTestCode ?? '', rightTestName: p.rightTestName ?? '', rightValue: p.rightTestCode ? p.rightValue : null,
       userType: p.userType, performedById: p.performedById ?? '' };
@@ -229,10 +249,10 @@ export class PenaltiesComponent {
     return m;
   }
   valid(): boolean { return this.missing().length === 0; }
-  /** Staff penalty = wrong − right; lab request = wrong + right (a missing test counts 0). */
+  /** right − wrong for every user type (a missing test counts 0). */
   penaltyPreview(): number {
     const w = this.f.wrongTestCode ? (this.f.wrongValue ?? 0) : 0; const r = this.f.rightTestCode ? (this.f.rightValue ?? 0) : 0;
-    return this.f.userType === 'LabRequest' ? w + r : w - r;
+    return r - w;
   }
   save(): void {
     const missing = this.missing();

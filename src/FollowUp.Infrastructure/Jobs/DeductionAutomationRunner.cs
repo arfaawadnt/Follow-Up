@@ -12,9 +12,6 @@ namespace FollowUp.Infrastructure.Jobs;
 /// <summary>
 /// The deductions automation (operator decisions, 2026-09-15). Two idempotent passes, one SaveChanges:
 /// <list type="number">
-/// <item><b>Penalty reconcile</b> — every penalty record gets its mirroring AutoPenalty deduction if it has none (the
-/// write handlers keep them in step synchronously; this covers records that predate the automation and labs that were
-/// placed in an area later). Values are NOT refreshed here — the penalty handlers own that.</item>
 /// <item><b>Percentage Deal for the month of <c>through</c></b> — for every area with an active deal: income of the area's
 /// labs from the 1st through <c>through</c> × deal %, written to the area's single AutoDeal row for that month
 /// (created on first sight). Rows an operator adjusted are left alone. Only that one month is touched, so a month
@@ -44,28 +41,6 @@ internal sealed class DeductionAutomationRunner : IDeductionAutomationRunner
         var areas = await _db.Areas.ToListAsync(ct);
         var areaByName = areas.OrderBy(a => a.Name, StringComparer.Ordinal)
             .GroupBy(a => a.Name, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
-
-        // ---- 1. Penalty reconcile ---------------------------------------------------------------------------------
-        var mirrored = await _db.Deductions.AsNoTracking().Where(d => d.PenaltyRecordId != null).Select(d => d.PenaltyRecordId!.Value).ToListAsync(ct);
-        var mirroredSet = mirrored.ToHashSet();
-        var labRequest = PenaltyUser.LabRequest; // lab-request penalties are the lab's to pay (Rep Income), never a deduction
-        var unlinked = await _db.PenaltyRecords.AsNoTracking().Where(p => !mirrored.Contains(p.Id) && p.UserType != labRequest).ToListAsync(ct);
-        var linked = 0; var unplaced = 0;
-        if (unlinked.Count > 0)
-        {
-            var labIds = unlinked.Select(p => p.LaboratoryId).Distinct().ToList();
-            var labs = await _db.Laboratories.AsNoTracking().Where(l => labIds.Contains(l.Id))
-                .Select(l => new { l.Id, l.Name, l.Area }).ToDictionaryAsync(l => l.Id, ct);
-            foreach (var p in unlinked)
-            {
-                if (mirroredSet.Contains(p.Id)) continue;
-                if (!labs.TryGetValue(p.LaboratoryId, out var lab) || string.IsNullOrWhiteSpace(lab.Area) || !areaByName.TryGetValue(lab.Area, out var area))
-                { unplaced++; continue; }
-                _db.Deductions.Add(Deduction.FromPenalty(area.Id, p, lab.Name));
-                mirroredSet.Add(p.Id);
-                linked++;
-            }
-        }
 
         // ---- 2. Percentage Deal for the month ---------------------------------------------------------------------
         var dealAreas = areas.Where(a => a.PercentageDeal && a.Percentage is not null).ToList();
@@ -116,9 +91,9 @@ internal sealed class DeductionAutomationRunner : IDeductionAutomationRunner
         await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation(
-            "Deductions automation ({Mode}) {Month} through {Through:yyyy-MM-dd}: deal areas {DealAreas} (created {Created}, recalculated {Recalculated}, adjusted-skipped {Skipped}); penalties linked {Linked}, unplaced {Unplaced}; collections linked {CLinked}, unplaced {CUnplaced}.",
-            mode, month, through, dealAreas.Count, created, recalculated, skipped, linked, unplaced, collectionsLinked, collectionsUnplaced);
+            "Deductions automation ({Mode}) {Month} through {Through:yyyy-MM-dd}: deal areas {DealAreas} (created {Created}, recalculated {Recalculated}, adjusted-skipped {Skipped}); collections linked {CLinked}, unplaced {CUnplaced}.",
+            mode, month, through, dealAreas.Count, created, recalculated, skipped, collectionsLinked, collectionsUnplaced);
 
-        return new DeductionAutomationResult(month.ToString(), through, dealAreas.Count, created, recalculated, skipped, linked, unplaced, collectionsLinked, collectionsUnplaced);
+        return new DeductionAutomationResult(month.ToString(), through, dealAreas.Count, created, recalculated, skipped, collectionsLinked, collectionsUnplaced);
     }
 }

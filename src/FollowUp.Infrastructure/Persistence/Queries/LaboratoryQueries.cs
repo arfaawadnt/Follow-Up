@@ -34,9 +34,9 @@ internal sealed class LaboratoryQueries : ILaboratoryQueries
         // cost about a megabyte. Scope is pushed into SQL like the directory; codes are masked the same way.
         var labs = await _db.Laboratories.AsNoTracking().ApplyScope(scope)
             .OrderBy(l => l.Name)
-            .Select(l => new { l.Id, l.Code, l.IsEncrypted, l.Name })
+            .Select(l => new { l.Id, l.Code, l.IsEncrypted, l.Name, l.Area })
             .ToListAsync(ct);
-        return labs.Select(l => new LabLookupDto(l.Id.Value, DisplayCode.For(l.Code.Value, l.IsEncrypted, canSeeEncrypted), l.Name)).ToList();
+        return labs.Select(l => new LabLookupDto(l.Id.Value, DisplayCode.For(l.Code.Value, l.IsEncrypted, canSeeEncrypted), l.Name, l.Area)).ToList();
     }
 
     public async Task<PagedResult<LabListItemDto>> SearchAsync(

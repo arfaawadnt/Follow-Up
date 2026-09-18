@@ -65,8 +65,8 @@ public static class AccountingEndpoints
         { await m.Send(new SetTreasuryGrantsCommand(roleId, grants), ct); return Results.NoContent(); }).WithTags(tag);
 
         // ---- Penalty statement ----
-        api.MapGet("/accounting/penalties", async (DateOnly from, DateOnly to, Guid? laboratoryId, IMediator m, CancellationToken ct) =>
-            Results.Ok(await m.Send(new GetPenaltiesQuery(from, to, laboratoryId), ct))).WithTags(tag);
+        api.MapGet("/accounting/penalties", async (DateOnly from, DateOnly to, Guid? laboratoryId, Guid? areaId, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetPenaltiesQuery(from, to, laboratoryId, areaId), ct))).WithTags(tag);
         // The "User" picker of the record dialog: reps for UserType=Rep, active system users otherwise.
         api.MapGet("/accounting/penalty-actors", async (string userType, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetPenaltyActorsQuery(userType), ct))).WithTags(tag);

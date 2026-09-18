@@ -22,10 +22,16 @@ export function money(v: number | null | undefined): number { return Math.round(
 /** Fixed value sets, mirroring the domain enumerations (persisted by name). */
 export const IBAN_OPTIONS = ['12', '16', '18'];
 export const PENALTY_USERS = ['Rep', 'DataEntry', 'Technician', 'LabRequest'];
-/** The user types whose penalties are our side's fault (deducted from the area; the Penalty Report groups them). */
+/** The user types whose penalties are our side's fault (kept for the report's group order; all four types are reported). */
 export const PENALTY_STAFF_USERS = ['Rep', 'DataEntry', 'Technician'];
+/** LDM validation of a penalty's Acc No against the synced registration lines (server-computed). */
+export function ldmStatusLabel(s: string): string {
+  return s === 'Valid' ? 'Valid in LDM' : s === 'AccNotFound' ? 'Acc No not in LDM' : s === 'LabMismatch' ? 'Other lab in LDM' : s === 'TestMissing' ? 'Test not on registration' : s;
+}
+export function ldmStatusClass(s: string): string { return s === 'Valid' ? 'b-ok' : s === 'Unknown' ? 'b-neu' : 'b-bad'; }
 export function penaltyUserLabel(u: string): string { return u === 'DataEntry' ? 'Data Entry' : u === 'LabRequest' ? 'Lab Request' : u; }
-export const DEDUCTION_REASONS = ['Transportation', 'Penalty', 'PercentageDeal'];
+/** Penalties left the deductions business on 2026-09-18 (they post to the rep statement). */
+export const DEDUCTION_REASONS = ['Transportation', 'PercentageDeal'];
 export const COLLECTION_TYPES = ['Single', 'Group'];
 
 /** Shared dialog + grid styles (same overlay/dialog idiom as the statistics pages). */

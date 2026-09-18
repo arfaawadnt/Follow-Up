@@ -64,8 +64,6 @@ internal sealed class DeductionRepository : IDeductionRepository
     private readonly FollowUpDbContext _db;
     public DeductionRepository(FollowUpDbContext db) => _db = db;
     public Task<Deduction?> GetByIdAsync(DeductionId id, CancellationToken ct) => _db.Deductions.FirstOrDefaultAsync(x => x.Id == id, ct);
-    public Task<Deduction?> GetByPenaltyAsync(PenaltyRecordId penaltyId, CancellationToken ct) =>
-        _db.Deductions.FirstOrDefaultAsync(x => x.PenaltyRecordId == penaltyId, ct);
     public void Add(Deduction deduction) => _db.Deductions.Add(deduction);
     public void Remove(Deduction deduction) => _db.Deductions.Remove(deduction);
 }

@@ -80,7 +80,7 @@ type SheetRow = RealIncomeRow & { samplesIn: number | null; requiredIn: number |
               @if (canManage()) { <th rowspan="2" class="ar"></th> }
             </tr>
             <tr>
-              <th class="r">{{ 'ldm_income' | t : 'LDM income' }}</th><th class="r">{{ 'visit_required' | t : 'Visit: total required' }}</th><th class="r">{{ 'visit_samples' | t : 'Visit: samples' }}</th><th class="r">{{ 'penalty' | t : 'Penalty' }}</th><th class="r">{{ 'prev_remaining' | t : 'Remaining (previous)' }}</th>
+              <th class="r">{{ 'ldm_income' | t : 'LDM income' }}</th><th class="r">{{ 'visit_required' | t : 'Visit: total required' }}</th><th class="r">{{ 'visit_samples' | t : 'Visit: samples' }}</th><th class="r" title="right − wrong of every penalty recorded on the lab that day (all user types)">{{ 'penalty' | t : 'Penalty' }}</th><th class="r">{{ 'prev_remaining' | t : 'Remaining (previous)' }}</th>
               <th class="r">{{ 'samples' | t : 'Samples' }}</th><th class="r">{{ 'total_required' | t : 'Total required' }}</th><th class="r">{{ 'paid' | t : 'Paid' }}</th><th class="r">{{ 'remaining' | t : 'Remaining' }}</th><th class="r">{{ 'delayed_payment' | t : 'Delayed payment' }}</th><th>{{ 'notes' | t : 'Notes' }}</th>
             </tr>
           </thead>

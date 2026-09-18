@@ -85,7 +85,7 @@ public sealed class AccountingPersistenceTests
             penalty.UserType.Should().BeSameAs(PenaltyUser.Rep, "enumeration persisted by name");
             penalty.PerformedByRepId.Should().Be(new RepresentativeId(rep1), "the performed-by link round-trips");
             penalty.PerformedByUserId.Should().BeNull();
-            penalty.PenaltyAmount.Amount.Should().Be(180m);
+            penalty.PenaltyAmount.Amount.Should().Be(-180m, "right 120 − wrong 300");
 
             var deduction = await db.Deductions.AsNoTracking().SingleAsync(d => d.Id == new DeductionId(deductionId));
             deduction.Reason.Should().BeSameAs(DeductionReason.PercentageDeal);
@@ -135,7 +135,7 @@ public sealed class AccountingPersistenceTests
     }
 
     [SkippableFact]
-    public async Task Deduction_suggestions_derive_from_penalties_and_from_area_income_times_the_deal_percentage()
+    public async Task Deduction_suggestion_derives_from_area_income_times_the_deal_percentage()
     {
         Skip.IfNot(_fx.DatabaseAvailable, "FOLLOWUP_DB not set.");
         var tag = Tag();
@@ -164,16 +164,13 @@ public sealed class AccountingPersistenceTests
         pct.Value.Should().Be(100m, "1,000 income × 10 %");
         pct.Basis.Should().Contain("10%");
 
-        var pen = await queries.SuggestDeductionAsync(area.Id.Value, DeductionReason.Penalty, D, D, OrgScope.Global, CancellationToken.None);
-        pen.Value.Should().Be(150m, "Σ (wrong − right), negatives included");
-        pen.Basis.Should().Contain("2 penalty row(s)");
 
         var act = () => queries.SuggestDeductionAsync(noDeal.Id.Value, DeductionReason.PercentageDeal, D, D, OrgScope.Global, CancellationToken.None);
         await act.Should().ThrowAsync<FollowUp.Application.Common.Exceptions.ValidationException>("an area without an active deal has nothing to multiply by");
     }
 
     [SkippableFact]
-    public async Task Rep_statement_debits_synced_and_manual_income_and_credits_collections_with_a_running_balance()
+    public async Task Statement_debits_total_required_and_right_tests_and_credits_collections_deductions_and_wrong_tests()
     {
         Skip.IfNot(_fx.DatabaseAvailable, "FOLLOWUP_DB not set.");
         var tag = Tag();
@@ -183,31 +180,73 @@ public sealed class AccountingPersistenceTests
 
         var rep = NewRep(tag); db.Representatives.Add(rep);
         var other = NewRep(tag + "x"); db.Representatives.Add(other);
-        // The rep is the assigned collector of this lab → its synced income is the rep's Oracle-derived debit.
-        var lab = NewLab(tag); lab.AssignCollectors(new[] { rep.Id }); db.Laboratories.Add(lab);
-        var otherLab = NewLab(tag + "o"); otherLab.AssignCollectors(new[] { other.Id }); db.Laboratories.Add(otherLab);
-        var s1 = DailyLabStatistic.For(D, lab.Code.Value.ToUpperInvariant()); s1.Set(3, 10, new Money(1000m)); db.DailyLabStatistics.Add(s1);
-        var s2 = DailyLabStatistic.For(D, otherLab.Code.Value.ToUpperInvariant()); s2.Set(3, 10, new Money(99999m)); db.DailyLabStatistics.Add(s2); // not this rep's
-        db.RepIncomeEntries.Add(RepIncomeEntry.Create(rep.Id, D, 200m, "real cash"));
-        db.Collections.Add(Collection.Create(D, CollectionType.Single, new[] { (rep.Id, 300m) }, 300m, 0m, null, null, null));
-        db.Collections.Add(Collection.Create(D, CollectionType.Single, new[] { (other.Id, 777m) }, 777m, 0m, null, null, null)); // not this rep's
-        // A group collection credits each rep with their own share only.
-        db.Collections.Add(Collection.Create(D, CollectionType.Group, new[] { (rep.Id, 100m), (other.Id, 900m) }, 1000m, 0m, null, null, null));
+        var city = City.FromOracle($"C-{tag}", $"City {tag}", "Cairo"); db.Cities.Add(city);
+        var area = Area.FromOracle($"A-{tag}", $"Area {tag}", city.Id); db.Areas.Add(area);
+        // The rep is the Lab Responsible of this lab (its sheet, its penalties, its area's deductions land on the rep's statement).
+        var lab = NewLab(tag); lab.PlaceInHierarchy(null, "Cairo", city.Name, area.Name); lab.AssignResponsible(rep.Id); db.Laboratories.Add(lab);
+        var labCode = lab.Code.Value.ToUpperInvariant();
+        // Synced income no longer drives the debit — only the total required entered on the Rep Income sheet does.
+        var s1 = DailyLabStatistic.For(D, labCode); s1.Set(3, 10, new Money(99999m)); db.DailyLabStatistics.Add(s1);
+        db.RepLabIncomes.Add(RepLabIncome.Create(rep.Id, lab.Id, D, 5, 1000m, 600m, 0m, null));
+        db.RepIncomeEntries.Add(RepIncomeEntry.Create(rep.Id, D, 200m, "legacy manual line"));
+        // Penalties: the rep's own (Rep type) — wrong 300 credit, right 120 debit; a lab request on the rep's lab — wrong 50
+        // credit only; another rep's error on the same lab — follows THAT rep, not this statement.
+        var mine = PenaltyRecord.Create(lab.Id, D, "ACC-1", "Patient", "T1", "Wrong", 300m, "T2", "Right", 120m, PenaltyUser.Rep, null, rep.Id);
+        var labRequest = PenaltyRecord.Create(lab.Id, D, "ACC-X", "Patient", "T9", "Wrong only", 50m, null, null, 0m, PenaltyUser.LabRequest, null, null);
+        var theirs = PenaltyRecord.Create(lab.Id, D, "ACC-2", "Patient", "T1", "Wrong", 10m, "T2", "Right", 5m, PenaltyUser.Rep, null, other.Id);
+        db.PenaltyRecords.AddRange(mine, labRequest, theirs);
+        // Collections: a single one in full, a group one by this rep's share; the other rep's alone is not this statement's.
+        db.Collections.Add(Collection.Create(D, CollectionType.Single, new[] { (rep.Id, 300m) }, 300m, 0m, null, "Cashier", "evening"));
+        db.Collections.Add(Collection.Create(D, CollectionType.Single, new[] { (other.Id, 777m) }, 777m, 0m, null, null, null));
+        db.Collections.Add(Collection.Create(D, CollectionType.Group, new[] { (rep.Id, 100m), (other.Id, 900m) }, 0m, 1000m, IbanOption.Iban12, null, null));
+        // A deduction of the lab's area is a credit noted with its record.
+        db.Deductions.Add(Deduction.Create(area.Id, D, DeductionReason.Transportation, 75m, "fuel", null, null));
+        // Synced LDM registration lines: ACC-1 exists for this lab with both tests; ACC-X was never registered.
+        db.DetailedRegistrations.Add(DetailedRegistration.Create(D, labCode, "CAI", "ACC-1", "Patient", "T1", 0, "Wrong", 300m, 0m, null, null));
+        db.DetailedRegistrations.Add(DetailedRegistration.Create(D, labCode, "CAI", "ACC-1", "Patient", "T2", 0, "Right", 120m, 0m, null, null));
+        db.DetailedRegistrations.Add(DetailedRegistration.Create(D, "OTHERLAB", "CAI", "ACC-2", "Patient", "T1", 0, "Wrong", 10m, 0m, null, null));
         await db.SaveChangesAsync();
 
-        var st = await queries.RepStatementAsync(rep.Id.Value, D, D, OrgScope.Global, CancellationToken.None);
+        // ---- Lab Responsible view.
+        var st = await queries.StatementAsync(StatementBy.Responsible, rep.Id.Value, D, D, OrgScope.Global, CancellationToken.None);
         st.Should().NotBeNull();
-        st!.RepName.Should().Be(rep.FullName);
-        st.Rows.Select(r => r.Kind).Should().Equal("OracleIncome", "ManualIncome", "Collection", "Collection");
-        st.Rows[0].Debit.Should().Be(1000m); st.Rows[0].Balance.Should().Be(1000m);
-        st.Rows[1].Debit.Should().Be(200m); st.Rows[1].Balance.Should().Be(1200m);
-        st.Rows.Skip(2).Select(r => r.Credit).Should().BeEquivalentTo(new[] { 300m, 100m }, "the single collection in full, the group one by this rep's share");
-        st.TotalDebit.Should().Be(1200m); st.TotalCredit.Should().Be(400m); st.Balance.Should().Be(800m);
+        st!.SubjectName.Should().Be(rep.FullName);
+        st.Rows.Select(r => r.Kind).Should().BeEquivalentTo(new[] { "TotalRequired", "ManualIncome", "PenaltyWrong", "PenaltyRight", "PenaltyWrong", "Collection", "Collection", "Deduction" });
+        st.Rows.Single(r => r.Kind == "TotalRequired").Debit.Should().Be(1000m, "the sheet's total required, not the synced income");
+        st.Rows.Single(r => r.Kind == "PenaltyRight").Debit.Should().Be(120m);
+        st.Rows.Where(r => r.Kind == "PenaltyWrong").Select(r => r.Credit).Should().BeEquivalentTo(new[] { 300m, 50m }, "the rep's own error and the lab request on the rep's lab; the other rep's error is not here");
+        st.Rows.Single(r => r.Kind == "PenaltyRight").Notes.Should().Contain("ACC-1").And.Contain("Right (T2)").And.Contain("Rep");
+        st.Rows.Where(r => r.Kind == "Collection").Select(r => r.Credit).Should().BeEquivalentTo(new[] { 300m, 100m });
+        st.Rows.Single(r => r.Kind == "Collection" && r.Credit == 300m).Notes.Should().Contain("Cash").And.Contain("Cashier").And.Contain("evening");
+        st.Rows.Single(r => r.Kind == "Collection" && r.Credit == 100m).Notes.Should().Contain("Bank").And.Contain("IBAN 12").And.Contain("share of 1000.00");
+        st.Rows.Single(r => r.Kind == "Deduction").Credit.Should().Be(75m);
+        st.Rows.Single(r => r.Kind == "Deduction").Notes.Should().Contain("Transportation").And.Contain("fuel").And.Contain(area.Name);
+        st.TotalDebit.Should().Be(1320m); st.TotalCredit.Should().Be(825m); st.Balance.Should().Be(495m);
+        st.Rows.Last().Balance.Should().Be(495m, "running balance");
+
+        // ---- Area view: every penalty on the area's labs, the area's deductions, no collections / legacy lines.
+        var byArea = await queries.StatementAsync(StatementBy.Area, area.Id.Value, D, D, OrgScope.Global, CancellationToken.None);
+        byArea!.Rows.Select(r => r.Kind).Should().NotContain("Collection").And.NotContain("ManualIncome");
+        byArea.TotalDebit.Should().Be(1000m + 120m + 5m); byArea.TotalCredit.Should().Be(300m + 50m + 10m + 75m);
+
+        // ---- Lab view: the lab's penalties and sheet lines only.
+        var byLab = await queries.StatementAsync(StatementBy.Lab, lab.Id.Value, D, D, OrgScope.Global, CancellationToken.None);
+        byLab!.Rows.Select(r => r.Kind).Should().NotContain("Deduction").And.NotContain("Collection");
+        byLab.TotalDebit.Should().Be(1125m); byLab.TotalCredit.Should().Be(360m);
+
+        // ---- Penalty page: area filter + LDM validation of every Acc No against the synced registrations.
+        var penalties = await queries.PenaltiesAsync(D, D, null, area.Id.Value, OrgScope.Global, true, CancellationToken.None);
+        penalties.Should().HaveCount(3);
+        penalties.Single(p => p.AccNo == "ACC-1").LdmStatus.Should().Be("Valid");
+        penalties.Single(p => p.AccNo == "ACC-1").Penalty.Should().Be(-180m, "right − wrong");
+        penalties.Single(p => p.AccNo == "ACC-X").LdmStatus.Should().Be("AccNotFound");
+        penalties.Single(p => p.AccNo == "ACC-2").LdmStatus.Should().Be("LabMismatch");
+        penalties.Single(p => p.AccNo == "ACC-2").LdmNote.Should().Contain("OTHERLAB");
+        penalties.Single(p => p.UserType == "LabRequest").ResponsibleRepName.Should().Be(rep.FullName, "a lab request is assigned to the lab's Lab Responsible");
+        (await queries.PenaltiesAsync(D, D, null, Guid.NewGuid(), OrgScope.Global, true, CancellationToken.None)).Should().BeEmpty("unknown area");
 
         // A rep outside the caller's geographic scope resolves to null (surfaced as 404 — never a leak).
-        // Wildcard everywhere except Branches: a Register()ed rep carries a null Branch, and the rep-scope filter hides a
-        // null dimension from any non-wildcard caller (matching ScopeGuard.EnsureInScope(Representative)).
         var narrow = OrgScope.Create(new[] { "Nowhere" }, new[] { "*" }, new[] { "*" }, new[] { "*" }, new[] { "*" }, new[] { "*" });
-        (await queries.RepStatementAsync(rep.Id.Value, D, D, narrow, CancellationToken.None)).Should().BeNull();
+        (await queries.StatementAsync(StatementBy.Responsible, rep.Id.Value, D, D, narrow, CancellationToken.None)).Should().BeNull();
     }
 }

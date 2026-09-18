@@ -58,9 +58,8 @@ public sealed class LabStatsRegBranchTests
             rows.Select(r => r.RegBranch).Should().BeEquivalentTo(new[] { $"Reg Branch {tag}", "ZZ-UNKNOWN", null });
             rows.Sum(r => r.Income).Should().Be(160m);
 
-            // Consumers that need the lab's day total sum the branch rows (statement by Lab → synced income of the day).
-            var st = await scope.ServiceProvider.GetRequiredService<IAccountingQueries>().StatementAsync(StatementBy.Lab, lab.Id.Value, D, D, OrgScope.Global, CancellationToken.None);
-            st!.Rows.Should().ContainSingle(r => r.Kind == "OracleIncome").Which.Debit.Should().Be(160m);
+            // Consumers that need the lab's day total (Rep Income LDM column, deal automation) sum the branch rows.
+            (await db.DailyLabStatistics.AsNoTracking().Where(x => x.Date == D && x.LabCode == code).ToListAsync()).Sum(x => x.Income.Amount).Should().Be(160m);
 
             var dup = () => db.Database.ExecuteSqlInterpolatedAsync($@"
 INSERT INTO daily_lab_statistic (id, date, lab_code, branch, registrations, test_count, income)

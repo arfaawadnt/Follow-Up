@@ -16,9 +16,9 @@ type Opt = { value: string; label: string };
 interface AreaOpt { id: string; name: string; percentageDeal: boolean; percentage: number | null; }
 
 /**
- * Deductions — per-area deductions. Manual rows are typed (Penalty / Percentage Deal values may be suggested by the
- * server over a period). Automated rows arrive on their own: every penalty mirrors into an AutoPenalty row carrying its
- * details, and each area with an active deal gets one AutoDeal row per month, recalculated daily for the running month.
+ * Deductions — per-area deductions: Transportation (typed) and Percentage Deal (value suggested by the server over a
+ * period). Each area with an active deal also gets one automated AutoDeal row per month, recalculated daily for the
+ * running month. Penalties are NOT deductions (2026-09-18): they post to the rep statement.
  * Editing an automated row (typing or "Suggest value") marks it "manually adjusted"; operator notes are kept separately
  * from the system-written details.
  */
@@ -39,10 +39,9 @@ interface AreaOpt { id: string; name: string; percentageDeal: boolean; percentag
       </div>
     </div>
 
-    <div class="kpis" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
+    <div class="kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">
       <div class="kpi kpi-green"><div class="lbl">{{ 'total' | t : 'Total' }}</div><div class="val">{{ k().total | number:'1.2-2' }}</div><div class="sub">EGP</div></div>
       <div class="kpi kpi-blue"><div class="lbl">{{ 'transportation' | t : 'Transportation' }}</div><div class="val">{{ k().transportation | number:'1.2-2' }}</div></div>
-      <div class="kpi kpi-amber"><div class="lbl">{{ 'penalty' | t : 'Penalty' }}</div><div class="val">{{ k().penalty | number:'1.2-2' }}</div></div>
       <div class="kpi kpi-teal"><div class="lbl">{{ 'percentage_deal' | t : 'Percentage Deal' }}</div><div class="val">{{ k().deal | number:'1.2-2' }}</div></div>
     </div>
 
@@ -77,7 +76,7 @@ interface AreaOpt { id: string; name: string; percentageDeal: boolean; percentag
                 @if (canManage()) {
                   <td class="ar actions">
                     <button class="icon-btn" title="Edit" (click)="openEdit(d)">✎</button>
-                    @if (d.origin !== 'AutoPenalty') { <button class="icon-btn del" title="Delete" (click)="remove(d, i + 1)">🗑</button> }
+                    <button class="icon-btn del" title="Delete" (click)="remove(d, i + 1)">🗑</button>
                   </td>
                 }
               </tr>
@@ -111,7 +110,7 @@ interface AreaOpt { id: string; name: string; percentageDeal: boolean; percentag
                 <div class="field"><label>{{ 'period' | t : 'Period' }} · {{ 'start_date' | t }}</label><app-date-input [(ngModel)]="f.periodFrom" [disabled]="isAuto()"></app-date-input></div>
                 <div class="field"><label>{{ 'period' | t : 'Period' }} · {{ 'end_date' | t }}</label><app-date-input [(ngModel)]="f.periodTo" [disabled]="isAuto()"></app-date-input></div>
                 <div class="field" style="grid-column:1/-1">
-                  <button class="btn btn-s" type="button" [disabled]="suggesting() || !f.areaId || !f.periodFrom || !f.periodTo || editing()?.origin === 'AutoPenalty'" (click)="suggest()">{{ suggesting() ? ('loading' | t : 'Loading…') : ('suggest_value' | t : 'Suggest value') }}</button>
+                  <button class="btn btn-s" type="button" [disabled]="suggesting() || !f.areaId || !f.periodFrom || !f.periodTo" (click)="suggest()">{{ suggesting() ? ('loading' | t : 'Loading…') : ('suggest_value' | t : 'Suggest value') }}</button>
                   @if (basis()) { <div class="basis">{{ basis() }}</div> }
                 </div>
               }
@@ -156,7 +155,7 @@ export class DeductionsComponent {
   readonly k = computed(() => {
     const r = this.rows();
     const sum = (reason: string) => r.filter((d) => d.reason === reason).reduce((a, d) => a + d.value, 0);
-    return { total: r.reduce((a, d) => a + d.value, 0), transportation: sum('Transportation'), penalty: sum('Penalty'), deal: sum('PercentageDeal') };
+    return { total: r.reduce((a, d) => a + d.value, 0), transportation: sum('Transportation'), deal: sum('PercentageDeal') };
   });
 
   constructor() {
@@ -179,7 +178,7 @@ export class DeductionsComponent {
     this.api.post<DeductionAutomationResult>('/accounting/deductions/recalculate', {}).subscribe({
       next: (r) => {
         this.recalculating.set(false);
-        this.toast.success(`${r.month}: ${r.dealCreated} deal row(s) created, ${r.dealRecalculated} recalculated, ${r.dealSkippedAdjusted} kept (adjusted); ${r.penaltiesLinked} penalt${r.penaltiesLinked === 1 ? 'y' : 'ies'} linked${r.penaltiesUnplaced ? `, ${r.penaltiesUnplaced} without an area` : ''}.`);
+        this.toast.success(`${r.month}: ${r.dealCreated} deal row(s) created, ${r.dealRecalculated} recalculated, ${r.dealSkippedAdjusted} kept (adjusted); ${r.collectionsLinked} collection(s) mirrored to the treasury${r.collectionsUnplaced ? `, ${r.collectionsUnplaced} without a treasury` : ''}.`);
         this.load();
       },
       error: () => this.recalculating.set(false),

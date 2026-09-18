@@ -20,7 +20,7 @@ namespace FollowUp.IntegrationTests;
 /// Rep Statement "real income" sheet (2026-09-16) through the real read side and database: the Lab Responsibles linked to
 /// an area, the sheet rows (the rep's labs with a recorded visit that day — live board or archive — plus labs already
 /// entered) with their view-only context (LDM income, visit figures, penalty, remaining carried from earlier days), the
-/// statement's RealIncome debit, and the DB guards (one line per rep × lab × date; paid ≤ total required).
+/// statement's TotalRequired debit, and the DB guards (one line per rep × lab × date; paid ≤ total required).
 /// </summary>
 [Collection("integration")]
 public sealed class RealIncomeSheetTests
@@ -66,7 +66,7 @@ public sealed class RealIncomeSheetTests
             db.VisitHistory.Add(VisitHistory.ArchiveFrom(v2, DateTimeOffset.UtcNow));
 
             var s = DailyLabStatistic.For(D, l1.Code.Value.ToUpperInvariant()); s.Set(3, 10, new Money(1234.5m)); db.DailyLabStatistics.Add(s);
-            // Only the lab-request penalty is the lab's to pay — for BOTH values (300 + 120); the rep's own penalty (500 − 100) goes to the area's deductions.
+            // Every penalty type counts on the sheet as right − wrong (2026-09-18): (120 − 300) + (100 − 500) = −580.
             db.PenaltyRecords.Add(PenaltyRecord.Create(l1.Id, D, "ACC-1", "Patient", "T1", "Wrong", 300m, "T2", "Right", 120m, PenaltyUser.LabRequest, null, null));
             db.PenaltyRecords.Add(PenaltyRecord.Create(l1.Id, D, "ACC-2", "Patient", "T1", "Wrong", 500m, "T2", "Right", 100m, PenaltyUser.Rep, null, rep.Id));
             // Earlier sheet lines of L1: remaining 200 (D-2) and a 50 delayed payment (D-1) → 150 carried into D.
@@ -95,7 +95,7 @@ public sealed class RealIncomeSheetTests
             var row = sheet.Rows.Should().ContainSingle().Subject;
             row.LaboratoryId.Should().Be(l1.Id.Value);
             row.HasVisit.Should().BeTrue(); row.VisitTotalRequired.Should().Be(900); row.VisitSamples.Should().Be(7);
-            row.LdmIncome.Should().Be(1234.5m); row.Penalty.Should().Be(420m, "wrong + right of the LAB-REQUEST penalty only");
+            row.LdmIncome.Should().Be(1234.5m); row.Penalty.Should().Be(-580m, "Σ right − wrong of both penalties");
             row.PreviousRemaining.Should().Be(150m, "(500 − 300) + (100 − 100) − 50 delayed");
             row.EntryId.Should().BeNull(); row.TotalRequired.Should().Be(0m);
 
@@ -117,20 +117,23 @@ public sealed class RealIncomeSheetTests
             var next = await queries.RealIncomeSheetAsync(area.Id.Value, D.AddDays(1), rep.Id.Value, OrgScope.Global, true, CancellationToken.None);
             next!.Rows.Should().BeEmpty("no visit and no entry on that day yet");
 
-            // Statement: the day's real income = Σ(paid + delayed) = 750 + 100.
+            // Statement (2026-09-18): Debit = the sheet's total required (900 + 100) + the right test of each penalty; Credit = the
+            // wrong test of each penalty. Both penalties land on this rep: the Rep one because the rep made it, the lab request
+            // because the rep is L1's Lab Responsible. Paid / delayed / synced income no longer post to the statement.
             var st = await queries.RepStatementAsync(rep.Id.Value, D, D, OrgScope.Global, CancellationToken.None);
-            var real = st!.Rows.Should().ContainSingle(r => r.Kind == "RealIncome").Subject;
-            real.Debit.Should().Be(850m); real.Notes.Should().Contain("2 lab");
-            // Same figures through the dimensional statement; the Responsible view also counts the responsible's labs' synced income.
+            var required = st!.Rows.Should().ContainSingle(r => r.Kind == "TotalRequired").Subject;
+            required.Debit.Should().Be(1000m); required.Notes.Should().Contain("2 lab");
+            st.Rows.Should().NotContain(r => r.Kind == "OracleIncome" || r.Kind == "RealIncome");
+            st.Rows.Where(r => r.Kind == "PenaltyRight").Select(r => r.Debit).Should().BeEquivalentTo(new[] { 120m, 100m });
+            st.Rows.Where(r => r.Kind == "PenaltyWrong").Select(r => r.Credit).Should().BeEquivalentTo(new[] { 300m, 500m });
             var byRep = await queries.StatementAsync(StatementBy.Responsible, rep.Id.Value, D, D, OrgScope.Global, CancellationToken.None);
             byRep!.SubjectName.Should().Be(rep.FullName);
-            byRep.Rows.Should().Contain(r => r.Kind == "RealIncome" && r.Debit == 850m);
-            byRep.Rows.Should().Contain(r => r.Kind == "OracleIncome" && r.Debit == 1234.5m, "L1 is the rep's lab and has synced income that day");
-            // By Area: every lab of the area — the other responsible's L3 has no sheet line, so real income stays 850; synced income 1234.5.
+            byRep.TotalDebit.Should().Be(1220m); byRep.TotalCredit.Should().Be(800m);
+            // By Area: every lab of the area — the other responsible's L3 has no sheet line, so total required stays 1000; the same penalties.
             var byArea = await queries.StatementAsync(StatementBy.Area, area.Id.Value, D, D, OrgScope.Global, CancellationToken.None);
             byArea!.SubjectName.Should().Be(area.Name);
-            byArea.Rows.Should().Contain(r => r.Kind == "RealIncome" && r.Debit == 850m);
-            byArea.Rows.Should().Contain(r => r.Kind == "OracleIncome" && r.Debit == 1234.5m);
+            byArea.Rows.Should().Contain(r => r.Kind == "TotalRequired" && r.Debit == 1000m);
+            byArea.TotalCredit.Should().Be(800m);
             byArea.Rows.Should().NotContain(r => r.Kind == "Collection" || r.Kind == "ManualIncome", "collections belong to reps, not areas");
             // By Lab: L2 has only its hand-entered line.
             var byLab = await queries.StatementAsync(StatementBy.Lab, l2.Id.Value, D, D, OrgScope.Global, CancellationToken.None);
@@ -157,7 +160,6 @@ VALUES ({Guid.NewGuid()}, {D}, {rep.Id.Value}, {l1.Id.Value}, 1, 10, 5, 0, now()
             var db = scope.ServiceProvider.GetRequiredService<FollowUpDbContext>();
             var labIds = new[] { l1.Id.Value, l2.Id.Value, l3.Id.Value };
             await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM rep_lab_income WHERE laboratory_id = ANY({labIds})");
-            await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM deduction WHERE penalty_record_id IN (SELECT id FROM penalty_record WHERE laboratory_id = ANY({labIds}))");
             await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM penalty_record WHERE laboratory_id = ANY({labIds})");
             await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM daily_lab_statistic WHERE lab_code = {l1.Code.Value.ToUpperInvariant()}");
             await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM visit_history WHERE laboratory_id = ANY({labIds})");

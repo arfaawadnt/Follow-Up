@@ -78,12 +78,12 @@ public class AccountingHandlerTests
         var labs = new FakeLaboratoryRepository(); var lab = Lab(); labs.Store.Add(lab);
         var users = new FakeAppUserRepository(); var clerk = SystemUser(); users.Store.Add(clerk);
         var repo = new FakePenaltyRecordRepository();
-        var handler = new CreatePenaltyHandler(repo, labs, new FakeRepresentativeRepository(), users, new FakeDeductionRepository(), new FakeAreaRepository(), new FakeCurrentUser());
+        var handler = new CreatePenaltyHandler(repo, labs, new FakeRepresentativeRepository(), users, new FakeCurrentUser());
 
         var id = await handler.Handle(Penalty(lab.Id.Value, "DataEntry", clerk.Id.Value, null), CancellationToken.None);
 
         var p = repo.Store.Single(x => x.Id.Value == id);
-        p.PenaltyAmount.Amount.Should().Be(180m);
+        p.PenaltyAmount.Amount.Should().Be(-180m, "right 120 − wrong 300: the statement debits the right test and credits the wrong one");
         p.UserType.Should().BeSameAs(PenaltyUser.DataEntry);
         p.PerformedByUserId.Should().Be(clerk.Id);
         p.PerformedByRepId.Should().BeNull();
@@ -97,19 +97,19 @@ public class AccountingHandlerTests
         var repo = new FakePenaltyRecordRepository();
 
         // Unknown representative → 404.
-        await FluentActions.Awaiting(() => new CreatePenaltyHandler(repo, labs, reps, new FakeAppUserRepository(), new FakeDeductionRepository(), new FakeAreaRepository(), new FakeCurrentUser())
+        await FluentActions.Awaiting(() => new CreatePenaltyHandler(repo, labs, reps, new FakeAppUserRepository(), new FakeCurrentUser())
                 .Handle(Penalty(lab.Id.Value, "Rep", null, Guid.NewGuid()), CancellationToken.None))
             .Should().ThrowAsync<NotFoundException>();
 
         // The lab is in the Giza-scoped caller's scope but the rep (Cairo) is not → 403 by the record-scope rule, nothing stored.
         var giza = new FakeCurrentUser { Scope = OrgScope.Create(new[] { "*" }, new[] { "Giza" }, new[] { "*" }, new[] { "*" }, new[] { "*" }, new[] { "*" }) };
-        await FluentActions.Awaiting(() => new CreatePenaltyHandler(repo, labs, reps, new FakeAppUserRepository(), new FakeDeductionRepository(), new FakeAreaRepository(), giza)
+        await FluentActions.Awaiting(() => new CreatePenaltyHandler(repo, labs, reps, new FakeAppUserRepository(), giza)
                 .Handle(Penalty(lab.Id.Value, "Rep", null, rep.Id.Value), CancellationToken.None))
             .Should().ThrowAsync<ForbiddenException>();
         repo.Store.Should().BeEmpty();
 
         // Global caller → stored with the representative link and no user link.
-        var id = await new CreatePenaltyHandler(repo, labs, reps, new FakeAppUserRepository(), new FakeDeductionRepository(), new FakeAreaRepository(), new FakeCurrentUser())
+        var id = await new CreatePenaltyHandler(repo, labs, reps, new FakeAppUserRepository(), new FakeCurrentUser())
             .Handle(Penalty(lab.Id.Value, "Rep", null, rep.Id.Value), CancellationToken.None);
         var stored = repo.Store.Single(x => x.Id.Value == id);
         stored.UserType.Should().BeSameAs(PenaltyUser.Rep);
@@ -122,7 +122,7 @@ public class AccountingHandlerTests
     {
         var labs = new FakeLaboratoryRepository(); var lab = Lab(); labs.Store.Add(lab);
         var users = new FakeAppUserRepository(); var inactive = SystemUser(active: false); users.Store.Add(inactive);
-        var handler = new CreatePenaltyHandler(new FakePenaltyRecordRepository(), labs, new FakeRepresentativeRepository(), users, new FakeDeductionRepository(), new FakeAreaRepository(), new FakeCurrentUser());
+        var handler = new CreatePenaltyHandler(new FakePenaltyRecordRepository(), labs, new FakeRepresentativeRepository(), users, new FakeCurrentUser());
 
         await FluentActions.Awaiting(() => handler.Handle(Penalty(lab.Id.Value, "Technician", Guid.NewGuid(), null), CancellationToken.None))
             .Should().ThrowAsync<NotFoundException>("an unknown user id");
@@ -133,7 +133,7 @@ public class AccountingHandlerTests
     [Fact]
     public async Task Create_penalty_for_an_unknown_lab_is_not_found()
     {
-        var handler = new CreatePenaltyHandler(new FakePenaltyRecordRepository(), new FakeLaboratoryRepository(), new FakeRepresentativeRepository(), new FakeAppUserRepository(), new FakeDeductionRepository(), new FakeAreaRepository(), new FakeCurrentUser());
+        var handler = new CreatePenaltyHandler(new FakePenaltyRecordRepository(), new FakeLaboratoryRepository(), new FakeRepresentativeRepository(), new FakeAppUserRepository(), new FakeCurrentUser());
         await FluentActions.Awaiting(() => handler.Handle(Penalty(Guid.NewGuid(), "Rep", null, Guid.NewGuid()), CancellationToken.None))
             .Should().ThrowAsync<NotFoundException>();
     }
@@ -163,25 +163,24 @@ public class AccountingHandlerTests
     }
 
     [Fact]
-    public async Task A_lab_request_penalty_is_recorded_without_a_deduction_and_retyping_to_it_drops_the_mirror()
+    public async Task A_lab_request_penalty_is_recorded_without_a_person_and_can_be_retyped_both_ways()
     {
         var labs = new FakeLaboratoryRepository(); var lab = Lab(); lab.PlaceInHierarchy(null, "Giza", null, "Nasr City"); labs.Store.Add(lab);
-        var areas = new FakeAreaRepository(); areas.Store.Add(Area.Create("Nasr City", CityId.New(), false));
         var users = new FakeAppUserRepository(); var clerk = SystemUser(); users.Store.Add(clerk);
-        var repo = new FakePenaltyRecordRepository(); var deductions = new FakeDeductionRepository(); var me = new FakeCurrentUser();
+        var repo = new FakePenaltyRecordRepository(); var me = new FakeCurrentUser();
 
-        var id = await new CreatePenaltyHandler(repo, labs, new FakeRepresentativeRepository(), users, deductions, areas, me)
+        var id = await new CreatePenaltyHandler(repo, labs, new FakeRepresentativeRepository(), users, me)
             .Handle(Penalty(lab.Id.Value, "LabRequest", null, null), CancellationToken.None);
         var p = repo.Store.Single(x => x.Id.Value == id);
         p.UserType.Should().BeSameAs(PenaltyUser.LabRequest); p.PerformedByUserId.Should().BeNull(); p.PerformedByRepId.Should().BeNull();
-        deductions.Store.Should().BeEmpty("a lab-request penalty is the lab's to pay — it is not deducted from the area");
+        p.PenaltyAmount.Amount.Should().Be(-180m, "right 120 − wrong 300, the same rule as every other type");
 
-        // Re-typed to DataEntry it gains a mirror; back to LabRequest the mirror goes.
-        var update = new UpdatePenaltyHandler(repo, labs, new FakeRepresentativeRepository(), users, deductions, areas, me);
+        // Re-typed to DataEntry it names the clerk; back to LabRequest it names nobody again.
+        var update = new UpdatePenaltyHandler(repo, labs, new FakeRepresentativeRepository(), users, me);
         await update.Handle(new UpdatePenaltyCommand(id, D, "ACC-9", "Patient", "T1", "Wrong", 300m, "T2", "Right", 120m, "DataEntry", clerk.Id.Value, null), CancellationToken.None);
-        deductions.Store.Should().ContainSingle();
+        p.PerformedByUserId.Should().Be(clerk.Id);
         await update.Handle(new UpdatePenaltyCommand(id, D, "ACC-9", "Patient", "T1", "Wrong", 300m, "T2", "Right", 120m, "LabRequest", null, null), CancellationToken.None);
-        deductions.Store.Should().BeEmpty();
+        p.PerformedByUserId.Should().BeNull();
     }
 
     // ---- Deduction ----
@@ -207,69 +206,34 @@ public class AccountingHandlerTests
     {
         var v = new SuggestDeductionValidator();
         v.Validate(new SuggestDeductionQuery(Guid.NewGuid(), "Transportation", D, D)).IsValid.Should().BeFalse("typed manually, nothing to suggest");
-        v.Validate(new SuggestDeductionQuery(Guid.NewGuid(), "Penalty", D, D)).IsValid.Should().BeTrue();
+        v.Validate(new SuggestDeductionQuery(Guid.NewGuid(), "Penalty", D, D)).IsValid.Should().BeFalse("penalties left the deductions business (2026-09-18)");
+        v.Validate(new SuggestDeductionQuery(Guid.NewGuid(), "PercentageDeal", D, D)).IsValid.Should().BeTrue();
         v.Validate(new SuggestDeductionQuery(Guid.NewGuid(), "PercentageDeal", D, D.AddDays(-1))).IsValid.Should().BeFalse("end before start");
     }
 
-    // ---- Penalty → deduction automation ----
+    // ---- Penalties post to the rep statement, never to the deductions (2026-09-18) ----
 
-    private static (FakeLaboratoryRepository labs, Laboratory lab, FakeAreaRepository areas, Area area, FakeRepresentativeRepository reps, Representative rep) PlacedLab()
+    [Fact]
+    public async Task Recording_editing_and_deleting_a_penalty_never_touches_the_deductions()
     {
         var areas = new FakeAreaRepository(); var area = Area.Create("Nasr City", CityId.New(), false); areas.Store.Add(area);
         var labs = new FakeLaboratoryRepository(); var lab = Lab(); lab.PlaceInHierarchy(null, "Cairo", "Cairo", area.Name); labs.Store.Add(lab);
         var reps = new FakeRepresentativeRepository(); var rep = Rep(); reps.Store.Add(rep);
-        return (labs, lab, areas, area, reps, rep);
-    }
+        var penalties = new FakePenaltyRecordRepository(); var users = new FakeAppUserRepository(); var me = new FakeCurrentUser();
 
-    [Fact]
-    public async Task Recording_a_penalty_mirrors_it_as_an_auto_deduction_on_the_labs_area_and_keeps_it_in_step()
-    {
-        var (labs, lab, areas, area, reps, rep) = PlacedLab();
-        var penalties = new FakePenaltyRecordRepository(); var deductions = new FakeDeductionRepository();
-        var users = new FakeAppUserRepository(); var me = new FakeCurrentUser();
-
-        var id = await new CreatePenaltyHandler(penalties, labs, reps, users, deductions, areas, me)
-            .Handle(Penalty(lab.Id.Value, "Rep", null, rep.Id.Value), CancellationToken.None);
-
-        var d = deductions.Store.Should().ContainSingle().Subject;
-        d.Origin.Should().BeSameAs(DeductionOrigin.AutoPenalty);
-        d.AreaId.Should().Be(area.Id, "the lab's area, resolved by name");
-        d.PenaltyRecordId!.Value.Value.Should().Be(id);
-        d.Value.Amount.Should().Be(180m);
-        d.SystemNote.Should().Contain("ACC-9");
-
-        // Editing the penalty refreshes the mirror (value + details) instead of creating a second one.
-        await new UpdatePenaltyHandler(penalties, labs, reps, users, deductions, areas, me)
+        var id = await new CreatePenaltyHandler(penalties, labs, reps, users, me).Handle(Penalty(lab.Id.Value, "Rep", null, rep.Id.Value), CancellationToken.None);
+        await new UpdatePenaltyHandler(penalties, labs, reps, users, me)
             .Handle(new UpdatePenaltyCommand(id, D, "ACC-9", "Patient", "T1", "Wrong", 400m, "T2", "Right", 120m, "Rep", null, rep.Id.Value), CancellationToken.None);
-        deductions.Store.Should().ContainSingle().Which.Value.Amount.Should().Be(280m);
-
-        // Deleting the penalty removes its mirror.
-        await new DeletePenaltyHandler(penalties, labs, deductions, me).Handle(new DeletePenaltyCommand(id), CancellationToken.None);
-        deductions.Store.Should().BeEmpty();
+        penalties.Store.Single().PenaltyAmount.Amount.Should().Be(-280m, "right − wrong");
+        await new DeletePenaltyHandler(penalties, labs, me).Handle(new DeletePenaltyCommand(id), CancellationToken.None);
         penalties.Store.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task A_penalty_on_a_lab_without_a_resolvable_area_is_recorded_but_gets_no_deduction()
+    public async Task Editing_an_automated_deduction_adjusts_value_and_notes_only()
     {
-        var labs = new FakeLaboratoryRepository(); var lab = Lab(); labs.Store.Add(lab); // no area
-        var reps = new FakeRepresentativeRepository(); var rep = Rep(); reps.Store.Add(rep);
-        var penalties = new FakePenaltyRecordRepository(); var deductions = new FakeDeductionRepository();
-
-        await new CreatePenaltyHandler(penalties, labs, reps, new FakeAppUserRepository(), deductions, new FakeAreaRepository(), new FakeCurrentUser())
-            .Handle(Penalty(lab.Id.Value, "Rep", null, rep.Id.Value), CancellationToken.None);
-
-        penalties.Store.Should().ContainSingle("the penalty itself is never blocked");
-        deductions.Store.Should().BeEmpty("nothing to attribute it to; the daily automation links it once the lab is placed");
-    }
-
-    [Fact]
-    public async Task Editing_an_automated_deduction_adjusts_value_and_notes_only_and_deleting_a_penalty_mirror_is_refused()
-    {
-        var (_, _, areas, area, _, rep) = PlacedLab();
-        var penalty = PenaltyRecord.Create(LaboratoryId.New(), D, "A", "P", "T1", "W", 300m, "T2", "R", 120m, PenaltyUser.Rep, null, rep.Id);
+        var areas = new FakeAreaRepository(); var area = Area.Create("Nasr City", CityId.New(), false); areas.Store.Add(area);
         var deductions = new FakeDeductionRepository();
-        var mirror = Deduction.FromPenalty(area.Id, penalty, "Lab"); deductions.Store.Add(mirror);
         var deal = Deduction.AutoDeal(area.Id, new YearMonth(2026, 9), new DateOnly(2026, 9, 12), 250m, "income 2,500 × 10%"); deductions.Store.Add(deal);
         var me = new FakeCurrentUser();
 
@@ -280,11 +244,6 @@ public class AccountingHandlerTests
         deal.PeriodFrom.Should().Be(new DateOnly(2026, 9, 1));
         deal.Value.Amount.Should().Be(300m); deal.Notes.Should().Be("agreed"); deal.IsAdjusted.Should().BeTrue();
         deal.SystemNote.Should().Be("Suggested: income 3,000 × 10%");
-
-        // A penalty mirror cannot be deleted from the Deductions page — the penalty owns it.
-        await FluentActions.Awaiting(() => new DeleteDeductionHandler(deductions, areas, me).Handle(new DeleteDeductionCommand(mirror.Id.Value), CancellationToken.None))
-            .Should().ThrowAsync<ConflictException>().WithMessage("*Penalty Statement*");
-        deductions.Store.Should().Contain(mirror);
 
         // An automated deal row may be deleted (the automation recreates it for a running month).
         await new DeleteDeductionHandler(deductions, areas, me).Handle(new DeleteDeductionCommand(deal.Id.Value), CancellationToken.None);
@@ -512,7 +471,7 @@ public class AccountingHandlerTests
         public Task<IReadOnlyList<TreasuryDto>> TreasuriesAsync(OrgScope scope, TreasuryAccessMap access, CancellationToken ct) => throw new NotSupportedException();
         public Task<IReadOnlyList<TreasuryEntryDto>> TreasuryEntriesAsync(DateOnly from, DateOnly to, Guid? treasuryId, OrgScope scope, TreasuryAccessMap access, CancellationToken ct) => throw new NotSupportedException();
         public Task<IReadOnlyList<TreasuryGrantDto>> TreasuryGrantsAsync(RoleId roleId, CancellationToken ct) => throw new NotSupportedException();
-        public Task<IReadOnlyList<PenaltyDto>> PenaltiesAsync(DateOnly from, DateOnly to, Guid? laboratoryId, OrgScope scope, bool canSeeEncrypted, CancellationToken ct) => throw new NotSupportedException();
+        public Task<IReadOnlyList<PenaltyDto>> PenaltiesAsync(DateOnly from, DateOnly to, Guid? laboratoryId, Guid? areaId, OrgScope scope, bool canSeeEncrypted, CancellationToken ct) => throw new NotSupportedException();
         public Task<IReadOnlyList<PenaltyActorDto>> PenaltyActorsAsync(PenaltyUser userType, OrgScope scope, CancellationToken ct) => throw new NotSupportedException();
         public Task<IReadOnlyList<DeductionDto>> DeductionsAsync(DateOnly from, DateOnly to, Guid? areaId, OrgScope scope, CancellationToken ct) => throw new NotSupportedException();
         public Task<DeductionSuggestionDto> SuggestDeductionAsync(Guid areaId, DeductionReason reason, DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct) => throw new NotSupportedException();
