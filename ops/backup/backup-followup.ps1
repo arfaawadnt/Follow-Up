@@ -165,8 +165,10 @@ try {
         $api = "https://api.github.com/repos/$GitHubOwner/$GitHubRepo"
         function Gh([string]$method, [string]$url, [string]$body) {
             $cargs = @('-X', $method) + $hdr + @('-w', '\n%{http_code}', $url)
-            if ($body) { $cargs += @('-H', 'Content-Type: application/json', '--data-binary', $body) }
-            $out = & $curl @cargs
+            # A JSON body goes through a temp file: PowerShell 5.1 strips the double quotes when it hands a JSON string to a native exe.
+            $bodyFile = $null
+            if ($body) { $bodyFile = Join-Path $env:TEMP ("followup-gh-" + [guid]::NewGuid().ToString('N') + '.json'); [System.IO.File]::WriteAllText($bodyFile, $body, (New-Object System.Text.UTF8Encoding($false))); $cargs += @('-H', 'Content-Type: application/json', '--data-binary', "@$bodyFile") }
+            try { $out = & $curl @cargs } finally { if ($bodyFile) { Remove-Item $bodyFile -Force -ErrorAction SilentlyContinue } }
             $lines = @($out -split "`n"); $code = [int]$lines[-1]; $json = ($lines[0..($lines.Length - 2)] -join "`n")
             return @{ Code = $code; Json = $json; Obj = $(if ($json.Trim()) { try { $json | ConvertFrom-Json } catch { $null } } else { $null }) }
         }
