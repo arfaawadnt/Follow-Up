@@ -113,12 +113,14 @@ try {
     $zipFile = Join-Path $dir "followup-app-$stamp.zip"
     $staging = Join-Path $env:TEMP "followup-backup-$stamp"
     if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
-    New-Item -ItemType Directory -Force -Path $staging | Out-Null
-    & reg.exe export 'HKLM\SYSTEM\CurrentControlSet\Services\FollowUp' (Join-Path $staging 'followup-service.reg') /y | Out-Null
-    $items = @(Get-ChildItem $app -Force | Where-Object { $_.Name -ne 'logs' } | ForEach-Object { $_.FullName })
-    $items += (Join-Path $staging 'followup-service.reg')
+    $stagedApp = Join-Path $staging 'app'
+    New-Item -ItemType Directory -Force -Path $stagedApp | Out-Null
+    # robocopy reads the DLLs the running service has loaded (Compress-Archive cannot open an in-use file directly).
+    & robocopy.exe $app $stagedApp /MIR /XD logs /R:2 /W:2 /NFL /NDL /NP /NJH /NJS | Out-Null
+    if ($LASTEXITCODE -gt 3) { throw "robocopy of $app failed (exit $LASTEXITCODE)" }
+    & reg.exe export 'HKLM\SYSTEM\CurrentControlSet\Services\FollowUp' (Join-Path $stagedApp 'followup-service.reg') /y | Out-Null
     if (Test-Path $zipFile) { Remove-Item $zipFile -Force }
-    Compress-Archive -Path $items -DestinationPath $zipFile -CompressionLevel Optimal
+    Compress-Archive -Path (Join-Path $stagedApp '*') -DestinationPath $zipFile -CompressionLevel Optimal
     Remove-Item $staging -Recurse -Force
     $apiDll = Join-Path $app 'FollowUp.Api.dll'
     $appVersion = if (Test-Path $apiDll) { (Get-Item $apiDll).VersionInfo.FileVersion } else { 'unknown' }
