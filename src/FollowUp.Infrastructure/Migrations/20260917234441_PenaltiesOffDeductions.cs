@@ -9,8 +9,8 @@ namespace FollowUp.Infrastructure.Migrations
     /// <summary>
     /// 2026-09-18 — penalties leave the Deductions business (page, impact, reason): AutoPenalty mirror rows and manual
     /// Penalty-reason rows are deleted (penalty_record itself is untouched), deduction.penalty_record_id is dropped, the origin
-    /// CHECK is narrowed to Manual / AutoDeal with Transportation / PercentageDeal, and detailed_registration gains an acc_no
-    /// index for the Penalty Report LDM validation.
+    /// CHECK is narrowed to Manual / AutoDeal with Transportation / PercentageDeal. (No index build: it must not run inside the
+    /// service-start window; see the note in Up.)
     /// </summary>
     public partial class PenaltiesOffDeductions : Migration
     {
@@ -27,8 +27,10 @@ ALTER TABLE deduction ADD CONSTRAINT ck_deduction_origin CHECK (
     origin IN ('Manual', 'AutoDeal')
     AND reason IN ('Transportation', 'PercentageDeal')
     AND (origin <> 'AutoDeal' OR (reason = 'PercentageDeal' AND period_from IS NOT NULL AND EXTRACT(DAY FROM period_from) = 1)));
--- The Penalty Report validates every Acc No against the synced LDM registration lines.
-CREATE INDEX IF NOT EXISTS ix_detailed_registration_acc_no ON detailed_registration (acc_no);");
+");
+            // NOTE: no index build here. detailed_registration is large and an index build inside the startup migration
+            // outlived the Windows service-start timeout (30 s) on 2026-09-18. If the Penalty Report LDM check ever needs it,
+            // build it out of band: CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_detailed_registration_acc_no ON detailed_registration (acc_no);
 
             migrationBuilder.DropForeignKey(
                 name: "fk_deduction_penalty_records_penalty_record_id",
@@ -47,7 +49,6 @@ CREATE INDEX IF NOT EXISTS ix_detailed_registration_acc_no ON detailed_registrat
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql(@"
-DROP INDEX IF EXISTS ix_detailed_registration_acc_no;
 ALTER TABLE deduction DROP CONSTRAINT IF EXISTS ck_deduction_origin;");
 
             migrationBuilder.AddColumn<Guid>(
