@@ -222,7 +222,8 @@ try {
         foreach ($asset in $assets) {
             $name = Split-Path $asset -Leaf
             $url = "https://uploads.github.com/repos/$GitHubOwner/$GitHubRepo/releases/$($release.id)/assets?name=$([uri]::EscapeDataString($name))"
-            $out = & $curl -X POST @hdr -H 'Content-Type: application/octet-stream' --data-binary "@$asset" --max-time 14400 -w '\n%{http_code}' $url
+            # -T streams the file from disk (--data-binary @file would load a 1.5 GB part into memory and abort with HTTP 0).
+            $out = & $curl -X POST @hdr -H 'Content-Type: application/octet-stream' -T $asset --max-time 14400 -w '\n%{http_code}' $url
             $code = [int](@($out -split "`n")[-1])
             if ($code -ne 201) { throw "Upload of $name failed: HTTP $code" }
             Log "GitHub: uploaded $name ($(Mb (Get-Item $asset).Length) MB)"
