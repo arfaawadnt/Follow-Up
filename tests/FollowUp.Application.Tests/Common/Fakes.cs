@@ -168,8 +168,6 @@ public sealed class FakeDeductionRepository : IDeductionRepository
 {
     public readonly List<Domain.Accounting.Deduction> Store = new();
     public Task<Domain.Accounting.Deduction?> GetByIdAsync(Domain.Accounting.DeductionId id, CancellationToken ct) => Task.FromResult(Store.FirstOrDefault(x => x.Id == id));
-    public Task<Domain.Accounting.Deduction?> GetByPenaltyAsync(Domain.Accounting.PenaltyRecordId penaltyId, CancellationToken ct) =>
-        Task.FromResult(Store.FirstOrDefault(x => x.PenaltyRecordId == penaltyId));
     public void Add(Domain.Accounting.Deduction deduction) => Store.Add(deduction);
     public void Remove(Domain.Accounting.Deduction deduction) => Store.Remove(deduction);
 }

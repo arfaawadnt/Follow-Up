@@ -9,7 +9,7 @@ import { ApiService } from '../../core/api.service';
 import { UiService } from '../../core/ui.service';
 import { TranslatePipe } from '../../core/i18n';
 import { LabLookup, PenaltyDto } from '../../core/models';
-import { ACC_STYLES, PENALTY_STAFF_USERS, dayName, firstOfMonth, money, penaltyUserLabel } from './accounting.util';
+import { ACC_STYLES, PENALTY_USERS, dayName, firstOfMonth, ldmStatusClass, ldmStatusLabel, money, penaltyUserLabel } from './accounting.util';
 
 type Opt = { value: string; label: string };
 interface Group { userType: string; label: string; rows: PenaltyDto[]; count: number; wrong: number; right: number; penalty: number; }
@@ -34,7 +34,7 @@ interface Group { userType: string; label: string; rows: PenaltyDto[]; count: nu
       </div>
     </div>
 
-    <div class="kpis" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
+    <div class="kpis" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px">
       <div class="kpi kpi-green"><div class="lbl">{{ 'total_penalty' | t : 'Total penalty' }}</div><div class="val">{{ k().penalty | number:'1.2-2' }}</div><div class="sub">EGP · {{ k().count }} {{ 'entries' | t : 'Entries' }}</div></div>
       @for (g of groups(); track g.userType) {
         <div class="kpi kpi-blue"><div class="lbl">{{ g.label }}</div><div class="val">{{ g.penalty | number:'1.2-2' }}</div><div class="sub">{{ g.count }} {{ 'entries' | t : 'Entries' }}</div></div>
@@ -62,11 +62,11 @@ interface Group { userType: string; label: string; rows: PenaltyDto[]; count: nu
             <th>{{ 'acc_no' | t : 'Acc No' }}</th><th>{{ 'patient_name' | t : 'Patient Name' }}</th>
             <th>{{ 'wrong_test' | t : 'Wrong Test' }}</th><th class="r">{{ 'value' | t : 'Value' }}</th>
             <th>{{ 'right_test' | t : 'Right Test' }}</th><th class="r">{{ 'value' | t : 'Value' }}</th>
-            <th class="r">{{ 'penalty' | t : 'Penalty' }}</th><th>{{ 'pr_performed_by' | t : 'Performed by' }}</th>
+            <th class="r">{{ 'penalty' | t : 'Penalty' }}</th><th>{{ 'pr_performed_by' | t : 'Performed by' }}</th><th>{{ 'ldm_check' | t : 'LDM check' }}</th>
           </tr></thead>
           <tbody>
             @for (g of groups(); track g.userType) {
-              <tr class="grp"><td colspan="12"><b>{{ g.label }}</b> <span class="small muted">· {{ g.count }} {{ 'entries' | t : 'Entries' }}</span></td></tr>
+              <tr class="grp"><td colspan="13"><b>{{ g.label }}</b> <span class="small muted">· {{ g.count }} {{ 'entries' | t : 'Entries' }}</span></td></tr>
               @for (p of g.rows; track p.id; let i = $index) {
                 <tr>
                   <td class="mono">{{ i + 1 }}</td><td>{{ ddmy(p.date) }}</td><td>{{ day(p.date) }}</td>
@@ -75,14 +75,15 @@ interface Group { userType: string; label: string; rows: PenaltyDto[]; count: nu
                   <td>{{ p.wrongTestName || '—' }} <span class="small muted">({{ p.wrongTestCode }})</span></td><td class="r mono">{{ p.wrongValue | number:'1.2-2' }}</td>
                   <td>{{ p.rightTestName || '—' }} <span class="small muted">({{ p.rightTestCode }})</span></td><td class="r mono">{{ p.rightValue | number:'1.2-2' }}</td>
                   <td class="r mono" [class.neg]="p.penalty > 0" [class.pos]="p.penalty < 0" style="font-weight:700">{{ p.penalty | number:'1.2-2' }}</td>
-                  <td>{{ p.performedByName || '—' }}</td>
+                  <td>{{ p.performedByName || (p.userType === 'LabRequest' && p.responsibleRepName ? (p.responsibleRepName + ' (' + ('lab_responsible' | t : 'Lab Responsible') + ')') : '—') }}</td>
+                  <td><span class="badge" [class]="'badge ' + ldmClass(p.ldmStatus)" [title]="p.ldmNote || ''">{{ ldmLabel(p.ldmStatus) }}</span>@if (p.ldmNote) { <div class="small muted">{{ p.ldmNote }}</div> }</td>
                 </tr>
               }
-              <tr class="sub"><td colspan="7">{{ 'pr_subtotal' | t : 'Subtotal' }} · {{ g.label }}</td><td class="r mono">{{ g.wrong | number:'1.2-2' }}</td><td></td><td class="r mono">{{ g.right | number:'1.2-2' }}</td><td class="r mono" style="font-weight:700">{{ g.penalty | number:'1.2-2' }}</td><td></td></tr>
-            } @empty { <tr><td colspan="12" class="empty" style="text-align:center;padding:24px">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
+              <tr class="sub"><td colspan="7">{{ 'pr_subtotal' | t : 'Subtotal' }} · {{ g.label }}</td><td class="r mono">{{ g.wrong | number:'1.2-2' }}</td><td></td><td class="r mono">{{ g.right | number:'1.2-2' }}</td><td class="r mono" style="font-weight:700">{{ g.penalty | number:'1.2-2' }}</td><td></td><td></td></tr>
+            } @empty { <tr><td colspan="13" class="empty" style="text-align:center;padding:24px">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
           </tbody>
           @if (rows().length) {
-            <tfoot><tr><td colspan="7">{{ 'pr_grand_total' | t : 'Grand total' }}</td><td class="r mono">{{ k().wrong | number:'1.2-2' }}</td><td></td><td class="r mono">{{ k().right | number:'1.2-2' }}</td><td class="r mono">{{ k().penalty | number:'1.2-2' }}</td><td></td></tr></tfoot>
+            <tfoot><tr><td colspan="7">{{ 'pr_grand_total' | t : 'Grand total' }}</td><td class="r mono">{{ k().wrong | number:'1.2-2' }}</td><td></td><td class="r mono">{{ k().right | number:'1.2-2' }}</td><td class="r mono">{{ k().penalty | number:'1.2-2' }}</td><td></td><td></td></tr></tfoot>
           }
         </table></div>
       }
@@ -94,7 +95,8 @@ export class PenaltyReportComponent {
   private readonly api = inject(ApiService);
   private readonly ui = inject(UiService);
   readonly ddmy = ddmy;
-  readonly staffUsers = PENALTY_STAFF_USERS;
+  readonly staffUsers = PENALTY_USERS;
+  readonly ldmLabel = ldmStatusLabel; readonly ldmClass = ldmStatusClass;
 
   readonly loading = signal(true);
   readonly all = signal<PenaltyDto[]>([]);
@@ -103,9 +105,9 @@ export class PenaltyReportComponent {
   private readonly filterType = signal('');
 
   readonly labOptions = computed<Opt[]>(() => this.labs().map((l) => ({ value: l.id, label: `${l.displayCode} · ${l.name}` })));
-  /** Staff penalties only (Rep / DataEntry / Technician), narrowed to the chosen type. */
-  readonly rows = computed(() => this.all().filter((p) => PENALTY_STAFF_USERS.includes(p.userType) && (!this.filterType() || p.userType === this.filterType())));
-  readonly groups = computed<Group[]>(() => PENALTY_STAFF_USERS
+  /** Every user type (Rep / DataEntry / Technician / LabRequest — 2026-09-18), narrowed to the chosen type. */
+  readonly rows = computed(() => this.all().filter((p) => !this.filterType() || p.userType === this.filterType()));
+  readonly groups = computed<Group[]>(() => PENALTY_USERS
     .map((u) => {
       const rows = this.rows().filter((p) => p.userType === u).sort((a, b) => a.date.localeCompare(b.date) || a.labName.localeCompare(b.labName));
       return { userType: u, label: penaltyUserLabel(u), rows, count: rows.length,
@@ -133,11 +135,12 @@ export class PenaltyReportComponent {
     this.api.get<PenaltyDto[]>('/accounting/penalties', params).subscribe({ next: (r) => { this.all.set(r); this.loading.set(false); }, error: () => this.loading.set(false) });
   }
 
-  private static readonly HEADER = ['User Type', 'Serial', 'Date', 'Day', 'Lab', 'Code', 'Acc No', 'Patient Name', 'Wrong Test', 'Value', 'Right Test', 'Value', 'Penalty', 'Performed by'];
+  private static readonly HEADER = ['User Type', 'Serial', 'Date', 'Day', 'Lab', 'Code', 'Acc No', 'Patient Name', 'Wrong Test', 'Value', 'Right Test', 'Value', 'Penalty', 'Performed by', 'LDM check'];
   exportExcel(): void {
     const rows = this.groups().flatMap((g) => [
       ...g.rows.map((p, i) => [g.label, i + 1, ddmy(p.date), this.day(p.date), p.labName, p.labDisplayCode, p.accNo, p.patientName,
-        `${p.wrongTestName ?? ''} (${p.wrongTestCode ?? ''})`, money(p.wrongValue), `${p.rightTestName ?? ''} (${p.rightTestCode ?? ''})`, money(p.rightValue), money(p.penalty), p.performedByName ?? '']),
+        `${p.wrongTestName ?? ''} (${p.wrongTestCode ?? ''})`, money(p.wrongValue), `${p.rightTestName ?? ''} (${p.rightTestCode ?? ''})`, money(p.rightValue), money(p.penalty),
+        p.performedByName ?? (p.userType === 'LabRequest' ? (p.responsibleRepName ?? '') : ''), ldmStatusLabel(p.ldmStatus) + (p.ldmNote ? ` — ${p.ldmNote}` : '')]),
       [`Subtotal · ${g.label}`, '', '', '', '', '', '', '', '', g.wrong, '', g.right, g.penalty, ''],
     ]);
     rows.push(['Grand total', '', '', '', '', '', '', '', '', this.k().wrong, '', this.k().right, this.k().penalty, '']);

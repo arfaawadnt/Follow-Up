@@ -60,7 +60,7 @@ public sealed class PenaltyPerformedByTests
                 var queries = scope.ServiceProvider.GetRequiredService<IAccountingQueries>();
 
                 // Round trip through the real read side: type + resolved person name.
-                var rows = await queries.PenaltiesAsync(D, D, lab.Id.Value, OrgScope.Global, true, CancellationToken.None);
+                var rows = await queries.PenaltiesAsync(D, D, lab.Id.Value, null, OrgScope.Global, true, CancellationToken.None);
                 var r = rows.Should().ContainSingle(x => x.Id == repPenaltyId).Subject;
                 r.UserType.Should().Be("Rep");
                 r.PerformedById.Should().Be(rep.Id.Value);

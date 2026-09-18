@@ -69,4 +69,5 @@ public sealed record LabDetailDto(
 
 /// <summary>The lightweight lab picker row (GET /labs/lookup): every lab in the caller's scope, id + masked display code
 /// + name. Exists because the paged list capped pickers at 500 of ~13k labs; this carries only what a picker shows.</summary>
-public sealed record LabLookupDto(Guid Id, string DisplayCode, string Name);
+/// <summary>Lab picker row; <c>Area</c> (the lab's area name) lets a page narrow the picker by area.</summary>
+public sealed record LabLookupDto(Guid Id, string DisplayCode, string Name, string? Area = null);

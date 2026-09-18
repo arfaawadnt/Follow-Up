@@ -39,8 +39,8 @@ interface AreaOpt { id: string; name: string; }
     </div>
 
     <div class="kpis" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
-      <div class="kpi kpi-green"><div class="lbl">{{ 'total_debit' | t : 'Total debit' }}</div><div class="val">{{ (st()?.totalDebit ?? 0) | number:'1.2-2' }}</div><div class="sub">{{ 'oracle_income' | t : 'Synced income' }} + {{ 'real_income' | t : 'Real income' }}</div></div>
-      <div class="kpi kpi-amber"><div class="lbl">{{ 'total_credit' | t : 'Total credit' }}</div><div class="val">{{ (st()?.totalCredit ?? 0) | number:'1.2-2' }}</div><div class="sub">{{ 'collection' | t : 'Collection' }}</div></div>
+      <div class="kpi kpi-green"><div class="lbl">{{ 'total_debit' | t : 'Total debit' }}</div><div class="val">{{ (st()?.totalDebit ?? 0) | number:'1.2-2' }}</div><div class="sub">{{ 'statement_debit_hint' | t : 'Total required (Rep Income) + penalties: right tests' }}</div></div>
+      <div class="kpi kpi-amber"><div class="lbl">{{ 'total_credit' | t : 'Total credit' }}</div><div class="val">{{ (st()?.totalCredit ?? 0) | number:'1.2-2' }}</div><div class="sub">{{ 'statement_credit_hint' | t : 'Collections + deductions + penalties: wrong tests' }}</div></div>
       <div class="kpi kpi-blue"><div class="lbl">{{ 'balance' | t : 'Balance' }}</div><div class="val">{{ (st()?.balance ?? 0) | number:'1.2-2' }}</div><div class="sub">EGP</div></div>
       <div class="kpi kpi-teal"><div class="lbl">{{ 'entries' | t : 'Entries' }}</div><div class="val">{{ st()?.rows?.length ?? 0 }}</div></div>
     </div>
@@ -58,7 +58,7 @@ interface AreaOpt { id: string; name: string; }
         <div class="field"><label>{{ 'end_date' | t }}</label><app-date-input [(ngModel)]="to"></app-date-input></div>
         <div class="field"><button class="btn btn-p" [disabled]="!subjectId" (click)="load()" style="height:36px">{{ 'apply_filters' | t : 'Apply Filters' }}</button></div>
       </div>
-      @if (by !== 'Responsible') { <div class="small muted" style="margin-top:8px">{{ 'statement_by_hint' | t : 'Collections and legacy manual lines appear on the Lab Responsible view only.' }}</div> }
+      <div class="small muted" style="margin-top:8px">{{ 'statement_by_hint' | t : 'Debit = total required entered on Rep Income + the right test of each penalty. Credit = the actual collections (Lab Responsible view), the area deductions (Area and Lab Responsible views) and the wrong test of each penalty, each noted with its record.' }}</div>
     </div>
 
     <div class="card" style="padding:10px 0;overflow-x:auto">
@@ -118,7 +118,17 @@ export class RepStatementComponent {
 
   canManage(): boolean { return this.auth.has('ManageAccounting'); }
   day(d: string | null): string { return dayName(d, this.ui.lang()); }
-  kindLabel(k: string): string { return k === 'OracleIncome' ? 'Synced income' : k === 'RealIncome' ? 'Real income' : k === 'ManualIncome' ? 'Real income (manual, legacy)' : 'Collection'; }
+  kindLabel(k: string): string {
+    switch (k) {
+      case 'TotalRequired': return 'Total required (Rep Income)';
+      case 'PenaltyRight': return 'Penalty · right test';
+      case 'PenaltyWrong': return 'Penalty · wrong test';
+      case 'Deduction': return 'Deduction';
+      case 'ManualIncome': return 'Real income (manual, legacy)';
+      case 'Collection': return 'Collection';
+      default: return k;
+    }
+  }
   subjectLabel(): string { return this.by === 'Area' ? 'Area' : this.by === 'Lab' ? 'Lab' : 'Lab Responsible'; }
 
   setBy(b: ViewBy): void { this.by = b; this.bySig.set(b); this.subjectId = ''; this.st.set(null); }

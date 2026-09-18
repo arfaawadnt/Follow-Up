@@ -39,7 +39,8 @@ public sealed record TreasuryGrantInput(Guid TreasuryId, bool CanView, bool CanV
 public sealed record PenaltyDto(Guid Id, long Serial, DateOnly Date, Guid LaboratoryId, string LabDisplayCode, string LabName,
     string AccNo, string PatientName, string? WrongTestCode, string? WrongTestName, decimal WrongValue,
     string? RightTestCode, string? RightTestName, decimal RightValue, decimal Penalty,
-    string UserType, Guid? PerformedById, string? PerformedByName);
+    string UserType, Guid? PerformedById, string? PerformedByName,
+    Guid? ResponsibleRepId = null, string? ResponsibleRepName = null, string LdmStatus = "Unknown", string? LdmNote = null);
 
 /// <summary>A person a penalty can be attributed to: an in-scope active representative (UserType = Rep) or an active
 /// system user (DataEntry / Technician). <c>Detail</c> carries the rep type for disambiguation.</summary>
@@ -47,8 +48,7 @@ public sealed record PenaltyActorDto(Guid Id, string Name, string? Detail);
 
 public sealed record DeductionDto(Guid Id, long Serial, DateOnly Date, Guid AreaId, string AreaName, string Reason, decimal Value,
     string? Notes, DateOnly? PeriodFrom, DateOnly? PeriodTo,
-    string Origin = nameof(DeductionOrigin.Manual), bool IsAdjusted = false, string? SystemNote = null,
-    Guid? PenaltyRecordId = null, long? PenaltySerial = null);
+    string Origin = nameof(DeductionOrigin.Manual), bool IsAdjusted = false, string? SystemNote = null);
 
 /// <summary>A server-suggested deduction value and the basis it was computed from (shown beside the editable field).</summary>
 public sealed record DeductionSuggestionDto(decimal Value, string Basis);
@@ -101,7 +101,9 @@ public interface IAccountingQueries
     Task<IReadOnlyList<TreasuryEntryDto>> TreasuryEntriesAsync(DateOnly from, DateOnly to, Guid? treasuryId, OrgScope scope, TreasuryAccessMap access, CancellationToken ct);
     /// <summary>Every treasury with the given role's rights on it (for the Roles page).</summary>
     Task<IReadOnlyList<TreasuryGrantDto>> TreasuryGrantsAsync(RoleId roleId, CancellationToken ct);
-    Task<IReadOnlyList<PenaltyDto>> PenaltiesAsync(DateOnly from, DateOnly to, Guid? laboratoryId, OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
+    /// <summary>Penalties of the period, optionally of one lab or of one area (the lab's area by name), with the LDM validation
+    /// of every Acc No against the synced registration lines (exists · belongs to the lab · carries the entered tests).</summary>
+    Task<IReadOnlyList<PenaltyDto>> PenaltiesAsync(DateOnly from, DateOnly to, Guid? laboratoryId, Guid? areaId, OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
     Task<IReadOnlyList<PenaltyActorDto>> PenaltyActorsAsync(PenaltyUser userType, OrgScope scope, CancellationToken ct);
     Task<IReadOnlyList<DeductionDto>> DeductionsAsync(DateOnly from, DateOnly to, Guid? areaId, OrgScope scope, CancellationToken ct);
     Task<DeductionSuggestionDto> SuggestDeductionAsync(Guid areaId, DeductionReason reason, DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct);
@@ -190,14 +192,14 @@ public sealed class GetTreasuryGrantsHandler : IQueryHandler<GetTreasuryGrantsQu
     public Task<IReadOnlyList<TreasuryGrantDto>> Handle(GetTreasuryGrantsQuery r, CancellationToken ct) => _q.TreasuryGrantsAsync(new RoleId(r.RoleId), ct);
 }
 
-public sealed record GetPenaltiesQuery(DateOnly From, DateOnly To, Guid? LaboratoryId) : IQuery<IReadOnlyList<PenaltyDto>>, IAuthorizedRequest
+public sealed record GetPenaltiesQuery(DateOnly From, DateOnly To, Guid? LaboratoryId, Guid? AreaId = null) : IQuery<IReadOnlyList<PenaltyDto>>, IAuthorizedRequest
 { public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ViewAccounting }; }
 public sealed class GetPenaltiesHandler : IQueryHandler<GetPenaltiesQuery, IReadOnlyList<PenaltyDto>>
 {
     private readonly IAccountingQueries _q; private readonly ICurrentUser _user;
     public GetPenaltiesHandler(IAccountingQueries q, ICurrentUser user) { _q = q; _user = user; }
     public Task<IReadOnlyList<PenaltyDto>> Handle(GetPenaltiesQuery r, CancellationToken ct) =>
-        _q.PenaltiesAsync(r.From, r.To, r.LaboratoryId, _user.Scope, _user.Has(Privileges.ShowEncryptedLabs), ct);
+        _q.PenaltiesAsync(r.From, r.To, r.LaboratoryId, r.AreaId, _user.Scope, _user.Has(Privileges.ShowEncryptedLabs), ct);
 }
 
 /// <summary>The people a penalty can be attributed to for a user type — the "User" picker of the record dialog.
@@ -222,8 +224,8 @@ public sealed class GetDeductionsHandler : IQueryHandler<GetDeductionsQuery, IRe
         _q.DeductionsAsync(r.From, r.To, r.AreaId, _user.Scope, ct);
 }
 
-/// <summary>Suggests a deduction value: Penalty = Σ(wrong − right) over the area's labs; PercentageDeal = area income ×
-/// the area's deal percentage. Transportation has no suggestion (typed) and is refused by the validator.</summary>
+/// <summary>Suggests a deduction value: PercentageDeal = area income × the area's deal percentage. Transportation has no
+/// suggestion (typed) and is refused by the validator.</summary>
 public sealed record SuggestDeductionQuery(Guid AreaId, string Reason, DateOnly From, DateOnly To) : IQuery<DeductionSuggestionDto>, IAuthorizedRequest
 { public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ViewAccounting }; }
 public sealed class SuggestDeductionValidator : AbstractValidator<SuggestDeductionQuery>
@@ -231,8 +233,8 @@ public sealed class SuggestDeductionValidator : AbstractValidator<SuggestDeducti
     public SuggestDeductionValidator()
     {
         RuleFor(x => x.AreaId).NotEmpty();
-        RuleFor(x => x.Reason).Must(r => r is nameof(DeductionReason.Penalty) or nameof(DeductionReason.PercentageDeal))
-            .WithMessage("Only Penalty and PercentageDeal deductions have a suggested value.");
+        RuleFor(x => x.Reason).Must(r => r is nameof(DeductionReason.PercentageDeal))
+            .WithMessage("Only PercentageDeal deductions have a suggested value.");
         RuleFor(x => x.To).GreaterThanOrEqualTo(x => x.From);
     }
 }
@@ -606,11 +608,9 @@ public sealed class CreatePenaltyValidator : AbstractValidator<CreatePenaltyComm
 public sealed class CreatePenaltyHandler : ICommandHandler<CreatePenaltyCommand, Guid>
 {
     private readonly IPenaltyRecordRepository _repo; private readonly ILaboratoryRepository _labs;
-    private readonly IRepresentativeRepository _reps; private readonly IAppUserRepository _users;
-    private readonly IDeductionRepository _deductions; private readonly IAreaRepository _areas; private readonly ICurrentUser _user;
-    public CreatePenaltyHandler(IPenaltyRecordRepository repo, ILaboratoryRepository labs, IRepresentativeRepository reps, IAppUserRepository users,
-        IDeductionRepository deductions, IAreaRepository areas, ICurrentUser user)
-    { _repo = repo; _labs = labs; _reps = reps; _users = users; _deductions = deductions; _areas = areas; _user = user; }
+    private readonly IRepresentativeRepository _reps; private readonly IAppUserRepository _users; private readonly ICurrentUser _user;
+    public CreatePenaltyHandler(IPenaltyRecordRepository repo, ILaboratoryRepository labs, IRepresentativeRepository reps, IAppUserRepository users, ICurrentUser user)
+    { _repo = repo; _labs = labs; _reps = reps; _users = users; _user = user; }
     public async Task<Guid> Handle(CreatePenaltyCommand r, CancellationToken ct)
     {
         var lab = await _labs.GetByIdAsync(new LaboratoryId(r.LaboratoryId), ct) ?? throw new NotFoundException("Laboratory", r.LaboratoryId);
@@ -618,8 +618,7 @@ public sealed class CreatePenaltyHandler : ICommandHandler<CreatePenaltyCommand,
         var (userId, repId) = await PenaltyActorSupport.ResolveAsync(r.PerformedByUserId, r.PerformedByRepId, _reps, _users, _user, ct);
         var p = PenaltyRecord.Create(lab.Id, r.Date, r.AccNo, r.PatientName, r.WrongTestCode, r.WrongTestName, r.WrongValue,
             r.RightTestCode, r.RightTestName, r.RightValue, EnumParse.Name<PenaltyUser>(r.UserType, nameof(r.UserType)), userId, repId);
-        _repo.Add(p);
-        await PenaltyDeductionSync.UpsertAsync(p, lab, _areas, _deductions, ct); // same transaction (TransactionBehavior)
+        _repo.Add(p); // posts to the rep statement at read time (right = debit, wrong = credit); no deduction is mirrored
         return p.Id.Value;
     }
 }
@@ -645,11 +644,9 @@ public sealed class UpdatePenaltyValidator : AbstractValidator<UpdatePenaltyComm
 public sealed class UpdatePenaltyHandler : ICommandHandler<UpdatePenaltyCommand>
 {
     private readonly IPenaltyRecordRepository _repo; private readonly ILaboratoryRepository _labs;
-    private readonly IRepresentativeRepository _reps; private readonly IAppUserRepository _users;
-    private readonly IDeductionRepository _deductions; private readonly IAreaRepository _areas; private readonly ICurrentUser _user;
-    public UpdatePenaltyHandler(IPenaltyRecordRepository repo, ILaboratoryRepository labs, IRepresentativeRepository reps, IAppUserRepository users,
-        IDeductionRepository deductions, IAreaRepository areas, ICurrentUser user)
-    { _repo = repo; _labs = labs; _reps = reps; _users = users; _deductions = deductions; _areas = areas; _user = user; }
+    private readonly IRepresentativeRepository _reps; private readonly IAppUserRepository _users; private readonly ICurrentUser _user;
+    public UpdatePenaltyHandler(IPenaltyRecordRepository repo, ILaboratoryRepository labs, IRepresentativeRepository reps, IAppUserRepository users, ICurrentUser user)
+    { _repo = repo; _labs = labs; _reps = reps; _users = users; _user = user; }
     public async Task<Unit> Handle(UpdatePenaltyCommand r, CancellationToken ct)
     {
         var p = await _repo.GetByIdAsync(new PenaltyRecordId(r.Id), ct) ?? throw new NotFoundException("PenaltyRecord", r.Id);
@@ -658,46 +655,7 @@ public sealed class UpdatePenaltyHandler : ICommandHandler<UpdatePenaltyCommand>
         var (userId, repId) = await PenaltyActorSupport.ResolveAsync(r.PerformedByUserId, r.PerformedByRepId, _reps, _users, _user, ct);
         p.Update(r.Date, r.AccNo, r.PatientName, r.WrongTestCode, r.WrongTestName, r.WrongValue,
             r.RightTestCode, r.RightTestName, r.RightValue, EnumParse.Name<PenaltyUser>(r.UserType, nameof(r.UserType)), userId, repId);
-        await PenaltyDeductionSync.UpsertAsync(p, lab, _areas, _deductions, ct);
         return Unit.Value;
-    }
-}
-
-/// <summary>
-/// Keeps the AutoPenalty deduction of a penalty in step with the penalty (operator decision: penalties flow into the
-/// Deductions report automatically, with their details noted for investigation). The deduction lands on the area the
-/// lab carries by name; a lab with no (resolvable) area gets no deduction — the daily automation links it later if the
-/// lab is placed. Runs inside the penalty command's transaction.
-/// </summary>
-public static class PenaltyDeductionSync
-{
-    /// <summary>Creates or refreshes the mirroring deduction. Returns false when the lab has no resolvable area.</summary>
-    public static async Task<bool> UpsertAsync(PenaltyRecord penalty, Laboratory lab, IAreaRepository areas, IDeductionRepository deductions, CancellationToken ct)
-    {
-        var existing = await deductions.GetByPenaltyAsync(penalty.Id, ct);
-        if (penalty.UserType == PenaltyUser.LabRequest)
-        {
-            // The lab asked for the wrong test: charged to the lab through the Rep Income sheet, never deducted from
-            // the area. A penalty re-typed to LabRequest loses its mirror.
-            if (existing is not null) deductions.Remove(existing);
-            return false;
-        }
-        var area = string.IsNullOrWhiteSpace(lab.Area) ? null : await areas.GetByNameAsync(lab.Area, ct);
-        if (area is null)
-        {
-            // The lab lost its area (or never had one): the mirrored row can no longer be attributed — drop it.
-            if (existing is not null) deductions.Remove(existing);
-            return false;
-        }
-        if (existing is null) deductions.Add(Deduction.FromPenalty(area.Id, penalty, lab.Name));
-        else existing.RefreshFromPenalty(penalty, lab.Name);
-        return true;
-    }
-
-    public static async Task RemoveAsync(PenaltyRecord penalty, IDeductionRepository deductions, CancellationToken ct)
-    {
-        var existing = await deductions.GetByPenaltyAsync(penalty.Id, ct);
-        if (existing is not null) deductions.Remove(existing);
     }
 }
 
@@ -783,16 +741,14 @@ public sealed record DeletePenaltyCommand(Guid Id) : ICommand, IAuthorizedReques
 public sealed class DeletePenaltyValidator : AbstractValidator<DeletePenaltyCommand> { public DeletePenaltyValidator() => RuleFor(x => x.Id).NotEmpty(); }
 public sealed class DeletePenaltyHandler : ICommandHandler<DeletePenaltyCommand>
 {
-    private readonly IPenaltyRecordRepository _repo; private readonly ILaboratoryRepository _labs;
-    private readonly IDeductionRepository _deductions; private readonly ICurrentUser _user;
-    public DeletePenaltyHandler(IPenaltyRecordRepository repo, ILaboratoryRepository labs, IDeductionRepository deductions, ICurrentUser user)
-    { _repo = repo; _labs = labs; _deductions = deductions; _user = user; }
+    private readonly IPenaltyRecordRepository _repo; private readonly ILaboratoryRepository _labs; private readonly ICurrentUser _user;
+    public DeletePenaltyHandler(IPenaltyRecordRepository repo, ILaboratoryRepository labs, ICurrentUser user)
+    { _repo = repo; _labs = labs; _user = user; }
     public async Task<Unit> Handle(DeletePenaltyCommand r, CancellationToken ct)
     {
         var p = await _repo.GetByIdAsync(new PenaltyRecordId(r.Id), ct) ?? throw new NotFoundException("PenaltyRecord", r.Id);
         var lab = await _labs.GetByIdAsync(p.LaboratoryId, ct);
         if (lab is not null) _user.EnsureInScope(lab);
-        await PenaltyDeductionSync.RemoveAsync(p, _deductions, ct); // the mirrored deduction goes with its penalty
         _repo.Remove(p);
         return Unit.Value;
     }
@@ -808,7 +764,7 @@ public sealed class CreateDeductionValidator : AbstractValidator<CreateDeduction
     public CreateDeductionValidator()
     {
         RuleFor(x => x.AreaId).NotEmpty();
-        RuleFor(x => x.Reason).Must(EnumParse.IsValid<DeductionReason>).WithMessage("Reason must be Transportation, Penalty or PercentageDeal.");
+        RuleFor(x => x.Reason).Must(EnumParse.IsValid<DeductionReason>).WithMessage("Reason must be Transportation or PercentageDeal.");
         RuleFor(x => x.Value).GreaterThanOrEqualTo(0);
         RuleFor(x => x.Notes).MaximumLength(500);
         RuleFor(x => x.PeriodTo).GreaterThanOrEqualTo(x => x.PeriodFrom!.Value).When(x => x.PeriodFrom is not null && x.PeriodTo is not null);
@@ -829,7 +785,7 @@ public sealed class CreateDeductionHandler : ICommandHandler<CreateDeductionComm
     }
 }
 
-/// <summary>Edits a deduction. For a manual row every field applies. For an automated row (AutoPenalty / AutoDeal) only
+/// <summary>Edits a deduction. For a manual row every field applies. For an automated row (AutoDeal) only
 /// <c>Value</c>, <c>Notes</c> and the optional <c>Basis</c> apply — the area, reason and period are fixed — and a changed
 /// value marks the row manually adjusted. <c>Basis</c> is what "Suggest value" computed, when the operator used it.</summary>
 public sealed record UpdateDeductionCommand(Guid Id, DateOnly Date, string Reason, decimal Value, string? Notes, DateOnly? PeriodFrom, DateOnly? PeriodTo,
@@ -841,7 +797,7 @@ public sealed class UpdateDeductionValidator : AbstractValidator<UpdateDeduction
     public UpdateDeductionValidator()
     {
         RuleFor(x => x.Id).NotEmpty();
-        RuleFor(x => x.Reason).Must(EnumParse.IsValid<DeductionReason>).WithMessage("Reason must be Transportation, Penalty or PercentageDeal.");
+        RuleFor(x => x.Reason).Must(EnumParse.IsValid<DeductionReason>).WithMessage("Reason must be Transportation or PercentageDeal.");
         RuleFor(x => x.Value).GreaterThanOrEqualTo(0);
         RuleFor(x => x.Notes).MaximumLength(500);
         RuleFor(x => x.PeriodTo).GreaterThanOrEqualTo(x => x.PeriodFrom!.Value).When(x => x.PeriodFrom is not null && x.PeriodTo is not null);
@@ -878,15 +834,13 @@ public sealed class DeleteDeductionHandler : ICommandHandler<DeleteDeductionComm
         var d = await _repo.GetByIdAsync(new DeductionId(r.Id), ct) ?? throw new NotFoundException("Deduction", r.Id);
         var area = await _areas.GetByIdAsync(d.AreaId, ct);
         if (area is not null) _user.EnsureAreaInScope(area.Name);
-        if (d.Origin == DeductionOrigin.AutoPenalty)
-            throw new ConflictException("This deduction mirrors a penalty record; delete the penalty on the Penalty Statement instead.");
         _repo.Remove(d);
         return Unit.Value;
     }
 }
 
-/// <summary>Runs the deductions automation now (the daily job's work) for the month of the latest synced day: links any
-/// penalty that lacks its mirroring deduction and recalculates the month's Percentage Deal deductions.</summary>
+/// <summary>Runs the deductions automation now (the daily job's work) for the month of the latest synced day: recalculates
+/// the month's Percentage Deal deductions and mirrors unlinked cash collections into their treasuries.</summary>
 public sealed record RecalculateDeductionsCommand : ICommand<DeductionAutomationResult>, IAuthorizedRequest
 { public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageAccounting }; }
 public sealed class RecalculateDeductionsValidator : AbstractValidator<RecalculateDeductionsCommand> { }

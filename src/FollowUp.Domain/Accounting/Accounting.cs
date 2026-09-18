@@ -27,26 +27,24 @@ public sealed class PenaltyUser : Enumeration
 }
 
 /// <summary>
-/// Why an area is deducted. Transportation is typed; Penalty is suggested from the Penalty Statement (Σ wrong − right for
-/// the area's labs over a period); PercentageDeal is suggested from the area's income × its deal percentage.
+/// Why an area is deducted. Transportation is typed; PercentageDeal is suggested from the area's income × its deal
+/// percentage. Penalties left the deductions business on 2026-09-18: they post to the rep statement instead.
 /// </summary>
 public sealed class DeductionReason : Enumeration
 {
     public static readonly DeductionReason Transportation = new(1, nameof(Transportation));
-    public static readonly DeductionReason Penalty = new(2, nameof(Penalty));
     public static readonly DeductionReason PercentageDeal = new(3, nameof(PercentageDeal));
     private DeductionReason(int id, string name) : base(id, name) { }
 }
 
 /// <summary>
-/// Where a deduction row came from. <c>Manual</c> rows are typed by an operator. <c>AutoPenalty</c> rows mirror one
-/// penalty record (created, refreshed and removed with it). <c>AutoDeal</c> rows are the one-per-area-per-month
-/// Percentage Deal deductions the daily automation keeps current for the running month.
+/// Where a deduction row came from. <c>Manual</c> rows are typed by an operator. <c>AutoDeal</c> rows are the
+/// one-per-area-per-month Percentage Deal deductions the daily automation keeps current for the running month.
+/// (AutoPenalty mirrors were retired on 2026-09-18 — penalties post to the rep statement.)
 /// </summary>
 public sealed class DeductionOrigin : Enumeration
 {
     public static readonly DeductionOrigin Manual = new(1, nameof(Manual));
-    public static readonly DeductionOrigin AutoPenalty = new(2, nameof(AutoPenalty));
     public static readonly DeductionOrigin AutoDeal = new(3, nameof(AutoDeal));
     private DeductionOrigin(int id, string name) : base(id, name) { }
 }
@@ -404,10 +402,10 @@ public sealed class PenaltyRecord : AggregateRoot<PenaltyRecordId>, IAuditable
     /// <summary>The representative who made the error — set exactly when <see cref="UserType"/> is Rep.</summary>
     public RepresentativeId? PerformedByRepId { get; private set; }
 
-    /// <summary>The penalty = wrong − right (may be negative when the right test was the dearer one).</summary>
-    /// <summary>Staff penalty = wrong − right (what our side's error cost, may be negative). Lab-request penalty = wrong + right:
-    /// the lab asked for the wrong test and is charged for both (operator decision, 2026-09-16).</summary>
-    public Money PenaltyAmount => UserType == PenaltyUser.LabRequest ? WrongValue + RightValue : WrongValue - RightValue;
+    /// <summary>The penalty = right − wrong for every user type (operator decision, 2026-09-18): on the rep statement the
+    /// right test is a Debit (what the lab owes) and the wrong test a Credit (what was charged in error), so the net is
+    /// right − wrong; the same figure is the Penalty column of the Rep Income sheet. May be negative.</summary>
+    public Money PenaltyAmount => RightValue - WrongValue;
 
     public DateTimeOffset CreatedAt { get; private set; }
     public string CreatedBy { get; private set; } = null!;
@@ -479,12 +477,10 @@ public sealed class PenaltyRecord : AggregateRoot<PenaltyRecordId>, IAuditable
 // ---- Deductions ----
 
 /// <summary>
-/// A deduction applied to an area. Three origins (operator decisions, 2026-09-15):
+/// A deduction applied to an area. Two origins (operator decisions, 2026-09-15; penalties left the deductions on 2026-09-18):
 /// <list type="bullet">
-/// <item><b>Manual</b> — typed by an operator; for Penalty / PercentageDeal reasons a value may be suggested by the server
-/// and stays editable. The period a suggestion covered is stored for the audit trail.</item>
-/// <item><b>AutoPenalty</b> — mirrors one penalty record: created when the penalty is recorded, refreshed when it is
-/// edited, removed when it is deleted. <see cref="SystemNote"/> carries the penalty details for investigation.</item>
+/// <item><b>Manual</b> — typed by an operator; for the PercentageDeal reason a value may be suggested by the server and
+/// stays editable. The period a suggestion covered is stored for the audit trail.</item>
 /// <item><b>AutoDeal</b> — the single Percentage Deal deduction per area per month, recalculated daily by the automation
 /// for the running month (income to date × the area's deal %). A month that has ended is never recalculated
 /// automatically; an operator may still edit it or press "Suggest value", which marks it <see cref="IsAdjusted"/>.</item>
@@ -509,10 +505,8 @@ public sealed class Deduction : AggregateRoot<DeductionId>, IAuditable
     public DeductionOrigin Origin { get; private set; } = null!;
     /// <summary>An automated row whose value an operator changed (typed or via "Suggest value"). The automation leaves it alone.</summary>
     public bool IsAdjusted { get; private set; }
-    /// <summary>System-written details: the mirrored penalty's particulars, or the deal calculation basis.</summary>
+    /// <summary>System-written details: the deal calculation basis (or the basis "Suggest value" computed).</summary>
     public string? SystemNote { get; private set; }
-    /// <summary>The penalty an AutoPenalty row mirrors; null for the other origins.</summary>
-    public PenaltyRecordId? PenaltyRecordId { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
     public string CreatedBy { get; private set; } = null!;
@@ -539,35 +533,6 @@ public sealed class Deduction : AggregateRoot<DeductionId>, IAuditable
         Value = AccountingGuards.NonNegative(value, "Deduction value");
         Notes = AccountingGuards.Optional(notes, 500);
         PeriodFrom = periodFrom; PeriodTo = periodTo;
-    }
-
-    // ---- AutoPenalty ----
-
-    /// <summary>
-    /// Mirrors a penalty as a deduction of its lab's area. The deduction value is the penalty (wrong − right) floored at
-    /// zero — an under-charge is not deducted from the area — while the signed amount is kept in the system note.
-    /// </summary>
-    public static Deduction FromPenalty(AreaId areaId, PenaltyRecord penalty, string labName)
-    {
-        var d = new Deduction(DeductionId.New(), areaId, DeductionOrigin.AutoPenalty) { PenaltyRecordId = penalty.Id, Reason = DeductionReason.Penalty };
-        d.RefreshFromPenalty(penalty, labName);
-        return d;
-    }
-
-    /// <summary>Re-syncs an AutoPenalty row after its penalty changed. The penalty is the source of truth, so a prior
-    /// operator adjustment of the value is superseded; operator notes are kept.</summary>
-    public void RefreshFromPenalty(PenaltyRecord penalty, string labName)
-    {
-        if (Origin != DeductionOrigin.AutoPenalty || PenaltyRecordId != penalty.Id)
-            throw new DomainException("This deduction does not mirror that penalty.");
-        Date = penalty.Date;
-        PeriodFrom = penalty.Date; PeriodTo = penalty.Date;
-        var signed = penalty.PenaltyAmount.Amount;
-        Value = new Money(Math.Max(0m, signed));
-        IsAdjusted = false;
-        SystemNote = AccountingGuards.Optional(
-            $"Penalty · {labName} · Acc {penalty.AccNo} · {penalty.PatientName} · wrong {penalty.WrongTestName} ({penalty.WrongTestCode}) {penalty.WrongValue.Amount:0.00} → right {penalty.RightTestName} ({penalty.RightTestCode}) {penalty.RightValue.Amount:0.00} · penalty {signed:0.00}"
-            + (signed < 0 ? " (under-charge: nothing deducted)" : ""), 1000);
     }
 
     // ---- AutoDeal ----

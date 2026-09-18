@@ -20,7 +20,8 @@ public class AccountingInvariantsTests
     public void Enumerations_expose_the_agreed_fixed_values()
     {
         Enumeration.GetAll<PenaltyUser>().Select(e => e.Name).Should().BeEquivalentTo(new[] { "Rep", "DataEntry", "Technician", "LabRequest" });
-        Enumeration.GetAll<DeductionReason>().Select(e => e.Name).Should().BeEquivalentTo(new[] { "Transportation", "Penalty", "PercentageDeal" });
+        Enumeration.GetAll<DeductionReason>().Select(e => e.Name).Should().BeEquivalentTo(new[] { "Transportation", "PercentageDeal" }, "penalties left the deductions business on 2026-09-18");
+        Enumeration.GetAll<DeductionOrigin>().Select(e => e.Name).Should().BeEquivalentTo(new[] { "Manual", "AutoDeal" });
         Enumeration.GetAll<CollectionType>().Select(e => e.Name).Should().BeEquivalentTo(new[] { "Single", "Group" });
         // The IBAN is a fixed three-value pick (operator decision), persisted by these names.
         Enumeration.GetAll<IbanOption>().Select(e => e.Name).Should().BeEquivalentTo(new[] { "12", "16", "18" });
@@ -122,16 +123,16 @@ public class AccountingInvariantsTests
     // ---- Penalty ----
 
     [Fact]
-    public void Penalty_amount_is_wrong_minus_right_and_may_be_negative()
+    public void Penalty_amount_is_right_minus_wrong_for_every_user_type_and_may_be_negative()
     {
         var rep = FollowUp.Domain.Representatives.RepresentativeId.New();
         var p = PenaltyRecord.Create(LaboratoryId.New(), D, "ACC-1", "Patient", "T1", "Wrong test", 300m, "T2", "Right test", 120m, PenaltyUser.Rep, null, rep);
-        p.PenaltyAmount.Amount.Should().Be(180m, "the over-charge is the penalty (operator decision)");
+        p.PenaltyAmount.Amount.Should().Be(-180m, "right 120 − wrong 300 (operator decision 2026-09-18: right = debit, wrong = credit)");
         p.PerformedByRepId.Should().Be(rep);
 
         var tech = FollowUp.Domain.Identity.AppUserId.New();
         p.Update(D, "ACC-1", "Patient", "T1", "Wrong", 100m, "T2", "Right", 250m, PenaltyUser.Technician, tech, null);
-        p.PenaltyAmount.Amount.Should().Be(-150m, "an under-charge is a negative penalty and must not be clamped");
+        p.PenaltyAmount.Amount.Should().Be(150m, "right 250 − wrong 100; the sign is never clamped");
         p.UserType.Should().BeSameAs(PenaltyUser.Technician);
         p.PerformedByUserId.Should().Be(tech);
         p.PerformedByRepId.Should().BeNull("re-attributing to a system user releases the representative link");
@@ -173,7 +174,7 @@ public class AccountingInvariantsTests
         // LabRequest → nobody: the lab asked for the wrong test.
         var labRequest = Make(PenaltyUser.LabRequest, null, null);
         labRequest.PerformedByRepId.Should().BeNull(); labRequest.PerformedByUserId.Should().BeNull();
-        labRequest.PenaltyAmount.Amount.Should().Be(2m, "a lab request is charged for BOTH values (1 + 1), a staff penalty for the difference");
+        labRequest.PenaltyAmount.Amount.Should().Be(0m, "right 1 − wrong 1: the same right − wrong rule for every user type");
         Make(PenaltyUser.Rep, null, rep).PenaltyAmount.Amount.Should().Be(0m);
 
         // Tests: a staff penalty needs both; a lab request at least one, and a missing test carries no value.
@@ -182,7 +183,7 @@ public class AccountingInvariantsTests
                 type == PenaltyUser.LabRequest ? null : user, null);
         FluentActions.Invoking(() => Tests(PenaltyUser.DataEntry, "T1", 5m, null, 0m)).Should().Throw<DomainException>().WithMessage("*Both*");
         var wrongOnly = Tests(PenaltyUser.LabRequest, "T1", 250m, null, 0m);
-        wrongOnly.RightTestCode.Should().BeNull(); wrongOnly.RightValue.Amount.Should().Be(0m); wrongOnly.PenaltyAmount.Amount.Should().Be(250m);
+        wrongOnly.RightTestCode.Should().BeNull(); wrongOnly.RightValue.Amount.Should().Be(0m); wrongOnly.PenaltyAmount.Amount.Should().Be(-250m, "a wrong test alone is pure credit");
         var rightOnly = Tests(PenaltyUser.LabRequest, null, 0m, "T2", 90m);
         rightOnly.WrongTestCode.Should().BeNull(); rightOnly.PenaltyAmount.Amount.Should().Be(90m);
         FluentActions.Invoking(() => Tests(PenaltyUser.LabRequest, null, 0m, null, 0m)).Should().Throw<DomainException>().WithMessage("*at least one test*");
@@ -203,44 +204,12 @@ public class AccountingInvariantsTests
         var suggested = Deduction.Create(area, D, DeductionReason.PercentageDeal, 1234.5m, "Sept", new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30));
         suggested.PeriodFrom.Should().Be(new DateOnly(2026, 9, 1));
 
-        FluentActions.Invoking(() => Deduction.Create(area, D, DeductionReason.Penalty, 1m, null, new DateOnly(2026, 9, 1), null))
+        FluentActions.Invoking(() => Deduction.Create(area, D, DeductionReason.PercentageDeal, 1m, null, new DateOnly(2026, 9, 1), null))
             .Should().Throw<DomainException>().WithMessage("*both a start and an end*");
-        FluentActions.Invoking(() => Deduction.Create(area, D, DeductionReason.Penalty, 1m, null, new DateOnly(2026, 9, 30), new DateOnly(2026, 9, 1)))
+        FluentActions.Invoking(() => Deduction.Create(area, D, DeductionReason.PercentageDeal, 1m, null, new DateOnly(2026, 9, 30), new DateOnly(2026, 9, 1)))
             .Should().Throw<DomainException>().WithMessage("*must not precede*");
-        FluentActions.Invoking(() => Deduction.Create(area, D, DeductionReason.Penalty, -1m, null, null, null))
+        FluentActions.Invoking(() => Deduction.Create(area, D, DeductionReason.PercentageDeal, -1m, null, null, null))
             .Should().Throw<DomainException>().WithMessage("*cannot be negative*");
-    }
-
-    [Fact]
-    public void An_auto_penalty_deduction_mirrors_its_penalty_floors_under_charges_and_resyncs_on_refresh()
-    {
-        var area = AreaId.New();
-        var rep = FollowUp.Domain.Representatives.RepresentativeId.New();
-        var penalty = PenaltyRecord.Create(LaboratoryId.New(), D, "ACC-7", "Patient", "T1", "Wrong test", 300m, "T2", "Right test", 120m, PenaltyUser.Rep, null, rep);
-
-        var d = Deduction.FromPenalty(area, penalty, "Alpha Lab");
-        d.Origin.Should().BeSameAs(DeductionOrigin.AutoPenalty);
-        d.Reason.Should().BeSameAs(DeductionReason.Penalty);
-        d.PenaltyRecordId.Should().Be(penalty.Id);
-        d.Date.Should().Be(D); d.PeriodFrom.Should().Be(D); d.PeriodTo.Should().Be(D);
-        d.Value.Amount.Should().Be(180m, "wrong − right");
-        d.SystemNote.Should().Contain("Alpha Lab").And.Contain("ACC-7").And.Contain("Patient").And.Contain("Wrong test").And.Contain("Right test");
-        d.IsAdjusted.Should().BeFalse();
-
-        // An operator tweaks the value and writes a note; the penalty then changes to an under-charge.
-        d.Adjust(150m, "checked with the lab", null);
-        d.IsAdjusted.Should().BeTrue();
-        penalty.Update(D.AddDays(1), "ACC-7", "Patient", "T1", "Wrong", 100m, "T2", "Right", 250m, PenaltyUser.Rep, null, rep);
-        d.RefreshFromPenalty(penalty, "Alpha Lab");
-        d.Value.Amount.Should().Be(0m, "an under-charge is not deducted from the area");
-        d.SystemNote.Should().Contain("-150.00").And.Contain("under-charge");
-        d.Date.Should().Be(D.AddDays(1));
-        d.IsAdjusted.Should().BeFalse("the penalty is the source of truth; its change supersedes the adjustment");
-        d.Notes.Should().Be("checked with the lab", "operator notes are never touched by the automation");
-
-        var other = PenaltyRecord.Create(LaboratoryId.New(), D, "X", "P", "T1", "W", 1m, "T2", "R", 1m, PenaltyUser.Rep, null, rep);
-        FluentActions.Invoking(() => d.RefreshFromPenalty(other, "Lab")).Should().Throw<DomainException>().WithMessage("*does not mirror*");
-        FluentActions.Invoking(() => d.Update(D, DeductionReason.Penalty, 1m, null, null, null)).Should().Throw<DomainException>().WithMessage("*only its value and notes*");
     }
 
     [Fact]

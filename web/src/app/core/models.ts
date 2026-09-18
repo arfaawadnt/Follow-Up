@@ -21,7 +21,7 @@ export interface PagedResult<T> {
 }
 
 /** Lab picker row (GET /labs/lookup): every lab in scope, unpaged — use this for pickers, never the paged /labs list. */
-export interface LabLookup { id: string; displayCode: string; name: string; }
+export interface LabLookup { id: string; displayCode: string; name: string; area?: string | null; }
 export interface LabListItem {
   id: string; displayCode: string; name: string; segment: string; status: string;
   branch: string | null; governorate: string | null; city: string | null; area: string | null;
@@ -221,28 +221,31 @@ export interface PenaltyDto {
   id: string; serial: number; date: string; laboratoryId: string; labDisplayCode: string; labName: string;
   accNo: string; patientName: string; wrongTestCode: string | null; wrongTestName: string | null; wrongValue: number;
   rightTestCode: string | null; rightTestName: string | null; rightValue: number;
-  /** Staff penalty = wrong − right; lab-request penalty = wrong + right (the lab is charged for both). */
+  /** right − wrong for every user type: on the rep statement the right test is a debit, the wrong test a credit. */
   penalty: number;
-  /** Who made the error: the kind (Rep / DataEntry / Technician) plus the resolved person. */
+  /** Who made the error: the kind (Rep / DataEntry / Technician / LabRequest) plus the resolved person. */
   userType: string; performedById: string | null; performedByName: string | null;
+  /** The lab's Lab Responsible — the statement a DataEntry / Technician / LabRequest penalty posts to. */
+  responsibleRepId: string | null; responsibleRepName: string | null;
+  /** LDM validation of the Acc No against the synced registration lines: Valid | AccNotFound | LabMismatch | TestMissing. */
+  ldmStatus: string; ldmNote: string | null;
 }
 /** A person a penalty can be attributed to (GET /accounting/penalty-actors?userType=…); `detail` = rep type for reps. */
 export interface PenaltyActorDto { id: string; name: string; detail: string | null; }
 export interface DeductionDto {
   id: string; serial: number; date: string; areaId: string; areaName: string; reason: string; value: number;
   notes: string | null; periodFrom: string | null; periodTo: string | null;
-  /** Manual | AutoPenalty (mirrors a penalty) | AutoDeal (the month's automated Percentage Deal row). */
+  /** Manual | AutoDeal (the month's automated Percentage Deal row). */
   origin: string;
   /** An automated row whose value an operator changed — the automation leaves it alone. */
   isAdjusted: boolean;
-  /** System-written details: mirrored penalty particulars or the deal calculation basis. */
+  /** System-written details: the deal calculation basis. */
   systemNote: string | null;
-  penaltyRecordId: string | null; penaltySerial: number | null;
 }
 export interface DeductionSuggestion { value: number; basis: string; }
 export interface DeductionAutomationResult {
   month: string; through: string; dealAreas: number; dealCreated: number; dealRecalculated: number; dealSkippedAdjusted: number;
-  penaltiesLinked: number; penaltiesUnplaced: number;
+  collectionsLinked: number; collectionsUnplaced: number;
 }
 /** One rep's part of a collection (the amount that rep handed in); for a Single collection it is the total. */
 export interface CollectionShare { repId: string; repName: string; amount: number; }
