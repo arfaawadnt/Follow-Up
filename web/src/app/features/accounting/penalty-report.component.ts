@@ -164,7 +164,8 @@ export class PenaltyReportComponent {
     if (!userType) return;
     this.api.get<PenaltyActorDto[]>('/accounting/penalty-actors', { userType }).subscribe({ next: (r) => this.performers.set(r), error: () => {} });
   }
-  performerName(): string { return this.performerId ? (this.performers().find((a) => a.id === this.performerId)?.name ?? '') : 'All'; }
+  /** The APPLIED person filter (what the rows show), for the print headers. */
+  performerName(): string { return this.filterPerformer() ? (this.performers().find((a) => a.id === this.filterPerformer())?.name ?? '') : 'All'; }
 
   load(): void {
     this.loading.set(true);
@@ -200,7 +201,7 @@ export class PenaltyReportComponent {
     const html = `<!doctype html><html><head><title>Penalty Report</title><style>${PenaltyReportComponent.PRINT_CSS}</style></head><body>
     <div class="hdr"><div><h1>Penalty Report</h1><div style="font-size:12px;color:#444">Penalties by user type (Rep / Data Entry / Technician / Lab Request)</div></div>
       <div class="meta">Period ${e(ddmy(this.from))} → ${e(ddmy(this.to))}<br>Generated ${e(new Date().toLocaleString('en-GB'))}</div></div>
-    <div class="filters"><div><b>User type</b>${e(this.userType ? penaltyUserLabel(this.userType) : 'All')}</div><div><b>Performed by</b>${e(this.performerName())}</div><div><b>Lab</b>${e(labName)}</div><div><b>Records</b>${this.k().count}</div><div><b>Total penalty</b>${n(this.k().penalty)} EGP</div></div>
+    <div class="filters"><div><b>User type</b>${e(this.filterType() ? penaltyUserLabel(this.filterType()) : 'All')}</div><div><b>Performed by</b>${e(this.performerName())}</div><div><b>Lab</b>${e(labName)}</div><div><b>Records</b>${this.k().count}</div><div><b>Total penalty</b>${n(this.k().penalty)} EGP</div></div>
     ${sections || '<p>No records.</p>'}
     <div class="grand"><span>Wrong value: ${n(this.k().wrong)}</span><span>Right value: ${n(this.k().right)}</span><span>Grand total penalty: <b>${n(this.k().penalty)} EGP</b></span></div>
     <div class="sign"><div>Prepared by</div><div>Reviewed by</div><div>Approved by</div></div>
@@ -223,7 +224,7 @@ export class PenaltyReportComponent {
     const html = `<!doctype html><html><head><title>Total Penalties</title><style>${PenaltyReportComponent.PRINT_CSS} @media print{@page{size:A4 portrait;margin:12mm}}</style></head><body>
     <div class="hdr"><div><h1>Total Penalties</h1><div style="font-size:12px;color:#444">Total penalty per person, grouped by user type</div></div>
       <div class="meta">Period ${e(ddmy(this.from))} → ${e(ddmy(this.to))}<br>Generated ${e(new Date().toLocaleString('en-GB'))}</div></div>
-    <div class="filters"><div><b>User type</b>${e(this.userType ? penaltyUserLabel(this.userType) : 'All')}</div><div><b>Performed by</b>${e(this.performerName())}</div><div><b>Lab</b>${e(labName)}</div><div><b>Records</b>${this.k().count}</div><div><b>Total charged</b>${n(grand)} EGP</div></div>
+    <div class="filters"><div><b>User type</b>${e(this.filterType() ? penaltyUserLabel(this.filterType()) : 'All')}</div><div><b>Performed by</b>${e(this.performerName())}</div><div><b>Lab</b>${e(labName)}</div><div><b>Records</b>${this.k().count}</div><div><b>Total charged</b>${n(grand)} EGP</div></div>
     ${sections || '<p>No records.</p>'}
     <p class="note">A data-entry penalty is charged to both the user who entered the data and the user who reviewed it; a lab-request penalty to the lab's Lab Responsible. Total penalty = right test value − wrong test value.</p>
     <div class="grand"><span>Records: ${this.k().count}</span><span>Grand total charged: <b>${n(grand)} EGP</b></span></div>
