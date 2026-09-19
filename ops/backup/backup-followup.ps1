@@ -35,7 +35,7 @@ param(
     [string]$GitHubOwner = 'arfaawadnt',
     [string]$GitHubRepo = 'Follow-Up-backups',
     [string]$ReleaseTag = 'backup-latest',
-    [int]$PartSizeMB = 1500
+    [int]$PartSizeMB = 500
 )
 
 $ErrorActionPreference = 'Stop'
@@ -161,7 +161,8 @@ try {
             Log "Encryption key generated at $keyFile - COPY IT TO A SAFE PLACE OFF THIS MACHINE (the GitHub copy is unreadable without it)"
             WriteEvent 'Warning' 1002 "A new backup encryption key was generated at $keyFile. Copy it off this machine; the GitHub backup copy cannot be decrypted without it."
         }
-        $hdr = @('-H', "Authorization: Bearer $token", '-H', 'Accept: application/vnd.github+json', '-H', 'User-Agent: followup-backup', '-sS', '--retry', '3', '--retry-delay', '10')
+        # GitHub connectivity from this box is intermittently flaky: every curl call retries on ANY error (DNS, reset, 5xx).
+        $hdr = @('-H', "Authorization: Bearer $token", '-H', 'Accept: application/vnd.github+json', '-H', 'User-Agent: followup-backup', '-sS', '--connect-timeout', '30', '--retry', '5', '--retry-delay', '30', '--retry-all-errors', '--retry-connrefused')
         $api = "https://api.github.com/repos/$GitHubOwner/$GitHubRepo"
         function Gh([string]$method, [string]$url, [string]$body) {
             $cargs = @('-X', $method) + $hdr + @('-w', '\n%{http_code}', $url)
@@ -222,11 +223,18 @@ try {
         foreach ($asset in $assets) {
             $name = Split-Path $asset -Leaf
             $url = "https://uploads.github.com/repos/$GitHubOwner/$GitHubRepo/releases/$($release.id)/assets?name=$([uri]::EscapeDataString($name))"
-            # -T streams the file from disk (--data-binary @file would load a 1.5 GB part into memory and abort with HTTP 0).
-            $out = & $curl -X POST @hdr -H 'Content-Type: application/octet-stream' -T $asset --max-time 14400 -w '\n%{http_code}' $url
-            $code = [int](@($out -split "`n")[-1])
-            if ($code -ne 201) { throw "Upload of $name failed: HTTP $code" }
-            Log "GitHub: uploaded $name ($(Mb (Get-Item $asset).Length) MB)"
+            # -T streams the file from disk (--data-binary @file would load a whole part into memory and abort with HTTP 0).
+            # A part that failed half-way may already exist on the release: drop it before every attempt.
+            $done = $false
+            for ($attempt = 1; $attempt -le 4 -and -not $done; $attempt++) {
+                $cur = Gh 'GET' "$api/releases/$($release.id)" $null
+                foreach ($a in @($cur.Obj.assets)) { if ($a.name -eq $name) { Gh 'DELETE' "$api/releases/assets/$($a.id)" $null | Out-Null } }
+                $out = & $curl -X POST @hdr -H 'Content-Type: application/octet-stream' -T $asset --max-time 14400 -w '\n%{http_code}' $url 2>&1
+                $code = 0; try { $code = [int](@(($out | ForEach-Object { "$_" }) -split "`n")[-1]) } catch { $code = 0 }
+                if ($code -eq 201) { $done = $true; Log "GitHub: uploaded $name ($(Mb (Get-Item $asset).Length) MB, attempt $attempt)" }
+                else { Log "WARN: upload of $name attempt $attempt returned HTTP $code - $(if ($attempt -lt 4) { 'retrying in 2 min' } else { 'giving up' })"; if ($attempt -lt 4) { Start-Sleep -Seconds 120 } }
+            }
+            if (-not $done) { throw "Upload of $name failed after 4 attempts" }
         }
         Remove-Item $work -Recurse -Force
         $body = "FollowUp nightly backup of $stamp (encrypted with the key at $keyFile on $env:COMPUTERNAME).`n`n" +
