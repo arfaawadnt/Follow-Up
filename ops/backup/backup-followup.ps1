@@ -203,16 +203,17 @@ try {
             Log "Created release $ReleaseTag"
         } elseif ($r.Code -ne 200) { throw "GitHub release check failed: HTTP $($r.Code) $($r.Json)" }
         $release = $r.Obj
-        foreach ($a in @($release.assets)) {
-            $d = Gh 'DELETE' "$api/releases/assets/$($a.id)" $null
-            if ($d.Code -ne 204) { throw "Could not delete old asset $($a.name): HTTP $($d.Code)" }
-            Log "GitHub: removed previous asset $($a.name)"
-        }
-        # 5c. Encrypt, split if needed, upload.
-        $work = Join-Path $env:TEMP "followup-backup-upload-$stamp"
+        # 5c. Encrypt, split if needed, upload. The ciphertext is kept in the dated folder (openssl salts every run, so a
+        # retry must re-use the very same parts for the ones already on the release to stay valid); it is removed after
+        # a complete upload and, at the latest, with the folder's retention.
+        $work = Join-Path $dir 'upload'
+        $assets = @()
+        if ((Test-Path $work) -and @(Get-ChildItem $work -Filter '*.enc*').Count -gt 0) {
+            $assets = @(Get-ChildItem $work -Filter '*.enc*' | Sort-Object Name | ForEach-Object { $_.FullName })
+            Log "Re-using the encrypted parts of the previous attempt in $work ($($assets.Count) file(s))"
+        } else {
         if (Test-Path $work) { Remove-Item $work -Recurse -Force }
         New-Item -ItemType Directory -Force -Path $work | Out-Null
-        $assets = @()
         foreach ($src in @($dumpFile, $zipFile)) {
             $enc = Join-Path $work ((Split-Path $src -Leaf) + '.enc')
             & $openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass "file:$keyFile" -in $src -out $enc
@@ -232,9 +233,21 @@ try {
                 Log "Split $(Split-Path $enc -Leaf) into $n part(s) of <= $PartSizeMB MB"
             } else { $assets += $enc }
         }
-        Copy-Item $manifestFile (Join-Path $work 'manifest.json'); $assets += (Join-Path $work 'manifest.json')
+        }
+        Copy-Item $manifestFile (Join-Path $work 'manifest.json') -Force; $assets += (Join-Path $work 'manifest.json')
+        # Previous backups' assets go; today's assets already on the release (same name and size, from an interrupted run)
+        # are kept and skipped, so a retry only transfers what is missing. The manifest is always re-uploaded.
+        $todayNames = @($assets | ForEach-Object { Split-Path $_ -Leaf })
+        $existing = @{}
+        foreach ($a in @((Gh 'GET' "$api/releases/$($release.id)" $null).Obj.assets)) {
+            if ($todayNames -contains $a.name -and $a.name -ne 'manifest.json' -and $a.state -eq 'uploaded') { $existing[$a.name] = [long]$a.size; continue }
+            $d = Gh 'DELETE' "$api/releases/assets/$($a.id)" $null
+            if ($d.Code -ne 204) { throw "Could not delete old asset $($a.name): HTTP $($d.Code)" }
+            Log "GitHub: removed previous asset $($a.name)"
+        }
         foreach ($asset in $assets) {
             $name = Split-Path $asset -Leaf
+            if ($existing.ContainsKey($name) -and $existing[$name] -eq (Get-Item $asset).Length) { Log "GitHub: $name already on the release ($(Mb $existing[$name]) MB) - skipped"; continue }
             $url = "https://uploads.github.com/repos/$GitHubOwner/$GitHubRepo/releases/$($release.id)/assets?name=$([uri]::EscapeDataString($name))"
             # -T streams the file from disk (--data-binary @file would load a whole part into memory and abort with HTTP 0).
             # A part that failed half-way may already exist on the release: drop it before every attempt.
@@ -247,7 +260,8 @@ try {
                 $errFile = Join-Path $env:TEMP 'followup-backup-curl.err'
                 $out = & $curl -X POST @hdr -H 'Content-Type: application/octet-stream' -T $asset --max-time 14400 -w '\n%{http_code}' --stderr $errFile $url
                 $code = 0; try { $code = [int](@(($out | ForEach-Object { "$_" }) -split "`n")[-1]) } catch { $code = 0 }
-                $curlErr = if (Test-Path $errFile) { ((Get-Content $errFile -Raw) -replace '\s+', ' ').Trim() } else { '' }
+                $curlErr = ''
+                if (Test-Path $errFile) { $rawErr = [string](Get-Content $errFile -Raw); if ($rawErr) { $curlErr = ($rawErr -replace '\s+', ' ').Trim() } }
                 if ($code -eq 201) { $done = $true; Log "GitHub: uploaded $name ($(Mb (Get-Item $asset).Length) MB, attempt $attempt)" }
                 else { Log "WARN: upload of $name attempt $attempt returned HTTP $code $curlErr - $(if ($attempt -lt 4) { 'retrying in 2 min' } else { 'giving up' })"; if ($attempt -lt 4) { Start-Sleep -Seconds 120 } }
             }
