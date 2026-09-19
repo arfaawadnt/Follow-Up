@@ -12,6 +12,7 @@ import { UiService } from '../../core/ui.service';
 import { TranslatePipe } from '../../core/i18n';
 import { LabLookup, PenaltyActorDto, PenaltyDto, TestLookup } from '../../core/models';
 import { ACC_STYLES, PENALTY_USERS, dayName, firstOfMonth, money, penaltyUserLabel } from './accounting.util';
+import { AuditLogButtonComponent } from '../../shared/audit-log-button.component';
 
 type Opt = { value: string; label: string };
 
@@ -24,7 +25,7 @@ type Opt = { value: string; label: string };
 @Component({
   selector: 'app-acc-penalties',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, TranslatePipe, DateInputComponent, FilterSelectComponent, RouterLink],
+  imports: [AuditLogButtonComponent, FormsModule, DecimalPipe, TranslatePipe, DateInputComponent, FilterSelectComponent, RouterLink],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'accounting' | t : 'Accounting' }} / {{ 'acc_penalties' | t : 'Penalty Statement' }}</div><h1>{{ 'acc_penalties' | t : 'Penalty Statement' }}</h1></div>
@@ -78,7 +79,7 @@ type Opt = { value: string; label: string };
                 @if (canManage()) {
                   <td class="ar actions">
                     <button class="icon-btn" title="Edit" (click)="openEdit(p)">✎</button>
-                    <button class="icon-btn del" title="Delete" (click)="remove(p, i + 1)">🗑</button>
+                    <button class="icon-btn del" title="Delete" (click)="remove(p, i + 1)">🗑</button><app-audit-log entity="PenaltyRecord" [id]="p.id" [label]="'Penalty · ' + p.accNo"></app-audit-log>
                   </td>
                 }
               </tr>

@@ -7,6 +7,7 @@ import { NotificationStore } from '../core/notification.store';
 import { IconsService } from '../core/icons.service';
 import { GridKeyboardNavService } from '../core/grid-keyboard-nav.service';
 import { TranslatePipe } from '../core/i18n';
+import { HelpDialogComponent } from '../shared/help-dialog.component';
 
 interface NavItem { id: string; key: string; icon: string; path: string; privilege?: string; }
 interface NavGroup { titleKey: string; items: NavItem[]; }
@@ -15,7 +16,7 @@ interface NavGroup { titleKey: string; items: NavItem[]; }
 @Component({
   selector: 'app-shell',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslatePipe],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslatePipe, HelpDialogComponent],
   template: `
     <div id="app">
       <div class="app-header">
@@ -29,6 +30,7 @@ interface NavGroup { titleKey: string; items: NavItem[]; }
         <div class="header-actions">
           <button class="header-icon-btn" (click)="go('/dashboard')" [title]="'dashboard' | t"><i data-lucide="home"></i></button>
           <button class="header-icon-btn" (click)="go('/daily')" [title]="'daily' | t"><i data-lucide="check-square"></i></button>
+          <button class="header-icon-btn" (click)="help.set(true)" [title]="'help' | t : 'Help'"><i data-lucide="help-circle"></i></button>
           <button class="header-icon-btn" (click)="go('/notifications')" title="Notifications" style="position:relative">
             <i data-lucide="bell"></i>
             @if (notes.unread() > 0) { <span class="header-badge-dot"></span> }
@@ -71,6 +73,7 @@ interface NavGroup { titleKey: string; items: NavItem[]; }
           </div>
         </nav>
         <main class="main" [class.collapsed]="collapsed()" id="main" tabindex="-1"><router-outlet /></main>
+      @if (help()) { <app-help-dialog [url]="router.url" (closed)="help.set(false)"></app-help-dialog> }
       </div>
     </div>
   `,
@@ -82,7 +85,9 @@ export class ShellComponent implements AfterViewChecked, OnDestroy {
   readonly notes = inject(NotificationStore);
   private readonly icons = inject(IconsService);
   private readonly gridKeys = inject(GridKeyboardNavService);
-  private readonly router = inject(Router);
+  readonly router = inject(Router);
+  /** The page help popup (header ? icon) for the current route. */
+  readonly help = signal(false);
 
   private static readonly COLLAPSE_KEY = 'fu.sidebarCollapsed';
   readonly collapsed = signal(ShellComponent.readCollapsed());
@@ -157,7 +162,7 @@ export class ShellComponent implements AfterViewChecked, OnDestroy {
       { id: 'email_reports', key: 'email_reports', icon: 'mail', path: '/email-reports', privilege: 'ManageEmailReports' },
       { id: 'notifications', key: 'notifications_control_panel', icon: 'bell', path: '/notifications' },
       { id: 'sessions', key: 'active_sessions', icon: 'activity', path: '/sessions' },
-      { id: 'audit', key: 'audit_trail', icon: 'clipboard-list', path: '/audit', privilege: 'ManageUsers' },
+      { id: 'audit', key: 'audit_trail', icon: 'clipboard-list', path: '/audit', privilege: 'ViewAuditTrail' },
     ]},
   ];
 

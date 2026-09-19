@@ -5,14 +5,14 @@ using System.Text;
 namespace FollowUp.Infrastructure.Emailing;
 
 /// <summary>Colour flag for a styled worksheet cell — mirrors the on-screen grids and the browser export util.</summary>
-internal enum XlsxFill { None, Pos, Neg, Gov }
+public enum XlsxFill { None, Pos, Neg, Gov }
 
 /// <summary>
 /// A worksheet cell: a value plus an optional colour flag / bold. Strings and the common numeric types convert
 /// implicitly, so plain rows read like <c>new XlsxCell[] { "Cairo", 1234, 56.7m }</c> and flagged cells like
 /// <c>new XlsxCell(v, XlsxFill.Pos)</c>.
 /// </summary>
-internal readonly record struct XlsxCell(object? Value, XlsxFill Fill = XlsxFill.None, bool Bold = false)
+public readonly record struct XlsxCell(object? Value, XlsxFill Fill = XlsxFill.None, bool Bold = false)
 {
     public static implicit operator XlsxCell(string? v) => new(v);
     public static implicit operator XlsxCell(int v) => new(v);

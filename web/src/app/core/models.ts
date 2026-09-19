@@ -333,3 +333,12 @@ export interface StockTransferDto {
 }
 export interface UtilizationTest { testCode: string; testType: number; testName: string; testCount: number; quantityPerTest: number; expected: number; }
 export interface UtilizationRow { itemId: string; itemCode: string; itemName: string; unit: string; testsPerformed: number; expected: number; actual: number; variance: number; utilizationPct: number | null; tests: UtilizationTest[]; }
+
+// ---- Audit trail (2026-09-20) ----
+/** One changed field of an audit entry, flattened to display text by the server. */
+export interface AuditChange { field: string; before: string | null; after: string | null; }
+export interface AuditRow {
+  id: string; occurredAt: string; actor: string; entity: string; entityId: string; action: string;
+  before: string | null; after: string | null; correlationId: string | null; changes: AuditChange[] | null;
+}
+export interface AuditFacets { entities: string[]; actors: string[]; }

@@ -230,11 +230,16 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
         {
             sb.Append(Table(s.Title, s.SummaryHtml, s.HtmlHeaders, s.HtmlRows));
             if (s.XlsxRows.Count > 0)
+            {
                 attachments.Add(new EmailAttachment(s.FileName, XlsxWriter.Build(s.Title, s.XlsxHeaders, s.XlsxRows), XlsxWriter.ContentType));
+                // 2026-09-20: the same table as a PDF beside the Excel file (Skia + HarfBuzz, so Arabic names render).
+                attachments.Add(new EmailAttachment(Path.ChangeExtension(s.FileName, ".pdf"),
+                    PdfWriter.Build(s.Title, $"{sub.Name} · {from:dd/MM/yyyy} → {to:dd/MM/yyyy}", s.XlsxHeaders, s.XlsxRows), PdfWriter.ContentType));
+            }
         }
 
         if (attachments.Count > 0)
-            sb.Append("<p style=\"color:#333;font-size:13px;margin-top:16px\">The full data for each report is attached as an Excel file. The Area Statistics sheet is grouped by governorate &amp; area and colour-coded against the reference month, matching the on-screen page.</p>");
+            sb.Append("<p style=\"color:#333;font-size:13px;margin-top:16px\">The full data for each report is attached as an Excel file and as a PDF. The Area Statistics sheet is grouped by governorate &amp; area and colour-coded against the reference month, matching the on-screen page.</p>");
         sb.Append("<p style=\"color:#999;font-size:12px;margin-top:22px\">Sent automatically by Follow-Up.</p></div>");
         return (sb.ToString(), attachments);
     }

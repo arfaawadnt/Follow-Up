@@ -75,6 +75,7 @@ const MATRIX: MatrixRow[] = [
   { key: 'page_email_reports', label: 'Email Reports', view: null, add: null, update: null, special: [
     { priv: 'ManageEmailReports', key: 'priv_manage', label: 'Manage' },
   ] },
+  { key: 'page_audit_trail', label: 'Audit Trail', view: 'ViewAuditTrail', add: null, update: null, special: [] },
 ];
 
 @Component({

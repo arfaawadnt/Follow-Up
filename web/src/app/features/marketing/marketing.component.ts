@@ -9,6 +9,7 @@ import { ToastService } from '../../core/toast.service';
 import { LabLookup, MarketingVisit, PagedResult, RepListItem } from '../../core/models';
 import { FilterSelectComponent } from '../../shared/filter-select.component';
 import { TranslatePipe } from '../../core/i18n';
+import { AuditLogButtonComponent } from '../../shared/audit-log-button.component';
 
 const PURPOSES: { value: string; label: string }[] = [
   { value: 'Pitch', label: 'New Contract Pitch' },
@@ -24,7 +25,7 @@ const STATUSES = ['All', 'Scheduled', 'Completed', 'Cancelled'];
 @Component({
   selector: 'app-marketing',
   standalone: true,
-  imports: [AppDatePipe, FormsModule, ReactiveFormsModule, TranslatePipe, DateInputComponent, FilterSelectComponent],
+  imports: [AuditLogButtonComponent, AppDatePipe, FormsModule, ReactiveFormsModule, TranslatePipe, DateInputComponent, FilterSelectComponent],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'marketing_visit_followup' | t : 'Marketing' }}</div><h1>{{ 'marketing_visit_followup' | t : 'Marketing Visits' }}</h1></div>
@@ -55,7 +56,7 @@ const STATUSES = ['All', 'Scheduled', 'Completed', 'Cancelled'];
                   @if (v.status === 'Scheduled') { {{ v.plan ? 'Plan: ' + v.plan : '—' }} }
                   @else { {{ v.outcome ?? '—' }} }
                 </td>
-                <td class="actions">
+                <td class="actions"><app-audit-log entity="MarketingVisit" [id]="v.id"></app-audit-log>
                   @if (v.status === 'Scheduled' && auth.has('UpdateMarketing')) {
                     <button class="btn-mini on" (click)="openComplete(v)" [disabled]="busy()">{{ 'complete_btn' | t : 'Complete' }}</button>
                     <button class="btn-mini red" (click)="cancel(v)" [disabled]="busy()">{{ 'cancel_btn' | t : 'Cancel' }}</button>

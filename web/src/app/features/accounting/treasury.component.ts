@@ -11,6 +11,7 @@ import { UiService } from '../../core/ui.service';
 import { TranslatePipe } from '../../core/i18n';
 import { CollectionTreasurySyncResult, RefItem, TreasuryDto, TreasuryEntryDto, TreasuryReasonDto } from '../../core/models';
 import { ACC_STYLES, dayName, firstOfMonth, money } from './accounting.util';
+import { AuditLogButtonComponent } from '../../shared/audit-log-button.component';
 
 type Opt = { value: string; label: string };
 
@@ -26,7 +27,7 @@ type Opt = { value: string; label: string };
 @Component({
   selector: 'app-acc-treasury',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, TranslatePipe, DateInputComponent, FilterSelectComponent],
+  imports: [AuditLogButtonComponent, FormsModule, DecimalPipe, TranslatePipe, DateInputComponent, FilterSelectComponent],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'accounting' | t : 'Accounting' }} / {{ 'acc_treasury' | t : 'Treasury Account' }}</div><h1>{{ 'acc_treasury' | t : 'Treasury Account' }}</h1></div>
@@ -93,7 +94,7 @@ type Opt = { value: string; label: string };
                       <button class="icon-btn" title="Edit" (click)="openEdit(e)">✎</button>
                     }
                     @if (canManage() && canUpdate(e.treasuryId) && e.origin === 'Manual') {
-                      <button class="icon-btn del" title="Delete" (click)="remove(e, i + 1)">🗑</button>
+                      <button class="icon-btn del" title="Delete" (click)="remove(e, i + 1)">🗑</button><app-audit-log entity="TreasuryEntry" [id]="e.id"></app-audit-log>
                     }
                   </td>
                 </tr>
@@ -124,7 +125,7 @@ type Opt = { value: string; label: string };
                     @if (editTreasuryId() === t.id) {
                       <button class="btn btn-mini btn-p" [disabled]="busy() || !editTreasuryName.trim() || !editTreasuryBranches.length" (click)="saveTreasury(t)">{{ 'save' | t : 'Save' }}</button>
                       <button class="btn btn-mini btn-s" (click)="editTreasuryId.set(null)">{{ 'cancel' | t : 'Cancel' }}</button>
-                    } @else { <button class="icon-btn" title="Edit" (click)="startEditTreasury(t)">✎</button> }
+                    } @else { <button class="icon-btn" title="Edit" (click)="startEditTreasury(t)">✎</button><app-audit-log entity="Treasury" [id]="t.id" [label]="t.name"></app-audit-log> }
                   </td>
                 </tr>
               } @empty { <tr><td colspan="4" class="empty">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
@@ -147,7 +148,7 @@ type Opt = { value: string; label: string };
                     @if (editReasonId() === r.id) {
                       <button class="btn btn-mini btn-p" [disabled]="busy() || !editReasonName.trim()" (click)="saveReason(r)">{{ 'save' | t : 'Save' }}</button>
                       <button class="btn btn-mini btn-s" (click)="editReasonId.set(null)">{{ 'cancel' | t : 'Cancel' }}</button>
-                    } @else { <button class="icon-btn" title="Edit" (click)="startEditReason(r)">✎</button> }
+                    } @else { <button class="icon-btn" title="Edit" (click)="startEditReason(r)">✎</button><app-audit-log entity="TreasuryReason" [id]="r.id" [label]="r.name"></app-audit-log> }
                   </td>
                 </tr>
               } @empty { <tr><td colspan="3" class="empty">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }

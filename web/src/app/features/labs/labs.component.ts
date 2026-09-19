@@ -9,6 +9,7 @@ import { TranslatePipe } from '../../core/i18n';
 import { exportXlsx, printTable } from '../../shared/export.util';
 import { FilterSelectComponent } from '../../shared/filter-select.component';
 import { ToastService } from '../../core/toast.service';
+import { AuditLogButtonComponent } from '../../shared/audit-log-button.component';
 
 const SEGMENTS = ['All', 'A', 'B', 'C', 'D'];
 const STATUSES = ['All', 'Scanned', 'Interactive', 'Active', 'Inactive', 'Stopped', 'Pending', 'Suspended', 'Churned'];
@@ -16,7 +17,7 @@ const STATUSES = ['All', 'Scanned', 'Interactive', 'Active', 'Inactive', 'Stoppe
 @Component({
   selector: 'app-labs',
   standalone: true,
-  imports: [FormsModule, RouterLink, TranslatePipe, FilterSelectComponent],
+  imports: [AuditLogButtonComponent, FormsModule, RouterLink, TranslatePipe, FilterSelectComponent],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'lab_mgmt' | t : 'Laboratories' }}</div><h1>{{ 'lab_mgmt' | t : 'Laboratories' }}</h1></div>
@@ -56,7 +57,7 @@ const STATUSES = ['All', 'Scanned', 'Interactive', 'Active', 'Inactive', 'Stoppe
       @if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
       @else {
         <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
-          <thead><tr><th>{{ 'laboratory_3' | t : 'Laboratory' }}</th><th>{{ 'code_2' | t : 'Code' }}</th><th>{{ 'segment' | t }}</th><th>{{ 'status' | t }}</th><th>{{ 'address' | t : 'Address' }}</th>@if (canViewLocation()) { <th>{{ 'map' | t : 'Map' }}</th> }<th>{{ 'collector' | t : 'Collector' }}</th><th>{{ 'marketing' | t : 'Marketing' }}</th><th>{{ 'lab_responsible' | t : 'Lab Responsible' }}</th><th style="width:80px">{{ 'source' | t : 'Source' }}</th><th class="r">{{ 'avg_mo' | t : 'Avg/mo' }}</th><th></th></tr></thead>
+          <thead><tr><th>{{ 'laboratory_3' | t : 'Laboratory' }}</th><th>{{ 'code_2' | t : 'Code' }}</th><th>{{ 'segment' | t }}</th><th>{{ 'status' | t }}</th><th>{{ 'address' | t : 'Address' }}</th>@if (canViewLocation()) { <th>{{ 'map' | t : 'Map' }}</th> }<th>{{ 'collector' | t : 'Collector' }}</th><th>{{ 'marketing' | t : 'Marketing' }}</th><th>{{ 'lab_responsible' | t : 'Lab Responsible' }}</th><th style="width:80px">{{ 'source' | t : 'Source' }}</th><th class="r">{{ 'avg_mo' | t : 'Avg/mo' }}</th><th></th><th class="ar" style="width:36px"></th></tr></thead>
           <tbody>
             @for (l of paged(); track l.id) {
               <tr class="clickable" (click)="open(l.id)">
@@ -69,7 +70,7 @@ const STATUSES = ['All', 'Scanned', 'Interactive', 'Active', 'Inactive', 'Stoppe
                 <td>{{ l.collectors.length ? l.collectors.join(', ') : '—' }}</td>
                 <td>{{ l.marketing ?? '—' }}</td>
                 <td>{{ l.responsible ?? '—' }}</td>
-                <td>@if (l.source === 'Oracle') { <span class="src-b src-o">Oracle</span> } @else { <span class="src-b src-m">Manual</span> }</td>
+                <td>@if (l.source === 'Oracle') { <span class="src-b src-o">Oracle</span> } @else { <span class="src-b src-m">Manual</span> }</td><td (click)="$event.stopPropagation()"><app-audit-log entity="Laboratory" [id]="l.id" [label]="l.name"></app-audit-log></td>
                 <td class="r mono">{{ l.avgMonthlySamples ?? '—' }}</td>
                 <td class="r" style="white-space:nowrap">
                   <button class="btn-ghost" (click)="$event.stopPropagation(); open(l.id)">{{ 'images' | t : 'Images' }}</button>

@@ -104,7 +104,12 @@ public static class AdminEndpoints
 
     public static void MapAuditEndpoints(this RouteGroupBuilder api)
     {
-        api.MapGet("/audit", async (int? page, int? pageSize, string? entity, string? actor, string? action, IMediator m, CancellationToken ct) =>
-            Results.Ok(await m.Send(new GetAuditQuery { Page = page ?? 1, PageSize = pageSize ?? 50, Entity = entity, Actor = actor, Action = action }, ct))).WithTags("Audit");
+        api.MapGet("/audit", async (int? page, int? pageSize, string? entity, string? entityId, string? actor, string? action, DateOnly? from, DateOnly? to, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetAuditQuery { Page = page ?? 1, PageSize = pageSize ?? 50, Entity = entity, EntityId = entityId, Actor = actor, Action = action, From = from, To = to }, ct))).WithTags("Audit");
+        // The per-record "log" button (every page): the full history of one record with the changed fields.
+        api.MapGet("/audit/entity", async (string entity, string entityId, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetEntityAuditQuery(entity, entityId), ct))).WithTags("Audit");
+        api.MapGet("/audit/facets", async (IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetAuditFacetsQuery(), ct))).WithTags("Audit");
     }
 }

@@ -11,6 +11,7 @@ import { UiService } from '../../core/ui.service';
 import { TranslatePipe } from '../../core/i18n';
 import { CollectionDto, PagedResult, RepListItem } from '../../core/models';
 import { ACC_STYLES, COLLECTION_TYPES, IBAN_OPTIONS, dayName, firstOfMonth, money } from './accounting.util';
+import { AuditLogButtonComponent } from '../../shared/audit-log-button.component';
 
 type Opt = { value: string; label: string };
 /** Dialog row: one rep and the amount they handed in (only asked for on a Group collection). */
@@ -25,7 +26,7 @@ type ShareRow = { repId: string; amount: number | null };
 @Component({
   selector: 'app-acc-collections',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, TranslatePipe, DateInputComponent, FilterSelectComponent],
+  imports: [AuditLogButtonComponent, FormsModule, DecimalPipe, TranslatePipe, DateInputComponent, FilterSelectComponent],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'accounting' | t : 'Accounting' }} / {{ 'acc_collections' | t : 'Collection' }}</div><h1>{{ 'acc_collections' | t : 'Collection' }}</h1></div>
@@ -79,7 +80,7 @@ type ShareRow = { repId: string; amount: number | null };
                 @if (canManage()) {
                   <td class="ar actions">
                     <button class="icon-btn" title="Edit" (click)="openEdit(c)">✎</button>
-                    <button class="icon-btn del" title="Delete" (click)="remove(c, i + 1)">🗑</button>
+                    <button class="icon-btn del" title="Delete" (click)="remove(c, i + 1)">🗑</button><app-audit-log entity="Collection" [id]="c.id" [label]="'Collection #' + c.serial"></app-audit-log>
                   </td>
                 }
               </tr>

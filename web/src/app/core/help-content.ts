@@ -1,0 +1,548 @@
+/**
+ * Page help (2026-09-20): what every page is for, the business behind it, its workflow (rendered as a numbered progress
+ * bar), how it works, tips and the privileges involved — in English and Arabic. Keyed by route prefix; `helpFor` picks the
+ * longest matching key for the current url so detail routes (labs/:id, reps/:id) fall back to their list page's entry.
+ */
+export interface HelpStep { title: string; text: string; }
+export interface HelpPage { title: string; purpose: string; business: string; steps: HelpStep[]; how: string[]; tips: string[]; privileges: string[]; }
+type Lang = 'en' | 'ar';
+
+const s = (title: string, text: string): HelpStep => ({ title, text });
+
+const EN: Record<string, HelpPage> = {
+  '/dashboard': {
+    title: 'Dashboard', purpose: 'The daily cockpit: today\'s visits, samples, open complaints and the KPIs of the B2B network at a glance.',
+    business: 'Managers open the day here. Every card links to the page where the number is produced, so a bad figure is one click from its cause.',
+    steps: [s('Read the cards', 'Active labs, samples today, missed visits, open complaints.'), s('Check today\'s board', 'Pending and visited labs with the assigned collectors.'), s('Act', 'Record a visit or jump to the page behind a KPI.')],
+    how: ['The KPIs are computed live from today\'s board, the complaints register and the lab master.', 'The visit widget uses the same "Record visit" dialog as Daily Follow-up, so the two never differ.', 'Numbers respect your organizational scope (branches, governorates, areas).'],
+    tips: ['A missed visit on the dashboard is already a missed row on Daily Follow-up; fix it there.'], privileges: ['ViewDashboard'],
+  },
+  '/daily': {
+    title: 'Daily Follow-up', purpose: 'Today\'s visit board: every lab scheduled for today, who collects, and whether it was visited, missed or received.',
+    business: 'The heart of sample collection. At midnight the board rolls over: today\'s rows are archived into the visit history and tomorrow\'s schedule is generated from each lab\'s work days and visit times.',
+    steps: [s('Board', 'Today\'s labs appear from their schedules (or a manual visit).'), s('Record visit', 'The collector records samples, totals, out-source samples and documents.'), s('Transfer', 'Samples travel to the branch; Transfers and Lab Check-in track the leg.'), s('Verify', 'A supervisor verifies the visit; missed visits are marked.')],
+    how: ['Pending → Visited (or Missed) → Received: the status follows the sample, not the person.', 'Filters narrow by status, area, collector and date; past dates read from the archive (read-only).', '"Record manual visit" adds an unscheduled lab for today.', 'Attachments (photos, receipts) are stored per visit and kept in the history.'],
+    tips: ['The collector list on the dialog is the lab\'s assigned collectors; assign them on the lab page.', 'Use Verify to close the day: verified rows feed the statistics and the rep income sheets.'],
+    privileges: ['ViewDailyFollowup', 'AddDailyFollowup', 'UpdateDailyFollowup', 'VerifyDailyFollowup'],
+  },
+  '/transfers': {
+    title: 'Transfer Management', purpose: 'Tracks the transfer leg of collected samples from the lab to the branch: transfer rep, driver, car and times.',
+    business: 'Samples must arrive at the branch quickly and traceably. A transfer that is not confirmed at check-in is a sample at risk.',
+    steps: [s('Collected', 'A visited lab with samples appears as waiting for transfer.'), s('Assign', 'Transfer rep, driver, mobile and car plate are recorded.'), s('In transit', 'The transfer time is stamped.'), s('Received', 'Lab Check-in confirms arrival at the branch.')],
+    how: ['Rows come from today\'s board and the archive for past dates.', 'The transfer details stay on the visit and appear in the Sample Lifecycle report.'],
+    tips: ['Confirm receipt on Lab Check-in, not here: that is the step that closes the transfer.'], privileges: ['ViewTransfers', 'ManageTransfers', 'ConfirmTransfers'],
+  },
+  '/labcheckin': {
+    title: 'Lab Check-in', purpose: 'The branch confirms the samples that arrived: the visit becomes Received and the received count is fixed.',
+    business: 'The received count is the number the laboratory is paid for and the number data entry must match. It is the hand-over point from the field to the lab.',
+    steps: [s('Arrivals', 'Visited labs whose samples are in transit.'), s('Count', 'The received samples are counted at the branch.'), s('Confirm', 'The visit is marked Received with the count and time.')],
+    how: ['Only visits with recorded samples can be checked in.', 'The received figures feed the Sample Tracking area totals and the statistics.'],
+    tips: ['A count that differs from the collector\'s count is normal; the received count wins.'], privileges: ['ConfirmTransfers'],
+  },
+  '/sampletracking': {
+    title: 'Sample Lifecycle Tracking', purpose: 'Per area and day: how many samples were received and who did the data entry, the review and the sorting.',
+    business: 'Every sample passes Data entry → Review → Sort. Naming the user per step makes the pipeline accountable and is what the Penalty page uses to charge a data-entry penalty to the right typist and reviewer.',
+    steps: [s('Received', 'The area\'s samples for the day (from Lab Check-in).'), s('Data entry', 'The user who typed the registrations.'), s('Review', 'The user who reviewed them.'), s('Sort', 'The user who sorted the samples.')],
+    how: ['Rows are one per area per day; the count is derived from the received visits and can be adjusted.', 'Steps are forward-only: a review cannot be recorded before the data entry.', 'The report tab shows the full lifecycle of each visit (collection, transfer, receipt, entry, review, sort).'],
+    tips: ['Save the row after assigning the users; a dirty row shows the Save button enabled.'], privileges: ['SampleTracking'],
+  },
+  '/outsource-samples': {
+    title: 'Outsource Samples', purpose: 'Samples sent to an outside laboratory: the tests, their fees and the status of each sample.',
+    business: 'Out-sourced tests cost money and time. Tracking them per sample and test keeps the fees, the net income (test − outsource) and the turnaround visible.',
+    steps: [s('Recorded', 'From a visit, or added by hand.'), s('Tests', 'Each outsourced test with its volume and fee.'), s('Sent → Result', 'The status advances until the result is back.')],
+    how: ['The test picker is searchable; fees per volume come from the setup.', 'The report groups samples by date and lab.'],
+    tips: ['Use the status pills to see what is still pending at the outside lab.'], privileges: ['OutsourceSamples'],
+  },
+  '/labstats': {
+    title: 'Lab Statistics', purpose: 'Per-laboratory registrations and income per day, synced from the LDM (Oracle) system.',
+    business: 'The commercial truth of each lab: how many registrations it sent and what they were worth. Basis of the segment income bands, the rep income sheets and the percentage deals.',
+    steps: [s('Sync', 'The nightly Oracle sync (or a manual sync) pulls the day.'), s('Filter', 'Period, branch, governorate, area, lab, segment.'), s('Analyse', 'Pivot by day; totals per lab; colour flags against the reference month.'), s('Export', 'Excel / PDF, or the email report.')],
+    how: ['Income is money as billed in LDM; registrations are counts.', 'The Reg Branch filter splits a lab\'s figures by the branch that registered them.', 'Numbers respect your scope.'],
+    tips: ['A day with no rows usually means the sync has not run yet for it; use the Oracle Integration page.'], privileges: ['ViewLabStats', 'AddLabStats'],
+  },
+  '/test-statistics': {
+    title: 'Test Statistics', purpose: 'Per-test counts and income per day, by test type and group.',
+    business: 'Which tests drive the business. Test groups and the test setup give every code its name, group and fee.',
+    steps: [s('Sync', 'The Oracle sync pulls the test lines.'), s('Filter', 'Period, branch, group, test.'), s('Analyse', 'Pivot by day with totals.'), s('Export', 'Excel / PDF or the email report.')],
+    how: ['Codes repeat across test types; the pair (code, type) identifies a test.', 'Income per test is what LDM billed for it.'],
+    tips: [], privileges: ['ViewTeststats', 'AddTeststats'],
+  },
+  '/area-statistics': {
+    title: 'Area Statistics', purpose: 'Registrations and income grouped by governorate and area, compared with a reference month and day.',
+    business: 'The territory view for the area managers: which areas grow, which shrink, against the chosen reference.',
+    steps: [s('Choose the period', 'And the reference month / day to compare with.'), s('Read the grouped grid', 'Governorate rows, area rows beneath.'), s('Spot the flags', 'Green above the reference, red below.'), s('Export', 'The email report ships the same colour-coded sheet.')],
+    how: ['Labs carry their area by name; an area\'s figures are the sum of its labs.', 'The reference baseline is the same day of the reference month.'],
+    tips: [], privileges: ['ViewAreaStats', 'AddAreaStats'],
+  },
+  '/detailed-statistics': {
+    title: 'Detailed Statistics', purpose: 'Transaction-level registrations from LDM: every Acc No with its lab, branch, status and test lines.',
+    business: 'The drill-down behind the aggregates, and the source the Penalty Report validates Acc Nos against.',
+    steps: [s('Sync', 'The detailed feed is pulled per day.'), s('Search', 'By Acc No, lab, branch, status, period.'), s('Inspect', 'Open a registration to see its test lines.')],
+    how: ['Large periods are paged; narrow the filters first.'],
+    tips: ['If the Penalty Report says "Acc No not in LDM", check whether that day was synced here.'], privileges: ['ViewDetailedStats'],
+  },
+  '/reports': {
+    title: 'Reports', purpose: 'The printable operational reports: visits, samples, transfers and collectors over a period.',
+    business: 'What management prints or emails: a consistent set of tables built from the same data as the pages.',
+    steps: [s('Pick a report', 'And the period / filters.'), s('Generate', 'The table renders on screen.'), s('Export', 'Excel or PDF.')],
+    how: ['Every report respects your scope.'], tips: [], privileges: ['ViewReports'],
+  },
+  '/rep-intervals': {
+    title: 'Rep Performance', purpose: 'Visit intervals and performance per representative over a period.',
+    business: 'How regularly each rep serves the labs; the base for goals and commissions.',
+    steps: [s('Period', 'Choose the range and the rep type.'), s('Read', 'Intervals, visits and goal attainment per rep.'), s('Export', 'Excel / PDF.')],
+    how: ['Intervals are computed from the visit history.'], tips: [], privileges: ['ViewReports'],
+  },
+  '/accounting/penalties': {
+    title: 'Penalty Statement', purpose: 'Records a booking error on a registration: the wrong test that was booked, the right test, and who is responsible.',
+    business: 'A penalty is a correction, not a punishment: on the Rep Statement the right test is a debit (what the lab owes) and the wrong test a credit (what was charged in error), so the net is right − wrong. Rep penalties follow the representative; Data Entry, Technician and Lab Request penalties follow the lab\'s Lab Responsible.',
+    steps: [s('Record', 'Date, lab, Acc No, patient, wrong and right tests with values.'), s('Attribute', 'User type and the person: a rep linked to the lab, or the data-entry user AND the reviewer, or a technician.'), s('Post', 'The statement lines appear automatically.'), s('Report', 'Penalty Report validates the Acc No against LDM and totals per person.')],
+    how: ['Data Entry: the two pickers list the users who did the data entry / review for the lab\'s area on that date (Sample Lifecycle Tracking); with nobody tracked, every user.', 'Rep: the picker lists the reps linked to the chosen lab.', 'Lab Request needs at least one test; it names nobody and posts to the Lab Responsible.', 'Penalty = right − wrong; it may be negative.'],
+    tips: ['Filter by area to narrow the lab list.', 'The 🕓 button shows who recorded or changed a penalty.'], privileges: ['ViewAccounting', 'ManageAccounting'],
+  },
+  '/accounting/penalty-report': {
+    title: 'Penalty Report', purpose: 'The penalties of a period grouped by user type, with an LDM validation of every Acc No, printable as a formal report.',
+    business: 'Management sees who causes booking errors and whether each penalty is backed by a real registration. "Total Penalties" charges each person: a data-entry penalty counts for the typist and the reviewer.',
+    steps: [s('Filter', 'Period, user type, performed by, lab.'), s('Validate', 'LDM check: Acc No exists, belongs to the lab, carries the tests.'), s('Print', 'The grouped report or the Total Penalties PDF.')],
+    how: ['Performed by follows the chosen user type (reps, users, or Lab Responsibles for Lab Request).', 'The LDM check reads the synced detailed registrations.'],
+    tips: ['Press Apply Filters before printing; the print headers show the applied filters.'], privileges: ['ViewAccounting'],
+  },
+  '/accounting/deductions': {
+    title: 'Deductions', purpose: 'Area-level deductions: transportation and the monthly Percentage Deal.',
+    business: 'What is deducted from an area\'s income before it is settled. The Percentage Deal row is computed daily by the automation for areas with a deal (income × %); an operator may adjust it.',
+    steps: [s('Record', 'Area, date, reason, value, optional period.'), s('Suggest', 'Percentage Deal proposes area income × deal %.'), s('Automation', 'One AutoDeal row per area per month, recalculated daily.'), s('Post', 'Deductions credit the Area and Lab Responsible statements.')],
+    how: ['An adjusted automated row is left alone by the automation.', 'Transportation is typed.'],
+    tips: ['"Recalculate now" runs the automation for the current month immediately.'], privileges: ['ViewAccounting', 'ManageAccounting'],
+  },
+  '/accounting/treasury': {
+    title: 'Treasury', purpose: 'The cash books per branch: manual entries with reasons, and the mirrored cash of every collection awaiting validation.',
+    business: 'Cash collected in the field must be seen arriving at the branch. Each cash collection is mirrored into the treasury serving the collector\'s branch; the treasury validates the received amount.',
+    steps: [s('Collection', 'A cash collection creates a pending treasury entry.'), s('Validate', 'The treasury confirms the received cash (or corrects it).'), s('Manual entries', 'Expenses and cash-in with a reason.'), s('Balance', 'Debit − credit per treasury.')],
+    how: ['Rights are per treasury and role: View, Validate, Update.', '"Sync collections" mirrors collections that have no entry yet.'],
+    tips: ['A discrepancy badge means the validated amount differs from what the collector recorded.'], privileges: ['ViewAccounting', 'ManageAccounting'],
+  },
+  '/accounting/collections': {
+    title: 'Collection', purpose: 'Money handed in by Lab Responsibles: cash and bank, per rep, with IBAN, bank reference and out-source income.',
+    business: 'The credit side of the rep statement. A collection is the rep\'s act, not a lab\'s; a group collection splits the total by rep. The out-source income handed in is not the rep\'s collection income: statement credit = cash + bank − out-source.',
+    steps: [s('Record', 'Date, Single or Group, the rep(s), cash / bank.'), s('Bank details', 'IBAN and, when known, the transfer Reference Number.'), s('Out-source', 'The part that is out-source income.'), s('Post', 'Credits the statement; cash mirrors into the treasury.')],
+    how: ['Governorate narrows the Lab Responsible list.', '"Bank without reference" lists bank collections still missing their reference for revision.'],
+    tips: ['Enter the reference later by editing the collection.'], privileges: ['ViewAccounting', 'ManageAccounting'],
+  },
+  '/accounting/rep-statement': {
+    title: 'Rep Statement', purpose: 'The ledger of a Lab Responsible, an area or a lab over a period: debits, credits and the running balance.',
+    business: 'Debit = the total required entered on Rep Income + the right test of each penalty. Credit = the actual collections (net of out-source), the area deductions and the wrong test of each penalty. The balance is what is still owed.',
+    steps: [s('View by', 'Lab Responsible, Area or Lab.'), s('Period', 'Start and end date.'), s('View as', 'Daily lines, or grouped weekly / monthly / yearly.'), s('Export', 'Excel / PDF of the current view.')],
+    how: ['Every line is noted with its source record.', 'Weeks start on Saturday.'],
+    tips: [], privileges: ['ViewAccounting'],
+  },
+  '/accounting/rep-income': {
+    title: 'Rep Income', purpose: 'The Lab Responsible\'s daily sheet per lab: samples, total required, paid, delayed payment and notes.',
+    business: 'What the labs had to pay and what they paid, lab by lab, day by day. The total required is the statement debit; the remaining carries to later days.',
+    steps: [s('Pick', 'Area, date, Lab Responsible.'), s('Rows', 'Labs with a recorded visit or LDM transactions that day.'), s('Enter', 'Total required, paid, delayed payment.'), s('Save', 'The sheet posts to the statement.')],
+    how: ['The LDM income column comes from the synced lab statistics; "Sync LDM" pulls the day now.', 'The Penalty column is right − wrong of every penalty on the lab that day.'],
+    tips: ['Add a lab by hand when the visit was not recorded.'], privileges: ['ViewAccounting', 'ManageAccounting'],
+  },
+  '/inventory/stock': {
+    title: 'Stock', purpose: 'Current stock per item and store, by lot with expiry, against the minimum stock limits.',
+    business: 'Chemicals and consumables must never run out or expire unnoticed. The daily alert job notifies the inventory users of low stock, out-of-stock and expiring lots.',
+    steps: [s('Receive', 'Goods receipts add lots.'), s('Issue / transfer', 'Consumption and transfers move quantities.'), s('Watch', 'Limits and expiry drive the alerts.')],
+    how: ['Stock is the sum of lots; each lot carries its number and expiry.', 'Stores belong to a branch and follow your branch scope.'],
+    tips: [], privileges: ['ViewInventory'],
+  },
+  '/inventory/items': {
+    title: 'Items', purpose: 'The catalogue of chemicals and consumables: manufacturer, unit, limits, expiry warning and the tests each item is consumed by.',
+    business: 'Linking items to tests turns registrations into expected consumption, which the Utilization page compares with actual issues.',
+    steps: [s('Define', 'Code, name, kind, manufacturer, unit.'), s('Limits', 'Minimum stock, reorder quantity, expiry warning days.'), s('Link tests', 'Quantity per test.')],
+    how: ['Inactive items stay in history but are hidden from pickers.'], tips: [], privileges: ['ViewInventory', 'ManageInventory'],
+  },
+  '/inventory/purchase-orders': {
+    title: 'Purchase Orders', purpose: 'Orders to suppliers and the receipt of the goods, line by line, with lot numbers and expiry dates.',
+    business: 'Draft → Ordered → Partially received → Received. Receiving validates the counts against the order and creates the stock lots.',
+    steps: [s('Draft', 'Supplier, store, lines with quantities and prices.'), s('Submit', 'The order is placed.'), s('Receive', 'Counts per line, lot number, expiry; partial receipts allowed.'), s('Close', 'Fully received.')],
+    how: ['Over-receiving is refused; the received quantity never exceeds the ordered one.'], tips: [], privileges: ['ViewInventory', 'ManageInventory'],
+  },
+  '/inventory/transfers': {
+    title: 'Stock Transfers', purpose: 'Moves lots between stores.',
+    business: 'Stock follows the work: a branch that runs low borrows from another store, traceably.',
+    steps: [s('Request', 'From store, to store, lines with lots and quantities.'), s('Confirm', 'Quantities leave the source and enter the destination.')],
+    how: ['A transfer is refused when the lot lacks the quantity.'], tips: [], privileges: ['ViewInventory', 'ManageInventory'],
+  },
+  '/inventory/movements': {
+    title: 'Stock Ledger', purpose: 'Every stock movement: receipts, issues, transfers and adjustments, signed.',
+    business: 'The audit of stock: the ledger explains every quantity on the Stock page.',
+    steps: [s('Filter', 'Store, item, period, kind.'), s('Read', 'One line per movement with its source document.')],
+    how: ['The # column is the movement serial.'], tips: [], privileges: ['ViewInventory'],
+  },
+  '/inventory/utilization': {
+    title: 'Utilization', purpose: 'Expected consumption (tests performed × quantity per test) versus actual issues per item.',
+    business: 'Shows waste or under-recording: an item issued far above the tests it serves needs attention.',
+    steps: [s('Period', 'And the store / item.'), s('Compare', 'Expected vs issued per item.'), s('Act', 'Adjust links or investigate the store.')],
+    how: ['Expected consumption uses the synced test statistics and the item-test links.'], tips: [], privileges: ['ViewInventory'],
+  },
+  '/inventory/setup': {
+    title: 'Inventory Setup', purpose: 'Stores (per branch), suppliers and manufacturers.',
+    business: 'The master data behind orders and stock.', steps: [s('Stores', 'Name, branch, location.'), s('Suppliers', 'Contact details.'), s('Manufacturers', 'Name and country.')],
+    how: ['Deactivate instead of deleting: history keeps its references.'], tips: [], privileges: ['ViewInventory', 'ManageInventory'],
+  },
+  '/marketing': {
+    title: 'Marketing Visits', purpose: 'Planned and completed marketing visits to laboratories, with purpose and outcome.',
+    business: 'The marketing reps\' agenda and its results, per lab and rep.',
+    steps: [s('Schedule', 'Lab, rep, date, purpose.'), s('Visit', 'The rep completes it with the outcome.'), s('Follow up', 'Reschedule or close.')],
+    how: ['Status pills filter Scheduled / Completed / Cancelled.'], tips: [], privileges: ['ViewMarketing', 'AddMarketing', 'UpdateMarketing'],
+  },
+  '/complaints': {
+    title: 'Complaints', purpose: 'Complaints logged by or about laboratories: category, representative, investigation and resolution.',
+    business: 'A complaint is a service failure with an owner and a deadline. Investigation and resolution are signed electronically.',
+    steps: [s('Log', 'Lab, category, description, rep.'), s('Investigate', 'Findings and actions.'), s('Resolve', 'Signed resolution; may be reopened.')],
+    how: ['Each complaint keeps its own audit history (Details).'], tips: [], privileges: ['ViewComplaints', 'AddComplaints', 'UpdateComplaints', 'ResolveComplaints'],
+  },
+  '/labs': {
+    title: 'Laboratories', purpose: 'The B2B laboratory master: identity, geography, schedule, assigned reps, contacts, location and loyalty.',
+    business: 'Everything about a customer lab. Oracle-synced labs keep their identity from LDM; the operator manages the schedule, the reps, the branch and the credit flag.',
+    steps: [s('Register', 'Code, name, segment, geography.'), s('Schedule', 'Work days and visit times generate the daily board.'), s('Assign', 'Collectors, marketing rep, Lab Responsible.'), s('Follow', 'Visits, statistics and statements refer back here.')],
+    how: ['Encrypted labs show a masked code unless you hold Show Encrypted.', 'The map needs the Lab Location privilege.'],
+    tips: ['Use the 🕓 column (or button on the detail page) to see who changed a lab and what.'], privileges: ['AddLabs', 'UpdateLabs', 'ManageLabs', 'ViewLabLocation', 'ShowEncryptedLabs'],
+  },
+  '/reps': {
+    title: 'Representatives', purpose: 'Field staff: collectors, marketing, transfer, scanning, Lab Responsibles and area managers, with goals and geography.',
+    business: 'Who serves which labs. The rep type decides what the person can do: only Lab Responsibles collect money; collectors record visits.',
+    steps: [s('Register', 'Name, type, employment, geography.'), s('Goals', 'Target, metric, duration.'), s('Assign', 'On the lab pages.')],
+    how: ['Deactivate a rep who left; history keeps the link.'], tips: [], privileges: ['ViewReps', 'AddReps', 'UpdateReps', 'ManageReps'],
+  },
+  '/test-groups': {
+    title: 'Test Groups', purpose: 'Groups that organise the test catalogue for statistics and setup.',
+    business: 'Reporting categories for tests.', steps: [s('Create', 'A group name.'), s('Assign', 'Tests on the Test Setup page.')],
+    how: ['Oracle-synced groups are read-only in identity.'], tips: [], privileges: ['AddGroups', 'UpdateGroups', 'DeleteGroups'],
+  },
+  '/test-setups': {
+    title: 'Test Setup', purpose: 'The test catalogue: code, type, name, group, fees and out-source fees per volume.',
+    business: 'Every statistic, penalty and outsource line refers to a test defined here.', steps: [s('Sync', 'Codes come from LDM.'), s('Complete', 'Group, fees, outsource fees.')],
+    how: ['A code may exist in several test types.'], tips: [], privileges: ['AddTestsetup', 'UpdateTestsetup', 'DeleteTestsetup'],
+  },
+  '/loyalty': {
+    title: 'Loyalty', purpose: 'Loyalty tiers and points per laboratory.',
+    business: 'Rewards the labs that send the most.', steps: [s('Tiers', 'Thresholds and names.'), s('Points', 'Earned from registrations.'), s('Ledger', 'Per lab.')],
+    how: [], tips: [], privileges: ['ManageLoyalty'],
+  },
+  '/commissions': {
+    title: 'Commissions', purpose: 'Commission configuration and the computed commissions per representative.',
+    business: 'Pays the field for results.', steps: [s('Configure', 'Rates and bases.'), s('Compute', 'Per period and rep.'), s('Review', 'Export.')],
+    how: [], tips: [], privileges: ['ManageCommissions'],
+  },
+  '/users': {
+    title: 'Users', purpose: 'System accounts, their role, language and the linked representative.',
+    business: 'Access control starts here; the role decides the privileges.', steps: [s('Create', 'Username, password, role.'), s('Link', 'Optionally to a representative.'), s('Maintain', 'Lock, unlock, reset, deactivate.')],
+    how: ['The 🕓 button shows every change to an account.'], tips: [], privileges: ['ManageUsers'],
+  },
+  '/roles': {
+    title: 'Roles', purpose: 'Roles and their privilege matrix per page, plus per-treasury rights and organizational scope.',
+    business: 'Least privilege: a role grants exactly the pages and actions its users need, within a scope of branches, governorates and areas.',
+    steps: [s('Create', 'A role with a scope.'), s('Grant', 'View / Add / Update / special per page.'), s('Treasuries', 'View / Validate / Update per treasury.')],
+    how: ['Manage* privileges imply their View / Add / Update leaves.'], tips: [], privileges: ['ManageUsers'],
+  },
+  '/setup': {
+    title: 'Setup', purpose: 'Reference data: governorates, cities, areas, segments, categories, tiers and retention.',
+    business: 'The vocabulary every page shares.', steps: [s('References', 'Lists by type.'), s('Cities & areas', 'The geography tree with percentage deals and transportation flags.'), s('Retention', 'How long history is kept.')],
+    how: ['Oracle-synced references keep their source code.'], tips: [], privileges: ['SetupRefs', 'SetupCities', 'SetupAreas'],
+  },
+  '/integration': {
+    title: 'Oracle Integration', purpose: 'The LDM (Oracle) sync: configuration, manual runs and the sync status per feed.',
+    business: 'Labs, tests, statistics and detailed registrations come from LDM nightly; this page runs or repairs a sync.',
+    steps: [s('Configure', 'Connection and schedules.'), s('Run', 'A feed for a date range.'), s('Check', 'Status and counts.')],
+    how: ['Operator-managed fields (branch, real name, credit, deals) are never overwritten by the sync.'], tips: [], privileges: ['OracleIntegration'],
+  },
+  '/email-reports': {
+    title: 'Email Reports', purpose: 'Scheduled statistics emails: SMTP settings and subscriptions with recipients, reports and filters.',
+    business: 'Management receives the Lab, Test, Area and No-Lab statistics without opening the app. Each report is attached as an Excel file and as a PDF.',
+    steps: [s('SMTP', 'Host, port, sender, credentials; test it.'), s('Subscription', 'Name, recipients, reports, scope, filters, schedule.'), s('Send', 'Automatically on schedule, or Send now.')],
+    how: ['The email body holds a compact preview; the full data is in the attachments.'], tips: [], privileges: ['ManageEmailReports'],
+  },
+  '/notifications': {
+    title: 'Notifications', purpose: 'Your in-app notifications and the notification preferences and templates.',
+    business: 'The system tells you about missed visits, inventory alerts, complaints and more.', steps: [s('Feed', 'Unread first.'), s('Preferences', 'What you want to receive.'), s('Templates', 'Admins edit the texts.')],
+    how: [], tips: [], privileges: [],
+  },
+  '/sessions': {
+    title: 'Active Sessions', purpose: 'Who is signed in, from where, since when; revoke a session.',
+    business: 'Security hygiene.', steps: [s('Review', 'The list.'), s('Revoke', 'A suspicious session.')], how: [], tips: [], privileges: [],
+  },
+  '/audit': {
+    title: 'Audit Trail', purpose: 'The immutable log of every create, update and delete of a business record: who, when, and what changed.',
+    business: 'Accountability. The server writes the trail inside the same transaction as the change, for users and automated jobs alike; nothing can be edited afterwards.',
+    steps: [s('Filter', 'Period, entity, user, action, record id.'), s('Expand', 'A row shows the changed fields before → after.'), s('Per record', 'The 🕓 button on any page opens one record\'s history.')],
+    how: ['Retention purges old rows only through the configured retention policy, itself audited.'], tips: [], privileges: ['ViewAuditTrail'],
+  },
+};
+
+const AR: Record<string, HelpPage> = {
+  '/dashboard': {
+    title: 'لوحة التحكم', purpose: 'قمرة القيادة اليومية: زيارات اليوم والعينات والشكاوى المفتوحة ومؤشرات شبكة المعامل في لمحة.',
+    business: 'يبدأ المديرون يومهم هنا. كل بطاقة تقود إلى الصفحة التي يُنتَج فيها الرقم، فأي رقم سيئ يبعد نقرة واحدة عن سببه.',
+    steps: [s('اقرأ البطاقات', 'المعامل النشطة، عينات اليوم، الزيارات الفائتة، الشكاوى المفتوحة.'), s('راجع لوحة اليوم', 'المعامل المعلقة والمزارة مع المحصّلين المعينين.'), s('تصرّف', 'سجّل زيارة أو انتقل إلى الصفحة خلف المؤشر.')],
+    how: ['تُحسب المؤشرات مباشرة من لوحة اليوم وسجل الشكاوى وبيانات المعامل.', 'أداة الزيارة تستخدم نفس نافذة "تسجيل زيارة" الخاصة بالمتابعة اليومية.', 'الأرقام تحترم نطاقك التنظيمي (الفروع والمحافظات والمناطق).'],
+    tips: ['الزيارة الفائتة على اللوحة هي صف فائت في المتابعة اليومية؛ عالجها هناك.'], privileges: ['ViewDashboard'],
+  },
+  '/daily': {
+    title: 'المتابعة اليومية', purpose: 'لوحة زيارات اليوم: كل معمل مجدول اليوم، من يحصّل، وهل تمت الزيارة أم فاتت أم استُلمت العينات.',
+    business: 'قلب عملية جمع العينات. عند منتصف الليل تُؤرشف صفوف اليوم في سجل الزيارات ويُولَّد جدول الغد من أيام العمل وأوقات الزيارة لكل معمل.',
+    steps: [s('اللوحة', 'تظهر معامل اليوم من جداولها أو من زيارة يدوية.'), s('تسجيل الزيارة', 'يسجل المحصّل العينات والإجماليات وعينات التعهيد والمستندات.'), s('النقل', 'تنتقل العينات إلى الفرع؛ تتبعها صفحتا النقل والاستلام.'), s('الاعتماد', 'يعتمد المشرف الزيارة؛ وتُعلَّم الزيارات الفائتة.')],
+    how: ['معلّق ← تمت الزيارة (أو فائتة) ← مستلمة: الحالة تتبع العينة لا الشخص.', 'الفلاتر حسب الحالة والمنطقة والمحصّل والتاريخ؛ التواريخ السابقة تُقرأ من الأرشيف للقراءة فقط.', '"تسجيل زيارة يدوية" يضيف معملًا غير مجدول لليوم.', 'المرفقات تُحفظ مع الزيارة وتبقى في السجل.'],
+    tips: ['قائمة المحصّلين في النافذة هي المعينون للمعمل؛ عيّنهم من صفحة المعمل.', 'استخدم الاعتماد لإقفال اليوم: الصفوف المعتمدة تغذي الإحصاءات وكشوف دخل المندوب.'],
+    privileges: ['ViewDailyFollowup', 'AddDailyFollowup', 'UpdateDailyFollowup', 'VerifyDailyFollowup'],
+  },
+  '/transfers': {
+    title: 'إدارة النقل', purpose: 'يتتبع مرحلة نقل العينات من المعمل إلى الفرع: مندوب النقل والسائق والسيارة والأوقات.',
+    business: 'يجب أن تصل العينات إلى الفرع بسرعة وبشكل قابل للتتبع. النقل غير المؤكد عند الاستلام عينة في خطر.',
+    steps: [s('مُحصَّلة', 'المعمل المزار بعينات يظهر بانتظار النقل.'), s('التعيين', 'تسجيل مندوب النقل والسائق والجوال ولوحة السيارة.'), s('في الطريق', 'يُختم وقت النقل.'), s('مستلمة', 'يؤكد استلام المعمل الوصول إلى الفرع.')],
+    how: ['الصفوف من لوحة اليوم ومن الأرشيف للتواريخ السابقة.', 'تفاصيل النقل تبقى على الزيارة وتظهر في تقرير دورة حياة العينة.'],
+    tips: ['أكّد الاستلام من صفحة استلام المعمل لا هنا: تلك هي الخطوة التي تغلق النقل.'], privileges: ['ViewTransfers', 'ManageTransfers', 'ConfirmTransfers'],
+  },
+  '/labcheckin': {
+    title: 'استلام المعمل', purpose: 'يؤكد الفرع العينات الواصلة: تصبح الزيارة مستلمة ويُثبَّت عدد المستلم.',
+    business: 'عدد المستلم هو الرقم الذي يُدفع للمعمل عنه والرقم الذي يجب أن يطابقه إدخال البيانات. إنها نقطة التسليم من الميدان إلى المعمل.',
+    steps: [s('الواصل', 'المعامل المزارة وعيناتها في الطريق.'), s('العدّ', 'تُعدّ العينات المستلمة في الفرع.'), s('التأكيد', 'تُعلَّم الزيارة مستلمة بالعدد والوقت.')],
+    how: ['لا يُستلم إلا الزيارات ذات العينات المسجلة.', 'أرقام الاستلام تغذي إجماليات المناطق في تتبع العينات والإحصاءات.'],
+    tips: ['اختلاف العدد عن عدّ المحصّل طبيعي؛ عدد المستلم هو المعتمد.'], privileges: ['ConfirmTransfers'],
+  },
+  '/sampletracking': {
+    title: 'تتبع دورة حياة العينة', purpose: 'لكل منطقة ويوم: عدد العينات المستلمة ومن قام بإدخال البيانات والمراجعة والفرز.',
+    business: 'كل عينة تمر بإدخال البيانات ← المراجعة ← الفرز. تسمية المستخدم لكل خطوة تجعل المسار خاضعًا للمساءلة، وهي ما تستخدمه صفحة الجزاءات لتحميل جزاء إدخال البيانات على المُدخِل والمراجع الصحيحين.',
+    steps: [s('المستلم', 'عينات المنطقة لليوم (من استلام المعمل).'), s('إدخال البيانات', 'المستخدم الذي أدخل التسجيلات.'), s('المراجعة', 'المستخدم الذي راجعها.'), s('الفرز', 'المستخدم الذي فرز العينات.')],
+    how: ['الصفوف واحدة لكل منطقة ويوم؛ العدد مشتق من الزيارات المستلمة ويمكن تعديله.', 'الخطوات للأمام فقط: لا تُسجَّل المراجعة قبل إدخال البيانات.', 'تبويب التقرير يعرض دورة الحياة الكاملة لكل زيارة.'],
+    tips: ['احفظ الصف بعد تعيين المستخدمين؛ يظهر زر الحفظ مفعّلًا للصف المعدّل.'], privileges: ['SampleTracking'],
+  },
+  '/outsource-samples': {
+    title: 'عينات التعهيد الخارجي', purpose: 'العينات المرسلة إلى معمل خارجي: التحاليل ورسومها وحالة كل عينة.',
+    business: 'التحاليل المعهودة تكلف مالًا ووقتًا. تتبعها لكل عينة وتحليل يُبقي الرسوم وصافي الدخل (التحليل − التعهيد) ووقت الإنجاز مرئية.',
+    steps: [s('مسجلة', 'من زيارة أو مضافة يدويًا.'), s('التحاليل', 'كل تحليل معهود بحجمه ورسمه.'), s('مرسلة ← النتيجة', 'تتقدم الحالة حتى تعود النتيجة.')],
+    how: ['اختيار التحليل قابل للبحث؛ الرسوم حسب الحجم من الإعداد.', 'التقرير يجمع العينات حسب التاريخ والمعمل.'],
+    tips: ['استخدم أزرار الحالة لمعرفة ما زال معلقًا لدى المعمل الخارجي.'], privileges: ['OutsourceSamples'],
+  },
+  '/labstats': {
+    title: 'إحصاءات المعامل', purpose: 'التسجيلات والدخل لكل معمل يوميًا، مزامَنة من نظام LDM (أوراكل).',
+    business: 'الحقيقة التجارية لكل معمل: كم تسجيلًا أرسل وكم كانت قيمتها. أساس شرائح الدخل وكشوف دخل المندوب واتفاقيات النسبة.',
+    steps: [s('المزامنة', 'مزامنة أوراكل الليلية (أو اليدوية) تسحب اليوم.'), s('الفلترة', 'الفترة والفرع والمحافظة والمنطقة والمعمل والشريحة.'), s('التحليل', 'محور حسب اليوم؛ إجماليات لكل معمل؛ ألوان مقابل الشهر المرجعي.'), s('التصدير', 'إكسل / PDF أو تقرير البريد.')],
+    how: ['الدخل هو المبلغ كما فُوتر في LDM؛ التسجيلات أعداد.', 'فلتر فرع التسجيل يقسم أرقام المعمل حسب الفرع الذي سجلها.', 'الأرقام تحترم نطاقك.'],
+    tips: ['اليوم بلا صفوف يعني غالبًا أن المزامنة لم تعمل له بعد؛ استخدم صفحة تكامل أوراكل.'], privileges: ['ViewLabStats', 'AddLabStats'],
+  },
+  '/test-statistics': {
+    title: 'إحصاءات التحاليل', purpose: 'أعداد التحاليل ودخلها يوميًا حسب نوع التحليل والمجموعة.',
+    business: 'أي التحاليل تقود العمل. مجموعات التحاليل وإعداد التحاليل يعطيان كل كود اسمه ومجموعته ورسمه.',
+    steps: [s('المزامنة', 'مزامنة أوراكل تسحب سطور التحاليل.'), s('الفلترة', 'الفترة والفرع والمجموعة والتحليل.'), s('التحليل', 'محور حسب اليوم مع الإجماليات.'), s('التصدير', 'إكسل / PDF أو تقرير البريد.')],
+    how: ['الأكواد تتكرر عبر أنواع التحاليل؛ الزوج (كود، نوع) يحدد التحليل.', 'دخل التحليل هو ما فوتره LDM له.'],
+    tips: [], privileges: ['ViewTeststats', 'AddTeststats'],
+  },
+  '/area-statistics': {
+    title: 'إحصاءات المناطق', purpose: 'التسجيلات والدخل مجمعة حسب المحافظة والمنطقة، مقارنة بشهر ويوم مرجعيين.',
+    business: 'رؤية الإقليم لمديري المناطق: أي المناطق تنمو وأيها تتراجع مقابل المرجع المختار.',
+    steps: [s('اختر الفترة', 'والشهر / اليوم المرجعي للمقارنة.'), s('اقرأ الشبكة المجمعة', 'صفوف المحافظات وتحتها المناطق.'), s('لاحظ الألوان', 'أخضر فوق المرجع، أحمر تحته.'), s('التصدير', 'تقرير البريد يرسل نفس الورقة الملونة.')],
+    how: ['المعامل تحمل منطقتها بالاسم؛ أرقام المنطقة مجموع معاملها.', 'خط الأساس هو نفس اليوم من الشهر المرجعي.'],
+    tips: [], privileges: ['ViewAreaStats', 'AddAreaStats'],
+  },
+  '/detailed-statistics': {
+    title: 'الإحصاءات التفصيلية', purpose: 'تسجيلات LDM على مستوى المعاملة: كل رقم حساب مع معمله وفرعه وحالته وسطور تحاليله.',
+    business: 'التفصيل خلف الإجماليات، والمصدر الذي يتحقق تقرير الجزاءات من أرقام الحسابات مقابله.',
+    steps: [s('المزامنة', 'التغذية التفصيلية تُسحب لكل يوم.'), s('البحث', 'برقم الحساب والمعمل والفرع والحالة والفترة.'), s('الفحص', 'افتح التسجيل لرؤية سطور تحاليله.')],
+    how: ['الفترات الكبيرة مقسمة صفحات؛ ضيّق الفلاتر أولًا.'],
+    tips: ['إن قال تقرير الجزاءات "رقم الحساب غير موجود في LDM" فتحقق هنا هل زومن ذلك اليوم.'], privileges: ['ViewDetailedStats'],
+  },
+  '/reports': {
+    title: 'التقارير', purpose: 'التقارير التشغيلية القابلة للطباعة: الزيارات والعينات والنقل والمحصّلون خلال فترة.',
+    business: 'ما تطبعه الإدارة أو ترسله: مجموعة جداول متسقة مبنية على نفس بيانات الصفحات.',
+    steps: [s('اختر التقرير', 'والفترة / الفلاتر.'), s('التوليد', 'يُعرض الجدول على الشاشة.'), s('التصدير', 'إكسل أو PDF.')],
+    how: ['كل تقرير يحترم نطاقك.'], tips: [], privileges: ['ViewReports'],
+  },
+  '/rep-intervals': {
+    title: 'أداء المندوبين', purpose: 'فترات الزيارة والأداء لكل مندوب خلال فترة.',
+    business: 'مدى انتظام خدمة كل مندوب للمعامل؛ أساس الأهداف والعمولات.',
+    steps: [s('الفترة', 'اختر النطاق ونوع المندوب.'), s('القراءة', 'الفترات والزيارات وتحقيق الهدف لكل مندوب.'), s('التصدير', 'إكسل / PDF.')],
+    how: ['تُحسب الفترات من سجل الزيارات.'], tips: [], privileges: ['ViewReports'],
+  },
+  '/accounting/penalties': {
+    title: 'كشف الجزاءات', purpose: 'يسجل خطأ حجز على تسجيل: التحليل الخاطئ المحجوز، التحليل الصحيح، ومن المسؤول.',
+    business: 'الجزاء تصحيح لا عقوبة: على كشف المندوب يكون التحليل الصحيح مدينًا (ما يستحقه المعمل) والخاطئ دائنًا (ما حُمِّل خطأً)، فالصافي = الصحيح − الخاطئ. جزاءات المندوب تتبع المندوب؛ وجزاءات إدخال البيانات والفني وطلب المعمل تتبع مسؤول المعمل.',
+    steps: [s('التسجيل', 'التاريخ والمعمل ورقم الحساب والمريض والتحليلان الخاطئ والصحيح بقيمتيهما.'), s('الإسناد', 'نوع المستخدم والشخص: مندوب مرتبط بالمعمل، أو مُدخِل البيانات والمراجع معًا، أو فني.'), s('الترحيل', 'تظهر سطور الكشف تلقائيًا.'), s('التقرير', 'تقرير الجزاءات يتحقق من رقم الحساب في LDM ويجمع لكل شخص.')],
+    how: ['إدخال البيانات: القائمتان تعرضان من قام بإدخال البيانات / المراجعة لمنطقة المعمل في ذلك التاريخ (تتبع دورة حياة العينة)؛ وبلا تتبع، كل المستخدمين.', 'المندوب: القائمة تعرض المندوبين المرتبطين بالمعمل المختار.', 'طلب المعمل يحتاج تحليلًا واحدًا على الأقل؛ لا يسمي أحدًا ويُرحَّل لمسؤول المعمل.', 'الجزاء = الصحيح − الخاطئ؛ وقد يكون سالبًا.'],
+    tips: ['فلتر المنطقة يضيّق قائمة المعامل.', 'زر 🕓 يعرض من سجّل الجزاء أو عدّله.'], privileges: ['ViewAccounting', 'ManageAccounting'],
+  },
+  '/accounting/penalty-report': {
+    title: 'تقرير الجزاءات', purpose: 'جزاءات فترة مجمعة حسب نوع المستخدم مع تحقق LDM من كل رقم حساب، قابل للطباعة كتقرير رسمي.',
+    business: 'ترى الإدارة من يسبب أخطاء الحجز وهل كل جزاء مدعوم بتسجيل حقيقي. "إجمالي الجزاءات" يحمّل كل شخص: جزاء إدخال البيانات يُحسب للمُدخِل والمراجع.',
+    steps: [s('الفلترة', 'الفترة ونوع المستخدم وبواسطة والمعمل.'), s('التحقق', 'فحص LDM: رقم الحساب موجود، يخص المعمل، يحمل التحاليل.'), s('الطباعة', 'التقرير المجمع أو PDF إجمالي الجزاءات.')],
+    how: ['"بواسطة" يتبع نوع المستخدم المختار (مندوبون أو مستخدمون أو مسؤولو المعامل لطلب المعمل).', 'فحص LDM يقرأ التسجيلات التفصيلية المزامنة.'],
+    tips: ['اضغط تطبيق الفلاتر قبل الطباعة؛ رؤوس الطباعة تعرض الفلاتر المطبقة.'], privileges: ['ViewAccounting'],
+  },
+  '/accounting/deductions': {
+    title: 'الخصومات', purpose: 'خصومات على مستوى المنطقة: المواصلات واتفاقية النسبة الشهرية.',
+    business: 'ما يُخصم من دخل المنطقة قبل التسوية. صف اتفاقية النسبة يحسبه النظام يوميًا للمناطق ذات الاتفاقية (الدخل × %) ويمكن للمشغل تعديله.',
+    steps: [s('التسجيل', 'المنطقة والتاريخ والسبب والقيمة وفترة اختيارية.'), s('الاقتراح', 'اتفاقية النسبة تقترح دخل المنطقة × نسبة الاتفاقية.'), s('الأتمتة', 'صف آلي واحد لكل منطقة شهريًا يُعاد حسابه يوميًا.'), s('الترحيل', 'الخصومات دائنة في كشفي المنطقة ومسؤول المعمل.')],
+    how: ['الصف الآلي المعدَّل تتركه الأتمتة.', 'المواصلات تُكتب يدويًا.'],
+    tips: ['"إعادة الحساب الآن" تشغّل الأتمتة للشهر الحالي فورًا.'], privileges: ['ViewAccounting', 'ManageAccounting'],
+  },
+  '/accounting/treasury': {
+    title: 'الخزينة', purpose: 'دفاتر النقدية لكل فرع: قيود يدوية بأسباب، والنقدية المنعكسة من كل تحصيل بانتظار الاعتماد.',
+    business: 'النقدية المحصَّلة ميدانيًا يجب أن تُرى واصلة إلى الفرع. كل تحصيل نقدي ينعكس في خزينة فرع المحصّل؛ وتعتمد الخزينة المبلغ المستلم.',
+    steps: [s('التحصيل', 'التحصيل النقدي ينشئ قيد خزينة معلقًا.'), s('الاعتماد', 'تؤكد الخزينة النقدية المستلمة (أو تصححها).'), s('القيود اليدوية', 'مصروفات وإيرادات بسبب.'), s('الرصيد', 'مدين − دائن لكل خزينة.')],
+    how: ['الصلاحيات لكل خزينة ودور: عرض، اعتماد، تعديل.', '"مزامنة التحصيلات" تعكس التحصيلات التي لا قيد لها بعد.'],
+    tips: ['شارة الفرق تعني أن المبلغ المعتمد يختلف عما سجله المحصّل.'], privileges: ['ViewAccounting', 'ManageAccounting'],
+  },
+  '/accounting/collections': {
+    title: 'التحصيل', purpose: 'المبالغ التي يسلمها مسؤولو المعامل: نقدي وبنكي لكل مندوب مع IBAN والمرجع البنكي ودخل التعهيد الخارجي.',
+    business: 'الجانب الدائن من كشف المندوب. التحصيل فعل المندوب لا المعمل؛ التحصيل الجماعي يقسم الإجمالي على المندوبين. دخل التعهيد المسلَّم ليس دخل تحصيل المندوب: دائن الكشف = النقدي + البنكي − التعهيد.',
+    steps: [s('التسجيل', 'التاريخ، فردي أو جماعي، المندوب(ون)، نقدي / بنكي.'), s('بيانات البنك', 'IBAN والرقم المرجعي للتحويل عند معرفته.'), s('التعهيد', 'الجزء الذي يمثل دخل تعهيد خارجي.'), s('الترحيل', 'دائن في الكشف؛ والنقدي ينعكس في الخزينة.')],
+    how: ['المحافظة تضيّق قائمة مسؤولي المعامل.', '"بنكي بدون مرجع" يعرض التحصيلات البنكية التي ينقصها المرجع للمراجعة.'],
+    tips: ['أدخل المرجع لاحقًا بتعديل التحصيل.'], privileges: ['ViewAccounting', 'ManageAccounting'],
+  },
+  '/accounting/rep-statement': {
+    title: 'كشف المندوب', purpose: 'دفتر مسؤول معمل أو منطقة أو معمل خلال فترة: المدين والدائن والرصيد الجاري.',
+    business: 'المدين = الإجمالي المطلوب المدخل في دخل المندوب + التحليل الصحيح لكل جزاء. الدائن = التحصيلات الفعلية (صافي التعهيد) وخصومات المنطقة والتحليل الخاطئ لكل جزاء. الرصيد هو المتبقي.',
+    steps: [s('عرض حسب', 'مسؤول معمل أو منطقة أو معمل.'), s('الفترة', 'تاريخ البداية والنهاية.'), s('العرض', 'سطور يومية أو مجمعة أسبوعيًا / شهريًا / سنويًا.'), s('التصدير', 'إكسل / PDF للعرض الحالي.')],
+    how: ['كل سطر موثق بسجله المصدر.', 'الأسبوع يبدأ يوم السبت.'],
+    tips: [], privileges: ['ViewAccounting'],
+  },
+  '/accounting/rep-income': {
+    title: 'دخل المندوب', purpose: 'كشف مسؤول المعمل اليومي لكل معمل: العينات والإجمالي المطلوب والمدفوع والدفع المؤجل والملاحظات.',
+    business: 'ما كان على المعامل دفعه وما دفعته، معملًا معملًا ويومًا يومًا. الإجمالي المطلوب هو مدين الكشف؛ والمتبقي يُرحَّل للأيام التالية.',
+    steps: [s('الاختيار', 'المنطقة والتاريخ ومسؤول المعمل.'), s('الصفوف', 'المعامل ذات الزيارة المسجلة أو معاملات LDM في ذلك اليوم.'), s('الإدخال', 'الإجمالي المطلوب والمدفوع والدفع المؤجل.'), s('الحفظ', 'يُرحَّل الكشف إلى كشف المندوب.')],
+    how: ['عمود دخل LDM من إحصاءات المعامل المزامنة؛ "مزامنة LDM" تسحب اليوم الآن.', 'عمود الجزاء = الصحيح − الخاطئ لكل جزاء على المعمل في ذلك اليوم.'],
+    tips: ['أضف معملًا يدويًا إن لم تُسجَّل الزيارة.'], privileges: ['ViewAccounting', 'ManageAccounting'],
+  },
+  '/inventory/stock': {
+    title: 'المخزون', purpose: 'المخزون الحالي لكل صنف ومخزن، حسب اللوط وتاريخ الانتهاء، مقابل حدود الحد الأدنى.',
+    business: 'الكيماويات والمستهلكات لا يجب أن تنفد أو تنتهي دون انتباه. مهمة التنبيه اليومية تخطر مستخدمي المخزون بالنقص والنفاد واللوطات القاربة على الانتهاء.',
+    steps: [s('الاستلام', 'إيصالات البضاعة تضيف لوطات.'), s('الصرف / التحويل', 'الاستهلاك والتحويلات تحرك الكميات.'), s('المراقبة', 'الحدود والانتهاء تقود التنبيهات.')],
+    how: ['المخزون مجموع اللوطات؛ كل لوط يحمل رقمه وانتهاءه.', 'المخازن تتبع الفرع ونطاقك.'],
+    tips: [], privileges: ['ViewInventory'],
+  },
+  '/inventory/items': {
+    title: 'الأصناف', purpose: 'كتالوج الكيماويات والمستهلكات: الشركة المصنعة والوحدة والحدود وتنبيه الانتهاء والتحاليل التي تستهلك كل صنف.',
+    business: 'ربط الأصناف بالتحاليل يحول التسجيلات إلى استهلاك متوقع تقارنه صفحة الاستخدام بالصرف الفعلي.',
+    steps: [s('التعريف', 'الكود والاسم والنوع والمصنع والوحدة.'), s('الحدود', 'الحد الأدنى وكمية إعادة الطلب وأيام تنبيه الانتهاء.'), s('ربط التحاليل', 'الكمية لكل تحليل.')],
+    how: ['الأصناف غير النشطة تبقى في السجل وتُخفى من القوائم.'], tips: [], privileges: ['ViewInventory', 'ManageInventory'],
+  },
+  '/inventory/purchase-orders': {
+    title: 'أوامر الشراء', purpose: 'طلبات الموردين واستلام البضاعة سطرًا سطرًا مع أرقام اللوط وتواريخ الانتهاء.',
+    business: 'مسودة ← مطلوب ← مستلم جزئيًا ← مستلم. الاستلام يتحقق من الأعداد مقابل الطلب وينشئ لوطات المخزون.',
+    steps: [s('المسودة', 'المورد والمخزن والسطور بالكميات والأسعار.'), s('الإرسال', 'يُعتمد الطلب.'), s('الاستلام', 'الأعداد لكل سطر ورقم اللوط والانتهاء؛ يُسمح بالاستلام الجزئي.'), s('الإقفال', 'مستلم بالكامل.')],
+    how: ['يُرفض الاستلام الزائد؛ لا تتجاوز الكمية المستلمة المطلوبة.'], tips: [], privileges: ['ViewInventory', 'ManageInventory'],
+  },
+  '/inventory/transfers': {
+    title: 'تحويلات المخزون', purpose: 'نقل اللوطات بين المخازن.',
+    business: 'المخزون يتبع العمل: الفرع الذي يقل مخزونه يستعير من مخزن آخر بشكل قابل للتتبع.',
+    steps: [s('الطلب', 'من مخزن إلى مخزن، سطور باللوطات والكميات.'), s('التأكيد', 'تخرج الكميات من المصدر وتدخل الوجهة.')],
+    how: ['يُرفض التحويل إن لم يتوفر بالكمية في اللوط.'], tips: [], privileges: ['ViewInventory', 'ManageInventory'],
+  },
+  '/inventory/movements': {
+    title: 'دفتر المخزون', purpose: 'كل حركة مخزون: استلام وصرف وتحويل وتسوية، بإشارتها.',
+    business: 'تدقيق المخزون: الدفتر يفسر كل كمية في صفحة المخزون.',
+    steps: [s('الفلترة', 'المخزن والصنف والفترة والنوع.'), s('القراءة', 'سطر لكل حركة مع مستندها المصدر.')],
+    how: ['عمود # هو الرقم التسلسلي للحركة.'], tips: [], privileges: ['ViewInventory'],
+  },
+  '/inventory/utilization': {
+    title: 'الاستخدام', purpose: 'الاستهلاك المتوقع (التحاليل المنفذة × الكمية لكل تحليل) مقابل الصرف الفعلي لكل صنف.',
+    business: 'يكشف الهدر أو نقص التسجيل: الصنف المصروف بأكثر مما تخدمه تحاليله يحتاج انتباهًا.',
+    steps: [s('الفترة', 'والمخزن / الصنف.'), s('المقارنة', 'المتوقع مقابل المصروف لكل صنف.'), s('التصرف', 'عدّل الروابط أو راجع المخزن.')],
+    how: ['الاستهلاك المتوقع يستخدم إحصاءات التحاليل المزامنة وروابط الصنف-التحليل.'], tips: [], privileges: ['ViewInventory'],
+  },
+  '/inventory/setup': {
+    title: 'إعداد المخزون', purpose: 'المخازن (لكل فرع) والموردون والشركات المصنعة.',
+    business: 'البيانات الأساسية خلف الطلبات والمخزون.', steps: [s('المخازن', 'الاسم والفرع والموقع.'), s('الموردون', 'بيانات الاتصال.'), s('المصنعون', 'الاسم والبلد.')],
+    how: ['عطّل بدل الحذف: السجل يحتفظ بمراجعه.'], tips: [], privileges: ['ViewInventory', 'ManageInventory'],
+  },
+  '/marketing': {
+    title: 'الزيارات التسويقية', purpose: 'الزيارات التسويقية المخططة والمنفذة للمعامل بغرضها ونتيجتها.',
+    business: 'أجندة مندوبي التسويق ونتائجها لكل معمل ومندوب.',
+    steps: [s('الجدولة', 'المعمل والمندوب والتاريخ والغرض.'), s('الزيارة', 'يكملها المندوب بالنتيجة.'), s('المتابعة', 'إعادة جدولة أو إغلاق.')],
+    how: ['أزرار الحالة تفلتر مجدولة / مكتملة / ملغاة.'], tips: [], privileges: ['ViewMarketing', 'AddMarketing', 'UpdateMarketing'],
+  },
+  '/complaints': {
+    title: 'الشكاوى', purpose: 'الشكاوى المسجلة من المعامل أو عنها: الفئة والمندوب والتحقيق والحل.',
+    business: 'الشكوى فشل خدمة له مالك وموعد. التحقيق والحل يوقَّعان إلكترونيًا.',
+    steps: [s('التسجيل', 'المعمل والفئة والوصف والمندوب.'), s('التحقيق', 'النتائج والإجراءات.'), s('الحل', 'حل موقَّع؛ يمكن إعادة الفتح.')],
+    how: ['كل شكوى تحتفظ بسجل تدقيقها (التفاصيل).'], tips: [], privileges: ['ViewComplaints', 'AddComplaints', 'UpdateComplaints', 'ResolveComplaints'],
+  },
+  '/labs': {
+    title: 'المعامل', purpose: 'بيانات معامل B2B: الهوية والجغرافيا والجدول والمندوبون المعينون وجهات الاتصال والموقع والولاء.',
+    business: 'كل شيء عن المعمل العميل. المعامل المزامنة من أوراكل تحتفظ بهويتها من LDM؛ ويدير المشغل الجدول والمندوبين والفرع وعلامة الائتمان.',
+    steps: [s('التسجيل', 'الكود والاسم والشريحة والجغرافيا.'), s('الجدول', 'أيام العمل وأوقات الزيارة تولد لوحة اليوم.'), s('التعيين', 'المحصّلون ومندوب التسويق ومسؤول المعمل.'), s('المتابعة', 'الزيارات والإحصاءات والكشوف تعود إلى هنا.')],
+    how: ['المعامل المشفرة تعرض كودًا مقنّعًا ما لم تملك صلاحية عرض المشفر.', 'الخريطة تحتاج صلاحية موقع المعمل.'],
+    tips: ['استخدم عمود 🕓 (أو الزر في صفحة التفاصيل) لمعرفة من عدّل المعمل وماذا.'], privileges: ['AddLabs', 'UpdateLabs', 'ManageLabs', 'ViewLabLocation', 'ShowEncryptedLabs'],
+  },
+  '/reps': {
+    title: 'المندوبون', purpose: 'العاملون الميدانيون: محصّلون وتسويق ونقل ومسح ومسؤولو معامل ومديرو مناطق، بأهدافهم وجغرافيتهم.',
+    business: 'من يخدم أي المعامل. نوع المندوب يحدد ما يمكنه فعله: مسؤولو المعامل فقط يحصّلون المال؛ والمحصّلون يسجلون الزيارات.',
+    steps: [s('التسجيل', 'الاسم والنوع والتوظيف والجغرافيا.'), s('الأهداف', 'الهدف والمقياس والمدة.'), s('التعيين', 'من صفحات المعامل.')],
+    how: ['عطّل المندوب الذي ترك العمل؛ السجل يحتفظ بالرابط.'], tips: [], privileges: ['ViewReps', 'AddReps', 'UpdateReps', 'ManageReps'],
+  },
+  '/test-groups': {
+    title: 'مجموعات التحاليل', purpose: 'مجموعات تنظم كتالوج التحاليل للإحصاءات والإعداد.',
+    business: 'فئات التقارير للتحاليل.', steps: [s('الإنشاء', 'اسم المجموعة.'), s('التعيين', 'التحاليل من صفحة إعداد التحاليل.')],
+    how: ['المجموعات المزامنة من أوراكل هويتها للقراءة فقط.'], tips: [], privileges: ['AddGroups', 'UpdateGroups', 'DeleteGroups'],
+  },
+  '/test-setups': {
+    title: 'إعداد التحاليل', purpose: 'كتالوج التحاليل: الكود والنوع والاسم والمجموعة والرسوم ورسوم التعهيد حسب الحجم.',
+    business: 'كل إحصاء وجزاء وسطر تعهيد يشير إلى تحليل معرّف هنا.', steps: [s('المزامنة', 'الأكواد من LDM.'), s('الاستكمال', 'المجموعة والرسوم ورسوم التعهيد.')],
+    how: ['قد يوجد الكود في عدة أنواع تحاليل.'], tips: [], privileges: ['AddTestsetup', 'UpdateTestsetup', 'DeleteTestsetup'],
+  },
+  '/loyalty': {
+    title: 'الولاء', purpose: 'مستويات الولاء والنقاط لكل معمل.',
+    business: 'يكافئ المعامل الأكثر إرسالًا.', steps: [s('المستويات', 'الحدود والأسماء.'), s('النقاط', 'تُكتسب من التسجيلات.'), s('الدفتر', 'لكل معمل.')],
+    how: [], tips: [], privileges: ['ManageLoyalty'],
+  },
+  '/commissions': {
+    title: 'العمولات', purpose: 'إعداد العمولات والعمولات المحسوبة لكل مندوب.',
+    business: 'يكافئ الميدان على النتائج.', steps: [s('الإعداد', 'النسب والأسس.'), s('الحساب', 'لكل فترة ومندوب.'), s('المراجعة', 'التصدير.')],
+    how: [], tips: [], privileges: ['ManageCommissions'],
+  },
+  '/users': {
+    title: 'المستخدمون', purpose: 'حسابات النظام ودورها ولغتها والمندوب المرتبط.',
+    business: 'التحكم في الوصول يبدأ هنا؛ الدور يحدد الصلاحيات.', steps: [s('الإنشاء', 'اسم المستخدم وكلمة المرور والدور.'), s('الربط', 'اختياريًا بمندوب.'), s('الصيانة', 'قفل وفتح وإعادة تعيين وتعطيل.')],
+    how: ['زر 🕓 يعرض كل تغيير على الحساب.'], tips: [], privileges: ['ManageUsers'],
+  },
+  '/roles': {
+    title: 'الأدوار', purpose: 'الأدوار ومصفوفة صلاحياتها لكل صفحة، وحقوق كل خزينة، والنطاق التنظيمي.',
+    business: 'أقل صلاحية: الدور يمنح بالضبط الصفحات والإجراءات التي يحتاجها مستخدموه ضمن نطاق من الفروع والمحافظات والمناطق.',
+    steps: [s('الإنشاء', 'دور بنطاق.'), s('المنح', 'عرض / إضافة / تعديل / خاص لكل صفحة.'), s('الخزائن', 'عرض / اعتماد / تعديل لكل خزينة.')],
+    how: ['صلاحيات Manage* تتضمن فروعها عرض / إضافة / تعديل.'], tips: [], privileges: ['ManageUsers'],
+  },
+  '/setup': {
+    title: 'الإعداد', purpose: 'البيانات المرجعية: المحافظات والمدن والمناطق والشرائح والفئات والمستويات والاحتفاظ.',
+    business: 'المفردات التي تتشاركها كل الصفحات.', steps: [s('المراجع', 'قوائم حسب النوع.'), s('المدن والمناطق', 'شجرة الجغرافيا مع اتفاقيات النسبة وعلامات المواصلات.'), s('الاحتفاظ', 'مدة حفظ السجل.')],
+    how: ['المراجع المزامنة من أوراكل تحتفظ بكود مصدرها.'], tips: [], privileges: ['SetupRefs', 'SetupCities', 'SetupAreas'],
+  },
+  '/integration': {
+    title: 'تكامل أوراكل', purpose: 'مزامنة LDM (أوراكل): الإعداد والتشغيل اليدوي وحالة المزامنة لكل تغذية.',
+    business: 'المعامل والتحاليل والإحصاءات والتسجيلات التفصيلية تأتي من LDM ليليًا؛ هذه الصفحة تشغّل المزامنة أو تصلحها.',
+    steps: [s('الإعداد', 'الاتصال والجداول.'), s('التشغيل', 'تغذية لنطاق تاريخ.'), s('الفحص', 'الحالة والأعداد.')],
+    how: ['الحقول التي يديرها المشغل (الفرع والاسم الحقيقي والائتمان والاتفاقيات) لا تستبدلها المزامنة أبدًا.'], tips: [], privileges: ['OracleIntegration'],
+  },
+  '/email-reports': {
+    title: 'تقارير البريد الإلكتروني', purpose: 'رسائل الإحصاءات المجدولة: إعدادات SMTP والاشتراكات بالمستلمين والتقارير والفلاتر.',
+    business: 'تصل الإدارة إحصاءات المعامل والتحاليل والمناطق وبدون معمل دون فتح التطبيق. كل تقرير يُرفق كملف إكسل وكملف PDF.',
+    steps: [s('SMTP', 'المضيف والمنفذ والمرسل والبيانات؛ اختبره.'), s('الاشتراك', 'الاسم والمستلمون والتقارير والنطاق والفلاتر والجدول.'), s('الإرسال', 'تلقائيًا حسب الجدول أو "أرسل الآن".')],
+    how: ['نص الرسالة يحمل معاينة مختصرة؛ البيانات الكاملة في المرفقات.'], tips: [], privileges: ['ManageEmailReports'],
+  },
+  '/notifications': {
+    title: 'الإشعارات', purpose: 'إشعاراتك داخل التطبيق وتفضيلات الإشعارات والقوالب.',
+    business: 'يخبرك النظام بالزيارات الفائتة وتنبيهات المخزون والشكاوى وغيرها.', steps: [s('الخلاصة', 'غير المقروء أولًا.'), s('التفضيلات', 'ما تريد استلامه.'), s('القوالب', 'يحرر المسؤولون النصوص.')],
+    how: [], tips: [], privileges: [],
+  },
+  '/sessions': {
+    title: 'الجلسات النشطة', purpose: 'من مسجل الدخول ومن أين ومنذ متى؛ وإنهاء جلسة.',
+    business: 'نظافة أمنية.', steps: [s('المراجعة', 'القائمة.'), s('الإنهاء', 'جلسة مريبة.')], how: [], tips: [], privileges: [],
+  },
+  '/audit': {
+    title: 'سجل التدقيق', purpose: 'السجل الثابت لكل إنشاء وتعديل وحذف لسجل عمل: من ومتى وماذا تغير.',
+    business: 'المساءلة. يكتب الخادم السجل في نفس معاملة التغيير، للمستخدمين والمهام الآلية على السواء؛ ولا يمكن تعديله لاحقًا.',
+    steps: [s('الفلترة', 'الفترة والكيان والمستخدم والإجراء ومعرّف السجل.'), s('التوسيع', 'الصف يعرض الحقول المتغيرة قبل ← بعد.'), s('لكل سجل', 'زر 🕓 في أي صفحة يفتح تاريخ سجل واحد.')],
+    how: ['الاحتفاظ يحذف الصفوف القديمة فقط عبر سياسة الاحتفاظ المضبوطة، وهي نفسها مدققة.'], tips: [], privileges: ['ViewAuditTrail'],
+  },
+};
+
+/** The help entry for a router url: the longest key that prefixes the path (query string ignored), or null. */
+export function helpFor(url: string, lang: Lang): HelpPage | null {
+  const path = (url.split('?')[0] || '/').replace(/\/+$/, '') || '/';
+  const table = lang === 'ar' ? AR : EN;
+  const key = Object.keys(table).filter((k) => path === k || path.startsWith(k + '/')).sort((a, b) => b.length - a.length)[0];
+  return key ? table[key] : null;
+}

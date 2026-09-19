@@ -10,6 +10,7 @@ import { LabLookup, OutsourceSample, OutsourceTrackingRow, TestLookup } from '..
 import { TranslatePipe } from '../../core/i18n';
 import { exportXlsx, printTable, localToday, ddmy } from '../../shared/export.util';
 import { AppDatePipe } from '../../shared/app-date.pipe';
+import { AuditLogButtonComponent } from '../../shared/audit-log-button.component';
 
 const STATUSES = ['All', 'Collected', 'Sent', 'Received'];
 const NEXT: Record<string, string> = { Collected: 'Sent', Sent: 'Received' };
@@ -20,7 +21,7 @@ interface TestRow { id?: string; testCode: string; testName: string; sampleVolum
 @Component({
   selector: 'app-outsource',
   standalone: true,
-  imports: [FormsModule, ReactiveFormsModule, DecimalPipe, NgTemplateOutlet, TranslatePipe, AppDatePipe, DateInputComponent, FilterSelectComponent],
+  imports: [AuditLogButtonComponent, FormsModule, ReactiveFormsModule, DecimalPipe, NgTemplateOutlet, TranslatePipe, AppDatePipe, DateInputComponent, FilterSelectComponent],
   template: `
     <div class="pagehead" style="display:flex;justify-content:space-between;align-items:center">
       <div><div class="breadcrumbs">Home / {{ 'outsource_samples' | t }}</div><h1>{{ 'outsource_tracking_title' | t : 'Outsource Samples Tracking' }}</h1></div>
@@ -83,7 +84,7 @@ interface TestRow { id?: string; testCode: string; testName: string; sampleVolum
                     <button class="btn btn-mini btn-p" (click)="saveRow(o)" [disabled]="busy() || !draft(o).dirty">{{ 'save' | t : 'Save' }}</button>
                     @if (next(o.status); as nx) { <button class="btn btn-mini" (click)="advance(o)" [disabled]="busy()">→ {{ nx | t : nx }}</button> }
                     <button class="btn btn-mini btn-d" (click)="remove(o)" [disabled]="busy()">{{ 'delete' | t : 'Delete' }}</button>
-                  }
+                  }<app-audit-log entity="OutsourceSample" [id]="o.id"></app-audit-log>
                 </td>
               </tr>
             } @empty { <tr><td colspan="8" class="empty" style="text-align:center;padding:24px">{{ 'no_records' | t : 'No records.' }}</td></tr> }

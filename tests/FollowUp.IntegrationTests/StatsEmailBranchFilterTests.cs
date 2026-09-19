@@ -96,7 +96,7 @@ public sealed class StatsEmailBranchFilterTests
                 var mail = sender.Sent.Should().ContainSingle().Subject;
                 mail.Html.Should().Contain(labA.Name, "the lab served by the selected branch is reported");
                 mail.Html.Should().NotContain(labB.Name, "a lab served by another branch is filtered out");
-                mail.Attachments.Should().Be(1, "the Lab Statistics sheet is attached");
+                mail.Attachments.Should().Be(2, "the Lab Statistics sheet is attached as Excel and as PDF (2026-09-20)");
 
                 sender.Sent.Clear();
                 var legacy = await runner.RunAsync(subLegacy.Id, CancellationToken.None);

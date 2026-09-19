@@ -6,6 +6,7 @@ import { AuthService } from '../../core/auth.service';
 import { TranslatePipe } from '../../core/i18n';
 import { ToastService } from '../../core/toast.service';
 import { FilterSelectComponent } from '../../shared/filter-select.component';
+import { AuditLogButtonComponent } from '../../shared/audit-log-button.component';
 
 interface Smtp { enabled: boolean; host: string; port: number; useSsl: boolean; fromAddress: string; user: string | null; hasPassword: boolean; }
 interface RefItem { nameEn: string; }
@@ -32,7 +33,7 @@ const NEW_EDITOR = (): Editor => ({ id: null, name: '', includeLabStats: true, i
 @Component({
   selector: 'app-emailreports',
   standalone: true,
-  imports: [FormsModule, TranslatePipe, FilterSelectComponent],
+  imports: [AuditLogButtonComponent, FormsModule, TranslatePipe, FilterSelectComponent],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'email_reports' | t : 'Email Reports' }}</div><h1>{{ 'email_reports' | t : 'Email Reports' }}</h1></div>
@@ -132,7 +133,7 @@ const NEW_EDITOR = (): Editor => ({ id: null, name: '', includeLabStats: true, i
               <td class="r actions">
                 <button class="icon-btn" title="Send now" (click)="sendNow(s)">✉</button>
                 <button class="icon-btn" title="Edit" (click)="startEdit(s)">✎</button>
-                <button class="icon-btn del" title="Delete" (click)="del(s)">🗑</button>
+                <button class="icon-btn del" title="Delete" (click)="del(s)">🗑</button><app-audit-log entity="StatsEmailSubscription" [id]="s.id" [label]="s.name"></app-audit-log>
               </td>
             </tr>
           } @empty { <tr><td colspan="7" class="empty" style="text-align:center;padding:20px">{{ 'no_records_found' | t : 'No reports yet.' }}</td></tr> }

@@ -10,6 +10,7 @@ import { exportXlsx, printTable, localToday, localDateTime, ddmy } from '../../s
 import { AppDatePipe } from '../../shared/app-date.pipe';
 import { ToastService } from '../../core/toast.service';
 import { AttachmentService } from '../../core/attachment.service';
+import { AuditLogButtonComponent } from '../../shared/audit-log-button.component';
 
 interface City { id: string; name: string; governorate: string; }
 interface AreaRef { id: string; name: string; cityId: string; }
@@ -18,7 +19,7 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
 @Component({
   selector: 'app-sampletracking',
   standalone: true,
-  imports: [FormsModule, TranslatePipe, AppDatePipe, DateInputComponent, FilterSelectComponent],
+  imports: [AuditLogButtonComponent, FormsModule, TranslatePipe, AppDatePipe, DateInputComponent, FilterSelectComponent],
   template: `
     <div class="pagehead">
       <div>
@@ -91,7 +92,7 @@ interface Draft { count: number; dataEntryUser: string; reviewUser: string; sort
                     <option value="">{{ 'unassigned' | t : 'Unassigned' }}</option>@for (u of users(); track u.id) { <option [value]="u.username">{{ u.username }}</option> }</select>
                     @if (r.sortAt) { <div class="small muted mono">{{ fmt(r.sortAt) }}</div> }</td>
                   <td><input class="input" style="min-width:140px" [ngModel]="draft(r).notes" (ngModelChange)="setD(r, 'notes', $event)" [disabled]="!auth.has('SampleTracking')"></td>
-                  <td>@if (auth.has('SampleTracking')) { <button class="btn btn-mini btn-p" [disabled]="busy() || !draft(r).dirty" (click)="saveRow(r)">{{ 'save_2' | t : 'Save' }}</button> }</td>
+                  <td><app-audit-log entity="SampleTracking" [id]="r.id" [label]="r.area + ' · ' + r.date"></app-audit-log>@if (auth.has('SampleTracking')) { <button class="btn btn-mini btn-p" [disabled]="busy() || !draft(r).dirty" (click)="saveRow(r)">{{ 'save_2' | t : 'Save' }}</button> }</td>
                 </tr>
               } @empty { <tr><td colspan="8" class="empty" style="text-align:center;padding:24px">{{ 'no_records_matching_filters' | t : 'No records matching filters' }}</td></tr> }
             </tbody>

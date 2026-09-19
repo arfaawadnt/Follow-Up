@@ -8,6 +8,7 @@ import { ToastService } from '../../core/toast.service';
 import { TranslatePipe } from '../../core/i18n';
 import { ManufacturerDto, RefItem, StoreDto, SupplierDto } from '../../core/models';
 import { INV_STYLES, Opt, qty } from './inventory.util';
+import { AuditLogButtonComponent } from '../../shared/audit-log-button.component';
 
 /**
  * Stores & Partners — the inventory master data behind the documents: stores (each on a Branch — the org-scope dimension
@@ -17,7 +18,7 @@ import { INV_STYLES, Opt, qty } from './inventory.util';
 @Component({
   selector: 'app-inventory-setup',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, TranslatePipe, FilterSelectComponent],
+  imports: [AuditLogButtonComponent, FormsModule, DecimalPipe, TranslatePipe, FilterSelectComponent],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'inventory' | t : 'Inventory' }} / {{ 'inv_setup' | t : 'Stores & Partners' }}</div><h1>{{ 'inv_setup' | t : 'Stores & Partners' }}</h1></div>
@@ -55,7 +56,7 @@ import { INV_STYLES, Opt, qty } from './inventory.util';
                     @if (editId() === s.id) {
                       <button class="btn btn-mini btn-p" [disabled]="busy() || !es.name.trim() || !es.branch" (click)="saveStore(s)">{{ 'save' | t : 'Save' }}</button>
                       <button class="btn btn-mini btn-s" (click)="editId.set(null)">{{ 'cancel' | t : 'Cancel' }}</button>
-                    } @else if (canManage()) { <button class="icon-btn" title="Edit" (click)="editStore(s)">✎</button> }
+                    } @else if (canManage()) { <button class="icon-btn" title="Edit" (click)="editStore(s)">✎</button> }<app-audit-log entity="Store" [id]="s.id" [label]="s.name"></app-audit-log>
                   </td>
                 </tr>
               } @empty { <tr><td colspan="7" class="empty">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
@@ -88,7 +89,7 @@ import { INV_STYLES, Opt, qty } from './inventory.util';
                   } @else {
                     <td><b>{{ s.name }}</b></td><td>{{ s.contactPerson || '—' }}</td><td class="mono">{{ s.phone || '—' }}</td><td>{{ s.email || '—' }}</td><td>{{ s.address || '—' }}</td><td>{{ s.notes || '—' }}</td>
                     <td class="r mono">{{ s.openOrders }}</td><td>{{ s.isActive ? ('active' | t : 'Active') : ('inactive' | t : 'Inactive') }}</td>
-                    <td class="ar actions">@if (canManage()) { <button class="icon-btn" title="Edit" (click)="editSupplier(s)">✎</button> }</td>
+                    <td class="ar actions">@if (canManage()) { <button class="icon-btn" title="Edit" (click)="editSupplier(s)">✎</button> }<app-audit-log entity="Supplier" [id]="s.id" [label]="s.name"></app-audit-log></td>
                   }
                 </tr>
               } @empty { <tr><td colspan="9" class="empty">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
@@ -117,7 +118,7 @@ import { INV_STYLES, Opt, qty } from './inventory.util';
                     <td class="ar actions"><button class="btn btn-mini btn-p" [disabled]="busy() || !em.name.trim()" (click)="saveManufacturer(m)">{{ 'save' | t : 'Save' }}</button> <button class="btn btn-mini btn-s" (click)="editId.set(null)">{{ 'cancel' | t : 'Cancel' }}</button></td>
                   } @else {
                     <td><b>{{ m.name }}</b></td><td>{{ m.country || '—' }}</td><td>{{ m.notes || '—' }}</td><td class="r mono">{{ m.itemCount }}</td><td>{{ m.isActive ? ('active' | t : 'Active') : ('inactive' | t : 'Inactive') }}</td>
-                    <td class="ar actions">@if (canManage()) { <button class="icon-btn" title="Edit" (click)="editManufacturer(m)">✎</button> }</td>
+                    <td class="ar actions">@if (canManage()) { <button class="icon-btn" title="Edit" (click)="editManufacturer(m)">✎</button> }<app-audit-log entity="Manufacturer" [id]="m.id" [label]="m.name"></app-audit-log></td>
                   }
                 </tr>
               } @empty { <tr><td colspan="6" class="empty">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }

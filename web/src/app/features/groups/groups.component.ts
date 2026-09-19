@@ -4,13 +4,14 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { TranslatePipe } from '../../core/i18n';
 import { ToastService } from '../../core/toast.service';
+import { AuditLogButtonComponent } from '../../shared/audit-log-button.component';
 
 interface TestGroup { id: string; code: string; nameEn: string; nameAr: string | null; source: string; }
 
 @Component({
   selector: 'app-groups',
   standalone: true,
-  imports: [FormsModule, TranslatePipe],
+  imports: [AuditLogButtonComponent, FormsModule, TranslatePipe],
   template: `
     <div class="pagehead" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
       <div><div class="breadcrumbs">Home / {{ 'groups_2' | t : 'Test groups' }}</div><h1>{{ 'groups_2' | t : 'Test groups' }}</h1></div>
@@ -52,7 +53,7 @@ interface TestGroup { id: string; code: string; nameEn: string; nameAr: string |
                   <td>@if (g.source === 'Oracle') { <span class="src-badge src-oracle">Oracle</span> } @else { <span class="src-badge src-manual">Manual</span> }</td>
                   <td class="actions">
                     @if (auth.has('UpdateGroups')) { <button class="btn-ghost" (click)="edit(g)">{{ 'edit_2' | t : 'Edit' }}</button> }
-                    @if (auth.has('DeleteGroups')) { <button class="btn-ghost red" (click)="del(g)" [disabled]="busy()">{{ 'delete' | t : 'Delete' }}</button> }
+                    @if (auth.has('DeleteGroups')) { <button class="btn-ghost red" (click)="del(g)" [disabled]="busy()">{{ 'delete' | t : 'Delete' }}</button> }<app-audit-log entity="TestGroup" [id]="g.id"></app-audit-log>
                   </td></tr>
               } @empty { <tr><td colspan="4" class="empty" style="text-align:center;padding:24px">—</td></tr> }
             </tbody>

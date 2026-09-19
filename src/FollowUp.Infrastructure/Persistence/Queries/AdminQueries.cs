@@ -99,17 +99,38 @@ internal sealed class AuditQueries : IAuditQueries
     {
         var q = _db.AuditEntries.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(criteria.Entity)) q = q.Where(a => a.Entity == criteria.Entity);
+        if (!string.IsNullOrWhiteSpace(criteria.EntityId)) { var id = criteria.EntityId.Trim(); q = q.Where(a => a.EntityId.StartsWith(id)); }
         if (!string.IsNullOrWhiteSpace(criteria.Actor)) q = q.Where(a => a.Actor == criteria.Actor);
         if (!string.IsNullOrWhiteSpace(criteria.Action)) q = q.Where(a => a.Action == criteria.Action);
         if (criteria.From is { } from) q = q.Where(a => a.OccurredAt >= new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero));
         if (criteria.To is { } to) q = q.Where(a => a.OccurredAt <= new DateTimeOffset(to.ToDateTime(TimeOnly.MaxValue), TimeSpan.Zero));
 
         var total = await q.CountAsync(ct);
-        var items = await q.OrderByDescending(a => a.OccurredAt)
+        var rows = await q.OrderByDescending(a => a.OccurredAt)
             .Skip(criteria.Skip).Take(criteria.PageSize)
-            .Select(a => new AuditRowDto(a.Id.Value, a.OccurredAt, a.Actor, a.Entity, a.EntityId, a.Action, a.BeforeJson, a.AfterJson, a.CorrelationId))
+            .Select(a => new { Id = a.Id.Value, a.OccurredAt, a.Actor, a.Entity, a.EntityId, a.Action, a.BeforeJson, a.AfterJson, a.CorrelationId })
             .ToListAsync(ct);
+        // The changed fields are computed here (not stored): the snapshots stay the immutable record, the diff is a view of them.
+        var items = rows.Select(a => new AuditRowDto(a.Id, a.OccurredAt, a.Actor, a.Entity, a.EntityId, a.Action, a.BeforeJson, a.AfterJson, a.CorrelationId,
+            AuditDiff.Compute(a.BeforeJson, a.AfterJson))).ToList();
         return PagedResult<AuditRowDto>.Create(items, total, criteria.Page, criteria.PageSize);
+    }
+
+    public async Task<IReadOnlyList<AuditRowDto>> ForEntityAsync(string entity, string entityId, CancellationToken ct)
+    {
+        var rows = await _db.AuditEntries.AsNoTracking().Where(a => a.Entity == entity && a.EntityId == entityId)
+            .OrderBy(a => a.OccurredAt)
+            .Select(a => new { Id = a.Id.Value, a.OccurredAt, a.Actor, a.Entity, a.EntityId, a.Action, a.BeforeJson, a.AfterJson, a.CorrelationId })
+            .ToListAsync(ct);
+        return rows.Select(a => new AuditRowDto(a.Id, a.OccurredAt, a.Actor, a.Entity, a.EntityId, a.Action, null, null, a.CorrelationId,
+            AuditDiff.Compute(a.BeforeJson, a.AfterJson))).ToList();
+    }
+
+    public async Task<(IReadOnlyList<string> Entities, IReadOnlyList<string> Actors)> FacetsAsync(CancellationToken ct)
+    {
+        var entities = await _db.AuditEntries.AsNoTracking().Select(a => a.Entity).Distinct().OrderBy(e => e).ToListAsync(ct);
+        var actors = await _db.AuditEntries.AsNoTracking().Select(a => a.Actor).Distinct().OrderBy(a => a).ToListAsync(ct);
+        return (entities, actors);
     }
 }
 

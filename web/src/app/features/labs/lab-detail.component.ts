@@ -8,6 +8,7 @@ import { TranslatePipe } from '../../core/i18n';
 import { LabDetail, RepListItem } from '../../core/models';
 import { MapComponent } from '../../shared/map.component';
 import { ToastService } from '../../core/toast.service';
+import { AuditLogButtonComponent } from '../../shared/audit-log-button.component';
 
 interface Ref { nameEn: string; }
 interface City { id: string; name: string; governorate: string; }
@@ -31,14 +32,14 @@ function parseGeo(text: string): { lat: number; lng: number } | null {
 @Component({
   selector: 'app-lab-detail',
   standalone: true,
-  imports: [FormsModule, RouterLink, TranslatePipe, MapComponent, DateInputComponent],
+  imports: [AuditLogButtonComponent, FormsModule, RouterLink, TranslatePipe, MapComponent, DateInputComponent],
   template: `
     @if (loading()) { <div class="card sect">{{ 'loading' | t : 'Loading…' }}</div> }
     @if (lab(); as l) {
       <div class="pagehead"><div>
         <div class="breadcrumbs">Home / <a routerLink="/labs" class="crumb">{{ 'lab_mgmt' | t : 'Laboratories' }}</a> / {{ l.displayCode }}</div>
         <h1>{{ 'edit_laboratory' | t : 'Edit Laboratory' }} — {{ l.name }}</h1>
-      </div></div>
+      </div><div class="pagehead-actions"><app-audit-log entity="Laboratory" [id]="l.id" [label]="l.name"></app-audit-log></div></div>
 
       <section class="card sect"><h3>{{ 'identity' | t : 'Identity' }}</h3>
         <div class="grid4">
