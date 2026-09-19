@@ -401,6 +401,10 @@ public sealed class PenaltyRecord : AggregateRoot<PenaltyRecordId>, IAuditable
     public AppUserId? PerformedByUserId { get; private set; }
     /// <summary>The representative who made the error — set exactly when <see cref="UserType"/> is Rep.</summary>
     public RepresentativeId? PerformedByRepId { get; private set; }
+    /// <summary>The system user who reviewed the data entry — set exactly when <see cref="UserType"/> is DataEntry
+    /// (operator decision, 2026-09-19): a data-entry penalty is charged to the user who typed it AND the user who reviewed
+    /// it, so the Penalty Report totals count it for both; on the statement it posts once, to the lab's Lab Responsible.</summary>
+    public AppUserId? ReviewedByUserId { get; private set; }
 
     /// <summary>The penalty = right − wrong for every user type (operator decision, 2026-09-18): on the rep statement the
     /// right test is a Debit (what the lab owes) and the wrong test a Credit (what was charged in error), so the net is
@@ -415,18 +419,18 @@ public sealed class PenaltyRecord : AggregateRoot<PenaltyRecordId>, IAuditable
     public static PenaltyRecord Create(LaboratoryId labId, DateOnly date, string accNo, string patientName,
         string? wrongTestCode, string? wrongTestName, decimal wrongValue,
         string? rightTestCode, string? rightTestName, decimal rightValue,
-        PenaltyUser userType, AppUserId? performedByUserId, RepresentativeId? performedByRepId)
+        PenaltyUser userType, AppUserId? performedByUserId, RepresentativeId? performedByRepId, AppUserId? reviewedByUserId = null)
     {
         var p = new PenaltyRecord(PenaltyRecordId.New(), labId);
         p.Update(date, accNo, patientName, wrongTestCode, wrongTestName, wrongValue, rightTestCode, rightTestName, rightValue,
-            userType, performedByUserId, performedByRepId);
+            userType, performedByUserId, performedByRepId, reviewedByUserId);
         return p;
     }
 
     public void Update(DateOnly date, string accNo, string patientName,
         string? wrongTestCode, string? wrongTestName, decimal wrongValue,
         string? rightTestCode, string? rightTestName, decimal rightValue,
-        PenaltyUser userType, AppUserId? performedByUserId, RepresentativeId? performedByRepId)
+        PenaltyUser userType, AppUserId? performedByUserId, RepresentativeId? performedByRepId, AppUserId? reviewedByUserId = null)
     {
         Date = date;
         AccNo = AccountingGuards.Required(accNo, "Acc No", 50);
@@ -469,8 +473,16 @@ public sealed class PenaltyRecord : AggregateRoot<PenaltyRecordId>, IAuditable
             if (performedByUserId is null) throw new DomainException("Select the system user who made the error.");
             if (performedByRepId is not null) throw new DomainException("A data-entry / technician penalty cannot also name a representative.");
         }
+        // A data-entry penalty also names the reviewer (both are charged); no other type has one. Mirrored by ck_penalty_record_reviewed_by.
+        if (userType == PenaltyUser.DataEntry)
+        {
+            if (reviewedByUserId is null) throw new DomainException("Select the system user who reviewed the data entry.");
+        }
+        else if (reviewedByUserId is not null)
+            throw new DomainException("Only a data-entry penalty names a reviewer.");
         PerformedByUserId = performedByUserId;
         PerformedByRepId = performedByRepId;
+        ReviewedByUserId = reviewedByUserId;
     }
 }
 
@@ -612,8 +624,16 @@ public sealed class Collection : AggregateRoot<CollectionId>, IAuditable
     public IbanOption? Iban { get; private set; }
     public string? DoneBy { get; private set; }
     public string? Notes { get; private set; }
+    /// <summary>Out-source income handed in with the cash / bank (operator decision, 2026-09-19): part of the money but not
+    /// the reps' collection income, so the statement credits <see cref="NetIncome"/> = cash + bank − out-source. Never above the total.</summary>
+    public Money OutsourceIncome { get; private set; }
+    /// <summary>The bank transfer's reference, entered later for revision — only a collection with a bank amount carries one
+    /// (cleared with the bank amount, like the IBAN). Mirrored by ck_collection_reference_iff_bank.</summary>
+    public string? ReferenceNumber { get; private set; }
 
     public Money Total => Cash + Bank;
+    /// <summary>What counts as the reps' collection income: cash + bank − out-source income.</summary>
+    public Money NetIncome => Total - OutsourceIncome;
 
     public DateTimeOffset CreatedAt { get; private set; }
     public string CreatedBy { get; private set; } = null!;
@@ -623,18 +643,27 @@ public sealed class Collection : AggregateRoot<CollectionId>, IAuditable
     /// <summary>The amount this rep handed in on this collection; zero when the rep is not on it.</summary>
     public Money ShareOf(RepresentativeId repId) => _shares.Where(s => s.RepId == repId).Select(s => s.Amount).FirstOrDefault(Money.Zero);
 
+    /// <summary>The rep's share net of the out-source income, which is spread over the reps in proportion to their shares
+    /// (a Single collection's one rep bears all of it). Rounded to 2 decimals; zero when the rep is not on the collection.</summary>
+    public Money NetShareOf(RepresentativeId repId)
+    {
+        var share = ShareOf(repId);
+        if (share.Amount == 0m || OutsourceIncome.Amount == 0m || Total.Amount == 0m) return share;
+        return new Money(decimal.Round(share.Amount - OutsourceIncome.Amount * share.Amount / Total.Amount, 2, MidpointRounding.ToEven));
+    }
+
     /// <param name="shares">(rep, amount) pairs. For a Single collection the one amount is taken as the total whatever was
     /// passed; for a Group each amount must be positive and they must sum to cash + bank.</param>
     public static Collection Create(DateOnly date, CollectionType type, IEnumerable<(RepresentativeId RepId, decimal Amount)> shares,
-        decimal cash, decimal bank, IbanOption? iban, string? doneBy, string? notes)
+        decimal cash, decimal bank, IbanOption? iban, string? doneBy, string? notes, decimal outsourceIncome = 0m, string? referenceNumber = null)
     {
         var c = new Collection(CollectionId.New());
-        c.Update(date, type, shares, cash, bank, iban, doneBy, notes);
+        c.Update(date, type, shares, cash, bank, iban, doneBy, notes, outsourceIncome, referenceNumber);
         return c;
     }
 
     public void Update(DateOnly date, CollectionType type, IEnumerable<(RepresentativeId RepId, decimal Amount)> shares,
-        decimal cash, decimal bank, IbanOption? iban, string? doneBy, string? notes)
+        decimal cash, decimal bank, IbanOption? iban, string? doneBy, string? notes, decimal outsourceIncome = 0m, string? referenceNumber = null)
     {
         var list = shares.ToList();
         Type = type ?? throw new DomainException("A collection type is required.");
@@ -648,6 +677,10 @@ public sealed class Collection : AggregateRoot<CollectionId>, IAuditable
         var total = c + b;
         if (total.Amount <= 0) throw new DomainException("A collection must carry a cash or bank amount.");
         if (b.Amount > 0 && iban is null) throw new DomainException("A bank amount requires the IBAN it was paid into.");
+        var outsource = AccountingGuards.NonNegative(outsourceIncome, "Out-source income");
+        if (outsource > total) throw new DomainException("The out-source income cannot exceed cash + bank.");
+        var reference = AccountingGuards.Optional(referenceNumber, 100);
+        if (reference is not null && b.Amount <= 0) throw new DomainException("A reference number belongs to a bank amount.");
 
         List<CollectionShare> resolved;
         if (type == CollectionType.Single)
@@ -665,6 +698,8 @@ public sealed class Collection : AggregateRoot<CollectionId>, IAuditable
         Iban = b.Amount > 0 ? iban : null; // no bank amount → no IBAN, so a stale account can never linger
         DoneBy = AccountingGuards.Optional(doneBy, 200);
         Notes = AccountingGuards.Optional(notes, 500);
+        OutsourceIncome = outsource;
+        ReferenceNumber = reference;
         _shares.Clear();
         _shares.AddRange(resolved);
     }

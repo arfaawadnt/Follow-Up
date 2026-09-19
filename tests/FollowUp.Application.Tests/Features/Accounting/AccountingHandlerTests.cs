@@ -69,8 +69,8 @@ public class AccountingHandlerTests
         if (!active) u.Deactivate();
         return u;
     }
-    private static CreatePenaltyCommand Penalty(Guid labId, string userType, Guid? performedByUserId, Guid? performedByRepId) =>
-        new(D, labId, "ACC-9", "Patient", "T1", "Wrong", 300m, "T2", "Right", 120m, userType, performedByUserId, performedByRepId);
+    private static CreatePenaltyCommand Penalty(Guid labId, string userType, Guid? performedByUserId, Guid? performedByRepId, Guid? reviewedByUserId = null) =>
+        new(D, labId, "ACC-9", "Patient", "T1", "Wrong", 300m, "T2", "Right", 120m, userType, performedByUserId, performedByRepId, reviewedByUserId);
 
     [Fact]
     public async Task Create_penalty_stores_the_record_against_an_in_scope_lab_attributed_to_a_system_user()
@@ -80,7 +80,7 @@ public class AccountingHandlerTests
         var repo = new FakePenaltyRecordRepository();
         var handler = new CreatePenaltyHandler(repo, labs, new FakeRepresentativeRepository(), users, new FakeCurrentUser());
 
-        var id = await handler.Handle(Penalty(lab.Id.Value, "DataEntry", clerk.Id.Value, null), CancellationToken.None);
+        var id = await handler.Handle(Penalty(lab.Id.Value, "DataEntry", clerk.Id.Value, null, clerk.Id.Value), CancellationToken.None);
 
         var p = repo.Store.Single(x => x.Id.Value == id);
         p.PenaltyAmount.Amount.Should().Be(-180m, "right 120 − wrong 300: the statement debits the right test and credits the wrong one");
@@ -151,7 +151,9 @@ public class AccountingHandlerTests
         v.Validate(Penalty(lab, "Technician", someone, someone)).Errors.Should().Contain(e => e.PropertyName == nameof(CreatePenaltyCommand.PerformedByRepId), "Technician cannot also name a rep");
 
         v.Validate(Penalty(lab, "Rep", null, someone)).IsValid.Should().BeTrue();
-        v.Validate(Penalty(lab, "DataEntry", someone, null)).IsValid.Should().BeTrue();
+        v.Validate(Penalty(lab, "DataEntry", someone, null)).Errors.Should().Contain(e => e.PropertyName == nameof(CreatePenaltyCommand.ReviewedByUserId), "DataEntry also names the reviewer (2026-09-19)");
+        v.Validate(Penalty(lab, "DataEntry", someone, null, someone)).IsValid.Should().BeTrue();
+        v.Validate(Penalty(lab, "Technician", someone, null, someone)).Errors.Should().Contain(e => e.PropertyName == nameof(CreatePenaltyCommand.ReviewedByUserId), "only DataEntry has a reviewer");
         v.Validate(Penalty(lab, "Technician", someone, null)).IsValid.Should().BeTrue();
         v.Validate(Penalty(lab, "LabRequest", null, null)).IsValid.Should().BeTrue("a lab request names nobody");
         v.Validate(new CreatePenaltyCommand(D, lab, "A", "P", "T1", "Wrong", 300m, null, null, 0m, "LabRequest", null, null)).IsValid.Should().BeTrue("a lab request may name one test only");
@@ -177,7 +179,7 @@ public class AccountingHandlerTests
 
         // Re-typed to DataEntry it names the clerk; back to LabRequest it names nobody again.
         var update = new UpdatePenaltyHandler(repo, labs, new FakeRepresentativeRepository(), users, me);
-        await update.Handle(new UpdatePenaltyCommand(id, D, "ACC-9", "Patient", "T1", "Wrong", 300m, "T2", "Right", 120m, "DataEntry", clerk.Id.Value, null), CancellationToken.None);
+        await update.Handle(new UpdatePenaltyCommand(id, D, "ACC-9", "Patient", "T1", "Wrong", 300m, "T2", "Right", 120m, "DataEntry", clerk.Id.Value, null, clerk.Id.Value), CancellationToken.None);
         p.PerformedByUserId.Should().Be(clerk.Id);
         await update.Handle(new UpdatePenaltyCommand(id, D, "ACC-9", "Patient", "T1", "Wrong", 300m, "T2", "Right", 120m, "LabRequest", null, null), CancellationToken.None);
         p.PerformedByUserId.Should().BeNull();
@@ -472,7 +474,7 @@ public class AccountingHandlerTests
         public Task<IReadOnlyList<TreasuryEntryDto>> TreasuryEntriesAsync(DateOnly from, DateOnly to, Guid? treasuryId, OrgScope scope, TreasuryAccessMap access, CancellationToken ct) => throw new NotSupportedException();
         public Task<IReadOnlyList<TreasuryGrantDto>> TreasuryGrantsAsync(RoleId roleId, CancellationToken ct) => throw new NotSupportedException();
         public Task<IReadOnlyList<PenaltyDto>> PenaltiesAsync(DateOnly from, DateOnly to, Guid? laboratoryId, Guid? areaId, OrgScope scope, bool canSeeEncrypted, CancellationToken ct) => throw new NotSupportedException();
-        public Task<IReadOnlyList<PenaltyActorDto>> PenaltyActorsAsync(PenaltyUser userType, OrgScope scope, CancellationToken ct) => throw new NotSupportedException();
+        public Task<IReadOnlyList<PenaltyActorDto>> PenaltyActorsAsync(PenaltyUser userType, Guid? laboratoryId, DateOnly? date, string? step, OrgScope scope, CancellationToken ct) => throw new NotSupportedException();
         public Task<IReadOnlyList<DeductionDto>> DeductionsAsync(DateOnly from, DateOnly to, Guid? areaId, OrgScope scope, CancellationToken ct) => throw new NotSupportedException();
         public Task<DeductionSuggestionDto> SuggestDeductionAsync(Guid areaId, DeductionReason reason, DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct) => throw new NotSupportedException();
         public Task<IReadOnlyList<CollectionDto>> CollectionsAsync(DateOnly from, DateOnly to, Guid? repId, OrgScope scope, CancellationToken ct) => throw new NotSupportedException();

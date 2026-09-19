@@ -40,11 +40,20 @@ public sealed record PenaltyDto(Guid Id, long Serial, DateOnly Date, Guid Labora
     string AccNo, string PatientName, string? WrongTestCode, string? WrongTestName, decimal WrongValue,
     string? RightTestCode, string? RightTestName, decimal RightValue, decimal Penalty,
     string UserType, Guid? PerformedById, string? PerformedByName,
-    Guid? ResponsibleRepId = null, string? ResponsibleRepName = null, string LdmStatus = "Unknown", string? LdmNote = null);
+    Guid? ResponsibleRepId = null, string? ResponsibleRepName = null, string LdmStatus = "Unknown", string? LdmNote = null,
+    Guid? ReviewedById = null, string? ReviewedByName = null);
 
 /// <summary>A person a penalty can be attributed to: an in-scope active representative (UserType = Rep) or an active
-/// system user (DataEntry / Technician). <c>Detail</c> carries the rep type for disambiguation.</summary>
+/// system user (DataEntry / Technician). <c>Detail</c> carries the rep type for disambiguation, or — for a DataEntry
+/// pick narrowed to a lab and date — the Sample Lifecycle Tracking step that user performed for the lab's area that day.</summary>
 public sealed record PenaltyActorDto(Guid Id, string Name, string? Detail);
+
+/// <summary>The DataEntry pickers of the record dialog: the users who did the step for the area on the date.</summary>
+public static class PenaltyActorStep
+{
+    public const string DataEntry = "DataEntry";
+    public const string Review = "Review";
+}
 
 public sealed record DeductionDto(Guid Id, long Serial, DateOnly Date, Guid AreaId, string AreaName, string Reason, decimal Value,
     string? Notes, DateOnly? PeriodFrom, DateOnly? PeriodTo,
@@ -58,7 +67,7 @@ public sealed record CollectionShareDto(Guid RepId, string RepName, decimal Amou
 /// <summary>A collection belongs to its reps (a Lab Responsible collects from many labs), so there is no lab on it.</summary>
 public sealed record CollectionDto(Guid Id, long Serial, DateOnly Date, string Type, IReadOnlyList<CollectionShareDto> Shares,
     IReadOnlyList<Guid> RepIds, IReadOnlyList<string> RepNames, decimal Cash, decimal Bank, decimal Total,
-    string? Iban, string? DoneBy, string? Notes);
+    string? Iban, string? DoneBy, string? Notes, decimal OutsourceIncome = 0m, string? ReferenceNumber = null, decimal NetIncome = 0m);
 /// <summary>Write-side share: the rep and the amount they handed in.</summary>
 public sealed record CollectionShareInput(Guid RepId, decimal Amount);
 
@@ -104,7 +113,11 @@ public interface IAccountingQueries
     /// <summary>Penalties of the period, optionally of one lab or of one area (the lab's area by name), with the LDM validation
     /// of every Acc No against the synced registration lines (exists · belongs to the lab · carries the entered tests).</summary>
     Task<IReadOnlyList<PenaltyDto>> PenaltiesAsync(DateOnly from, DateOnly to, Guid? laboratoryId, Guid? areaId, OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
-    Task<IReadOnlyList<PenaltyActorDto>> PenaltyActorsAsync(PenaltyUser userType, OrgScope scope, CancellationToken ct);
+    /// <summary>The "performed by" picker. Rep: the in-scope active reps, narrowed to those linked to <paramref name="laboratoryId"/>
+    /// (responsible / collectors / marketing) when the lab has any. DataEntry with a lab, date and <paramref name="step"/>: the
+    /// users who recorded that step on the Sample Lifecycle Tracking row of the lab's area for the date; every active user
+    /// when nobody did. Technician: every active user. LabRequest: the active Lab Responsibles (the report's filter).</summary>
+    Task<IReadOnlyList<PenaltyActorDto>> PenaltyActorsAsync(PenaltyUser userType, Guid? laboratoryId, DateOnly? date, string? step, OrgScope scope, CancellationToken ct);
     Task<IReadOnlyList<DeductionDto>> DeductionsAsync(DateOnly from, DateOnly to, Guid? areaId, OrgScope scope, CancellationToken ct);
     Task<DeductionSuggestionDto> SuggestDeductionAsync(Guid areaId, DeductionReason reason, DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct);
     /// <summary>Collections whose reps are all visible in the caller's rep scope (a collection is the reps' act, not a lab's).</summary>
@@ -204,14 +217,19 @@ public sealed class GetPenaltiesHandler : IQueryHandler<GetPenaltiesQuery, IRead
 
 /// <summary>The people a penalty can be attributed to for a user type — the "User" picker of the record dialog.
 /// Recording needs ManageAccounting, so the lookup is gated the same way (it lists usernames, cf. IDN-9).</summary>
-public sealed record GetPenaltyActorsQuery(string UserType) : IQuery<IReadOnlyList<PenaltyActorDto>>, IAuthorizedRequest
-{ public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageAccounting }; }
+public sealed record GetPenaltyActorsQuery(string UserType, Guid? LaboratoryId = null, DateOnly? Date = null, string? Step = null)
+    : IQuery<IReadOnlyList<PenaltyActorDto>>, IAuthorizedRequest
+{ public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ViewAccounting }; }
 public sealed class GetPenaltyActorsHandler : IQueryHandler<GetPenaltyActorsQuery, IReadOnlyList<PenaltyActorDto>>
 {
     private readonly IAccountingQueries _q; private readonly ICurrentUser _user;
     public GetPenaltyActorsHandler(IAccountingQueries q, ICurrentUser user) { _q = q; _user = user; }
-    public Task<IReadOnlyList<PenaltyActorDto>> Handle(GetPenaltyActorsQuery r, CancellationToken ct) =>
-        _q.PenaltyActorsAsync(EnumParse.Name<PenaltyUser>(r.UserType, nameof(r.UserType)), _user.Scope, ct);
+    public Task<IReadOnlyList<PenaltyActorDto>> Handle(GetPenaltyActorsQuery r, CancellationToken ct)
+    {
+        if (r.Step is not null && r.Step != PenaltyActorStep.DataEntry && r.Step != PenaltyActorStep.Review)
+            throw new Common.Exceptions.ValidationException(new Dictionary<string, string[]> { ["step"] = new[] { "Step must be DataEntry or Review." } });
+        return _q.PenaltyActorsAsync(EnumParse.Name<PenaltyUser>(r.UserType, nameof(r.UserType)), r.LaboratoryId, r.Date, r.Step, _user.Scope, ct);
+    }
 }
 
 public sealed record GetDeductionsQuery(DateOnly From, DateOnly To, Guid? AreaId) : IQuery<IReadOnlyList<DeductionDto>>, IAuthorizedRequest
@@ -589,7 +607,7 @@ public sealed class SetTreasuryGrantsHandler : ICommandHandler<SetTreasuryGrants
 
 public sealed record CreatePenaltyCommand(DateOnly Date, Guid LaboratoryId, string AccNo, string PatientName,
     string? WrongTestCode, string? WrongTestName, decimal WrongValue, string? RightTestCode, string? RightTestName, decimal RightValue,
-    string UserType, Guid? PerformedByUserId, Guid? PerformedByRepId)
+    string UserType, Guid? PerformedByUserId, Guid? PerformedByRepId, Guid? ReviewedByUserId = null)
     : ICommand<Guid>, IAuthorizedRequest
 { public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageAccounting }; }
 public sealed class CreatePenaltyValidator : AbstractValidator<CreatePenaltyCommand>
@@ -602,7 +620,7 @@ public sealed class CreatePenaltyValidator : AbstractValidator<CreatePenaltyComm
         PenaltyTestRules.Apply(this, x => x.UserType, x => x.WrongTestCode, x => x.WrongTestName, x => x.RightTestCode, x => x.RightTestName);
         RuleFor(x => x.WrongValue).GreaterThanOrEqualTo(0);
         RuleFor(x => x.RightValue).GreaterThanOrEqualTo(0);
-        PenaltyActorRules.Apply(this, x => x.UserType, x => x.PerformedByUserId, x => x.PerformedByRepId);
+        PenaltyActorRules.Apply(this, x => x.UserType, x => x.PerformedByUserId, x => x.PerformedByRepId, x => x.ReviewedByUserId);
     }
 }
 public sealed class CreatePenaltyHandler : ICommandHandler<CreatePenaltyCommand, Guid>
@@ -615,9 +633,9 @@ public sealed class CreatePenaltyHandler : ICommandHandler<CreatePenaltyCommand,
     {
         var lab = await _labs.GetByIdAsync(new LaboratoryId(r.LaboratoryId), ct) ?? throw new NotFoundException("Laboratory", r.LaboratoryId);
         _user.EnsureInScope(lab);
-        var (userId, repId) = await PenaltyActorSupport.ResolveAsync(r.PerformedByUserId, r.PerformedByRepId, _reps, _users, _user, ct);
+        var (userId, repId, reviewerId) = await PenaltyActorSupport.ResolveAsync(r.PerformedByUserId, r.PerformedByRepId, r.ReviewedByUserId, _reps, _users, _user, ct);
         var p = PenaltyRecord.Create(lab.Id, r.Date, r.AccNo, r.PatientName, r.WrongTestCode, r.WrongTestName, r.WrongValue,
-            r.RightTestCode, r.RightTestName, r.RightValue, EnumParse.Name<PenaltyUser>(r.UserType, nameof(r.UserType)), userId, repId);
+            r.RightTestCode, r.RightTestName, r.RightValue, EnumParse.Name<PenaltyUser>(r.UserType, nameof(r.UserType)), userId, repId, reviewerId);
         _repo.Add(p); // posts to the rep statement at read time (right = debit, wrong = credit); no deduction is mirrored
         return p.Id.Value;
     }
@@ -625,7 +643,7 @@ public sealed class CreatePenaltyHandler : ICommandHandler<CreatePenaltyCommand,
 
 public sealed record UpdatePenaltyCommand(Guid Id, DateOnly Date, string AccNo, string PatientName,
     string? WrongTestCode, string? WrongTestName, decimal WrongValue, string? RightTestCode, string? RightTestName, decimal RightValue,
-    string UserType, Guid? PerformedByUserId, Guid? PerformedByRepId)
+    string UserType, Guid? PerformedByUserId, Guid? PerformedByRepId, Guid? ReviewedByUserId = null)
     : ICommand, IAuthorizedRequest
 { public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageAccounting }; }
 public sealed class UpdatePenaltyValidator : AbstractValidator<UpdatePenaltyCommand>
@@ -638,7 +656,7 @@ public sealed class UpdatePenaltyValidator : AbstractValidator<UpdatePenaltyComm
         PenaltyTestRules.Apply(this, x => x.UserType, x => x.WrongTestCode, x => x.WrongTestName, x => x.RightTestCode, x => x.RightTestName);
         RuleFor(x => x.WrongValue).GreaterThanOrEqualTo(0);
         RuleFor(x => x.RightValue).GreaterThanOrEqualTo(0);
-        PenaltyActorRules.Apply(this, x => x.UserType, x => x.PerformedByUserId, x => x.PerformedByRepId);
+        PenaltyActorRules.Apply(this, x => x.UserType, x => x.PerformedByUserId, x => x.PerformedByRepId, x => x.ReviewedByUserId);
     }
 }
 public sealed class UpdatePenaltyHandler : ICommandHandler<UpdatePenaltyCommand>
@@ -652,9 +670,9 @@ public sealed class UpdatePenaltyHandler : ICommandHandler<UpdatePenaltyCommand>
         var p = await _repo.GetByIdAsync(new PenaltyRecordId(r.Id), ct) ?? throw new NotFoundException("PenaltyRecord", r.Id);
         var lab = await _labs.GetByIdAsync(p.LaboratoryId, ct) ?? throw new NotFoundException("Laboratory", p.LaboratoryId.Value);
         _user.EnsureInScope(lab);
-        var (userId, repId) = await PenaltyActorSupport.ResolveAsync(r.PerformedByUserId, r.PerformedByRepId, _reps, _users, _user, ct);
+        var (userId, repId, reviewerId) = await PenaltyActorSupport.ResolveAsync(r.PerformedByUserId, r.PerformedByRepId, r.ReviewedByUserId, _reps, _users, _user, ct);
         p.Update(r.Date, r.AccNo, r.PatientName, r.WrongTestCode, r.WrongTestName, r.WrongValue,
-            r.RightTestCode, r.RightTestName, r.RightValue, EnumParse.Name<PenaltyUser>(r.UserType, nameof(r.UserType)), userId, repId);
+            r.RightTestCode, r.RightTestName, r.RightValue, EnumParse.Name<PenaltyUser>(r.UserType, nameof(r.UserType)), userId, repId, reviewerId);
         return Unit.Value;
     }
 }
@@ -682,57 +700,66 @@ internal static class PenaltyTestRules
     }
 }
 
-/// <summary>Shape rules for a penalty's "performed by" person, shared by the create and update validators: a valid user
-/// type, and exactly the matching id — a representative for Rep, a system user for DataEntry / Technician.</summary>
+/// <summary>Shape rules for a penalty's people, shared by the create and update validators: a valid user type, exactly the
+/// matching "performed by" id — a representative for Rep, a system user for DataEntry / Technician — and a reviewer
+/// (system user) exactly for DataEntry (2026-09-19: a data-entry penalty is charged to the typist and the reviewer).</summary>
 internal static class PenaltyActorRules
 {
     public static void Apply<T>(AbstractValidator<T> v, System.Linq.Expressions.Expression<Func<T, string>> userType,
-        System.Linq.Expressions.Expression<Func<T, Guid?>> userId, System.Linq.Expressions.Expression<Func<T, Guid?>> repId)
+        System.Linq.Expressions.Expression<Func<T, Guid?>> userId, System.Linq.Expressions.Expression<Func<T, Guid?>> repId,
+        System.Linq.Expressions.Expression<Func<T, Guid?>> reviewerId)
     {
         var typeOf = userType.Compile();
+        bool Is(T x, string name) => string.Equals(typeOf(x), name, StringComparison.OrdinalIgnoreCase);
         v.RuleFor(userType).Must(EnumParse.IsValid<PenaltyUser>).WithMessage("User type must be Rep, DataEntry, Technician or LabRequest.");
-        v.When(x => string.Equals(typeOf(x), nameof(PenaltyUser.Rep), StringComparison.OrdinalIgnoreCase), () =>
+        v.When(x => Is(x, nameof(PenaltyUser.Rep)), () =>
         {
             v.RuleFor(repId).NotEmpty().WithMessage("Select the representative who made the error.");
             v.RuleFor(userId).Null().WithMessage("A representative penalty cannot also name a system user.");
         });
-        v.When(x => string.Equals(typeOf(x), nameof(PenaltyUser.LabRequest), StringComparison.OrdinalIgnoreCase), () =>
+        v.When(x => Is(x, nameof(PenaltyUser.LabRequest)), () =>
         {
             v.RuleFor(repId).Null().WithMessage("A lab-request penalty names no person.");
             v.RuleFor(userId).Null().WithMessage("A lab-request penalty names no person.");
         });
-        v.When(x => EnumParse.IsValid<PenaltyUser>(typeOf(x))
-            && !string.Equals(typeOf(x), nameof(PenaltyUser.Rep), StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(typeOf(x), nameof(PenaltyUser.LabRequest), StringComparison.OrdinalIgnoreCase), () =>
+        v.When(x => EnumParse.IsValid<PenaltyUser>(typeOf(x)) && !Is(x, nameof(PenaltyUser.Rep)) && !Is(x, nameof(PenaltyUser.LabRequest)), () =>
         {
             v.RuleFor(userId).NotEmpty().WithMessage("Select the system user who made the error.");
             v.RuleFor(repId).Null().WithMessage("A data-entry / technician penalty cannot also name a representative.");
         });
+        v.When(x => Is(x, nameof(PenaltyUser.DataEntry)),
+            () => v.RuleFor(reviewerId).NotEmpty().WithMessage("Select the system user who reviewed the data entry."));
+        v.When(x => EnumParse.IsValid<PenaltyUser>(typeOf(x)) && !Is(x, nameof(PenaltyUser.DataEntry)),
+            () => v.RuleFor(reviewerId).Null().WithMessage("Only a data-entry penalty names a reviewer."));
     }
 }
 
-/// <summary>Resolves the "performed by" person: the representative must exist and lie within the caller's org-scope
-/// (record-scope rule); the system user must exist and be active. Returns the typed ids for the domain factory.</summary>
+/// <summary>Resolves a penalty's people: the representative must exist and lie within the caller's org-scope (record-scope
+/// rule); the system users (performed by, reviewed by) must exist and be active. Returns the typed ids for the domain factory.</summary>
 internal static class PenaltyActorSupport
 {
-    public static async Task<(AppUserId? UserId, RepresentativeId? RepId)> ResolveAsync(Guid? performedByUserId, Guid? performedByRepId,
-        IRepresentativeRepository reps, IAppUserRepository users, ICurrentUser caller, CancellationToken ct)
+    public static async Task<(AppUserId? UserId, RepresentativeId? RepId, AppUserId? ReviewerId)> ResolveAsync(Guid? performedByUserId, Guid? performedByRepId,
+        Guid? reviewedByUserId, IRepresentativeRepository reps, IAppUserRepository users, ICurrentUser caller, CancellationToken ct)
     {
-        RepresentativeId? repId = null; AppUserId? userId = null;
+        RepresentativeId? repId = null;
         if (performedByRepId is { } rid)
         {
             var rep = await reps.GetByIdAsync(new RepresentativeId(rid), ct) ?? throw new NotFoundException("Representative", rid);
             caller.EnsureInScope(rep);
             repId = rep.Id;
         }
-        if (performedByUserId is { } uid)
-        {
-            var user = await users.GetByIdAsync(new AppUserId(uid), ct) ?? throw new NotFoundException("User", uid);
-            if (!user.IsActive)
-                throw new Common.Exceptions.ValidationException(new Dictionary<string, string[]> { ["performedByUserId"] = new[] { "The selected user is inactive." } });
-            userId = user.Id;
-        }
-        return (userId, repId);
+        var userId = await ActiveUserAsync(performedByUserId, "performedByUserId", users, ct);
+        var reviewerId = await ActiveUserAsync(reviewedByUserId, "reviewedByUserId", users, ct);
+        return (userId, repId, reviewerId);
+    }
+
+    private static async Task<AppUserId?> ActiveUserAsync(Guid? id, string field, IAppUserRepository users, CancellationToken ct)
+    {
+        if (id is not { } uid) return null;
+        var user = await users.GetByIdAsync(new AppUserId(uid), ct) ?? throw new NotFoundException("User", uid);
+        if (!user.IsActive)
+            throw new Common.Exceptions.ValidationException(new Dictionary<string, string[]> { [field] = new[] { "The selected user is inactive." } });
+        return user.Id;
     }
 }
 
@@ -860,8 +887,14 @@ public sealed class RecalculateDeductionsHandler : ICommandHandler<RecalculateDe
 internal static class CollectionRules
 {
     public static void Apply<T>(AbstractValidator<T> v, Func<T, string> type, Func<T, IReadOnlyList<CollectionShareInput>> shares,
-        Func<T, decimal> cash, Func<T, decimal> bank, Func<T, string?> iban, Func<T, string?> doneBy, Func<T, string?> notes)
+        Func<T, decimal> cash, Func<T, decimal> bank, Func<T, string?> iban, Func<T, string?> doneBy, Func<T, string?> notes,
+        Func<T, decimal> outsource, Func<T, string?> reference)
     {
+        // 2026-09-19: out-source income (part of the money, not the reps' income) never above the total; a bank reference only with a bank amount.
+        v.RuleFor(x => outsource(x)).GreaterThanOrEqualTo(0).OverridePropertyName("OutsourceIncome");
+        v.RuleFor(x => outsource(x)).LessThanOrEqualTo(x => cash(x) + bank(x)).WithMessage("The out-source income cannot exceed cash + bank.").OverridePropertyName("OutsourceIncome");
+        v.RuleFor(x => reference(x)).MaximumLength(100).OverridePropertyName("ReferenceNumber");
+        v.RuleFor(x => reference(x)).Must(r => string.IsNullOrWhiteSpace(r)).When(x => bank(x) <= 0).WithMessage("A reference number belongs to a bank amount.").OverridePropertyName("ReferenceNumber");
         v.RuleFor(x => type(x)).Must(EnumParse.IsValid<CollectionType>).WithMessage("Type must be Single or Group.").OverridePropertyName("Type");
         v.RuleFor(x => shares(x)).NotNull().Must(s => s.Count > 0).WithMessage("Select at least one rep.").OverridePropertyName("Shares");
         v.RuleFor(x => shares(x)).Must(s => s.Select(x => x.RepId).Distinct().Count() == s.Count).When(x => shares(x) is not null)
@@ -884,11 +917,11 @@ internal static class CollectionRules
 }
 
 public sealed record CreateCollectionCommand(DateOnly Date, string Type, IReadOnlyList<CollectionShareInput> Shares,
-    decimal Cash, decimal Bank, string? Iban, string? DoneBy, string? Notes) : ICommand<Guid>, IAuthorizedRequest
+    decimal Cash, decimal Bank, string? Iban, string? DoneBy, string? Notes, decimal OutsourceIncome = 0m, string? ReferenceNumber = null) : ICommand<Guid>, IAuthorizedRequest
 { public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageAccounting }; }
 public sealed class CreateCollectionValidator : AbstractValidator<CreateCollectionCommand>
 {
-    public CreateCollectionValidator() => CollectionRules.Apply(this, x => x.Type, x => x.Shares, x => x.Cash, x => x.Bank, x => x.Iban, x => x.DoneBy, x => x.Notes);
+    public CreateCollectionValidator() => CollectionRules.Apply(this, x => x.Type, x => x.Shares, x => x.Cash, x => x.Bank, x => x.Iban, x => x.DoneBy, x => x.Notes, x => x.OutsourceIncome, x => x.ReferenceNumber);
 }
 public sealed class CreateCollectionHandler : ICommandHandler<CreateCollectionCommand, Guid>
 {
@@ -902,7 +935,7 @@ public sealed class CreateCollectionHandler : ICommandHandler<CreateCollectionCo
     {
         var shares = await CollectionSupport.ResolveSharesAsync(r.Shares, _reps, _user, ct);
         var c = Collection.Create(r.Date, EnumParse.Name<CollectionType>(r.Type, nameof(r.Type)), shares, r.Cash, r.Bank,
-            r.Bank > 0 ? EnumParse.Name<IbanOption>(r.Iban!, nameof(r.Iban)) : null, r.DoneBy, r.Notes);
+            r.Bank > 0 ? EnumParse.Name<IbanOption>(r.Iban!, nameof(r.Iban)) : null, r.DoneBy, r.Notes, r.OutsourceIncome, r.ReferenceNumber);
         _repo.Add(c);
         await CollectionTreasurySync.UpsertAsync(c, _routing, _treasuries, _entries, _reps, ct); // same transaction
         return c.Id.Value;
@@ -910,14 +943,14 @@ public sealed class CreateCollectionHandler : ICommandHandler<CreateCollectionCo
 }
 
 public sealed record UpdateCollectionCommand(Guid Id, DateOnly Date, string Type, IReadOnlyList<CollectionShareInput> Shares,
-    decimal Cash, decimal Bank, string? Iban, string? DoneBy, string? Notes) : ICommand, IAuthorizedRequest
+    decimal Cash, decimal Bank, string? Iban, string? DoneBy, string? Notes, decimal OutsourceIncome = 0m, string? ReferenceNumber = null) : ICommand, IAuthorizedRequest
 { public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ManageAccounting }; }
 public sealed class UpdateCollectionValidator : AbstractValidator<UpdateCollectionCommand>
 {
     public UpdateCollectionValidator()
     {
         RuleFor(x => x.Id).NotEmpty();
-        CollectionRules.Apply(this, x => x.Type, x => x.Shares, x => x.Cash, x => x.Bank, x => x.Iban, x => x.DoneBy, x => x.Notes);
+        CollectionRules.Apply(this, x => x.Type, x => x.Shares, x => x.Cash, x => x.Bank, x => x.Iban, x => x.DoneBy, x => x.Notes, x => x.OutsourceIncome, x => x.ReferenceNumber);
     }
 }
 public sealed class UpdateCollectionHandler : ICommandHandler<UpdateCollectionCommand>
@@ -934,7 +967,7 @@ public sealed class UpdateCollectionHandler : ICommandHandler<UpdateCollectionCo
         await CollectionSupport.EnsureRepsInScopeAsync(c, _reps, _user, ct); // the existing reps gate the edit (fail-closed)
         var shares = await CollectionSupport.ResolveSharesAsync(r.Shares, _reps, _user, ct);
         c.Update(r.Date, EnumParse.Name<CollectionType>(r.Type, nameof(r.Type)), shares, r.Cash, r.Bank,
-            r.Bank > 0 ? EnumParse.Name<IbanOption>(r.Iban!, nameof(r.Iban)) : null, r.DoneBy, r.Notes);
+            r.Bank > 0 ? EnumParse.Name<IbanOption>(r.Iban!, nameof(r.Iban)) : null, r.DoneBy, r.Notes, r.OutsourceIncome, r.ReferenceNumber);
         await CollectionTreasurySync.UpsertAsync(c, _routing, _treasuries, _entries, _reps, ct);
         return Unit.Value;
     }

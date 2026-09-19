@@ -8,11 +8,14 @@ import { FilterSelectComponent } from '../../shared/filter-select.component';
 import { ApiService } from '../../core/api.service';
 import { UiService } from '../../core/ui.service';
 import { TranslatePipe } from '../../core/i18n';
-import { LabLookup, PenaltyDto } from '../../core/models';
+import { LabLookup, PenaltyActorDto, PenaltyDto } from '../../core/models';
 import { ACC_STYLES, PENALTY_USERS, dayName, firstOfMonth, ldmStatusClass, ldmStatusLabel, money, penaltyUserLabel } from './accounting.util';
 
 type Opt = { value: string; label: string };
 interface Group { userType: string; label: string; rows: PenaltyDto[]; count: number; wrong: number; right: number; penalty: number; }
+/** Total Penalties report: one line per person charged, grouped by user type. */
+interface PersonTotal { id: string; name: string; count: number; wrong: number; right: number; penalty: number; }
+interface TotalGroup { userType: string; label: string; persons: PersonTotal[]; count: number; penalty: number; }
 
 /**
  * Penalty Report — the penalties that are our side's fault (Rep / Data Entry / Technician), grouped by user type with
@@ -30,6 +33,7 @@ interface Group { userType: string; label: string; rows: PenaltyDto[]; count: nu
       <div class="pagehead-actions">
         <a class="btn btn-s" routerLink="/accounting/penalties">{{ 'acc_penalties' | t : 'Penalty Statement' }}</a>
         <button class="btn btn-p" [disabled]="!rows().length" (click)="print()">{{ 'print' | t : 'Print' }}</button>
+        <button class="btn btn-s" [disabled]="!rows().length" (click)="printTotals()">{{ 'pr_total_penalties_pdf' | t : 'Total Penalties (PDF)' }}</button>
         <button class="btn btn-s" [disabled]="!rows().length" (click)="exportExcel()">{{ 'export_excel' | t : 'Export Excel' }}</button>
       </div>
     </div>
@@ -42,11 +46,13 @@ interface Group { userType: string; label: string; rows: PenaltyDto[]; count: nu
     </div>
 
     <div class="card" style="padding:16px;margin-bottom:16px">
-      <div class="frm-grid" style="grid-template-columns:1fr 1fr 1fr 2fr 1fr;gap:12px;align-items:end">
+      <div class="frm-grid" style="grid-template-columns:1fr 1fr 1fr 1.5fr 2fr 1fr;gap:12px;align-items:end">
         <div class="field"><label>{{ 'start_date' | t }}</label><app-date-input [(ngModel)]="from"></app-date-input></div>
         <div class="field"><label>{{ 'end_date' | t }}</label><app-date-input [(ngModel)]="to"></app-date-input></div>
         <div class="field"><label>{{ 'user_type' | t : 'User Type' }}</label>
-          <select class="select" [(ngModel)]="userType"><option value="">{{ 'all' | t : 'All' }}</option>@for (u of staffUsers; track u) { <option [value]="u">{{ label(u) }}</option> }</select></div>
+          <select class="select" [ngModel]="userType" (ngModelChange)="pickUserType($event)"><option value="">{{ 'all' | t : 'All' }}</option>@for (u of staffUsers; track u) { <option [value]="u">{{ label(u) }}</option> }</select></div>
+        <div class="field"><label>{{ 'pr_performed_by' | t : 'Performed by' }}</label>
+          <app-filter-select [(ngModel)]="performerId" [options]="performerOptions()" [clearable]="true" [placeholder]="'all' | t : 'All'" [disabled]="!userType"></app-filter-select></div>
         <div class="field"><label>{{ 'lab' | t : 'Lab' }}</label><app-filter-select [(ngModel)]="labId" [options]="labOptions()" [clearable]="true" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply_filters' | t : 'Apply Filters' }}</button></div>
       </div>
@@ -75,7 +81,7 @@ interface Group { userType: string; label: string; rows: PenaltyDto[]; count: nu
                   <td>{{ p.wrongTestName || '—' }} <span class="small muted">({{ p.wrongTestCode }})</span></td><td class="r mono">{{ p.wrongValue | number:'1.2-2' }}</td>
                   <td>{{ p.rightTestName || '—' }} <span class="small muted">({{ p.rightTestCode }})</span></td><td class="r mono">{{ p.rightValue | number:'1.2-2' }}</td>
                   <td class="r mono" [class.neg]="p.penalty > 0" [class.pos]="p.penalty < 0" style="font-weight:700">{{ p.penalty | number:'1.2-2' }}</td>
-                  <td>{{ p.performedByName || (p.userType === 'LabRequest' && p.responsibleRepName ? (p.responsibleRepName + ' (' + ('lab_responsible' | t : 'Lab Responsible') + ')') : '—') }}</td>
+                  <td>{{ p.performedByName || (p.userType === 'LabRequest' && p.responsibleRepName ? (p.responsibleRepName + ' (' + ('lab_responsible' | t : 'Lab Responsible') + ')') : '—') }}@if (p.reviewedByName) { <div class="small muted">{{ 'reviewed_by' | t : 'Reviewed By' }}: {{ p.reviewedByName }}</div> }</td>
                   <td><span class="badge" [class]="'badge ' + ldmClass(p.ldmStatus)" [title]="p.ldmNote || ''">{{ ldmLabel(p.ldmStatus) }}</span>@if (p.ldmNote) { <div class="small muted">{{ p.ldmNote }}</div> }</td>
                 </tr>
               }
@@ -101,12 +107,37 @@ export class PenaltyReportComponent {
   readonly loading = signal(true);
   readonly all = signal<PenaltyDto[]>([]);
   readonly labs = signal<LabLookup[]>([]);
-  from = firstOfMonth(); to = localToday(); userType = ''; labId = '';
+  /** The "Performed by" filter's people for the chosen user type: reps for Rep, Lab Responsibles for LabRequest, users otherwise. */
+  readonly performers = signal<PenaltyActorDto[]>([]);
+  readonly performerOptions = computed<Opt[]>(() => this.performers().map((a) => ({ value: a.id, label: a.detail ? `${a.name} (${a.detail})` : a.name })));
+  from = firstOfMonth(); to = localToday(); userType = ''; labId = ''; performerId = '';
   private readonly filterType = signal('');
+  private readonly filterPerformer = signal('');
 
   readonly labOptions = computed<Opt[]>(() => this.labs().map((l) => ({ value: l.id, label: `${l.displayCode} · ${l.name}` })));
-  /** Every user type (Rep / DataEntry / Technician / LabRequest — 2026-09-18), narrowed to the chosen type. */
-  readonly rows = computed(() => this.all().filter((p) => !this.filterType() || p.userType === this.filterType()));
+  /** The people a penalty is charged to: its performer; for DataEntry also its reviewer; for LabRequest the lab's Lab Responsible. */
+  private static chargedTo(p: PenaltyDto): { id: string; name: string }[] {
+    const out: { id: string; name: string }[] = [];
+    if (p.performedById) out.push({ id: p.performedById, name: p.performedByName ?? '—' });
+    if (p.userType === 'DataEntry' && p.reviewedById) out.push({ id: p.reviewedById, name: p.reviewedByName ?? '—' });
+    if (p.userType === 'LabRequest' && p.responsibleRepId) out.push({ id: p.responsibleRepId, name: p.responsibleRepName ?? '—' });
+    return out;
+  }
+  /** Every user type (Rep / DataEntry / Technician / LabRequest — 2026-09-18), narrowed to the chosen type and person. */
+  readonly rows = computed(() => this.all().filter((p) => (!this.filterType() || p.userType === this.filterType())
+    && (!this.filterPerformer() || PenaltyReportComponent.chargedTo(p).some((c) => c.id === this.filterPerformer()))));
+  /** Total Penalties: per person charged, grouped by user type. A DataEntry penalty counts for its typist AND its reviewer. */
+  readonly totals = computed<TotalGroup[]>(() => PENALTY_USERS.map((u) => {
+    const rows = this.rows().filter((p) => p.userType === u);
+    const byPerson = new Map<string, PersonTotal>();
+    for (const p of rows) for (const c of PenaltyReportComponent.chargedTo(p)) {
+      const t = byPerson.get(c.id) ?? { id: c.id, name: c.name, count: 0, wrong: 0, right: 0, penalty: 0 };
+      t.count++; t.wrong += p.wrongValue; t.right += p.rightValue; t.penalty += p.penalty; byPerson.set(c.id, t);
+    }
+    const persons = [...byPerson.values()].map((t) => ({ ...t, wrong: money(t.wrong), right: money(t.right), penalty: money(t.penalty) }))
+      .sort((a, b) => b.penalty - a.penalty || a.name.localeCompare(b.name));
+    return { userType: u, label: penaltyUserLabel(u), persons, count: rows.length, penalty: money(persons.reduce((s, t) => s + t.penalty, 0)) };
+  }).filter((g) => g.persons.length > 0));
   readonly groups = computed<Group[]>(() => PENALTY_USERS
     .map((u) => {
       const rows = this.rows().filter((p) => p.userType === u).sort((a, b) => a.date.localeCompare(b.date) || a.labName.localeCompare(b.labName));
@@ -127,9 +158,17 @@ export class PenaltyReportComponent {
   day(d: string | null): string { return dayName(d, this.ui.lang()); }
   label(u: string): string { return penaltyUserLabel(u); }
 
+  /** The "Performed by" list follows the user type; a type change clears the person (the lists are disjoint). */
+  pickUserType(userType: string): void {
+    this.userType = userType; this.performerId = ''; this.performers.set([]);
+    if (!userType) return;
+    this.api.get<PenaltyActorDto[]>('/accounting/penalty-actors', { userType }).subscribe({ next: (r) => this.performers.set(r), error: () => {} });
+  }
+  performerName(): string { return this.performerId ? (this.performers().find((a) => a.id === this.performerId)?.name ?? '') : 'All'; }
+
   load(): void {
     this.loading.set(true);
-    this.filterType.set(this.userType);
+    this.filterType.set(this.userType); this.filterPerformer.set(this.userType ? this.performerId : '');
     const params: Record<string, string> = { from: this.from, to: this.to };
     if (this.labId) params['laboratoryId'] = this.labId;
     this.api.get<PenaltyDto[]>('/accounting/penalties', params).subscribe({ next: (r) => { this.all.set(r); this.loading.set(false); }, error: () => this.loading.set(false) });
@@ -140,7 +179,7 @@ export class PenaltyReportComponent {
     const rows = this.groups().flatMap((g) => [
       ...g.rows.map((p, i) => [g.label, i + 1, ddmy(p.date), this.day(p.date), p.labName, p.labDisplayCode, p.accNo, p.patientName,
         `${p.wrongTestName ?? ''} (${p.wrongTestCode ?? ''})`, money(p.wrongValue), `${p.rightTestName ?? ''} (${p.rightTestCode ?? ''})`, money(p.rightValue), money(p.penalty),
-        p.performedByName ?? (p.userType === 'LabRequest' ? (p.responsibleRepName ?? '') : ''), ldmStatusLabel(p.ldmStatus) + (p.ldmNote ? ` — ${p.ldmNote}` : '')]),
+        (p.performedByName ?? (p.userType === 'LabRequest' ? (p.responsibleRepName ?? '') : '')) + (p.reviewedByName ? ` (reviewed by ${p.reviewedByName})` : ''), ldmStatusLabel(p.ldmStatus) + (p.ldmNote ? ` — ${p.ldmNote}` : '')]),
       [`Subtotal · ${g.label}`, '', '', '', '', '', '', '', '', g.wrong, '', g.right, g.penalty, ''],
     ]);
     rows.push(['Grand total', '', '', '', '', '', '', '', '', this.k().wrong, '', this.k().right, this.k().penalty, '']);
@@ -156,28 +195,58 @@ export class PenaltyReportComponent {
       <table><thead><tr><th>#</th><th>Date</th><th>Lab</th><th>Acc No</th><th>Patient</th><th>Wrong test</th><th class="r">Value</th><th>Right test</th><th class="r">Value</th><th class="r">Penalty</th><th>Performed by</th></tr></thead>
       <tbody>${g.rows.map((p, i) => `<tr><td>${i + 1}</td><td>${e(ddmy(p.date))}</td><td>${e(p.labName)} <small>${e(p.labDisplayCode)}</small></td><td>${e(p.accNo)}</td><td>${e(p.patientName)}</td>
         <td>${e(p.wrongTestName ?? '')} <small>(${e(p.wrongTestCode ?? '')})</small></td><td class="r">${n(p.wrongValue)}</td><td>${e(p.rightTestName ?? '')} <small>(${e(p.rightTestCode ?? '')})</small></td><td class="r">${n(p.rightValue)}</td>
-        <td class="r b">${n(p.penalty)}</td><td>${e(p.performedByName ?? '—')}</td></tr>`).join('')}</tbody>
+        <td class="r b">${n(p.penalty)}</td><td>${e(p.performedByName ?? (p.userType === 'LabRequest' ? (p.responsibleRepName ?? '—') : '—'))}${p.reviewedByName ? `<br><small>reviewed by ${e(p.reviewedByName)}</small>` : ''}</td></tr>`).join('')}</tbody>
       <tfoot><tr><td colspan="6">Subtotal · ${e(g.label)}</td><td class="r">${n(g.wrong)}</td><td></td><td class="r">${n(g.right)}</td><td class="r b">${n(g.penalty)}</td><td></td></tr></tfoot></table>`).join('');
-    const html = `<!doctype html><html><head><title>Penalty Report</title><style>
+    const html = `<!doctype html><html><head><title>Penalty Report</title><style>${PenaltyReportComponent.PRINT_CSS}</style></head><body>
+    <div class="hdr"><div><h1>Penalty Report</h1><div style="font-size:12px;color:#444">Penalties by user type (Rep / Data Entry / Technician / Lab Request)</div></div>
+      <div class="meta">Period ${e(ddmy(this.from))} → ${e(ddmy(this.to))}<br>Generated ${e(new Date().toLocaleString('en-GB'))}</div></div>
+    <div class="filters"><div><b>User type</b>${e(this.userType ? penaltyUserLabel(this.userType) : 'All')}</div><div><b>Performed by</b>${e(this.performerName())}</div><div><b>Lab</b>${e(labName)}</div><div><b>Records</b>${this.k().count}</div><div><b>Total penalty</b>${n(this.k().penalty)} EGP</div></div>
+    ${sections || '<p>No records.</p>'}
+    <div class="grand"><span>Wrong value: ${n(this.k().wrong)}</span><span>Right value: ${n(this.k().right)}</span><span>Grand total penalty: <b>${n(this.k().penalty)} EGP</b></span></div>
+    <div class="sign"><div>Prepared by</div><div>Reviewed by</div><div>Approved by</div></div>
+    </body></html>`;
+    PenaltyReportComponent.open(html);
+  }
+
+  /** Total Penalties: a formal PDF with the total charged to each person, grouped by user type (a data-entry penalty is
+   *  charged to both the data entry user and the reviewer; a lab-request penalty to the lab's Lab Responsible). */
+  printTotals(): void {
+    const e = escHtml; const n = (v: number) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const labName = this.labId ? (this.labs().find((l) => l.id === this.labId)?.name ?? '') : 'All labs';
+    const groups = this.totals();
+    const grand = money(groups.reduce((s, g) => s + g.penalty, 0));
+    const sections = groups.map((g) => `
+      <h2>${e(g.label)} <span class="cnt">${g.persons.length} person(s) · ${g.count} record(s)</span></h2>
+      <table><thead><tr><th>#</th><th>Performed by</th><th class="r">Records</th><th class="r">Wrong value</th><th class="r">Right value</th><th class="r">Total penalty</th></tr></thead>
+      <tbody>${g.persons.map((t, i) => `<tr><td>${i + 1}</td><td>${e(t.name)}</td><td class="r">${t.count}</td><td class="r">${n(t.wrong)}</td><td class="r">${n(t.right)}</td><td class="r b">${n(t.penalty)}</td></tr>`).join('')}</tbody>
+      <tfoot><tr><td colspan="2">Subtotal · ${e(g.label)}</td><td class="r">${g.persons.reduce((s, t) => s + t.count, 0)}</td><td class="r">${n(g.persons.reduce((s, t) => s + t.wrong, 0))}</td><td class="r">${n(g.persons.reduce((s, t) => s + t.right, 0))}</td><td class="r b">${n(g.penalty)}</td></tr></tfoot></table>`).join('');
+    const html = `<!doctype html><html><head><title>Total Penalties</title><style>${PenaltyReportComponent.PRINT_CSS} @media print{@page{size:A4 portrait;margin:12mm}}</style></head><body>
+    <div class="hdr"><div><h1>Total Penalties</h1><div style="font-size:12px;color:#444">Total penalty per person, grouped by user type</div></div>
+      <div class="meta">Period ${e(ddmy(this.from))} → ${e(ddmy(this.to))}<br>Generated ${e(new Date().toLocaleString('en-GB'))}</div></div>
+    <div class="filters"><div><b>User type</b>${e(this.userType ? penaltyUserLabel(this.userType) : 'All')}</div><div><b>Performed by</b>${e(this.performerName())}</div><div><b>Lab</b>${e(labName)}</div><div><b>Records</b>${this.k().count}</div><div><b>Total charged</b>${n(grand)} EGP</div></div>
+    ${sections || '<p>No records.</p>'}
+    <p class="note">A data-entry penalty is charged to both the user who entered the data and the user who reviewed it; a lab-request penalty to the lab's Lab Responsible. Total penalty = right test value − wrong test value.</p>
+    <div class="grand"><span>Records: ${this.k().count}</span><span>Grand total charged: <b>${n(grand)} EGP</b></span></div>
+    <div class="sign"><div>Prepared by</div><div>Reviewed by</div><div>Approved by</div></div>
+    </body></html>`;
+    PenaltyReportComponent.open(html);
+  }
+
+  private static open(html: string): void {
+    const w = window.open('', '_blank'); if (!w) return;
+    w.document.write(html); w.document.close(); w.focus(); w.print();
+  }
+
+  private static readonly PRINT_CSS = `
       body{font:12px system-ui,sans-serif;padding:20px;color:#111}
       .hdr{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #333;padding-bottom:8px;margin-bottom:12px}
       h1{font-size:20px;margin:0}.meta{font-size:11px;color:#444;text-align:right}
-      .filters{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0 0 14px;font-size:11.5px}.filters div{border:1px solid #ddd;padding:6px 8px;border-radius:4px}.filters b{display:block;color:#666;font-weight:600;font-size:10.5px}
+      .filters{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:0 0 14px;font-size:11.5px}.filters div{border:1px solid #ddd;padding:6px 8px;border-radius:4px}.filters b{display:block;color:#666;font-weight:600;font-size:10.5px}
       h2{font-size:14px;margin:18px 0 6px;border-left:4px solid #0078D4;padding-left:8px}.cnt{font-size:11px;color:#666;font-weight:400;margin-left:8px}
       table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:5px 7px;text-align:left;vertical-align:top}th{background:#f1f5f9}small{color:#666}
       .r{text-align:right;white-space:nowrap}.b{font-weight:700}tfoot td{background:#fafafa;font-weight:600}
       .grand{margin-top:16px;border-top:2px solid #333;padding-top:8px;display:flex;justify-content:flex-end;gap:32px;font-size:13px}.grand b{font-size:15px}
       .sign{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:48px;font-size:11.5px}.sign div{border-top:1px solid #333;padding-top:6px;text-align:center}
-      @media print{@page{size:A4 landscape;margin:12mm}}
-    </style></head><body>
-    <div class="hdr"><div><h1>Penalty Report</h1><div style="font-size:12px;color:#444">Penalties by user type (Rep / Data Entry / Technician)</div></div>
-      <div class="meta">Period ${e(ddmy(this.from))} → ${e(ddmy(this.to))}<br>Generated ${e(new Date().toLocaleString('en-GB'))}</div></div>
-    <div class="filters"><div><b>User type</b>${e(this.userType ? penaltyUserLabel(this.userType) : 'All')}</div><div><b>Lab</b>${e(labName)}</div><div><b>Records</b>${this.k().count}</div><div><b>Total penalty</b>${n(this.k().penalty)} EGP</div></div>
-    ${sections || '<p>No records.</p>'}
-    <div class="grand"><span>Wrong value: ${n(this.k().wrong)}</span><span>Right value: ${n(this.k().right)}</span><span>Grand total penalty: <b>${n(this.k().penalty)} EGP</b></span></div>
-    <div class="sign"><div>Prepared by</div><div>Reviewed by</div><div>Approved by</div></div>
-    </body></html>`;
-    const w = window.open('', '_blank'); if (!w) return;
-    w.document.write(html); w.document.close(); w.focus(); w.print();
-  }
+      .note{font-size:11px;color:#555;margin-top:12px}
+      @media print{@page{size:A4 landscape;margin:12mm}}`;
 }

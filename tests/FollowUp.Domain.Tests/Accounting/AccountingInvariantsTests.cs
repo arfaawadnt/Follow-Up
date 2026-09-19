@@ -156,7 +156,7 @@ public class AccountingInvariantsTests
         var rep = FollowUp.Domain.Representatives.RepresentativeId.New();
         var user = FollowUp.Domain.Identity.AppUserId.New();
         PenaltyRecord Make(PenaltyUser type, FollowUp.Domain.Identity.AppUserId? u, FollowUp.Domain.Representatives.RepresentativeId? r) =>
-            PenaltyRecord.Create(lab, D, "A", "P", "T1", "W", 1m, "T2", "R", 1m, type, u, r);
+            PenaltyRecord.Create(lab, D, "A", "P", "T1", "W", 1m, "T2", "R", 1m, type, u, r, type == PenaltyUser.DataEntry && u is not null ? user : null);
 
         // Rep → a representative, and only a representative.
         FluentActions.Invoking(() => Make(PenaltyUser.Rep, null, null)).Should().Throw<DomainException>().WithMessage("*representative*");
@@ -180,7 +180,7 @@ public class AccountingInvariantsTests
         // Tests: a staff penalty needs both; a lab request at least one, and a missing test carries no value.
         PenaltyRecord Tests(PenaltyUser type, string? wrong, decimal wv, string? right, decimal rv) =>
             PenaltyRecord.Create(lab, D, "A", "P", wrong, wrong is null ? null : "W", wv, right, right is null ? null : "R", rv, type,
-                type == PenaltyUser.LabRequest ? null : user, null);
+                type == PenaltyUser.LabRequest ? null : user, null, type == PenaltyUser.DataEntry ? user : null);
         FluentActions.Invoking(() => Tests(PenaltyUser.DataEntry, "T1", 5m, null, 0m)).Should().Throw<DomainException>().WithMessage("*Both*");
         var wrongOnly = Tests(PenaltyUser.LabRequest, "T1", 250m, null, 0m);
         wrongOnly.RightTestCode.Should().BeNull(); wrongOnly.RightValue.Amount.Should().Be(0m); wrongOnly.PenaltyAmount.Amount.Should().Be(-250m, "a wrong test alone is pure credit");
@@ -192,6 +192,61 @@ public class AccountingInvariantsTests
         FluentActions.Invoking(() => Make(PenaltyUser.LabRequest, null, rep)).Should().Throw<DomainException>().WithMessage("*names no person*");
     }
 
+
+    [Fact]
+    public void A_data_entry_penalty_also_names_its_reviewer_and_no_other_type_does()
+    {
+        var lab = LaboratoryId.New();
+        var typist = FollowUp.Domain.Identity.AppUserId.New(); var reviewer = FollowUp.Domain.Identity.AppUserId.New();
+        var rep = FollowUp.Domain.Representatives.RepresentativeId.New();
+        PenaltyRecord Make(PenaltyUser type, FollowUp.Domain.Identity.AppUserId? u, FollowUp.Domain.Representatives.RepresentativeId? r, FollowUp.Domain.Identity.AppUserId? reviewedBy) =>
+            PenaltyRecord.Create(lab, D, "A", "P", "T1", "W", 10m, "T2", "R", 25m, type, u, r, reviewedBy);
+
+        // DataEntry → typist + reviewer (both charged on the Penalty Report; one record, one statement posting).
+        FluentActions.Invoking(() => Make(PenaltyUser.DataEntry, typist, null, null)).Should().Throw<DomainException>().WithMessage("*reviewed*");
+        var p = Make(PenaltyUser.DataEntry, typist, null, reviewer);
+        p.PerformedByUserId.Should().Be(typist); p.ReviewedByUserId.Should().Be(reviewer);
+        p.PenaltyAmount.Amount.Should().Be(15m, "one penalty, not doubled");
+
+        // Every other type refuses a reviewer.
+        FluentActions.Invoking(() => Make(PenaltyUser.Technician, typist, null, reviewer)).Should().Throw<DomainException>().WithMessage("*Only a data-entry penalty*");
+        FluentActions.Invoking(() => Make(PenaltyUser.Rep, null, rep, reviewer)).Should().Throw<DomainException>().WithMessage("*Only a data-entry penalty*");
+        FluentActions.Invoking(() => Make(PenaltyUser.LabRequest, null, null, reviewer)).Should().Throw<DomainException>().WithMessage("*Only a data-entry penalty*");
+
+        // Re-typing to Technician releases the reviewer link.
+        p.Update(D, "A", "P", "T1", "W", 10m, "T2", "R", 25m, PenaltyUser.Technician, typist, null);
+        p.ReviewedByUserId.Should().BeNull();
+    }
+
+    [Fact]
+    public void A_collection_carries_out_source_income_within_the_total_and_a_reference_only_with_a_bank_amount()
+    {
+        var r1 = RepresentativeId.New(); var r2 = RepresentativeId.New();
+        // Out-source income is part of the money but not the reps' collection income.
+        var single = Collection.Create(D, CollectionType.Single, new[] { (r1, 0m) }, 600m, 400m, IbanOption.Iban12, null, null, 250m, " TRX-778 ");
+        single.OutsourceIncome.Amount.Should().Be(250m); single.NetIncome.Amount.Should().Be(750m);
+        single.ReferenceNumber.Should().Be("TRX-778", "trimmed");
+        single.NetShareOf(r1).Amount.Should().Be(750m, "the one rep bears all of the out-source income");
+        single.NetShareOf(r2).Amount.Should().Be(0m);
+
+        // A group spreads the out-source income over the reps in proportion to their shares.
+        var group = Collection.Create(D, CollectionType.Group, new[] { (r1, 300m), (r2, 100m) }, 400m, 0m, null, null, null, 100m);
+        group.NetShareOf(r1).Amount.Should().Be(225m); group.NetShareOf(r2).Amount.Should().Be(75m);
+        group.ShareOf(r1).Amount.Should().Be(300m, "the gross share is untouched");
+
+        FluentActions.Invoking(() => Collection.Create(D, CollectionType.Single, new[] { (r1, 0m) }, 100m, 0m, null, null, null, 100.01m))
+            .Should().Throw<DomainException>().WithMessage("*cannot exceed cash + bank*");
+        FluentActions.Invoking(() => Collection.Create(D, CollectionType.Single, new[] { (r1, 0m) }, 100m, 0m, null, null, null, -1m))
+            .Should().Throw<DomainException>().WithMessage("*cannot be negative*");
+        FluentActions.Invoking(() => Collection.Create(D, CollectionType.Single, new[] { (r1, 0m) }, 100m, 0m, null, null, null, 0m, "REF-1"))
+            .Should().Throw<DomainException>().WithMessage("*belongs to a bank amount*");
+        FluentActions.Invoking(() => Collection.Create(D, CollectionType.Single, new[] { (r1, 0m) }, 0m, 100m, IbanOption.Iban16, null, null, 0m, new string('x', 101)))
+            .Should().Throw<DomainException>().WithMessage("*at most 100*");
+
+        // A reference cannot survive a dropped bank amount: the caller must drop it with the bank amount (the UI does).
+        FluentActions.Invoking(() => single.Update(D, CollectionType.Single, new[] { (r1, 0m) }, 600m, 0m, IbanOption.Iban12, null, null, 0m, "TRX-778"))
+            .Should().Throw<DomainException>("the caller must drop the reference with the bank amount");
+    }
     // ---- Deduction ----
 
     [Fact]

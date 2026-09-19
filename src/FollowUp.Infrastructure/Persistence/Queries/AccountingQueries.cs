@@ -92,7 +92,8 @@ internal sealed class AccountingQueries : IAccountingQueries
         // Resolve the "performed by" and Lab Responsible names in two set-based lookups (reps and system users) rather than per row.
         var repIds = rows.Where(p => p.PerformedByRepId is not null).Select(p => p.PerformedByRepId!.Value)
             .Concat(labs.Values.Where(l => l.ResponsibleRepId is not null).Select(l => l.ResponsibleRepId!.Value)).Distinct().ToList();
-        var userIds = rows.Where(p => p.PerformedByUserId is not null).Select(p => p.PerformedByUserId!.Value).Distinct().ToList();
+        var userIds = rows.Where(p => p.PerformedByUserId is not null).Select(p => p.PerformedByUserId!.Value)
+            .Concat(rows.Where(p => p.ReviewedByUserId is not null).Select(p => p.ReviewedByUserId!.Value)).Distinct().ToList();
         var repNames = repIds.Count == 0 ? new Dictionary<RepresentativeId, string>()
             : await _db.Representatives.AsNoTracking().Where(r => repIds.Contains(r.Id)).ToDictionaryAsync(r => r.Id, r => r.FullName, ct);
         var userNames = userIds.Count == 0 ? new Dictionary<AppUserId, string>()
@@ -133,22 +134,55 @@ internal sealed class AccountingQueries : IAccountingQueries
                 p.AccNo, p.PatientName, p.WrongTestCode, p.WrongTestName, p.WrongValue.Amount,
                 p.RightTestCode, p.RightTestName, p.RightValue.Amount, p.PenaltyAmount.Amount,
                 p.UserType.Name, p.PerformedByRepId?.Value ?? p.PerformedByUserId?.Value, performedBy,
-                responsibleId?.Value, responsibleId is { } rr ? repNames.GetValueOrDefault(rr) : null, status, note);
+                responsibleId?.Value, responsibleId is { } rr ? repNames.GetValueOrDefault(rr) : null, status, note,
+                p.ReviewedByUserId?.Value, p.ReviewedByUserId is { } rv ? userNames.GetValueOrDefault(rv) : null);
         }).ToList();
     }
 
-    public async Task<IReadOnlyList<PenaltyActorDto>> PenaltyActorsAsync(PenaltyUser userType, OrgScope scope, CancellationToken ct)
+    public async Task<IReadOnlyList<PenaltyActorDto>> PenaltyActorsAsync(PenaltyUser userType, Guid? laboratoryId, DateOnly? date, string? step, OrgScope scope, CancellationToken ct)
     {
-        if (userType == PenaltyUser.LabRequest) return Array.Empty<PenaltyActorDto>(); // the lab asked for the wrong test — nobody to pick
-        if (userType == PenaltyUser.Rep)
+        if (userType == PenaltyUser.Rep || userType == PenaltyUser.LabRequest)
         {
             // Reps are org-scoped like every rep-linked read; the rep type is carried so the picker can disambiguate.
-            var reps = await _db.Representatives.ApplyScope(scope).AsNoTracking().Where(r => r.IsActive)
-                .Select(r => new { r.Id, r.FullName, r.Type }).ToListAsync(ct);
+            var repsQ = _db.Representatives.ApplyScope(scope).AsNoTracking().Where(r => r.IsActive);
+            // LabRequest penalties post to the lab's Lab Responsible, so that is who the report filter offers.
+            if (userType == PenaltyUser.LabRequest) { var lr = RepresentativeType.LabResponsible; repsQ = repsQ.Where(r => r.Type == lr); }
+            var reps = await repsQ.Select(r => new { r.Id, r.FullName, r.Type }).ToListAsync(ct);
+            if (userType == PenaltyUser.Rep && laboratoryId is { } lid)
+            {
+                // The reps linked to the chosen lab (responsible, collectors, marketing); every rep when the lab links none.
+                var lab = await _db.Laboratories.AsNoTracking().Where(l => l.Id == new LaboratoryId(lid))
+                    .Select(l => new { l.ResponsibleRepId, l.CollectorRepIds, l.MarketingRepId }).FirstOrDefaultAsync(ct);
+                if (lab is not null)
+                {
+                    var linked = lab.CollectorRepIds.Concat(new[] { lab.ResponsibleRepId, lab.MarketingRepId }.Where(x => x is not null).Select(x => x!.Value)).ToHashSet();
+                    var onLab = reps.Where(r => linked.Contains(r.Id)).ToList();
+                    if (onLab.Count > 0) reps = onLab;
+                }
+            }
             return reps.OrderBy(r => r.FullName, StringComparer.OrdinalIgnoreCase)
                 .Select(r => new PenaltyActorDto(r.Id.Value, r.FullName, r.Type.Name)).ToList();
         }
         var users = await _db.Users.AsNoTracking().Where(u => u.IsActive).Select(u => new { u.Id, u.Username }).ToListAsync(ct);
+        if (userType == PenaltyUser.DataEntry && laboratoryId is { } dlid && date is { } d && step is not null)
+        {
+            // The users who did the step (data entry / review) on the Sample Lifecycle Tracking row of the lab's area that
+            // day; the tracking stores usernames, so they are matched to the active users by name. Nobody → every user.
+            var area = await _db.Laboratories.AsNoTracking().Where(l => l.Id == new LaboratoryId(dlid)).Select(l => l.Area).FirstOrDefaultAsync(ct);
+            if (!string.IsNullOrWhiteSpace(area))
+            {
+                var tracked = await _db.SampleTracking.AsNoTracking().Where(t => t.Area == area && t.Date == d).ToListAsync(ct);
+                var names = tracked.Select(t => step == PenaltyActorStep.Review ? t.Review?.User : t.DataEntry?.User)
+                    .Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n!.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var did = users.Where(u => names.Contains(u.Username)).ToList();
+                if (did.Count > 0)
+                {
+                    var what = step == PenaltyActorStep.Review ? "reviewed" : "data entry";
+                    return did.OrderBy(u => u.Username, StringComparer.OrdinalIgnoreCase)
+                        .Select(u => new PenaltyActorDto(u.Id.Value, u.Username, $"{what} · {area} · {d:dd/MM/yyyy}")).ToList();
+                }
+            }
+        }
         return users.OrderBy(u => u.Username, StringComparer.OrdinalIgnoreCase)
             .Select(u => new PenaltyActorDto(u.Id.Value, u.Username, null)).ToList();
     }
@@ -213,7 +247,7 @@ internal sealed class AccountingQueries : IAccountingQueries
         return rows.Select(c => new CollectionDto(c.Id.Value, c.Serial, c.Date, c.Type.Name,
             c.Shares.Select(s => new CollectionShareDto(s.RepId.Value, repNames.GetValueOrDefault(s.RepId, "—"), s.Amount.Amount)).ToList(),
             c.RepIds.Select(r => r.Value).ToList(), c.RepIds.Select(r => repNames.GetValueOrDefault(r, "—")).ToList(),
-            c.Cash.Amount, c.Bank.Amount, c.Total.Amount, c.Iban?.Name, c.DoneBy, c.Notes)).ToList();
+            c.Cash.Amount, c.Bank.Amount, c.Total.Amount, c.Iban?.Name, c.DoneBy, c.Notes, c.OutsourceIncome.Amount, c.ReferenceNumber, c.NetIncome.Amount)).ToList();
     }
 
     // ---- Rep statement ----
@@ -306,15 +340,18 @@ internal sealed class AccountingQueries : IAccountingQueries
             var manual = await _db.RepIncomeEntries.AsNoTracking().Where(e => e.RepresentativeId == repId && e.Date >= from && e.Date <= to).ToListAsync(ct);
             foreach (var e in manual) lines.Add((e.Date, 0, "ManualIncome", e.Amount.Amount, 0m, e.Notes, e.Id.Value));
 
-            // Credit — the actual collections (Collection page): this rep's share, noted with how it was collected.
+            // Credit — the actual collections (Collection page): this rep's share net of the out-source income (cash + bank −
+            // out-source, 2026-09-19), noted with how it was collected.
             var collections = (await _db.Collections.AsNoTracking().Where(c => c.Date >= from && c.Date <= to).ToListAsync(ct)).Where(c => c.RepIds.Contains(repId));
             foreach (var c in collections)
             {
                 var how = c.Cash.Amount > 0 && c.Bank.Amount > 0 ? "Cash + Bank" : c.Bank.Amount > 0 ? "Bank" : "Cash";
                 var note = $"Collection #{c.Serial} · {how} · {c.Type.Name} · cash {c.Cash.Amount:0.00} · bank {c.Bank.Amount:0.00}"
-                    + (c.Iban is not null ? $" (IBAN {c.Iban.Name})" : "") + (c.DoneBy is not null ? $" · by {c.DoneBy}" : "")
+                    + (c.Iban is not null ? $" (IBAN {c.Iban.Name})" : "") + (c.ReferenceNumber is not null ? $" · ref {c.ReferenceNumber}" : "")
+                    + (c.OutsourceIncome.Amount > 0 ? $" · out-source {c.OutsourceIncome.Amount:0.00}" : "")
+                    + (c.DoneBy is not null ? $" · by {c.DoneBy}" : "")
                     + (c.RepIds.Count > 1 ? $" · share of {c.Total.Amount:0.00}" : "") + (c.Notes is not null ? $" · {c.Notes}" : "");
-                lines.Add((c.Date, 3, "Collection", 0m, c.ShareOf(repId).Amount, note, c.Id.Value));
+                lines.Add((c.Date, 3, "Collection", 0m, c.NetShareOf(repId).Amount, note, c.Id.Value));
             }
         }
 

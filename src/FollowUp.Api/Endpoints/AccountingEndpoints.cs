@@ -15,11 +15,11 @@ public static class AccountingEndpoints
     public sealed record ValidateEntryBody(decimal ReceivedAmount, string? Note);
     public sealed record PenaltyBody(DateOnly Date, Guid LaboratoryId, string AccNo, string PatientName,
         string? WrongTestCode, string? WrongTestName, decimal WrongValue, string? RightTestCode, string? RightTestName, decimal RightValue,
-        string UserType, Guid? PerformedByUserId, Guid? PerformedByRepId);
+        string UserType, Guid? PerformedByUserId, Guid? PerformedByRepId, Guid? ReviewedByUserId = null);
     public sealed record DeductionBody(DateOnly Date, Guid AreaId, string Reason, decimal Value, string? Notes, DateOnly? PeriodFrom, DateOnly? PeriodTo,
         string? Basis = null);
     public sealed record CollectionBody(DateOnly Date, string Type, IReadOnlyList<CollectionShareInput> Shares,
-        decimal Cash, decimal Bank, string? Iban, string? DoneBy, string? Notes);
+        decimal Cash, decimal Bank, string? Iban, string? DoneBy, string? Notes, decimal OutsourceIncome = 0m, string? ReferenceNumber = null);
     public sealed record RepIncomeBody(DateOnly Date, Guid RepresentativeId, decimal Amount, string? Notes);
     public sealed record RealIncomeSheetBody(DateOnly Date, Guid RepresentativeId, IReadOnlyList<RealIncomeRowInput> Rows);
     public sealed record SyncLdmBody(DateOnly Date);
@@ -67,19 +67,21 @@ public static class AccountingEndpoints
         // ---- Penalty statement ----
         api.MapGet("/accounting/penalties", async (DateOnly from, DateOnly to, Guid? laboratoryId, Guid? areaId, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetPenaltiesQuery(from, to, laboratoryId, areaId), ct))).WithTags(tag);
-        // The "User" picker of the record dialog: reps for UserType=Rep, active system users otherwise.
-        api.MapGet("/accounting/penalty-actors", async (string userType, IMediator m, CancellationToken ct) =>
-            Results.Ok(await m.Send(new GetPenaltyActorsQuery(userType), ct))).WithTags(tag);
+        // The "User" pickers of the record dialog and the report's "Performed by" filter: reps for UserType=Rep (those linked
+        // to laboratoryId when given), Lab Responsibles for LabRequest, active system users otherwise — for DataEntry with
+        // laboratoryId + date + step (DataEntry | Review) the users who did that step for the lab's area that day.
+        api.MapGet("/accounting/penalty-actors", async (string userType, Guid? laboratoryId, DateOnly? date, string? step, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetPenaltyActorsQuery(userType, laboratoryId, date, step), ct))).WithTags(tag);
         api.MapPost("/accounting/penalties", async (PenaltyBody b, IMediator m, CancellationToken ct) =>
         {
             var id = await m.Send(new CreatePenaltyCommand(b.Date, b.LaboratoryId, b.AccNo, b.PatientName, b.WrongTestCode, b.WrongTestName, b.WrongValue,
-                b.RightTestCode, b.RightTestName, b.RightValue, b.UserType, b.PerformedByUserId, b.PerformedByRepId), ct);
+                b.RightTestCode, b.RightTestName, b.RightValue, b.UserType, b.PerformedByUserId, b.PerformedByRepId, b.ReviewedByUserId), ct);
             return Results.Created($"/api/v1/accounting/penalties/{id}", new { id });
         }).WithTags(tag);
         api.MapPut("/accounting/penalties/{id:guid}", async (Guid id, PenaltyBody b, IMediator m, CancellationToken ct) =>
         {
             await m.Send(new UpdatePenaltyCommand(id, b.Date, b.AccNo, b.PatientName, b.WrongTestCode, b.WrongTestName, b.WrongValue,
-                b.RightTestCode, b.RightTestName, b.RightValue, b.UserType, b.PerformedByUserId, b.PerformedByRepId), ct);
+                b.RightTestCode, b.RightTestName, b.RightValue, b.UserType, b.PerformedByUserId, b.PerformedByRepId, b.ReviewedByUserId), ct);
             return Results.NoContent();
         }).WithTags(tag);
         api.MapDelete("/accounting/penalties/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>
@@ -104,9 +106,9 @@ public static class AccountingEndpoints
         api.MapGet("/accounting/collections", async (DateOnly from, DateOnly to, Guid? repId, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetCollectionsQuery(from, to, repId), ct))).WithTags(tag);
         api.MapPost("/accounting/collections", async (CollectionBody b, IMediator m, CancellationToken ct) =>
-        { var id = await m.Send(new CreateCollectionCommand(b.Date, b.Type, b.Shares, b.Cash, b.Bank, b.Iban, b.DoneBy, b.Notes), ct); return Results.Created($"/api/v1/accounting/collections/{id}", new { id }); }).WithTags(tag);
+        { var id = await m.Send(new CreateCollectionCommand(b.Date, b.Type, b.Shares, b.Cash, b.Bank, b.Iban, b.DoneBy, b.Notes, b.OutsourceIncome, b.ReferenceNumber), ct); return Results.Created($"/api/v1/accounting/collections/{id}", new { id }); }).WithTags(tag);
         api.MapPut("/accounting/collections/{id:guid}", async (Guid id, CollectionBody b, IMediator m, CancellationToken ct) =>
-        { await m.Send(new UpdateCollectionCommand(id, b.Date, b.Type, b.Shares, b.Cash, b.Bank, b.Iban, b.DoneBy, b.Notes), ct); return Results.NoContent(); }).WithTags(tag);
+        { await m.Send(new UpdateCollectionCommand(id, b.Date, b.Type, b.Shares, b.Cash, b.Bank, b.Iban, b.DoneBy, b.Notes, b.OutsourceIncome, b.ReferenceNumber), ct); return Results.NoContent(); }).WithTags(tag);
         api.MapDelete("/accounting/collections/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>
         { await m.Send(new DeleteCollectionCommand(id), ct); return Results.NoContent(); }).WithTags(tag);
 

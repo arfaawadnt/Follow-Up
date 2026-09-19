@@ -74,7 +74,7 @@ type Opt = { value: string; label: string };
                 <td>{{ p.wrongTestName || '—' }} <span class="small muted">{{ p.wrongTestCode }}</span></td><td class="r mono">{{ p.wrongValue | number:'1.2-2' }}</td>
                 <td>{{ p.rightTestName || '—' }} <span class="small muted">{{ p.rightTestCode }}</span></td><td class="r mono">{{ p.rightValue | number:'1.2-2' }}</td>
                 <td class="r mono" [class.pos]="p.penalty > 0" [class.neg]="p.penalty < 0">{{ p.penalty | number:'1.2-2' }}</td>
-                <td>{{ userLabel(p.userType) }} / {{ p.performedByName || '—' }}</td>
+                <td>{{ userLabel(p.userType) }} / {{ p.performedByName || '—' }}@if (p.reviewedByName) { <div class="small muted">{{ 'reviewed_by' | t : 'Reviewed By' }}: {{ p.reviewedByName }}</div> }</td>
                 @if (canManage()) {
                   <td class="ar actions">
                     <button class="icon-btn" title="Edit" (click)="openEdit(p)">✎</button>
@@ -103,10 +103,10 @@ type Opt = { value: string; label: string };
           <div class="as-dlg-head"><h2>{{ editId ? ('edit' | t : 'Edit') : ('record_penalty' | t : 'Record penalty') }}</h2><button class="btn btn-mini btn-s" (click)="dlg.set(false)">✕</button></div>
           <div class="as-dlg-body">
             <div class="frm-grid" style="grid-template-columns:1fr 1fr;gap:12px">
-              <div class="field"><label>{{ 'date' | t : 'Date' }} *</label><app-date-input [(ngModel)]="f.date"></app-date-input></div>
+              <div class="field"><label>{{ 'date' | t : 'Date' }} *</label><app-date-input [ngModel]="f.date" (ngModelChange)="pickDate($event)"></app-date-input></div>
               <div class="field"><label>{{ 'day' | t : 'Day' }}</label><input class="input" [value]="day(f.date)" disabled></div>
               <div class="field"><label>{{ 'area_2' | t : 'Area' }}</label><app-filter-select [ngModel]="f.areaId" (ngModelChange)="pickDialogArea($event)" [options]="areaOptions()" [clearable]="true" [placeholder]="'all' | t : 'All'" [disabled]="!!editId"></app-filter-select></div>
-              <div class="field"><label>{{ 'lab' | t : 'Lab' }} *</label><app-filter-select [(ngModel)]="f.laboratoryId" [options]="dialogLabOptions()" [clearable]="true" placeholder="—" [disabled]="!!editId"></app-filter-select></div>
+              <div class="field"><label>{{ 'lab' | t : 'Lab' }} *</label><app-filter-select [ngModel]="f.laboratoryId" (ngModelChange)="pickLab($event)" [options]="dialogLabOptions()" [clearable]="true" placeholder="—" [disabled]="!!editId"></app-filter-select></div>
               <div class="field"><label>{{ 'acc_no' | t : 'Acc No' }} *</label><input class="input" [(ngModel)]="f.accNo" maxlength="50"></div>
               <div class="field"><label>{{ 'patient_name' | t : 'Patient Name' }} *</label><input class="input" [(ngModel)]="f.patientName" maxlength="200"></div>
               <div class="field"><label>{{ 'wrong_test' | t : 'Wrong Test' }}{{ f.userType === 'LabRequest' ? '' : ' *' }}</label><app-filter-select [ngModel]="f.wrongKey" (ngModelChange)="pickTest('wrong', $event)" [options]="testOptions()" [clearable]="true" placeholder="—"></app-filter-select></div>
@@ -117,9 +117,18 @@ type Opt = { value: string; label: string };
                 <select class="select" [ngModel]="f.userType" (ngModelChange)="pickUserType($event)">@for (u of users; track u) { <option [value]="u">{{ userLabel(u) }}</option> }</select></div>
               @if (f.userType === 'LabRequest') {
                 <div class="field"><label>{{ 'user' | t : 'User' }}</label><div class="small muted" style="padding-top:8px">{{ 'lab_request_hint' | t : 'The lab asked for the wrong test: the record is assigned to the lab Lab Responsible (right test = debit, wrong test = credit on the statement).' }}</div></div>
+              } @else if (f.userType === 'DataEntry') {
+                <div class="field"><label>{{ 'data_entry_by' | t : 'Data Entry By' }} *</label>
+                  <app-filter-select [(ngModel)]="f.performedById" [options]="actorOptions()" [clearable]="true" [placeholder]="'select_user' | t : 'Select…'"></app-filter-select>
+                  <div class="small muted" style="margin-top:4px">{{ actorsHint() }}</div></div>
+                <div class="field"><label>{{ 'reviewed_by' | t : 'Reviewed By' }} *</label>
+                  <app-filter-select [(ngModel)]="f.reviewedById" [options]="reviewerOptions()" [clearable]="true" [placeholder]="'select_user' | t : 'Select…'"></app-filter-select>
+                  <div class="small muted" style="margin-top:4px">{{ reviewersHint() }}</div></div>
+                <div class="field" style="grid-column:1/-1"><div class="small muted">{{ 'data_entry_both_hint' | t : 'A data-entry penalty is recorded for both users: the one who entered the data and the one who reviewed it. The lists offer the users who did that step for the lab area on this date (Sample Lifecycle Tracking); when nobody did, every system user.' }}</div></div>
               } @else {
                 <div class="field"><label>{{ 'user' | t : 'User' }} *</label>
-                  <app-filter-select [(ngModel)]="f.performedById" [options]="actorOptions()" [clearable]="true" [placeholder]="'select_user' | t : 'Select…'"></app-filter-select></div>
+                  <app-filter-select [(ngModel)]="f.performedById" [options]="actorOptions()" [clearable]="true" [placeholder]="'select_user' | t : 'Select…'"></app-filter-select>
+                  @if (f.userType === 'Rep') { <div class="small muted" style="margin-top:4px">{{ actorsHint() }}</div> }</div>
               }
               <div class="field"><label>{{ 'penalty' | t : 'Penalty' }} <span class="small muted">right − wrong</span></label><input class="input" [value]="penaltyPreview() | number:'1.2-2'" disabled></div>
               <div class="field" style="grid-column:1/-1"><div class="small muted">{{ 'penalty_statement_hint' | t : 'On the rep statement the right test value is a debit and the wrong test value a credit, each noted with this record.' }}@if (f.userType === 'LabRequest') { {{ 'lab_request_tests_hint' | t : 'A lab request needs at least one test (wrong or right).' }} }</div></div>
@@ -143,9 +152,28 @@ export class PenaltiesComponent {
   private readonly ui = inject(UiService);
   readonly ddmy = ddmy;
   readonly users = PENALTY_USERS;
-  /** The people the "User" picker offers for the selected user type (reps for Rep, active system users otherwise). */
+  /** The people the "User" picker offers for the selected user type: the reps linked to the chosen lab for Rep (every rep
+   *  when the lab links none), for DataEntry the users who did the data entry for the lab's area on the date (Sample Lifecycle
+   *  Tracking; every user when nobody did), every active user for Technician. `reviewers` is the DataEntry "Reviewed By" list. */
   readonly actors = signal<PenaltyActorDto[]>([]);
-  readonly actorOptions = computed<Opt[]>(() => this.actors().map((a) => ({ value: a.id, label: a.detail ? `${a.name} (${a.detail})` : a.name })));
+  readonly reviewers = signal<PenaltyActorDto[]>([]);
+  private static opts(list: PenaltyActorDto[]): Opt[] { return list.map((a) => ({ value: a.id, label: a.detail ? `${a.name} (${a.detail})` : a.name })); }
+  readonly actorOptions = computed<Opt[]>(() => PenaltiesComponent.opts(this.actors()));
+  readonly reviewerOptions = computed<Opt[]>(() => PenaltiesComponent.opts(this.reviewers()));
+  /** Size of the unfiltered rep list, to tell "reps linked to the lab" from the every-rep fallback under the picker. */
+  private allRepCount = 0;
+  /** Said under a picker: whether the list is the narrowed one (linked reps / tracked users) or the full fallback. A tracked
+   *  user carries the step in `detail` ("data entry · area · date"); a narrowed rep list is shorter than the full one. */
+  private hint(list: PenaltyActorDto[], narrowed: string, all: string): string {
+    if (!list.length) return '';
+    const isNarrowed = this.f.userType === 'Rep' ? !!this.f.laboratoryId && list.length < this.allRepCount : list.some((a) => a.detail?.includes('·'));
+    return isNarrowed ? narrowed : all;
+  }
+  actorsHint(): string {
+    return this.f.userType === 'Rep' ? this.hint(this.actors(), 'Reps linked to the chosen lab', 'All reps (none linked to the chosen lab)')
+      : this.hint(this.actors(), 'Users who did the data entry for the lab area on this date', 'All system users (no data entry tracked for the lab area on this date)');
+  }
+  reviewersHint(): string { return this.hint(this.reviewers(), 'Users who reviewed the lab area on this date', 'All system users (no review tracked for the lab area on this date)'); }
 
   readonly loading = signal(true);
   readonly busy = signal(false);
@@ -197,16 +225,31 @@ export class PenaltiesComponent {
 
   private blank() {
     return { date: localToday(), areaId: '', laboratoryId: '', accNo: '', patientName: '', wrongKey: '', wrongTestCode: '', wrongTestName: '', wrongValue: null as number | null,
-      rightKey: '', rightTestCode: '', rightTestName: '', rightValue: null as number | null, userType: 'Rep', performedById: '' };
+      rightKey: '', rightTestCode: '', rightTestName: '', rightValue: null as number | null, userType: 'Rep', performedById: '', reviewedById: '' };
   }
-  /** Loads the picker for a user type; a type change clears the chosen person since the lists are disjoint. */
+  /** Loads the picker(s) for the user type in the dialog: the lists depend on the lab (Rep) and on the lab + date (DataEntry),
+   *  so they are reloaded when any of those change; a pick that is no longer offered is cleared. */
   loadActors(userType: string): void {
-    this.actors.set([]);
-    this.api.get<PenaltyActorDto[]>('/accounting/penalty-actors', { userType }).subscribe({ next: (r) => this.actors.set(r), error: () => {} });
+    const lab = this.f.laboratoryId || undefined; const date = this.f.date || undefined;
+    const keepIfOffered = (sig: { set: (v: PenaltyActorDto[]) => void }, field: 'performedById' | 'reviewedById') => (r: PenaltyActorDto[]) => {
+      sig.set(r); if (this.f[field] && !r.some((a) => a.id === this.f[field])) this.f[field] = '';
+    };
+    this.actors.set([]); this.reviewers.set([]);
+    if (userType === 'LabRequest') return;
+    if (userType === 'Rep' && !this.allRepCount)
+      this.api.get<PenaltyActorDto[]>('/accounting/penalty-actors', { userType }).subscribe({ next: (r) => (this.allRepCount = r.length), error: () => {} });
+    const params: Record<string, string> = { userType };
+    if (userType === 'Rep' && lab) params['laboratoryId'] = lab;
+    if (userType === 'DataEntry' && lab && date) { params['laboratoryId'] = lab; params['date'] = date; params['step'] = 'DataEntry'; }
+    this.api.get<PenaltyActorDto[]>('/accounting/penalty-actors', params).subscribe({ next: keepIfOffered(this.actors, 'performedById'), error: () => {} });
+    if (userType === 'DataEntry')
+      this.api.get<PenaltyActorDto[]>('/accounting/penalty-actors', { ...params, step: 'Review' }).subscribe({ next: keepIfOffered(this.reviewers, 'reviewedById'), error: () => {} });
   }
   pickArea(areaId: string): void { this.areaId = areaId ?? ''; this.pageArea.set(this.areaId); if (this.labId && !this.filteredLabOptions().some((o) => o.value === this.labId)) this.labId = ''; }
-  pickDialogArea(areaId: string): void { this.f.areaId = areaId ?? ''; this.dialogArea.set(this.f.areaId); if (this.f.laboratoryId && !this.dialogLabOptions().some((o) => o.value === this.f.laboratoryId)) this.f.laboratoryId = ''; }
-  pickUserType(userType: string): void { this.f.userType = userType; this.f.performedById = ''; this.loadActors(userType); }
+  pickDialogArea(areaId: string): void { this.f.areaId = areaId ?? ''; this.dialogArea.set(this.f.areaId); if (this.f.laboratoryId && !this.dialogLabOptions().some((o) => o.value === this.f.laboratoryId)) this.pickLab(''); }
+  pickLab(labId: string): void { this.f.laboratoryId = labId ?? ''; this.loadActors(this.f.userType); }
+  pickDate(date: string): void { this.f.date = date; if (this.f.userType === 'DataEntry') this.loadActors(this.f.userType); }
+  pickUserType(userType: string): void { this.f.userType = userType; this.f.performedById = ''; this.f.reviewedById = ''; this.loadActors(userType); }
   openNew(): void { this.editId = null; this.f = this.blank(); this.f.areaId = this.areaId; this.dialogArea.set(this.areaId); this.loadActors(this.f.userType); this.dlg.set(true); }
   openEdit(p: PenaltyDto): void {
     this.editId = p.id;
@@ -215,7 +258,7 @@ export class PenaltiesComponent {
     this.f = { date: p.date, areaId: '', laboratoryId: p.laboratoryId, accNo: p.accNo, patientName: p.patientName,
       wrongKey: p.wrongTestCode ? `${p.wrongTestCode}|${key(p.wrongTestCode) ?? ''}` : '', wrongTestCode: p.wrongTestCode ?? '', wrongTestName: p.wrongTestName ?? '', wrongValue: p.wrongTestCode ? p.wrongValue : null,
       rightKey: p.rightTestCode ? `${p.rightTestCode}|${key(p.rightTestCode) ?? ''}` : '', rightTestCode: p.rightTestCode ?? '', rightTestName: p.rightTestName ?? '', rightValue: p.rightTestCode ? p.rightValue : null,
-      userType: p.userType, performedById: p.performedById ?? '' };
+      userType: p.userType, performedById: p.performedById ?? '', reviewedById: p.reviewedById ?? '' };
     this.loadActors(p.userType);
     this.dlg.set(true);
   }
@@ -245,7 +288,8 @@ export class PenaltiesComponent {
       if (badValue(f.rightValue)) m.push('Right Test value');
     }
     if (!f.userType) m.push('User Type');
-    if (f.userType !== 'LabRequest' && !f.performedById) m.push('User');
+    if (f.userType === 'DataEntry') { if (!f.performedById) m.push('Data Entry By'); if (!f.reviewedById) m.push('Reviewed By'); }
+    else if (f.userType !== 'LabRequest' && !f.performedById) m.push('User');
     return m;
   }
   valid(): boolean { return this.missing().length === 0; }
@@ -264,7 +308,9 @@ export class PenaltiesComponent {
       rightTestCode: this.f.rightTestCode || null, rightTestName: this.f.rightTestCode ? this.f.rightTestName : null, rightValue: this.f.rightTestCode ? (this.f.rightValue ?? 0) : 0, userType: this.f.userType,
       // Exactly one of the two, matching the type (none for a lab request) — the server enforces the same rule.
       performedByRepId: this.f.userType === 'Rep' ? this.f.performedById : null,
-      performedByUserId: this.f.userType === 'Rep' || this.f.userType === 'LabRequest' ? null : this.f.performedById || null };
+      performedByUserId: this.f.userType === 'Rep' || this.f.userType === 'LabRequest' ? null : this.f.performedById || null,
+      // DataEntry names the reviewer too: the penalty is recorded for both users.
+      reviewedByUserId: this.f.userType === 'DataEntry' ? this.f.reviewedById || null : null };
     const req = this.editId ? this.api.put(`/accounting/penalties/${this.editId}`, body) : this.api.post('/accounting/penalties', body);
     req.subscribe({ next: () => { this.busy.set(false); this.dlg.set(false); this.toast.success('Penalty saved.'); this.load(); }, error: () => this.busy.set(false) });
   }
@@ -276,7 +322,8 @@ export class PenaltiesComponent {
   private static readonly HEADER = ['Serial', 'Day', 'Date', 'Lab', 'Code', 'Acc No', 'Patient Name', 'Wrong Test', 'Value', 'Right Test', 'Value', 'Penalty', 'User Type / User'];
   private exportRows() {
     return this.rows().map((p, i) => [i + 1, this.day(p.date), ddmy(p.date), p.labName, p.labDisplayCode, p.accNo, p.patientName,
-      p.wrongTestCode ? `${p.wrongTestName} (${p.wrongTestCode})` : '', money(p.wrongValue), p.rightTestCode ? `${p.rightTestName} (${p.rightTestCode})` : '', money(p.rightValue), money(p.penalty), `${this.userLabel(p.userType)} / ${p.performedByName ?? '—'}`]);
+      p.wrongTestCode ? `${p.wrongTestName} (${p.wrongTestCode})` : '', money(p.wrongValue), p.rightTestCode ? `${p.rightTestName} (${p.rightTestCode})` : '', money(p.rightValue), money(p.penalty),
+      `${this.userLabel(p.userType)} / ${p.performedByName ?? '—'}${p.reviewedByName ? ` (reviewed by ${p.reviewedByName})` : ''}`]);
   }
   exportExcel(): void { exportXlsx(`penalty-statement-${localToday()}.xlsx`, PenaltiesComponent.HEADER, this.exportRows()); }
   exportPdf(): void { printTable(`Penalty Statement (${ddmy(this.from)} → ${ddmy(this.to)})`, PenaltiesComponent.HEADER, this.exportRows()); }
