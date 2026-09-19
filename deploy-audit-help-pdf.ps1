@@ -33,8 +33,8 @@ $repo   = 'D:\App'
 $srcBin = "$repo\src\FollowUp.Api\bin\Release\net8.0"
 $srcWeb = "$repo\src\FollowUp.Api\wwwroot"
 $dlls   = @('FollowUp.Domain.dll', 'FollowUp.Application.dll', 'FollowUp.Infrastructure.dll', 'FollowUp.Api.dll',
-            'SkiaSharp.dll', 'SkiaSharp.HarfBuzz.dll', 'HarfBuzzSharp.dll', 'FollowUp.Api.deps.json')
-$native = @('libSkiaSharp.dll', 'libHarfBuzzSharp.dll')  # under runtimes\win-x64\native (SkiaSharp.NativeAssets.Win32)
+            'SkiaSharp.dll', 'SkiaSharp.HarfBuzz.dll', 'HarfBuzzSharp.dll')
+$native = @('libSkiaSharp.dll', 'libHarfBuzzSharp.dll')  # under runtimes\win-x64\native (SkiaSharp.NativeAssets.Win32); also copied to the app root
 $dotnet = 'C:\dotnet\dotnet.exe'
 $nodeDir = 'C:\nodejs'
 $pgDump = 'C:\Program Files\PostgreSQL\17\bin\pg_dump.exe'
@@ -109,6 +109,7 @@ $backup = "C:\FollowUp\app-backup-statement-rework-$stamp"
 New-Item -ItemType Directory -Path "$backup\wwwroot" -Force | Out-Null
 Write-Host "Backing up current DLLs + wwwroot -> $backup"
 foreach ($d in $dlls) { if (Test-Path "$app\$d") { Copy-Item "$app\$d" $backup -Force } }
+Copy-Item "$app\FollowUp.Api.deps.json" $backup -Force
 foreach ($n in $native) { if (Test-Path "$app\runtimes\win-x64\native\$n") { Copy-Item "$app\runtimes\win-x64\native\$n" $backup -Force } }
 robocopy "$app\wwwroot" "$backup\wwwroot" /MIR /R:2 /W:2 /NFL /NDL /NP | Out-Null
 
@@ -129,6 +130,14 @@ Write-Host "Copying DLLs..."
 foreach ($d in $dlls) { Copy-Item "$srcBin\$d" $app -Force }
 New-Item -ItemType Directory -Path "$app\runtimes\win-x64\native" -Force | Out-Null
 foreach ($n in $native) { Copy-Item "$srcBin\runtimes\win-x64\native\$n" "$app\runtimes\win-x64\native" -Force }
+foreach ($n in $native) { Copy-Item "$srcBin\runtimes\win-x64\native\$n" $app -Force }  # DllImport probing fallback
+# Production is a SELF-CONTAINED publish: its deps.json carries the runtime pack. Never overwrite it with the build's
+# (framework-dependent) file - the host then cannot resolve CoreCLR and the service does not start. Merge the new packages in.
+Write-Host "Merging SkiaSharp / HarfBuzzSharp into the production FollowUp.Api.deps.json..."
+$merged = Join-Path $env:TEMP "FollowUp.Api.deps.merged.json"
+& "$nodeDir\node.exe" "$repo\ops\deploy\merge-deps.mjs" "$app\FollowUp.Api.deps.json" "$srcBin\FollowUp.Api.deps.json" $merged SkiaSharp HarfBuzzSharp
+if ($LASTEXITCODE -ne 0) { throw "deps.json merge failed (exit $LASTEXITCODE) - the service would not start; restore from $backup." }
+Copy-Item $merged "$app\FollowUp.Api.deps.json" -Force
 Write-Host "Mirroring wwwroot..."
 robocopy $srcWeb "$app\wwwroot" /MIR /R:2 /W:2 /NFL /NDL /NP | Out-Null
 
