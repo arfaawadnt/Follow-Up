@@ -35,7 +35,8 @@ param(
     [string]$GitHubOwner = 'arfaawadnt',
     [string]$GitHubRepo = 'Follow-Up-backups',
     [string]$ReleaseTag = 'backup-latest',
-    [int]$PartSizeMB = 500
+    [int]$PartSizeMB = 250,
+    [switch]$UploadOnly   # re-run only the GitHub step with today's files already in <Root>\<date> (after a network failure)
 )
 
 $ErrorActionPreference = 'Stop'
@@ -89,10 +90,21 @@ function Get-ServiceDb {
 }
 
 try {
-    Log "=== Backup $stamp started (root $Root, retention $RetentionDays days, upload $(-not $NoUpload))"
+    Log "=== Backup $stamp started (root $Root, retention $RetentionDays days, upload $(-not $NoUpload), uploadOnly $UploadOnly)"
     if (-not (Test-Path "$pgBin\pg_dump.exe")) { throw "pg_dump not found at $pgBin" }
     if (-not (Test-Path $app)) { throw "Application folder $app not found" }
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
+
+    $dumpFile = Join-Path $dir "followup-db-$stamp.dump"
+    $zipFile = Join-Path $dir "followup-app-$stamp.zip"
+    $manifestFile = Join-Path $dir 'manifest.json'
+    if ($UploadOnly) {
+        foreach ($f in @($dumpFile, $zipFile, $manifestFile)) { if (-not (Test-Path $f)) { throw "-UploadOnly needs today's local backup; missing $f" } }
+        $manifest = Get-Content $manifestFile -Raw | ConvertFrom-Json
+        $appVersion = $manifest.application.version
+        $kept = @(Get-ChildItem $Root -Directory | Where-Object { $_.Name -match '^\d{4}-\d{2}-\d{2}$' }).Count
+        Log "Upload-only: reusing $dumpFile and $zipFile"
+    } else {
 
     # ---- 1. Database --------------------------------------------------------------------------------------------------
     $db = Get-ServiceDb
@@ -147,6 +159,7 @@ try {
     }
     $kept = @(Get-ChildItem $Root -Directory | Where-Object { $_.Name -match '^\d{4}-\d{2}-\d{2}$' }).Count
     Log "Retention: $kept dated backup folder(s) on disk"
+    } # end of the full (non UploadOnly) path
 
     # ---- 5. Off-box copy: encrypted release assets in the private GitHub repository -----------------------------------
     $uploaded = 'skipped'
@@ -229,10 +242,14 @@ try {
             for ($attempt = 1; $attempt -le 4 -and -not $done; $attempt++) {
                 $cur = Gh 'GET' "$api/releases/$($release.id)" $null
                 foreach ($a in @($cur.Obj.assets)) { if ($a.name -eq $name) { Gh 'DELETE' "$api/releases/assets/$($a.id)" $null | Out-Null } }
-                $out = & $curl -X POST @hdr -H 'Content-Type: application/octet-stream' -T $asset --max-time 14400 -w '\n%{http_code}' $url 2>&1
+                # curl's stderr goes to a file: a PowerShell 2>&1 redirect would turn "curl: (56) Connection was reset" into a
+                # terminating error and skip the retry.
+                $errFile = Join-Path $env:TEMP 'followup-backup-curl.err'
+                $out = & $curl -X POST @hdr -H 'Content-Type: application/octet-stream' -T $asset --max-time 14400 -w '\n%{http_code}' --stderr $errFile $url
                 $code = 0; try { $code = [int](@(($out | ForEach-Object { "$_" }) -split "`n")[-1]) } catch { $code = 0 }
+                $curlErr = if (Test-Path $errFile) { ((Get-Content $errFile -Raw) -replace '\s+', ' ').Trim() } else { '' }
                 if ($code -eq 201) { $done = $true; Log "GitHub: uploaded $name ($(Mb (Get-Item $asset).Length) MB, attempt $attempt)" }
-                else { Log "WARN: upload of $name attempt $attempt returned HTTP $code - $(if ($attempt -lt 4) { 'retrying in 2 min' } else { 'giving up' })"; if ($attempt -lt 4) { Start-Sleep -Seconds 120 } }
+                else { Log "WARN: upload of $name attempt $attempt returned HTTP $code $curlErr - $(if ($attempt -lt 4) { 'retrying in 2 min' } else { 'giving up' })"; if ($attempt -lt 4) { Start-Sleep -Seconds 120 } }
             }
             if (-not $done) { throw "Upload of $name failed after 4 attempts" }
         }
