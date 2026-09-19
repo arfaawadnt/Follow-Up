@@ -26,8 +26,15 @@ export class AuthService {
     return this._session()?.token ?? null;
   }
 
+  /** Client-side mirror of the server's coarse → fine implications for privileges added after a session was issued (the
+   *  server re-reads the role on every call, so a session signed in before a release lacks the new leaf in its cached
+   *  list although the API already allows it). Keep in step with Privileges.Expansions. */
+  private static readonly IMPLIES: Record<string, string[]> = { ManageUsers: ['ViewAuditTrail'] };
+
   has(privilege: string): boolean {
-    return this.privileges().has(privilege);
+    const p = this.privileges();
+    if (p.has(privilege)) return true;
+    return Object.entries(AuthService.IMPLIES).some(([coarse, leaves]) => leaves.includes(privilege) && p.has(coarse));
   }
 
   login(username: string, password: string): Observable<LoginResult> {

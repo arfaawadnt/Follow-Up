@@ -34,12 +34,12 @@ import { AuditChange, AuditRow } from '../core/models';
     th{background:var(--slate-50,#faf9f8);color:var(--slate-700,#605e5c);font-weight:600}
     td.old{color:#b91c1c}td.new{color:#15803d}
     .empty{padding:24px;text-align:center;color:var(--slate-500,#8a8886)}
-    .icon-btn{background:none;border:none;cursor:pointer;font-size:14px;line-height:1;padding:2px 4px;color:var(--slate-600,#605e5c)}
-    .icon-btn:hover{color:var(--primary-blue,#0078D4)}
+    .log-btn{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--slate-300,#c8c6c4);background:var(--white,#fff);color:var(--slate-700,#605e5c);border-radius:6px;padding:2px 8px;font-size:11.5px;font-weight:600;cursor:pointer;white-space:nowrap;line-height:1.4;vertical-align:middle}
+    .log-btn:hover{border-color:var(--primary-blue,#0078D4);color:var(--primary-blue,#0078D4)}
   `],
   template: `
     @if (visible()) {
-      <button class="icon-btn" type="button" [title]="'audit_log' | t : 'Change log'" (click)="open($event)">🕓</button>
+      <button class="log-btn" type="button" [title]="'audit_log' | t : 'Change log'" (click)="open($event)">🕓 {{ 'log_short' | t : 'Log' }}</button>
     }
     @if (dlg()) {
       <div class="overlay" (click)="dlg.set(false)">
