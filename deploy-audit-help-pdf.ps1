@@ -35,8 +35,6 @@ $srcWeb = "$repo\src\FollowUp.Api\wwwroot"
 $dlls   = @('FollowUp.Domain.dll', 'FollowUp.Application.dll', 'FollowUp.Infrastructure.dll', 'FollowUp.Api.dll',
             'SkiaSharp.dll', 'SkiaSharp.HarfBuzz.dll', 'HarfBuzzSharp.dll', 'FollowUp.Api.deps.json')
 $native = @('libSkiaSharp.dll', 'libHarfBuzzSharp.dll')  # under runtimes\win-x64\native (SkiaSharp.NativeAssets.Win32)
-ative (SkiaSharp.NativeAssets.Win32)
-ative
 $dotnet = 'C:\dotnet\dotnet.exe'
 $nodeDir = 'C:\nodejs'
 $pgDump = 'C:\Program Files\PostgreSQL\17\bin\pg_dump.exe'
