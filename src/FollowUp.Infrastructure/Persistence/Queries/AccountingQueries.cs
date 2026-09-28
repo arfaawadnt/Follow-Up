@@ -8,6 +8,7 @@ using FollowUp.Domain.Operations;
 using FollowUp.Domain.Reference;
 using FollowUp.Domain.Representatives;
 using FollowUp.Domain.Statistics;
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 
 namespace FollowUp.Infrastructure.Persistence.Queries;
@@ -377,14 +378,70 @@ internal sealed class AccountingQueries : IAccountingQueries
             }
         }
 
+        // Month closes (Lab Responsible view, 2026-09-28): a closing-balance line on the last day of every closed month in
+        // the range — the balancing figure that ends the month at zero — and an opening-balance line on the first day after
+        // it carrying the STORED closing balance (debit when the rep owes, credit when the balance is in the rep's favour).
+        // A range that starts after a closed month opens with the latest such month's stored balance.
+        var closeById = new Dictionary<Guid, StatementMonthClose>();
+        if (rid is { } closeRep)
+        {
+            var closes = await _db.StatementMonthCloses.AsNoTracking().Where(c => c.RepresentativeId == closeRep)
+                .OrderBy(c => c.Year).ThenBy(c => c.Month).ToListAsync(ct);
+            if (closes.Count > 0)
+            {
+                var userIds = closes.Select(c => c.ClosedByUserId).Distinct().ToList();
+                var userNames = await _db.Users.AsNoTracking().Where(u => userIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.DisplayName ?? u.Username, ct);
+                string MonthName(StatementMonthClose c) => c.MonthStart.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+                string Who(StatementMonthClose c) => $"closed by {userNames.GetValueOrDefault(c.ClosedByUserId, "—")} on {c.ClosedAtUtc:dd/MM/yyyy}" + (c.Notes is not null ? $" · {c.Notes}" : "");
+                foreach (var c in closes) closeById[c.Id.Value] = c;
+                var before = closes.LastOrDefault(c => c.MonthEnd < from);
+                if (before is not null)
+                {
+                    var gap = before.MonthEnd.AddDays(1) < from ? $" · ⚠ {before.MonthEnd.AddDays(1):dd/MM/yyyy}–{from.AddDays(-1):dd/MM/yyyy} not included in this range" : "";
+                    var b = before.ClosingBalance.Amount;
+                    lines.Add((from, -1, "OpeningBalance", b > 0 ? b : 0m, b < 0 ? -b : 0m, $"Opening balance · carried from {MonthName(before)} · {Who(before)}{gap}", before.Id.Value, null));
+                }
+                foreach (var c in closes.Where(c => c.MonthEnd >= from && c.MonthEnd <= to))
+                {
+                    lines.Add((c.MonthEnd, 99, "ClosingBalance", 0m, 0m, $"Closing balance · {MonthName(c)} · {Who(c)}", c.Id.Value, null));
+                    var next = c.MonthEnd.AddDays(1);
+                    if (next > to) continue;
+                    var b = c.ClosingBalance.Amount;
+                    lines.Add((next, -1, "OpeningBalance", b > 0 ? b : 0m, b < 0 ? -b : 0m, $"Opening balance · carried from {MonthName(c)} · {Who(c)}", c.Id.Value, null));
+                }
+            }
+        }
+
         var rows = new List<RepStatementRowDto>();
         decimal balance = 0m, totalDebit = 0m, totalCredit = 0m;
         foreach (var l in lines.OrderBy(l => l.Date).ThenBy(l => l.Order))
         {
-            balance += l.Debit - l.Credit; totalDebit += l.Debit; totalCredit += l.Credit;
-            rows.Add(new RepStatementRowDto(l.Date, l.Kind, l.Debit, l.Credit, l.Notes, balance, l.SourceId, l.LdmIncome));
+            var (debit, credit, notes) = (l.Debit, l.Credit, l.Notes);
+            if (l.Kind == "ClosingBalance")
+            {
+                // The balancing figure: the running balance moves to the other side so the month ends at zero. If the data
+                // changed after the close, the stored balance no longer matches — say so, the month must be re-closed.
+                debit = balance < 0 ? -balance : 0m; credit = balance > 0 ? balance : 0m;
+                if (l.SourceId is { } cid && closeById.TryGetValue(cid, out var close) && close.ClosingBalance.Amount != balance)
+                    notes += $" · ⚠ computed {balance:0.00} ≠ closed {close.ClosingBalance.Amount:0.00} — reopen and close the month again";
+            }
+            balance += debit - credit; totalDebit += debit; totalCredit += credit;
+            rows.Add(new RepStatementRowDto(l.Date, l.Kind, debit, credit, notes, balance, l.SourceId, l.LdmIncome));
         }
         return new StatementDto(by, id, subjectName, rows, totalDebit, totalCredit, balance);
+    }
+
+    /// <summary>The closed months of a Lab Responsible's statement, latest first; empty when the rep is out of scope.</summary>
+    public async Task<IReadOnlyList<StatementMonthCloseDto>> MonthClosesAsync(Guid representativeId, OrgScope scope, CancellationToken ct)
+    {
+        var repId = new RepresentativeId(representativeId);
+        if (!await _db.Representatives.ApplyScope(scope).AnyAsync(r => r.Id == repId, ct)) return Array.Empty<StatementMonthCloseDto>();
+        var closes = await _db.StatementMonthCloses.AsNoTracking().Where(c => c.RepresentativeId == repId)
+            .OrderByDescending(c => c.Year).ThenByDescending(c => c.Month).ToListAsync(ct);
+        var userIds = closes.Select(c => c.ClosedByUserId).Distinct().ToList();
+        var userNames = await _db.Users.AsNoTracking().Where(u => userIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.DisplayName ?? u.Username, ct);
+        return closes.Select((c, i) => new StatementMonthCloseDto(c.Id.Value, c.RepresentativeId.Value, c.Year, c.Month, c.ClosingBalance.Amount,
+            c.ClosedAtUtc, userNames.GetValueOrDefault(c.ClosedByUserId, "—"), c.Notes, IsLatest: i == 0)).ToList();
     }
 
     // ---- statement helpers ----

@@ -16,6 +16,7 @@ public static class AccountingEndpoints
     public sealed record PenaltyBody(DateOnly Date, Guid LaboratoryId, string AccNo, string PatientName,
         string? WrongTestCode, string? WrongTestName, decimal WrongValue, string? RightTestCode, string? RightTestName, decimal RightValue,
         string UserType, Guid? PerformedByUserId, Guid? PerformedByRepId, Guid? ReviewedByUserId = null);
+    public sealed record MonthCloseBody(Guid RepresentativeId, int Year, int Month, string? Notes);
     public sealed record DeductionBody(DateOnly Date, Guid AreaId, string Reason, decimal Value, string? Notes, DateOnly? PeriodFrom, DateOnly? PeriodTo,
         string? Basis = null);
     public sealed record CollectionBody(DateOnly Date, string Type, IReadOnlyList<CollectionShareInput> Shares,
@@ -121,6 +122,13 @@ public static class AccountingEndpoints
         // The "Details" of a debit line: the LDM registrations of that day for the labs the line covers (kind TotalRequired | LdmIncome).
         api.MapGet("/accounting/statement/ldm-details", async (string by, Guid id, DateOnly date, string kind, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetStatementLdmDetailsQuery(by, id, date, kind), ct))).WithTags(tag);
+        // Month closes of a Lab Responsible's statement (2026-09-28): list, close the next month, reopen the latest close.
+        api.MapGet("/accounting/statement/closes", async (Guid repId, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetStatementMonthClosesQuery(repId), ct))).WithTags(tag);
+        api.MapPost("/accounting/statement/closes", async (MonthCloseBody b, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new CloseStatementMonthCommand(b.RepresentativeId, b.Year, b.Month, b.Notes), ct))).WithTags(tag);
+        api.MapPost("/accounting/statement/closes/reopen", async (MonthCloseBody b, IMediator m, CancellationToken ct) =>
+        { await m.Send(new ReopenStatementMonthCommand(b.RepresentativeId, b.Year, b.Month), ct); return Results.NoContent(); }).WithTags(tag);
         api.MapPost("/accounting/rep-income", async (RepIncomeBody b, IMediator m, CancellationToken ct) =>
         { var id = await m.Send(new CreateRepIncomeEntryCommand(b.Date, b.RepresentativeId, b.Amount, b.Notes), ct); return Results.Created($"/api/v1/accounting/rep-income/{id}", new { id }); }).WithTags(tag);
         api.MapDelete("/accounting/rep-income/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>

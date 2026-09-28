@@ -191,6 +191,8 @@ public static class DependencyInjection
         services.AddScoped<ICollectionRepository, CollectionRepository>();
         services.AddScoped<IRepIncomeEntryRepository, RepIncomeEntryRepository>();
         services.AddScoped<IRepLabIncomeRepository, RepLabIncomeRepository>();
+        services.AddScoped<IStatementMonthCloseRepository, StatementMonthCloseRepository>();
+        services.AddScoped<Application.Features.Accounting.IStatementCloseGuard, Persistence.Queries.StatementCloseGuard>();
         // Inventory module
         services.AddScoped<IManufacturerRepository, ManufacturerRepository>();
         services.AddScoped<ISupplierRepository, SupplierRepository>();

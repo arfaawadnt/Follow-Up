@@ -131,8 +131,11 @@ const EN: Record<string, HelpPage> = {
   '/accounting/rep-statement': {
     title: 'Rep Statement', purpose: 'The ledger of a Lab Responsible, an area or a lab over a period: debits, credits and the running balance.',
     business: 'Debit = the total required entered on Rep Income + the right test of each penalty. Credit = the actual collections (net of out-source), the area deductions and the wrong test of each penalty. The balance is what is still owed.',
-    steps: [s('View by', 'Lab Responsible, Area or Lab.'), s('Period', 'Start and end date.'), s('View as', 'Daily lines, or grouped weekly / monthly / yearly.'), s('Export', 'Excel / PDF of the current view.')],
-    how: ['Every line is noted with its source record.', 'Weeks start on Saturday.', 'A debit line\'s Details lists the LDM registrations behind it, grouped by lab, with each test marked Within time / Within 3 Hours / After 3 Hours (when it was added to its registration) and the counts in the header; the line\'s note totals the fees of the tests added within 3 hours and after 3 hours.'],
+    steps: [s('View by', 'Lab Responsible, Area or Lab.'), s('Period', 'Start and end date.'), s('View as', 'Daily lines, or grouped weekly / monthly / yearly.'), s('Close month', 'Lab Responsible view: close the ended month; its balance carries forward.'), s('Export', 'Excel / PDF of the current view.')],
+    how: ['Every line is noted with its source record.', 'Weeks start on Saturday.',
+      'Month close (Lab Responsible view only, manual, by the Close month button): the month must have ended and months close in order. The closing balance = Σ debit − Σ credit up to the last day of the month (counting from the day after the previous close, or from the beginning for the first close). The statement then shows a "Closing balance" line on the last day of the month that brings the month to zero, and an "Opening balance" line on the first day of the next month with the same amount — a DEBIT when the Lab Responsible owes it, a CREDIT when the balance is in their favour. Opening a period that starts after a closed month begins with that balance instead of zero.',
+      'A closed month is locked: Rep Income sheets, collections, penalties, deductions and legacy income lines dated inside it cannot be added, changed or deleted until the month is reopened (only the latest closed month can be reopened; reopening is audited). If data changes after a close, the closing line shows "computed ≠ closed" — reopen and close the month again.',
+      'The Rep Income sheet\'s "previous remaining" is not affected by closing: the statement recomputes the balance its own way.', 'A debit line\'s Details lists the LDM registrations behind it, grouped by lab, with each test marked Within time / Within 3 Hours / After 3 Hours (when it was added to its registration) and the counts in the header; the line\'s note totals the fees of the tests added within 3 hours and after 3 hours.'],
     tips: [], privileges: ['ViewAccounting'],
   },
   '/accounting/rep-income': {
@@ -396,8 +399,11 @@ const AR: Record<string, HelpPage> = {
   '/accounting/rep-statement': {
     title: 'كشف المندوب', purpose: 'دفتر مسؤول معمل أو منطقة أو معمل خلال فترة: المدين والدائن والرصيد الجاري.',
     business: 'المدين = الإجمالي المطلوب المدخل في دخل المندوب + التحليل الصحيح لكل جزاء. الدائن = التحصيلات الفعلية (صافي التعهيد) وخصومات المنطقة والتحليل الخاطئ لكل جزاء. الرصيد هو المتبقي.',
-    steps: [s('عرض حسب', 'مسؤول معمل أو منطقة أو معمل.'), s('الفترة', 'تاريخ البداية والنهاية.'), s('العرض', 'سطور يومية أو مجمعة أسبوعيًا / شهريًا / سنويًا.'), s('التصدير', 'إكسل / PDF للعرض الحالي.')],
-    how: ['كل سطر موثق بسجله المصدر.', 'الأسبوع يبدأ يوم السبت.', 'تفاصيل سطر المدين تعرض تسجيلات LDM خلفه مجمعة بالمعمل، مع تعليم كل تحليل: في الوقت / خلال 3 ساعات / بعد 3 ساعات (وقت إضافته للتسجيل) وعدّها في الرأس؛ وملاحظة السطر تجمع رسوم التحاليل المضافة خلال 3 ساعات وبعدها.'],
+    steps: [s('عرض حسب', 'مسؤول معمل أو منطقة أو معمل.'), s('الفترة', 'تاريخ البداية والنهاية.'), s('العرض', 'سطور يومية أو مجمعة أسبوعيًا / شهريًا / سنويًا.'), s('إقفال الشهر', 'في عرض مسؤول المعمل: أقفل الشهر المنتهي فيُرحَّل رصيده.'), s('التصدير', 'إكسل / PDF للعرض الحالي.')],
+    how: ['كل سطر موثق بسجله المصدر.', 'الأسبوع يبدأ يوم السبت.',
+      'الإقفال الشهري (في عرض مسؤول المعمل فقط، يدويًا بزر "إقفال الشهر"): يجب أن يكون الشهر قد انتهى، والإقفال بالترتيب شهرًا بعد شهر. رصيد الإقفال = مجموع المدين − مجموع الدائن حتى آخر يوم في الشهر (محسوبًا من اليوم التالي للإقفال السابق، أو من بداية البيانات لأول إقفال). يظهر بعدها في الكشف سطر "قيد آخر المدة" في آخر يوم من الشهر يصفّر رصيد الشهر، وسطر "قيد أول المدة" في أول يوم من الشهر التالي بنفس القيمة: مدين إذا كان الرصيد على مسؤول المعمل، ودائن إذا كان لصالحه. وعند فتح فترة تبدأ بعد شهر مقفل يبدأ الرصيد من ذلك القيد لا من الصفر.',
+      'الشهر المقفل مغلق للتعديل: لا يمكن إضافة أو تعديل أو حذف شيت دخل المندوب أو التحصيلات أو الجزاءات أو الخصومات أو سطور الدخل القديمة المؤرخة داخله حتى يُعاد فتحه (يُعاد فتح آخر شهر مقفل فقط، وإعادة الفتح مسجلة في سجل التدقيق). ولو تغيرت البيانات بعد الإقفال يظهر على سطر الإقفال "المحسوب ≠ المقفل": أعد فتح الشهر ثم أقفله مجددًا.',
+      '"المتبقي السابق" في شيت دخل المندوب لا يتأثر بالإقفال؛ فكشف الحساب يعيد حساب الرصيد بطريقته.', 'تفاصيل سطر المدين تعرض تسجيلات LDM خلفه مجمعة بالمعمل، مع تعليم كل تحليل: في الوقت / خلال 3 ساعات / بعد 3 ساعات (وقت إضافته للتسجيل) وعدّها في الرأس؛ وملاحظة السطر تجمع رسوم التحاليل المضافة خلال 3 ساعات وبعدها.'],
     tips: [], privileges: ['ViewAccounting'],
   },
   '/accounting/rep-income': {
