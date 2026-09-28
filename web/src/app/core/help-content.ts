@@ -132,7 +132,7 @@ const EN: Record<string, HelpPage> = {
     title: 'Rep Statement', purpose: 'The ledger of a Lab Responsible, an area or a lab over a period: debits, credits and the running balance.',
     business: 'Debit = the total required entered on Rep Income + the right test of each penalty. Credit = the actual collections (net of out-source), the area deductions and the wrong test of each penalty. The balance is what is still owed.',
     steps: [s('View by', 'Lab Responsible, Area or Lab.'), s('Period', 'Start and end date.'), s('View as', 'Daily lines, or grouped weekly / monthly / yearly.'), s('Export', 'Excel / PDF of the current view.')],
-    how: ['Every line is noted with its source record.', 'Weeks start on Saturday.'],
+    how: ['Every line is noted with its source record.', 'Weeks start on Saturday.', 'A debit line\'s Details lists the LDM registrations behind it, grouped by lab, with each test marked Within time / Within 3 Hours / After 3 Hours (when it was added to its registration) and the counts in the header; the line\'s note totals the fees of the tests added within 3 hours and after 3 hours.'],
     tips: [], privileges: ['ViewAccounting'],
   },
   '/accounting/rep-income': {
@@ -397,7 +397,7 @@ const AR: Record<string, HelpPage> = {
     title: 'كشف المندوب', purpose: 'دفتر مسؤول معمل أو منطقة أو معمل خلال فترة: المدين والدائن والرصيد الجاري.',
     business: 'المدين = الإجمالي المطلوب المدخل في دخل المندوب + التحليل الصحيح لكل جزاء. الدائن = التحصيلات الفعلية (صافي التعهيد) وخصومات المنطقة والتحليل الخاطئ لكل جزاء. الرصيد هو المتبقي.',
     steps: [s('عرض حسب', 'مسؤول معمل أو منطقة أو معمل.'), s('الفترة', 'تاريخ البداية والنهاية.'), s('العرض', 'سطور يومية أو مجمعة أسبوعيًا / شهريًا / سنويًا.'), s('التصدير', 'إكسل / PDF للعرض الحالي.')],
-    how: ['كل سطر موثق بسجله المصدر.', 'الأسبوع يبدأ يوم السبت.'],
+    how: ['كل سطر موثق بسجله المصدر.', 'الأسبوع يبدأ يوم السبت.', 'تفاصيل سطر المدين تعرض تسجيلات LDM خلفه مجمعة بالمعمل، مع تعليم كل تحليل: في الوقت / خلال 3 ساعات / بعد 3 ساعات (وقت إضافته للتسجيل) وعدّها في الرأس؛ وملاحظة السطر تجمع رسوم التحاليل المضافة خلال 3 ساعات وبعدها.'],
     tips: [], privileges: ['ViewAccounting'],
   },
   '/accounting/rep-income': {

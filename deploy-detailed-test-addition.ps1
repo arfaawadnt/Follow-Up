@@ -9,6 +9,8 @@
 #   Infrastructure: DetailedStats Oracle feed also selects reg.created_date and reg_selected_services.created_date
 #                   (the SQL is re-provisioned from the default at startup - no FOLLOWUP_ORACLE_DETAILEDSTATS_SQL override
 #                   is set on this service); the sync stores them; the page query returns them + the classification.
+#   Accounting    : Rep Statement debit notes total the fees of tests added within 3 h / after 3 h; the LDM details carry
+#                   TestAddition per line (StatementLdmDetailDto); the dialog shows a Test Addition badge + counts.
 #   Api           : unchanged endpoints (GET /detailed-statistics carries 3 more fields).
 #   wwwroot       : Detailed Statistics - "Reg Created" (per Acc No) and "Test Created" (per test) columns, rows flagged
 #                   blue (test added > 5 min and <= 3 h after the registration) / red (more than 3 h), "Test Addition" badge column,
