@@ -103,7 +103,9 @@ public static class OracleDefaultQueries
     /// cancelled, visible catalogue match). Returns the reg date, the resolved lab code (LEFT JOIN the same
     /// doctor→lab mapping LabStats uses; NULL when the doctor resolves to no lab → "No lab"), accession (lab_no),
     /// patient name, test code/type/name, and the raw patient (cash) + insurance fee components. Synced wholesale
-    /// per date window into <c>detailed_registration</c>.
+    /// per date window into <c>detailed_registration</c>. Since 2026-09-28 it also returns when the registration was
+    /// created (<c>reg.created_date</c>) and when each test line was added (<c>reg_selected_services.created_date</c>)
+    /// so the page can flag tests added after the registration (within / over 3 hours).
     /// </summary>
     public const string DetailedStats =
         "SELECT r.reg_date AS reg_dt, " +
@@ -117,7 +119,9 @@ public static class OracleDefaultQueries
         "NVL(rss.patient_fee,0) AS patient_fee, " +
         "NVL(rss.insurance_fee,0) AS insurance_fee, " +
         "rl.sample_status AS sample_status, " +
-        "rl.test_status AS test_status " +
+        "rl.test_status AS test_status, " +
+        "r.created_date AS reg_created, " +
+        "rss.created_date AS test_created " +
         "FROM reg r " +
         "JOIN reg_selected_services rss ON rss.reg_key = r.reg_key " +
         "AND rss.service_type <> 7 AND NVL(rss.iscancelled,0) <> 1 " +

@@ -42,11 +42,13 @@ public sealed class StatementLdmDebitTests
             var s2 = DailyLabStatistic.For(day, ldmOnly.Code.Value); s2.Set(3, 7, new Money(450m));
             db.DailyLabStatistics.AddRange(s1, s2);
             db.RepLabIncomes.Add(RepLabIncome.Create(rep.Id, withSheet.Id, day, 5, 1000m, 1000m, 0m, null));
-            // Two registration lines per lab so the details query has something to list.
+            // Two registration lines per lab so the details query has something to list. Creation stamps (2026-09-28): the CBC
+            // was added 2 h after its registration (within 3 h), the TSH 5 h after (after 3 h), the glucose with the registration.
+            var reg = new DateTime(2026, 9, 26, 9, 0, 0);
             db.DetailedRegistrations.AddRange(
-                DetailedRegistration.Create(day, withSheet.Code.Value, "BR1", "ACC-S1", "Patient S", "GLU", 0, "Glucose", 500m, 0m, "3", "5"),
-                DetailedRegistration.Create(day, withSheet.Code.Value, "BR1", "ACC-S1", "Patient S", "CBC", 0, "CBC", 400m, 0m, "3", "5"),
-                DetailedRegistration.Create(day, ldmOnly.Code.Value, "BR1", "ACC-L1", "Patient L", "TSH", 0, "TSH", 450m, 0m, "2", "1"));
+                DetailedRegistration.Create(day, withSheet.Code.Value, "BR1", "ACC-S1", "Patient S", "GLU", 0, "Glucose", 500m, 0m, "3", "5", reg, reg.AddSeconds(30)),
+                DetailedRegistration.Create(day, withSheet.Code.Value, "BR1", "ACC-S1", "Patient S", "CBC", 0, "CBC", 400m, 0m, "3", "5", reg, reg.AddHours(2)),
+                DetailedRegistration.Create(day, ldmOnly.Code.Value, "BR1", "ACC-L1", "Patient L", "TSH", 0, "TSH", 450m, 0m, "2", "1", reg, reg.AddHours(5)));
             await db.SaveChangesAsync();
         }
         try
@@ -58,17 +60,21 @@ public sealed class StatementLdmDebitTests
             var sheet = st!.Rows.Should().ContainSingle(r => r.Kind == "TotalRequired").Subject;
             sheet.Debit.Should().Be(1000m, "the manual total required wins for a lab with a sheet entry");
             sheet.LdmIncome.Should().Be(900m, "the LDM income of the labs the line covers is shown beside it");
+            sheet.Notes.Should().Contain("tests added within 3 h 400.00").And.Contain("after 3 h 0.00", "the note totals the fees of late-added tests");
             var ldm = st.Rows.Should().ContainSingle(r => r.Kind == "LdmIncome").Subject;
             ldm.Debit.Should().Be(450m, "a lab without a sheet entry posts its LDM income as the debit");
             ldm.LdmIncome.Should().Be(450m);
+            ldm.Notes.Should().Contain("tests added within 3 h 0.00").And.Contain("after 3 h 450.00");
             st.TotalDebit.Should().Be(1450m);
 
             var sheetDetails = await q.StatementLdmDetailsAsync(StatementBy.Responsible, rep.Id.Value, day, "TotalRequired", OrgScope.Global, true, CancellationToken.None);
             sheetDetails.Select(d => d.AccNo).Distinct().Should().BeEquivalentTo(new[] { "ACC-S1" });
             sheetDetails.Sum(d => d.Fee).Should().Be(900m);
             sheetDetails.Should().OnlyContain(d => d.LabName == withSheet.Name);
+            sheetDetails.Single(d => d.TestCode == "GLU").TestAddition.Should().Be("None", "30 s after the registration is inside the grace window");
+            sheetDetails.Single(d => d.TestCode == "CBC").TestAddition.Should().Be("Within3Hours");
             var ldmDetails = await q.StatementLdmDetailsAsync(StatementBy.Responsible, rep.Id.Value, day, "LdmIncome", OrgScope.Global, true, CancellationToken.None);
-            ldmDetails.Should().ContainSingle().Which.Should().Match<StatementLdmDetailDto>(d => d.AccNo == "ACC-L1" && d.TestStatus == "1" && d.SampleStatus == "2");
+            ldmDetails.Should().ContainSingle().Which.Should().Match<StatementLdmDetailDto>(d => d.AccNo == "ACC-L1" && d.TestStatus == "1" && d.SampleStatus == "2" && d.TestAddition == "Over3Hours");
         }
         finally
         {

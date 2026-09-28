@@ -78,8 +78,8 @@ const EN: Record<string, HelpPage> = {
     title: 'Detailed Statistics', purpose: 'Transaction-level registrations from LDM: every Acc No with its lab, branch, status and test lines.',
     business: 'The drill-down behind the aggregates, and the source the Penalty Report validates Acc Nos against.',
     steps: [s('Sync', 'The detailed feed is pulled per day.'), s('Search', 'By Acc No, lab, branch, status, period.'), s('Inspect', 'Open a registration to see its test lines.')],
-    how: ['Large periods are paged; narrow the filters first.'],
-    tips: ['If the Penalty Report says "Acc No not in LDM", check whether that day was synced here.'], privileges: ['ViewDetailedStats'],
+    how: ['Large periods are paged; narrow the filters first.', 'Reg Created is when the Acc No was created in LDM; Test Created is when each test was added to it.', 'A test added more than 5 minutes after the registration is flagged blue when within 3 hours and red when more than 3 hours later (up to 5 minutes counts as registered together); the Test Addition Status filter lists only those cases.'],
+    tips: ['If the Penalty Report says "Acc No not in LDM", check whether that day was synced here.', 'Days synced before 28/09/2026 have no creation times until they are synced again.'], privileges: ['ViewDetailedStats'],
   },
   '/reports': {
     title: 'Reports', purpose: 'The printable operational reports: visits, samples, transfers and collectors over a period.',
@@ -132,7 +132,7 @@ const EN: Record<string, HelpPage> = {
     title: 'Rep Statement', purpose: 'The ledger of a Lab Responsible, an area or a lab over a period: debits, credits and the running balance.',
     business: 'Debit = the total required entered on Rep Income + the right test of each penalty. Credit = the actual collections (net of out-source), the area deductions and the wrong test of each penalty. The balance is what is still owed.',
     steps: [s('View by', 'Lab Responsible, Area or Lab.'), s('Period', 'Start and end date.'), s('View as', 'Daily lines, or grouped weekly / monthly / yearly.'), s('Export', 'Excel / PDF of the current view.')],
-    how: ['Every line is noted with its source record.', 'Weeks start on Saturday.'],
+    how: ['Every line is noted with its source record.', 'Weeks start on Saturday.', 'A debit line\'s Details lists the LDM registrations behind it, grouped by lab, with each test marked Within time / Within 3 Hours / After 3 Hours (when it was added to its registration) and the counts in the header; the line\'s note totals the fees of the tests added within 3 hours and after 3 hours.'],
     tips: [], privileges: ['ViewAccounting'],
   },
   '/accounting/rep-income': {
@@ -343,8 +343,8 @@ const AR: Record<string, HelpPage> = {
     title: 'الإحصاءات التفصيلية', purpose: 'تسجيلات LDM على مستوى المعاملة: كل رقم حساب مع معمله وفرعه وحالته وسطور تحاليله.',
     business: 'التفصيل خلف الإجماليات، والمصدر الذي يتحقق تقرير الجزاءات من أرقام الحسابات مقابله.',
     steps: [s('المزامنة', 'التغذية التفصيلية تُسحب لكل يوم.'), s('البحث', 'برقم الحساب والمعمل والفرع والحالة والفترة.'), s('الفحص', 'افتح التسجيل لرؤية سطور تحاليله.')],
-    how: ['الفترات الكبيرة مقسمة صفحات؛ ضيّق الفلاتر أولًا.'],
-    tips: ['إن قال تقرير الجزاءات "رقم الحساب غير موجود في LDM" فتحقق هنا هل زومن ذلك اليوم.'], privileges: ['ViewDetailedStats'],
+    how: ['الفترات الكبيرة مقسمة صفحات؛ ضيّق الفلاتر أولًا.', 'وقت التسجيل هو وقت إنشاء رقم الحساب في LDM، ووقت إضافة التحليل هو وقت إضافة كل تحليل إليه.', 'التحليل المضاف بعد التسجيل بأكثر من 5 دقائق يُعلَّم بالأزرق إن كان خلال 3 ساعات وبالأحمر إن تجاوزها (حتى 5 دقائق يُعد مسجلًا معه)؛ وفلتر حالة إضافة التحليل يعرض هذه الحالات فقط.'],
+    tips: ['إن قال تقرير الجزاءات "رقم الحساب غير موجود في LDM" فتحقق هنا هل زومن ذلك اليوم.', 'الأيام المزامنة قبل 28/09/2026 بلا أوقات إنشاء حتى تُزامن مجددًا.'], privileges: ['ViewDetailedStats'],
   },
   '/reports': {
     title: 'التقارير', purpose: 'التقارير التشغيلية القابلة للطباعة: الزيارات والعينات والنقل والمحصّلون خلال فترة.',
@@ -397,7 +397,7 @@ const AR: Record<string, HelpPage> = {
     title: 'كشف المندوب', purpose: 'دفتر مسؤول معمل أو منطقة أو معمل خلال فترة: المدين والدائن والرصيد الجاري.',
     business: 'المدين = الإجمالي المطلوب المدخل في دخل المندوب + التحليل الصحيح لكل جزاء. الدائن = التحصيلات الفعلية (صافي التعهيد) وخصومات المنطقة والتحليل الخاطئ لكل جزاء. الرصيد هو المتبقي.',
     steps: [s('عرض حسب', 'مسؤول معمل أو منطقة أو معمل.'), s('الفترة', 'تاريخ البداية والنهاية.'), s('العرض', 'سطور يومية أو مجمعة أسبوعيًا / شهريًا / سنويًا.'), s('التصدير', 'إكسل / PDF للعرض الحالي.')],
-    how: ['كل سطر موثق بسجله المصدر.', 'الأسبوع يبدأ يوم السبت.'],
+    how: ['كل سطر موثق بسجله المصدر.', 'الأسبوع يبدأ يوم السبت.', 'تفاصيل سطر المدين تعرض تسجيلات LDM خلفه مجمعة بالمعمل، مع تعليم كل تحليل: في الوقت / خلال 3 ساعات / بعد 3 ساعات (وقت إضافته للتسجيل) وعدّها في الرأس؛ وملاحظة السطر تجمع رسوم التحاليل المضافة خلال 3 ساعات وبعدها.'],
     tips: [], privileges: ['ViewAccounting'],
   },
   '/accounting/rep-income': {

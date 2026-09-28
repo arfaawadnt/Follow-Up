@@ -76,9 +76,10 @@ public sealed record CollectionShareInput(Guid RepId, decimal Amount);
 /// rep's real-income sheet for the date), or Collection (Credit). Balance is the running Debit − Credit.</summary>
 public sealed record RepStatementRowDto(DateOnly Date, string Kind, decimal Debit, decimal Credit, string? Notes, decimal Balance, Guid? SourceId,
     decimal? LdmIncome = null);
-/// <summary>One synced registration line behind a statement debit (the "LDM income" details, 2026-09-28).</summary>
+/// <summary>One synced registration line behind a statement debit (the "LDM income" details, 2026-09-28). <c>TestAddition</c> is the
+/// domain's <c>TestAdditionStatus</c> name: "None" (test created with the registration), "Within3Hours" or "Over3Hours".</summary>
 public sealed record StatementLdmDetailDto(string LabDisplayCode, string LabName, string AccNo, string PatientName, string TestCode, string? TestName,
-    decimal Fee, string? SampleStatus, string? TestStatus);
+    decimal Fee, string? SampleStatus, string? TestStatus, string TestAddition = "None");
 /// <summary>A Lab Responsible linked to the area (responsible for at least one of its labs), for the sheet's rep picker.</summary>
 public sealed record RealIncomeRepDto(Guid Id, string FullName, int LabCount);
 /// <summary>A lab of the area, for adding a row the visits did not produce.</summary>

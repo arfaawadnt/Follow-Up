@@ -89,7 +89,10 @@ public sealed class DetailedStatsSyncTests
         using (var scope = _fx.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<FollowUpDbContext>();
-            (await db.DetailedRegistrations.CountAsync(r => r.AccNo == "ACC-AMBIENT")).Should().Be(1, "the line landed when the outer transaction committed");
+            var stored = await db.DetailedRegistrations.SingleAsync(r => r.AccNo == "ACC-AMBIENT");
+            stored.RegCreatedAt.Should().Be(new DateTime(2026, 8, 15, 9, 0, 0), "reg.created_date is stored as LDM wall-clock time");
+            stored.TestCreatedAt.Should().Be(new DateTime(2026, 8, 15, 13, 0, 0));
+            stored.TestAddition.Should().Be(TestAdditionStatus.Over3Hours, "the test was added 4 h after the registration");
         }
     }
 
@@ -103,6 +106,8 @@ public sealed class DetailedStatsSyncTests
                 ["ACC_NO"] = "ACC-AMBIENT", ["PATIENT_NAME"] = "Patient", ["TEST_CODE"] = "T1",
                 ["TEST_TYPE"] = 0, ["TEST_NAME"] = "Test", ["PATIENT_FEE"] = 100m, ["INSURANCE_FEE"] = 0m,
                 ["SAMPLE_STATUS"] = "Received", ["TEST_STATUS"] = "Done",
+                // 2026-09-28: creation stamps (reg.created_date / reg_selected_services.created_date) — added 4 h after the registration.
+                ["REG_CREATED"] = new DateTime(2026, 8, 15, 9, 0, 0), ["TEST_CREATED"] = new DateTime(2026, 8, 15, 13, 0, 0),
             }),
         };
         public Task<IReadOnlyList<OracleRow>> ExecuteAsync(string queryName, CancellationToken ct) => Task.FromResult(Rows());

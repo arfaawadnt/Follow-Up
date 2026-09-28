@@ -55,4 +55,8 @@ internal static class OracleColumns
     public const string InsuranceFee = "INSURANCE_FEE";
     public const string SampleStatus = "SAMPLE_STATUS";
     public const string TestStatus = "TEST_STATUS";
+    /// <summary>reg.created_date — when the registration (Acc No) was created.</summary>
+    public const string RegCreated = "REG_CREATED";
+    /// <summary>reg_selected_services.created_date — when the test line was added to the registration.</summary>
+    public const string TestCreated = "TEST_CREATED";
 }

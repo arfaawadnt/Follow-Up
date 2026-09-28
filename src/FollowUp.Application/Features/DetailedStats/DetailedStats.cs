@@ -2,6 +2,7 @@ using FluentValidation;
 using FollowUp.Application.Common.Abstractions;
 using FollowUp.Application.Common.Messaging;
 using FollowUp.Domain.Identity;
+using FollowUp.Domain.Statistics;
 
 namespace FollowUp.Application.Features.DetailedStats;
 
@@ -9,12 +10,16 @@ namespace FollowUp.Application.Features.DetailedStats;
 /// One synced Oracle registration test-line, enriched with the lab's stamped geography/category/branch. The page
 /// groups these by governorate → city → area → lab → reg-date → patient/accession → test and shows the combined
 /// fee (cash + insurance) plus lab-per-date and per-patient subtotals. <c>LabCode</c>/geography are null for
-/// registrations that resolve to no lab ("No lab").
+/// registrations that resolve to no lab ("No lab"). <c>RegCreatedAt</c> / <c>TestCreatedAt</c> are the LDM wall-clock
+/// creation times of the registration and of the test line (2026-09-28); <c>TestAddition</c> is the domain's
+/// <see cref="TestAdditionStatus"/> name — "Within3Hours" / "Over3Hours" when the test was added more than 5 minutes
+/// after the registration, "None" otherwise — so the page can flag and filter late additions.
 /// </summary>
 public sealed record DetailedStatDto(DateOnly Date, string? Governorate, string? City, string? Area,
     string? Category, string? Branch, string? RegBranch, string? LabCode, string? LabName,
     string AccNo, string PatientName, string TestCode, int TestType, string? TestName, decimal Fee,
-    string? SampleStatus, string? TestStatus);
+    string? SampleStatus, string? TestStatus, DateTime? RegCreatedAt = null, DateTime? TestCreatedAt = null,
+    string TestAddition = "None");
 
 public interface IDetailedStatsQueries
 {

@@ -7,6 +7,7 @@ using FollowUp.Domain.Laboratories;
 using FollowUp.Domain.Operations;
 using FollowUp.Domain.Reference;
 using FollowUp.Domain.Representatives;
+using FollowUp.Domain.Statistics;
 using Microsoft.EntityFrameworkCore;
 
 namespace FollowUp.Infrastructure.Persistence.Queries;
@@ -286,19 +287,30 @@ internal sealed class AccountingQueries : IAccountingQueries
         sheetQuery = rid is { } rr ? sheetQuery.Where(e => e.RepresentativeId == rr) : sheetQuery.Where(e => labIds.Contains(e.LaboratoryId));
         var sheetByDate = (await sheetQuery.ToListAsync(ct)).GroupBy(e => e.Date).ToDictionary(g => g.Key, g => g.ToList());
         var ldmByDate = await LdmIncomeByDateAsync(codeToId.Keys, from, to, ct);
+        // Fees of the tests added late to their registration (within 3 h / after 3 h) per date and lab, noted on every
+        // debit line so the statement shows how much of the day's LDM income came from tests added after registration.
+        var lateByDate = await LateAdditionFeesByDateAsync(codeToId.Keys, from, to, ct);
         foreach (var date in sheetByDate.Keys.Union(ldmByDate.Keys).OrderBy(d => d))
         {
             sheetByDate.TryGetValue(date, out var entries); entries ??= new List<RepLabIncome>();
             ldmByDate.TryGetValue(date, out var ldm); ldm ??= new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+            lateByDate.TryGetValue(date, out var late); late ??= new Dictionary<string, (decimal Within, decimal Over)>(StringComparer.OrdinalIgnoreCase);
+            string LateNote(IEnumerable<string> codes)
+            {
+                decimal within = 0m, over = 0m;
+                foreach (var code in codes) if (late.TryGetValue(code, out var f)) { within += f.Within; over += f.Over; }
+                return $" · tests added within 3 h {within:0.00} · after 3 h {over:0.00}";
+            }
             var sheetLabIds = entries.Select(e => e.LaboratoryId).ToHashSet();
             var sheetTotal = entries.Sum(e => e.TotalRequired.Amount);
-            var sheetLdm = entries.Where(e => idToCode.ContainsKey(e.LaboratoryId)).Sum(e => ldm.GetValueOrDefault(idToCode[e.LaboratoryId]));
+            var sheetCodes = entries.Where(e => idToCode.ContainsKey(e.LaboratoryId)).Select(e => idToCode[e.LaboratoryId]).ToList();
+            var sheetLdm = sheetCodes.Sum(code => ldm.GetValueOrDefault(code));
             if (sheetTotal != 0m)
-                lines.Add((date, 0, "TotalRequired", sheetTotal, 0m, $"Rep Income sheet · total required of {entries.Count} lab(s)", (Guid?)null, (decimal?)sheetLdm));
+                lines.Add((date, 0, "TotalRequired", sheetTotal, 0m, $"Rep Income sheet · total required of {entries.Count} lab(s)" + LateNote(sheetCodes), (Guid?)null, (decimal?)sheetLdm));
             var ldmOnly = ldm.Where(kv => !(codeToId.TryGetValue(kv.Key, out var lid) && sheetLabIds.Contains(lid))).ToList();
             var ldmOnlyTotal = ldmOnly.Sum(kv => kv.Value);
             if (ldmOnlyTotal != 0m)
-                lines.Add((date, 0, "LdmIncome", ldmOnlyTotal, 0m, $"LDM income · {ldmOnly.Count} lab(s) without a Rep Income entry", (Guid?)null, (decimal?)ldmOnlyTotal));
+                lines.Add((date, 0, "LdmIncome", ldmOnlyTotal, 0m, $"LDM income · {ldmOnly.Count} lab(s) without a Rep Income entry" + LateNote(ldmOnly.Select(kv => kv.Key)), (Guid?)null, (decimal?)ldmOnlyTotal));
         }
 
         // Penalties — the right test is what the lab owes (Debit), the wrong test what was charged in error (Credit), each
@@ -423,6 +435,35 @@ internal sealed class AccountingQueries : IAccountingQueries
             g => g.GroupBy(s => s.LabCode.ToUpperInvariant()).ToDictionary(x => x.Key, x => x.Sum(s => s.Income.Amount), StringComparer.OrdinalIgnoreCase));
     }
 
+    /// <summary>Fees of the tests added late to their registration (2026-09-28: more than the 5-minute grace after
+    /// <c>reg.created_date</c>), per date and upper-cased lab code, split at 3 hours. Only the late lines are read
+    /// (a small minority), then summed in memory.</summary>
+    private async Task<Dictionary<DateOnly, Dictionary<string, (decimal Within, decimal Over)>>> LateAdditionFeesByDateAsync(
+        IEnumerable<string> labCodes, DateOnly from, DateOnly to, CancellationToken ct)
+    {
+        var codes = labCodes.Select(c => c.ToUpperInvariant()).Distinct().ToList();
+        var result = new Dictionary<DateOnly, Dictionary<string, (decimal Within, decimal Over)>>();
+        if (codes.Count == 0) return result;
+        var graceMinutes = DetailedRegistration.GraceWindow.TotalMinutes;
+        var rows = await _db.DetailedRegistrations.AsNoTracking()
+            .Where(r => r.Date >= from && r.Date <= to && r.LabCode != null && codes.Contains(r.LabCode.ToUpper())
+                        && r.RegCreatedAt != null && r.TestCreatedAt != null
+                        && r.TestCreatedAt > r.RegCreatedAt.Value.AddMinutes(graceMinutes))
+            .Select(r => new { r.Date, r.LabCode, r.RegCreatedAt, r.TestCreatedAt, Fee = r.PatientFee + r.InsuranceFee })
+            .ToListAsync(ct);
+        foreach (var r in rows)
+        {
+            // The same rule the Detailed Statistics page applies (DetailedRegistration.Classify).
+            var status = DetailedRegistration.Classify(r.TestCreatedAt - r.RegCreatedAt);
+            if (status == TestAdditionStatus.None) continue;
+            if (!result.TryGetValue(r.Date, out var byLab)) result[r.Date] = byLab = new Dictionary<string, (decimal, decimal)>(StringComparer.OrdinalIgnoreCase);
+            var code = r.LabCode!.ToUpperInvariant();
+            byLab.TryGetValue(code, out var f);
+            byLab[code] = status == TestAdditionStatus.Within3Hours ? (f.Within + r.Fee, f.Over) : (f.Within, f.Over + r.Fee);
+        }
+        return result;
+    }
+
     /// <summary>The synced registration lines behind one debit line of the statement: the subject's labs on the date,
     /// narrowed to the labs WITH a Rep Income entry (kind TotalRequired) or WITHOUT one (kind LdmIncome).</summary>
     public async Task<IReadOnlyList<StatementLdmDetailDto>> StatementLdmDetailsAsync(string by, Guid id, DateOnly date, string kind, OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
@@ -445,7 +486,7 @@ internal sealed class AccountingQueries : IAccountingQueries
         {
             var lab = byCode[r.LabCode!.ToUpperInvariant()];
             return new StatementLdmDetailDto(DisplayCode.For(lab.Code.Value, lab.IsEncrypted, canSeeEncrypted), lab.Name, r.AccNo, r.PatientName,
-                r.TestCode, r.TestName, r.PatientFee + r.InsuranceFee, r.SampleStatus, r.TestStatus);
+                r.TestCode, r.TestName, r.PatientFee + r.InsuranceFee, r.SampleStatus, r.TestStatus, r.TestAddition.ToString());
         }).ToList();
     }
 

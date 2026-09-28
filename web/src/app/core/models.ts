@@ -263,7 +263,9 @@ export interface RepStatementRow { date: string; kind: string; debit: number; cr
   /** Debit lines only (2026-09-28): the LDM income of the labs the line covers — the "Details" button lists their registrations. */
   ldmIncome: number | null; }
 /** One synced registration line behind a statement debit (GET /accounting/statement/ldm-details). */
-export interface StatementLdmDetail { labDisplayCode: string; labName: string; accNo: string; patientName: string; testCode: string; testName: string | null; fee: number; sampleStatus: string | null; testStatus: string | null; }
+export interface StatementLdmDetail { labDisplayCode: string; labName: string; accNo: string; patientName: string; testCode: string; testName: string | null; fee: number; sampleStatus: string | null; testStatus: string | null;
+  /** 'None' (created with the registration) | 'Within3Hours' | 'Over3Hours' — when the test was added to its registration (2026-09-28). */
+  testAddition: string; }
 export interface RepStatement { representativeId: string; repName: string; rows: RepStatementRow[]; totalDebit: number; totalCredit: number; balance: number; }
 /** Statement by dimension (Responsible | Area | Lab). */
 export interface Statement { by: string; subjectId: string; subjectName: string; rows: RepStatementRow[]; totalDebit: number; totalCredit: number; balance: number; }

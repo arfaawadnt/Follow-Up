@@ -81,7 +81,12 @@ internal sealed class DetailedRegistrationConfiguration : IEntityTypeConfigurati
         b.Property(x => x.InsuranceFee).HasColumnType("numeric(18,2)");
         b.Property(x => x.SampleStatus).HasMaxLength(64);
         b.Property(x => x.TestStatus).HasMaxLength(64);
+        // LDM wall-clock timestamps (Oracle DATE, no zone) — stored as-is, never shifted to UTC (2026-09-28).
+        b.Property(x => x.RegCreatedAt).HasColumnType("timestamp without time zone");
+        b.Property(x => x.TestCreatedAt).HasColumnType("timestamp without time zone");
         b.Ignore(x => x.Fee); // computed (PatientFee + InsuranceFee)
+        b.Ignore(x => x.TestAdditionDelay);
+        b.Ignore(x => x.TestAddition);
         // Window-replace sync + range reads: index by date (and lab code for the scoped/grouped read).
         b.HasIndex(x => new { x.Date, x.LabCode });
     }
