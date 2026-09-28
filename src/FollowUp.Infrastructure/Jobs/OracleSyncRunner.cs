@@ -519,8 +519,11 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
 
         // Window replace, atomically: delete the range and insert the freshly read lines inside one
         // transaction, so a failure between the (immediately-committing) delete and the insert can never
-        // leave the window emptied.
-        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        // leave the window emptied. A manual run arrives through SyncDetailedStatsCommand, which TransactionBehavior
+        // already wraps in a transaction — join it (Npgsql refuses a nested BeginTransaction: "The connection is
+        // already in a transaction", the 500 of 2026-09-22); the scheduled job has none and opens its own.
+        var ownsTx = _db.Database.CurrentTransaction is null;
+        await using var tx = ownsTx ? await _db.Database.BeginTransactionAsync(ct) : (Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction?)null;
         await _detailed.DeleteRangeAsync(from, to, ct);
         var mapped = new List<DetailedRegistration>(rows.Count);
         foreach (var row in rows)
@@ -536,7 +539,7 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
         _detailed.AddRange(mapped);
         config.RecordStatsSyncResult($"detailedstats:ok:{mapped.Count} [{from:yyyy-MM-dd}..{to:yyyy-MM-dd}]", _clock.UtcNow); // finding STAT-011
         await _db.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
+        if (tx is not null) await tx.CommitAsync(ct);
 
         _logger.LogInformation("DetailedStats sync ({Mode}) {From:yyyy-MM-dd}..{To:yyyy-MM-dd}: {Rows} lines",
             manual ? "manual" : "scheduled", from, to, mapped.Count);
