@@ -3,13 +3,15 @@
 # Ships the 4 managed FollowUp DLLs + the Angular bundle AND applies one EF migration on startup (MigrateAsync):
 #   Migration     : DetailedRegistrationCreatedDates - two nullable columns on detailed_registration
 #                   (reg_created_at, test_created_at; timestamp without time zone). No default, no index: instant.
-#   Domain        : DetailedRegistration.RegCreatedAt / TestCreatedAt + TestAddition (None | Within3Hours | Over3Hours).
+#   Domain        : DetailedRegistration.RegCreatedAt / TestCreatedAt + TestAddition (None | Within3Hours | Over3Hours);
+#                   a gap of up to 5 minutes counts as registered together (not flagged). Classified at read time, so a
+#                   re-deploy re-classifies rows that were already synced.
 #   Infrastructure: DetailedStats Oracle feed also selects reg.created_date and reg_selected_services.created_date
 #                   (the SQL is re-provisioned from the default at startup - no FOLLOWUP_ORACLE_DETAILEDSTATS_SQL override
 #                   is set on this service); the sync stores them; the page query returns them + the classification.
 #   Api           : unchanged endpoints (GET /detailed-statistics carries 3 more fields).
 #   wwwroot       : Detailed Statistics - "Reg Created" (per Acc No) and "Test Created" (per test) columns, rows flagged
-#                   blue (test added within 3 h of the registration) / red (more than 3 h), "Test Addition" badge column,
+#                   blue (test added > 5 min and <= 3 h after the registration) / red (more than 3 h), "Test Addition" badge column,
 #                   "Test Addition Status" multi-select filter (Within 3 Hours / More than 3 Hours), exports + help text.
 #   NOTE: rows synced before this release have no creation times until their days are synced again (Sync from Oracle
 #         on the page, or the nightly job for yesterday).

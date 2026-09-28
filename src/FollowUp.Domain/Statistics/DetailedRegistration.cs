@@ -4,8 +4,9 @@ namespace FollowUp.Domain.Statistics;
 
 /// <summary>
 /// How long after its registration a test line was added (2026-09-28): <see cref="None"/> when the test was created
-/// with (or before) the registration or either timestamp is unknown; <see cref="Within3Hours"/> when it was added
-/// later but within 3 hours; <see cref="Over3Hours"/> when it was added more than 3 hours after registration.
+/// with the registration (up to 5 minutes later — the same LDM session), before it, or either timestamp is unknown;
+/// <see cref="Within3Hours"/> when it was added more than 5 minutes but at most 3 hours later; <see cref="Over3Hours"/>
+/// when it was added more than 3 hours after registration.
 /// </summary>
 public enum TestAdditionStatus { None, Within3Hours, Over3Hours }
 
@@ -51,7 +52,10 @@ public sealed class DetailedRegistration : AggregateRoot<DetailedRegistrationId>
     /// <summary>Combined fee shown by the page (cash + insurance).</summary>
     public decimal Fee => PatientFee + InsuranceFee;
 
-    /// <summary>Tests added after the registration within this window are "late but acceptable" (flagged blue); later ones are flagged red.</summary>
+    /// <summary>A test stamped up to this long after its registration was created with it (LDM writes the two rows seconds
+    /// apart in one session) — operator decision 2026-09-28: 5 minutes, not flagged.</summary>
+    public static readonly TimeSpan GraceWindow = TimeSpan.FromMinutes(5);
+    /// <summary>Tests added after the grace window but within this one are "late but acceptable" (flagged blue); later ones are flagged red.</summary>
     public static readonly TimeSpan LateAdditionWindow = TimeSpan.FromHours(3);
 
     /// <summary>How long after the registration this test was added; null when either timestamp is unknown.</summary>
@@ -61,7 +65,7 @@ public sealed class DetailedRegistration : AggregateRoot<DetailedRegistrationId>
     public TestAdditionStatus TestAddition => Classify(TestAdditionDelay);
 
     public static TestAdditionStatus Classify(TimeSpan? delay) =>
-        delay is not { } d || d <= TimeSpan.Zero ? TestAdditionStatus.None
+        delay is not { } d || d <= GraceWindow ? TestAdditionStatus.None
         : d <= LateAdditionWindow ? TestAdditionStatus.Within3Hours
         : TestAdditionStatus.Over3Hours;
 

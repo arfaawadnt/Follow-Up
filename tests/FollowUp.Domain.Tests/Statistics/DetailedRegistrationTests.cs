@@ -4,7 +4,8 @@ using Xunit;
 
 namespace FollowUp.Domain.Tests.Statistics;
 
-/// <summary>2026-09-28: a test line added after its registration is classified by the gap (≤ 3 h blue, &gt; 3 h red).</summary>
+/// <summary>2026-09-28: a test line added after its registration is classified by the gap: up to 5 minutes counts as created with
+/// it (LDM stamps the rows seconds apart), then ≤ 3 h blue, &gt; 3 h red.</summary>
 public sealed class DetailedRegistrationTests
 {
     private static readonly DateTime Reg = new(2026, 9, 28, 9, 0, 0);
@@ -18,6 +19,8 @@ public sealed class DetailedRegistrationTests
     {
         Line(Reg, Reg).TestAddition.Should().Be(TestAdditionStatus.None);
         Line(Reg, Reg.AddMinutes(-5)).TestAddition.Should().Be(TestAdditionStatus.None, "an earlier stamp is never a late addition");
+        Line(Reg, Reg.AddSeconds(40)).TestAddition.Should().Be(TestAdditionStatus.None, "seconds apart = the same registration session");
+        Line(Reg, Reg.AddMinutes(5)).TestAddition.Should().Be(TestAdditionStatus.None, "exactly 5 minutes is still inside the grace window");
     }
 
     [Fact]
@@ -31,7 +34,8 @@ public sealed class DetailedRegistrationTests
     [Fact]
     public void Added_within_three_hours_is_within_and_beyond_is_over()
     {
-        Line(Reg, Reg.AddSeconds(1)).TestAddition.Should().Be(TestAdditionStatus.Within3Hours);
+        Line(Reg, Reg.AddMinutes(5).AddSeconds(1)).TestAddition.Should().Be(TestAdditionStatus.Within3Hours);
+        Line(Reg, Reg.AddMinutes(30)).TestAddition.Should().Be(TestAdditionStatus.Within3Hours);
         Line(Reg, Reg.AddHours(3)).TestAddition.Should().Be(TestAdditionStatus.Within3Hours, "exactly 3 hours is still within");
         Line(Reg, Reg.AddHours(3).AddSeconds(1)).TestAddition.Should().Be(TestAdditionStatus.Over3Hours);
         Line(Reg, Reg.AddDays(2)).TestAddition.Should().Be(TestAdditionStatus.Over3Hours);

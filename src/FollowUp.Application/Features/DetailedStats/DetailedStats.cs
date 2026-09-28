@@ -12,8 +12,8 @@ namespace FollowUp.Application.Features.DetailedStats;
 /// fee (cash + insurance) plus lab-per-date and per-patient subtotals. <c>LabCode</c>/geography are null for
 /// registrations that resolve to no lab ("No lab"). <c>RegCreatedAt</c> / <c>TestCreatedAt</c> are the LDM wall-clock
 /// creation times of the registration and of the test line (2026-09-28); <c>TestAddition</c> is the domain's
-/// <see cref="TestAdditionStatus"/> name — "Within3Hours" / "Over3Hours" when the test was added after the
-/// registration, "None" otherwise — so the page can flag and filter late additions.
+/// <see cref="TestAdditionStatus"/> name — "Within3Hours" / "Over3Hours" when the test was added more than 5 minutes
+/// after the registration, "None" otherwise — so the page can flag and filter late additions.
 /// </summary>
 public sealed record DetailedStatDto(DateOnly Date, string? Governorate, string? City, string? Area,
     string? Category, string? Branch, string? RegBranch, string? LabCode, string? LabName,
