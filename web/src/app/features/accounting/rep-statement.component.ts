@@ -10,7 +10,7 @@ import { AuthService } from '../../core/auth.service';
 import { ToastService } from '../../core/toast.service';
 import { UiService } from '../../core/ui.service';
 import { TranslatePipe } from '../../core/i18n';
-import { LabLookup, PagedResult, RepListItem, RepStatementRow, Statement } from '../../core/models';
+import { LabLookup, PagedResult, RepListItem, RepStatementRow, Statement, StatementLdmDetail } from '../../core/models';
 import { ACC_STYLES, dayName, firstOfMonth, money } from './accounting.util';
 
 type Opt = { value: string; label: string };
@@ -18,7 +18,7 @@ type ViewBy = 'Responsible' | 'Area' | 'Lab';
 type ViewAs = 'Daily' | 'Weekly' | 'Monthly' | 'Yearly';
 interface AreaOpt { id: string; name: string; }
 /** One grid line: a statement row as-is (Daily) or one period's totals (Weekly / Monthly / Yearly). */
-interface ViewRow { label: string; day: string; kind: string; debit: number; credit: number; notes: string | null; balance: number; source: RepStatementRow | null; }
+interface ViewRow { label: string; day: string; kind: string; debit: number; credit: number; notes: string | null; balance: number; source: RepStatementRow | null; ldmIncome: number | null; }
 
 /**
  * Rep Statement — a ledger over a date range drawn for one subject, chosen with "View by": a Lab Responsible (the classic
@@ -42,7 +42,7 @@ interface ViewRow { label: string; day: string; kind: string; debit: number; cre
     </div>
 
     <div class="kpis" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
-      <div class="kpi kpi-green"><div class="lbl">{{ 'total_debit' | t : 'Total debit' }}</div><div class="val">{{ (st()?.totalDebit ?? 0) | number:'1.2-2' }}</div><div class="sub">{{ 'statement_debit_hint' | t : 'Total required (Rep Income) + penalties: right tests' }}</div></div>
+      <div class="kpi kpi-green"><div class="lbl">{{ 'total_debit' | t : 'Total debit' }}</div><div class="val">{{ (st()?.totalDebit ?? 0) | number:'1.2-2' }}</div><div class="sub">{{ 'statement_debit_hint2' | t : 'Total required (Rep Income), LDM income of labs without an entry, penalties: right tests' }}</div></div>
       <div class="kpi kpi-amber"><div class="lbl">{{ 'total_credit' | t : 'Total credit' }}</div><div class="val">{{ (st()?.totalCredit ?? 0) | number:'1.2-2' }}</div><div class="sub">{{ 'statement_credit_hint' | t : 'Collections + deductions + penalties: wrong tests' }}</div></div>
       <div class="kpi kpi-blue"><div class="lbl">{{ 'balance' | t : 'Balance' }}</div><div class="val">{{ (st()?.balance ?? 0) | number:'1.2-2' }}</div><div class="sub">EGP</div></div>
       <div class="kpi kpi-teal"><div class="lbl">{{ 'entries' | t : 'Entries' }}</div><div class="val">{{ st()?.rows?.length ?? 0 }}</div></div>
@@ -79,7 +79,7 @@ interface ViewRow { label: string; day: string; kind: string; debit: number; cre
         <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
           <thead><tr>
             <th>{{ viewAsSig() === 'Daily' ? ('date' | t : 'Date') : ('period' | t : 'Period') }}</th><th>{{ 'day' | t : 'Day' }}</th><th>{{ 'kind' | t : 'Kind' }}</th>
-            <th class="r">{{ 'debit' | t : 'Debit' }}</th><th class="r">{{ 'credit_out' | t : 'Credit' }}</th><th>{{ 'notes' | t : 'Notes' }}</th><th class="r">{{ 'balance' | t : 'Balance' }}</th>
+            <th class="r">{{ 'debit' | t : 'Debit' }}</th><th class="r">{{ 'credit_out' | t : 'Credit' }}</th><th class="r">{{ 'ldm_income' | t : 'LDM income' }}</th><th>{{ 'notes' | t : 'Notes' }}</th><th class="r">{{ 'balance' | t : 'Balance' }}</th>
             @if (canManage()) { <th class="ar">{{ 'actions' | t : 'Actions' }}</th> }
           </tr></thead>
           <tbody>
@@ -87,17 +87,41 @@ interface ViewRow { label: string; day: string; kind: string; debit: number; cre
               <tr>
                 <td>{{ r.label }}</td><td>{{ r.day }}</td><td>{{ r.kind }}</td>
                 <td class="r mono pos">{{ r.debit ? (r.debit | number:'1.2-2') : '' }}</td><td class="r mono neg">{{ r.credit ? (r.credit | number:'1.2-2') : '' }}</td>
+                <td class="r mono" style="white-space:nowrap">@if (r.ldmIncome !== null) { {{ r.ldmIncome | number:'1.2-2' }}@if (r.source) { <button class="btn btn-mini btn-s" style="margin-inline-start:6px" (click)="openDetails(r.source)">{{ 'details_btn' | t : 'Details' }}</button> } }</td>
                 <td>{{ r.notes || '—' }}</td><td class="r mono" style="font-weight:700">{{ r.balance | number:'1.2-2' }}</td>
                 @if (canManage()) { <td class="ar actions">@if (r.source && r.source.kind === 'ManualIncome' && r.source.sourceId) { <button class="icon-btn del" title="Delete" (click)="remove(r.source)">🗑</button> }</td> }
               </tr>
-            } @empty { <tr><td colspan="8" class="empty" style="text-align:center;padding:24px">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
+            } @empty { <tr><td colspan="9" class="empty" style="text-align:center;padding:24px">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
           </tbody>
           @if (st()?.rows?.length) {
-            <tfoot><tr><td colspan="3">{{ 'total' | t : 'Total' }}</td><td class="r mono">{{ st()!.totalDebit | number:'1.2-2' }}</td><td class="r mono">{{ st()!.totalCredit | number:'1.2-2' }}</td><td></td><td class="r mono">{{ st()!.balance | number:'1.2-2' }}</td>@if (canManage()) { <td></td> }</tr></tfoot>
+            <tfoot><tr><td colspan="3">{{ 'total' | t : 'Total' }}</td><td class="r mono">{{ st()!.totalDebit | number:'1.2-2' }}</td><td class="r mono">{{ st()!.totalCredit | number:'1.2-2' }}</td><td class="r mono">{{ totalLdm() | number:'1.2-2' }}</td><td></td><td class="r mono">{{ st()!.balance | number:'1.2-2' }}</td>@if (canManage()) { <td></td> }</tr></tfoot>
           }
         </table></div>
       }
     </div>
+
+    @if (details()) {
+      <div class="as-overlay" (click)="details.set(null)">
+        <div class="as-dlg" style="width:min(96vw,1000px)" (click)="$event.stopPropagation()">
+          <div class="as-dlg-head"><div><h2>{{ 'ldm_details_title' | t : 'LDM registrations' }} · {{ ddmy(details()!.date) }}</h2><div class="small muted">{{ kindLabel(details()!.kind) }} · {{ st()?.subjectName }} · {{ detailRows().length }} {{ 'rows_2' | t : 'row(s)' }} · {{ detailTotal() | number:'1.2-2' }} EGP</div></div><button class="btn btn-mini btn-s" (click)="details.set(null)">✕</button></div>
+          <div class="as-dlg-body" style="padding:0">
+            @if (detailsLoading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
+            @else {
+              <div class="grid-scroll"><table class="grid-table" style="margin:0;border:none">
+                <thead><tr><th>{{ 'lab' | t : 'Lab' }}</th><th>{{ 'acc_no' | t : 'Acc No' }}</th><th>{{ 'patient_name' | t : 'Patient Name' }}</th><th>{{ 'test_name_2' | t : 'Test' }}</th><th class="r">{{ 'test_fee' | t : 'Test Fee' }}</th><th>{{ 'sample_status' | t : 'Sample Status' }}</th><th>{{ 'test_status' | t : 'Test Status' }}</th></tr></thead>
+                <tbody>
+                  @for (d of detailRows(); track $index) {
+                    <tr><td><b>{{ d.labName }}</b> <span class="small muted">{{ d.labDisplayCode }}</span></td><td class="mono">{{ d.accNo }}</td><td>{{ d.patientName }}</td><td>{{ d.testName || d.testCode }} <span class="small muted">{{ d.testCode }}</span></td><td class="r mono">{{ d.fee | number:'1.2-2' }}</td><td>{{ sampleLabel(d.sampleStatus) }}</td><td>{{ testLabel(d.testStatus) }}</td></tr>
+                  } @empty { <tr><td colspan="7" class="empty" style="text-align:center;padding:24px">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
+                </tbody>
+                @if (detailRows().length) { <tfoot><tr><td colspan="4">{{ 'total' | t : 'Total' }}</td><td class="r mono">{{ detailTotal() | number:'1.2-2' }}</td><td></td><td></td></tr></tfoot> }
+              </table></div>
+            }
+          </div>
+          <div class="as-dlg-foot"><button class="btn btn-s" (click)="exportDetails()" [disabled]="!detailRows().length">{{ 'export_excel' | t : 'Export Excel' }}</button><button class="btn btn-p" (click)="details.set(null)">{{ 'close' | t : 'Close' }}</button></div>
+        </div>
+      </div>
+    }
   `,
   styles: [ACC_STYLES],
 })
@@ -110,6 +134,12 @@ export class RepStatementComponent {
 
   readonly loading = signal(false);
   readonly st = signal<Statement | null>(null);
+  /** The debit line whose LDM registrations are open in the details dialog. */
+  readonly details = signal<RepStatementRow | null>(null);
+  readonly detailsLoading = signal(false);
+  readonly detailRows = signal<StatementLdmDetail[]>([]);
+  readonly detailTotal = computed(() => money(this.detailRows().reduce((a, d) => a + d.fee, 0)));
+  readonly totalLdm = computed(() => money((this.st()?.rows ?? []).reduce((a, r) => a + (r.ldmIncome ?? 0), 0)));
   readonly reps = signal<RepListItem[]>([]);
   readonly areas = signal<AreaOpt[]>([]);
   readonly labs = signal<LabLookup[]>([]);
@@ -120,7 +150,7 @@ export class RepStatementComponent {
    *  running balance after it; the kind column then lists how many rows of each kind the period holds. */
   readonly view = computed<ViewRow[]>(() => {
     const rows = this.st()?.rows ?? []; const as = this.viewAsSig();
-    if (as === 'Daily') return rows.map((r) => ({ label: ddmy(r.date), day: this.day(r.date), kind: this.kindLabel(r.kind), debit: r.debit, credit: r.credit, notes: r.notes, balance: r.balance, source: r }));
+    if (as === 'Daily') return rows.map((r) => ({ label: ddmy(r.date), day: this.day(r.date), kind: this.kindLabel(r.kind), debit: r.debit, credit: r.credit, notes: r.notes, balance: r.balance, source: r, ldmIncome: r.ldmIncome }));
     const groups = new Map<string, { label: string; rows: RepStatementRow[] }>();
     for (const r of rows) {
       const p = RepStatementComponent.period(r.date, as);
@@ -129,10 +159,11 @@ export class RepStatementComponent {
     let balance = 0;
     return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([, g]) => {
       const debit = money(g.rows.reduce((s, r) => s + r.debit, 0)); const credit = money(g.rows.reduce((s, r) => s + r.credit, 0));
+      const ldmRows = g.rows.filter((r) => r.ldmIncome !== null); const ldmIncome = ldmRows.length ? money(ldmRows.reduce((s, r) => s + (r.ldmIncome ?? 0), 0)) : null;
       balance = money(balance + debit - credit);
       const kinds = new Map<string, number>(); for (const r of g.rows) kinds.set(r.kind, (kinds.get(r.kind) ?? 0) + 1);
       return { label: g.label, day: '', kind: [...kinds.entries()].map(([k, n]) => `${this.kindLabel(k)} ×${n}`).join(' · '), debit, credit,
-        notes: `${g.rows.length} entries · ${ddmy(g.rows[0].date)} → ${ddmy(g.rows[g.rows.length - 1].date)}`, balance, source: null };
+        notes: `${g.rows.length} entries · ${ddmy(g.rows[0].date)} → ${ddmy(g.rows[g.rows.length - 1].date)}`, balance, source: null, ldmIncome };
     });
   });
   /** Period key (sortable) and label for a yyyy-MM-dd date. Weeks start on Saturday (the Egyptian work week). */
@@ -161,6 +192,7 @@ export class RepStatementComponent {
   kindLabel(k: string): string {
     switch (k) {
       case 'TotalRequired': return 'Total required (Rep Income)';
+      case 'LdmIncome': return 'LDM income (labs without a Rep Income entry)';
       case 'PenaltyRight': return 'Penalty · right test';
       case 'PenaltyWrong': return 'Penalty · wrong test';
       case 'Deduction': return 'Deduction';
@@ -173,6 +205,25 @@ export class RepStatementComponent {
 
   setBy(b: ViewBy): void { this.by = b; this.bySig.set(b); this.subjectId = ''; this.st.set(null); }
   setViewAs(v: ViewAs): void { this.viewAs = v; this.viewAsSig.set(v); }
+  /** The registrations behind a debit line: the subject's labs of that day with (TotalRequired) or without (LdmIncome) a sheet entry. */
+  openDetails(r: RepStatementRow): void {
+    if (r.kind !== 'TotalRequired' && r.kind !== 'LdmIncome') return;
+    this.details.set(r); this.detailsLoading.set(true); this.detailRows.set([]);
+    this.api.get<StatementLdmDetail[]>('/accounting/statement/ldm-details', { by: this.by, id: this.subjectId, date: r.date, kind: r.kind })
+      .subscribe({ next: (rows) => { this.detailRows.set(rows); this.detailsLoading.set(false); }, error: () => this.detailsLoading.set(false) });
+  }
+  /** LDM status codes (same mapping as Detailed Statistics): sample 1 ordered / 2 collected / 3 received; test 1-2 ordered / 3 completed / 4 reviewed / 5 verified. */
+  sampleLabel(code: string | null): string {
+    switch (Number.parseInt(code ?? '', 10)) { case 1: return 'Ordered'; case 2: return 'Collected'; case 3: return 'Received'; default: return code?.trim() || '—'; }
+  }
+  testLabel(code: string | null): string {
+    switch (Number.parseInt(code ?? '', 10)) { case 1: case 2: return 'Ordered'; case 3: return 'Completed'; case 4: return 'Reviewed'; case 5: return 'Verified'; default: return code?.trim() || '—'; }
+  }
+  exportDetails(): void {
+    const d = this.details(); if (!d) return;
+    exportXlsx(`ldm-registrations-${d.date}.xlsx`, ['Lab', 'Code', 'Acc No', 'Patient', 'Test', 'Test code', 'Fee', 'Sample status', 'Test status'],
+      this.detailRows().map((x) => [x.labName, x.labDisplayCode, x.accNo, x.patientName, x.testName ?? x.testCode, x.testCode, money(x.fee), this.sampleLabel(x.sampleStatus), this.testLabel(x.testStatus)]));
+  }
   load(): void {
     if (!this.subjectId) return;
     this.loading.set(true);
@@ -184,8 +235,8 @@ export class RepStatementComponent {
     this.api.delete(`/accounting/rep-income/${r.sourceId}`).subscribe({ next: () => { this.toast.success('Income line deleted.'); this.load(); } });
   }
 
-  private static readonly HEADER = ['Date / Period', 'Day', 'Kind', 'Debit', 'Credit', 'Notes', 'Balance'];
-  private exportRows() { return this.view().map((r) => [r.label, r.day, r.kind, money(r.debit), money(r.credit), r.notes ?? '', money(r.balance)]); }
+  private static readonly HEADER = ['Date / Period', 'Day', 'Kind', 'Debit', 'Credit', 'LDM income', 'Notes', 'Balance'];
+  private exportRows() { return this.view().map((r) => [r.label, r.day, r.kind, money(r.debit), money(r.credit), r.ldmIncome === null ? '' : money(r.ldmIncome), r.notes ?? '', money(r.balance)]); }
   private title(): string { return `Statement by ${this.subjectLabel()} — ${this.st()?.subjectName ?? ''} (${ddmy(this.from)} → ${ddmy(this.to)}, ${this.viewAs.toLowerCase()})`; }
   exportExcel(): void { exportXlsx(`statement-${this.by.toLowerCase()}-${this.viewAs.toLowerCase()}-${localToday()}.xlsx`, RepStatementComponent.HEADER, this.exportRows()); }
   exportPdf(): void { printTable(this.title(), RepStatementComponent.HEADER, this.exportRows()); }

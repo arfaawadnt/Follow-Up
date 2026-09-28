@@ -469,6 +469,7 @@ public class AccountingHandlerTests
     private sealed class StubAccountingQueries : IAccountingQueries
     {
         public Task<StatementDto?> StatementAsync(string by, Guid id, DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct) => Task.FromResult<StatementDto?>(null);
+        public Task<IReadOnlyList<StatementLdmDetailDto>> StatementLdmDetailsAsync(string by, Guid id, DateOnly date, string kind, OrgScope scope, bool canSeeEncrypted, CancellationToken ct) => throw new NotSupportedException();
         public Task<IReadOnlyList<TreasuryReasonDto>> TreasuryReasonsAsync(CancellationToken ct) => throw new NotSupportedException();
         public Task<IReadOnlyList<TreasuryDto>> TreasuriesAsync(OrgScope scope, TreasuryAccessMap access, CancellationToken ct) => throw new NotSupportedException();
         public Task<IReadOnlyList<TreasuryEntryDto>> TreasuryEntriesAsync(DateOnly from, DateOnly to, Guid? treasuryId, OrgScope scope, TreasuryAccessMap access, CancellationToken ct) => throw new NotSupportedException();

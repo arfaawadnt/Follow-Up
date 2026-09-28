@@ -260,7 +260,8 @@ internal sealed class AccountingQueries : IAccountingQueries
 
     /// <summary>
     /// Statement by dimension (operator decisions, 2026-09-18). Debit = the total required entered on the Rep Income sheet per
-    /// day + the RIGHT test of every penalty (what the lab owes) [+ legacy manual lines, Responsible only]. Credit = the
+    /// day, the LDM income of the labs without a sheet entry that day (2026-09-28), + the RIGHT test of every penalty (what the
+    /// lab owes) [+ legacy manual lines, Responsible only]. Credit = the
     /// actual collections (the rep's share, Responsible only), the deductions of the subject's area(s) (Area and
     /// Responsible views) and the WRONG test of every penalty (what was charged in error) — each noted with its record.
     /// A Rep penalty follows the representative who made it; the other types follow the lab's Lab Responsible.
@@ -268,49 +269,36 @@ internal sealed class AccountingQueries : IAccountingQueries
     /// </summary>
     public async Task<StatementDto?> StatementAsync(string by, Guid id, DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct)
     {
-        string subjectName; RepresentativeId? rid = null; List<LaboratoryId> labIds; HashSet<string> labCodes;
-        switch (by)
-        {
-            case StatementBy.Responsible:
-                {
-                    var r = new RepresentativeId(id);
-                    var rep = await _db.Representatives.ApplyScope(scope).AsNoTracking().FirstOrDefaultAsync(x => x.Id == r, ct);
-                    if (rep is null) return null;
-                    rid = r; subjectName = rep.FullName;
-                    // CollectorRepIds is a jsonb list, so the membership test runs in memory.
-                    var labs = (await _db.Laboratories.ApplyScope(scope).AsNoTracking().Select(l => new { l.Id, l.Code, l.CollectorRepIds, l.ResponsibleRepId }).ToListAsync(ct))
-                        .Where(l => l.ResponsibleRepId == r || l.CollectorRepIds.Contains(r)).ToList();
-                    labIds = labs.Select(l => l.Id).ToList(); labCodes = labs.Select(l => l.Code.Value.ToUpperInvariant()).ToHashSet(StringComparer.OrdinalIgnoreCase);
-                    break;
-                }
-            case StatementBy.Area:
-                {
-                    var areas = await VisibleAreasAsync(scope, ct);
-                    if (!areas.TryGetValue(new AreaId(id), out var areaName)) return null;
-                    subjectName = areaName;
-                    var labs = await _db.Laboratories.ApplyScope(scope).AsNoTracking().Where(l => l.Area == areaName).Select(l => new { l.Id, l.Code }).ToListAsync(ct);
-                    labIds = labs.Select(l => l.Id).ToList(); labCodes = labs.Select(l => l.Code.Value.ToUpperInvariant()).ToHashSet(StringComparer.OrdinalIgnoreCase);
-                    break;
-                }
-            case StatementBy.Lab:
-                {
-                    var lab = await _db.Laboratories.ApplyScope(scope).AsNoTracking().Where(l => l.Id == new LaboratoryId(id)).Select(l => new { l.Id, l.Code, l.Name }).FirstOrDefaultAsync(ct);
-                    if (lab is null) return null;
-                    subjectName = lab.Name; labIds = new List<LaboratoryId> { lab.Id }; labCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { lab.Code.Value.ToUpperInvariant() };
-                    break;
-                }
-            default: return null;
-        }
+        var subject = await ResolveSubjectAsync(by, id, scope, ct);
+        if (subject is null) return null;
+        var (subjectName, rid, subjectLabs) = subject.Value;
+        var labIds = subjectLabs.Select(l => l.Id).ToList();
+        var codeToId = subjectLabs.GroupBy(l => l.Code.Value.ToUpperInvariant()).ToDictionary(g => g.Key, g => g.First().Id, StringComparer.OrdinalIgnoreCase);
+        var idToCode = subjectLabs.ToDictionary(l => l.Id, l => l.Code.Value.ToUpperInvariant());
 
-        var lines = new List<(DateOnly Date, int Order, string Kind, decimal Debit, decimal Credit, string? Notes, Guid? SourceId)>();
+        var lines = new List<(DateOnly Date, int Order, string Kind, decimal Debit, decimal Credit, string? Notes, Guid? SourceId, decimal? LdmIncome)>();
 
-        // Debit — the total required recorded on the Rep Income sheet (what the labs owe for the day), one line per day.
+        // Debit — per day: the total required recorded on the Rep Income sheet for the labs that have an entry, and
+        // (2026-09-28) the LDM income (synced lab statistics) for the subject's labs that have NO entry that day, so a day
+        // is never under-stated because the sheet was not filled. Every debit line carries the LDM income of the labs it
+        // covers (the column with the registration details) so the manual figure can be compared with LDM.
         var sheetQuery = _db.RepLabIncomes.AsNoTracking().Where(e => e.Date >= from && e.Date <= to);
         sheetQuery = rid is { } rr ? sheetQuery.Where(e => e.RepresentativeId == rr) : sheetQuery.Where(e => labIds.Contains(e.LaboratoryId));
-        foreach (var g in (await sheetQuery.ToListAsync(ct)).GroupBy(e => e.Date))
+        var sheetByDate = (await sheetQuery.ToListAsync(ct)).GroupBy(e => e.Date).ToDictionary(g => g.Key, g => g.ToList());
+        var ldmByDate = await LdmIncomeByDateAsync(codeToId.Keys, from, to, ct);
+        foreach (var date in sheetByDate.Keys.Union(ldmByDate.Keys).OrderBy(d => d))
         {
-            var total = g.Sum(e => e.TotalRequired.Amount);
-            if (total != 0m) lines.Add((g.Key, 0, "TotalRequired", total, 0m, $"Rep Income sheet · total required of {g.Count()} lab(s)", null));
+            sheetByDate.TryGetValue(date, out var entries); entries ??= new List<RepLabIncome>();
+            ldmByDate.TryGetValue(date, out var ldm); ldm ??= new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+            var sheetLabIds = entries.Select(e => e.LaboratoryId).ToHashSet();
+            var sheetTotal = entries.Sum(e => e.TotalRequired.Amount);
+            var sheetLdm = entries.Where(e => idToCode.ContainsKey(e.LaboratoryId)).Sum(e => ldm.GetValueOrDefault(idToCode[e.LaboratoryId]));
+            if (sheetTotal != 0m)
+                lines.Add((date, 0, "TotalRequired", sheetTotal, 0m, $"Rep Income sheet · total required of {entries.Count} lab(s)", (Guid?)null, (decimal?)sheetLdm));
+            var ldmOnly = ldm.Where(kv => !(codeToId.TryGetValue(kv.Key, out var lid) && sheetLabIds.Contains(lid))).ToList();
+            var ldmOnlyTotal = ldmOnly.Sum(kv => kv.Value);
+            if (ldmOnlyTotal != 0m)
+                lines.Add((date, 0, "LdmIncome", ldmOnlyTotal, 0m, $"LDM income · {ldmOnly.Count} lab(s) without a Rep Income entry", (Guid?)null, (decimal?)ldmOnlyTotal));
         }
 
         // Penalties — the right test is what the lab owes (Debit), the wrong test what was charged in error (Credit), each
@@ -330,15 +318,15 @@ internal sealed class AccountingQueries : IAccountingQueries
         {
             penaltyLabs.TryGetValue(p.LaboratoryId, out var lab);
             var record = $"Penalty #{p.Serial} · {lab?.Name ?? "—"} · Acc {p.AccNo} · {p.PatientName} · {PenaltyUserLabel(p.UserType)}";
-            if (p.WrongValue.Amount != 0m) lines.Add((p.Date, 1, "PenaltyWrong", 0m, p.WrongValue.Amount, $"{record} · wrong test {p.WrongTestName} ({p.WrongTestCode})", p.Id.Value));
-            if (p.RightValue.Amount != 0m) lines.Add((p.Date, 1, "PenaltyRight", p.RightValue.Amount, 0m, $"{record} · right test {p.RightTestName} ({p.RightTestCode})", p.Id.Value));
+            if (p.WrongValue.Amount != 0m) lines.Add((p.Date, 1, "PenaltyWrong", 0m, p.WrongValue.Amount, $"{record} · wrong test {p.WrongTestName} ({p.WrongTestCode})", p.Id.Value, null));
+            if (p.RightValue.Amount != 0m) lines.Add((p.Date, 1, "PenaltyRight", p.RightValue.Amount, 0m, $"{record} · right test {p.RightTestName} ({p.RightTestCode})", p.Id.Value, null));
         }
 
         if (rid is { } repId)
         {
             // Debit — legacy manually recorded real income (Responsible only).
             var manual = await _db.RepIncomeEntries.AsNoTracking().Where(e => e.RepresentativeId == repId && e.Date >= from && e.Date <= to).ToListAsync(ct);
-            foreach (var e in manual) lines.Add((e.Date, 0, "ManualIncome", e.Amount.Amount, 0m, e.Notes, e.Id.Value));
+            foreach (var e in manual) lines.Add((e.Date, 0, "ManualIncome", e.Amount.Amount, 0m, e.Notes, e.Id.Value, null));
 
             // Credit — the actual collections (Collection page): this rep's share net of the out-source income (cash + bank −
             // out-source, 2026-09-19), noted with how it was collected.
@@ -351,7 +339,7 @@ internal sealed class AccountingQueries : IAccountingQueries
                     + (c.OutsourceIncome.Amount > 0 ? $" · out-source {c.OutsourceIncome.Amount:0.00}" : "")
                     + (c.DoneBy is not null ? $" · by {c.DoneBy}" : "")
                     + (c.RepIds.Count > 1 ? $" · share of {c.Total.Amount:0.00}" : "") + (c.Notes is not null ? $" · {c.Notes}" : "");
-                lines.Add((c.Date, 3, "Collection", 0m, c.NetShareOf(repId).Amount, note, c.Id.Value));
+                lines.Add((c.Date, 3, "Collection", 0m, c.NetShareOf(repId).Amount, note, c.Id.Value, null));
             }
         }
 
@@ -373,7 +361,7 @@ internal sealed class AccountingQueries : IAccountingQueries
                 var period = d.PeriodFrom is { } pf && d.PeriodTo is { } pt ? $" · {pf:dd/MM/yyyy}–{pt:dd/MM/yyyy}" : "";
                 var note = $"Deduction #{d.Serial} · {areaNamesById.GetValueOrDefault(d.AreaId, "—")} · {(d.Reason == DeductionReason.PercentageDeal ? "Percentage Deal" : d.Reason.Name)}{period}"
                     + (d.Notes is not null ? $" · {d.Notes}" : "") + (d.SystemNote is not null ? $" · {d.SystemNote}" : "");
-                lines.Add((d.Date, 4, "Deduction", 0m, d.Value.Amount, note, d.Id.Value));
+                lines.Add((d.Date, 4, "Deduction", 0m, d.Value.Amount, note, d.Id.Value, null));
             }
         }
 
@@ -382,9 +370,83 @@ internal sealed class AccountingQueries : IAccountingQueries
         foreach (var l in lines.OrderBy(l => l.Date).ThenBy(l => l.Order))
         {
             balance += l.Debit - l.Credit; totalDebit += l.Debit; totalCredit += l.Credit;
-            rows.Add(new RepStatementRowDto(l.Date, l.Kind, l.Debit, l.Credit, l.Notes, balance, l.SourceId));
+            rows.Add(new RepStatementRowDto(l.Date, l.Kind, l.Debit, l.Credit, l.Notes, balance, l.SourceId, l.LdmIncome));
         }
         return new StatementDto(by, id, subjectName, rows, totalDebit, totalCredit, balance);
+    }
+
+    // ---- statement helpers ----
+
+    private sealed record SubjectLab(LaboratoryId Id, LabCode Code, bool IsEncrypted, string Name);
+
+    /// <summary>The statement subject: its display name, the Lab Responsible (Responsible view) and its labs — the labs
+    /// the rep is responsible for or collects for, the area's labs, or the one lab. Null when not visible in scope.</summary>
+    private async Task<(string Name, RepresentativeId? Rid, List<SubjectLab> Labs)?> ResolveSubjectAsync(string by, Guid id, OrgScope scope, CancellationToken ct)
+    {
+        switch (by)
+        {
+            case StatementBy.Responsible:
+                {
+                    var r = new RepresentativeId(id);
+                    var rep = await _db.Representatives.ApplyScope(scope).AsNoTracking().FirstOrDefaultAsync(x => x.Id == r, ct);
+                    if (rep is null) return null;
+                    // CollectorRepIds is a jsonb list, so the membership test runs in memory.
+                    var labs = (await _db.Laboratories.ApplyScope(scope).AsNoTracking().Select(l => new { l.Id, l.Code, l.IsEncrypted, l.Name, l.CollectorRepIds, l.ResponsibleRepId }).ToListAsync(ct))
+                        .Where(l => l.ResponsibleRepId == r || l.CollectorRepIds.Contains(r)).Select(l => new SubjectLab(l.Id, l.Code, l.IsEncrypted, l.Name)).ToList();
+                    return (rep.FullName, r, labs);
+                }
+            case StatementBy.Area:
+                {
+                    var areas = await VisibleAreasAsync(scope, ct);
+                    if (!areas.TryGetValue(new AreaId(id), out var areaName)) return null;
+                    var labs = await _db.Laboratories.ApplyScope(scope).AsNoTracking().Where(l => l.Area == areaName)
+                        .Select(l => new SubjectLab(l.Id, l.Code, l.IsEncrypted, l.Name)).ToListAsync(ct);
+                    return (areaName, null, labs);
+                }
+            case StatementBy.Lab:
+                {
+                    var lab = await _db.Laboratories.ApplyScope(scope).AsNoTracking().Where(l => l.Id == new LaboratoryId(id))
+                        .Select(l => new SubjectLab(l.Id, l.Code, l.IsEncrypted, l.Name)).FirstOrDefaultAsync(ct);
+                    return lab is null ? null : (lab.Name, null, new List<SubjectLab> { lab });
+                }
+            default: return null;
+        }
+    }
+
+    /// <summary>LDM income (synced daily lab statistics) per date and lab code (upper-cased) for the given codes.</summary>
+    private async Task<Dictionary<DateOnly, Dictionary<string, decimal>>> LdmIncomeByDateAsync(IEnumerable<string> labCodes, DateOnly from, DateOnly to, CancellationToken ct)
+    {
+        var codes = labCodes.Select(c => c.ToUpperInvariant()).Distinct().ToList();
+        if (codes.Count == 0) return new Dictionary<DateOnly, Dictionary<string, decimal>>();
+        var rows = await _db.DailyLabStatistics.AsNoTracking().Where(s => s.Date >= from && s.Date <= to && codes.Contains(s.LabCode.ToUpper())).ToListAsync(ct);
+        return rows.GroupBy(s => s.Date).ToDictionary(g => g.Key,
+            g => g.GroupBy(s => s.LabCode.ToUpperInvariant()).ToDictionary(x => x.Key, x => x.Sum(s => s.Income.Amount), StringComparer.OrdinalIgnoreCase));
+    }
+
+    /// <summary>The synced registration lines behind one debit line of the statement: the subject's labs on the date,
+    /// narrowed to the labs WITH a Rep Income entry (kind TotalRequired) or WITHOUT one (kind LdmIncome).</summary>
+    public async Task<IReadOnlyList<StatementLdmDetailDto>> StatementLdmDetailsAsync(string by, Guid id, DateOnly date, string kind, OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
+    {
+        var subject = await ResolveSubjectAsync(by, id, scope, ct);
+        if (subject is null) return Array.Empty<StatementLdmDetailDto>();
+        var (_, rid, labs) = subject.Value;
+        var labIds = labs.Select(l => l.Id).ToList();
+        var sheetQuery = _db.RepLabIncomes.AsNoTracking().Where(e => e.Date == date);
+        sheetQuery = rid is { } rr ? sheetQuery.Where(e => e.RepresentativeId == rr) : sheetQuery.Where(e => labIds.Contains(e.LaboratoryId));
+        var sheetLabIds = (await sheetQuery.Select(e => e.LaboratoryId).ToListAsync(ct)).ToHashSet();
+        var wanted = labs.Where(l => kind == "TotalRequired" ? sheetLabIds.Contains(l.Id) : !sheetLabIds.Contains(l.Id)).ToList();
+        var byCode = wanted.GroupBy(l => l.Code.Value.ToUpperInvariant()).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+        if (byCode.Count == 0) return Array.Empty<StatementLdmDetailDto>();
+        var codes = byCode.Keys.ToList();
+        var regs = await _db.DetailedRegistrations.AsNoTracking()
+            .Where(r => r.Date == date && r.LabCode != null && codes.Contains(r.LabCode.ToUpper()))
+            .OrderBy(r => r.LabCode).ThenBy(r => r.PatientName).ThenBy(r => r.AccNo).ThenBy(r => r.TestName).ToListAsync(ct);
+        return regs.Select(r =>
+        {
+            var lab = byCode[r.LabCode!.ToUpperInvariant()];
+            return new StatementLdmDetailDto(DisplayCode.For(lab.Code.Value, lab.IsEncrypted, canSeeEncrypted), lab.Name, r.AccNo, r.PatientName,
+                r.TestCode, r.TestName, r.PatientFee + r.InsuranceFee, r.SampleStatus, r.TestStatus);
+        }).ToList();
     }
 
     // ---- helpers ----

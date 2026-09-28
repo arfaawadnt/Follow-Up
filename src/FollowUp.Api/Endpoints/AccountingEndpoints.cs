@@ -118,6 +118,9 @@ public static class AccountingEndpoints
         // Statement by dimension: by = Responsible | Area | Lab, id = the subject.
         api.MapGet("/accounting/statement", async (string by, Guid id, DateOnly from, DateOnly to, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetStatementQuery(by, id, from, to), ct))).WithTags(tag);
+        // The "Details" of a debit line: the LDM registrations of that day for the labs the line covers (kind TotalRequired | LdmIncome).
+        api.MapGet("/accounting/statement/ldm-details", async (string by, Guid id, DateOnly date, string kind, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetStatementLdmDetailsQuery(by, id, date, kind), ct))).WithTags(tag);
         api.MapPost("/accounting/rep-income", async (RepIncomeBody b, IMediator m, CancellationToken ct) =>
         { var id = await m.Send(new CreateRepIncomeEntryCommand(b.Date, b.RepresentativeId, b.Amount, b.Notes), ct); return Results.Created($"/api/v1/accounting/rep-income/{id}", new { id }); }).WithTags(tag);
         api.MapDelete("/accounting/rep-income/{id:guid}", async (Guid id, IMediator m, CancellationToken ct) =>

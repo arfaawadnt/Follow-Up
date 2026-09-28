@@ -259,7 +259,11 @@ export interface CollectionDto {
   /** Out-source income handed in with the money (not the reps' income): statement credit = cash + bank − out-source. */
   outsourceIncome: number; referenceNumber: string | null; netIncome: number;
 }
-export interface RepStatementRow { date: string; kind: string; debit: number; credit: number; notes: string | null; balance: number; sourceId: string | null; }
+export interface RepStatementRow { date: string; kind: string; debit: number; credit: number; notes: string | null; balance: number; sourceId: string | null;
+  /** Debit lines only (2026-09-28): the LDM income of the labs the line covers — the "Details" button lists their registrations. */
+  ldmIncome: number | null; }
+/** One synced registration line behind a statement debit (GET /accounting/statement/ldm-details). */
+export interface StatementLdmDetail { labDisplayCode: string; labName: string; accNo: string; patientName: string; testCode: string; testName: string | null; fee: number; sampleStatus: string | null; testStatus: string | null; }
 export interface RepStatement { representativeId: string; repName: string; rows: RepStatementRow[]; totalDebit: number; totalCredit: number; balance: number; }
 /** Statement by dimension (Responsible | Area | Lab). */
 export interface Statement { by: string; subjectId: string; subjectName: string; rows: RepStatementRow[]; totalDebit: number; totalCredit: number; balance: number; }
