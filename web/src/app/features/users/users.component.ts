@@ -5,13 +5,14 @@ import { AuthService } from '../../core/auth.service';
 import { ToastService } from '../../core/toast.service';
 import { PagedResult, UserListItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
+import { AuditLogButtonComponent } from '../../shared/audit-log-button.component';
 
 interface Role { id: string; name: string; privileges: string[]; isBuiltIn: boolean; }
 
 @Component({
   selector: 'app-users',
   standalone: true,
-  imports: [ReactiveFormsModule, TranslatePipe],
+  imports: [AuditLogButtonComponent, ReactiveFormsModule, TranslatePipe],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'users' | t : 'Users' }}</div><h1>{{ 'users' | t : 'Users' }}</h1></div>
@@ -52,7 +53,7 @@ interface Role { id: string; name: string; privileges: string[]; isBuiltIn: bool
                     <button class="btn-ghost" (click)="edit(u)" [disabled]="busy()">{{ 'edit' | t : 'Edit' }}</button>
                     @if (u.isLocked) { <button class="btn btn-mini btn-p" (click)="unlock(u)" [disabled]="busy()">Unlock</button> }
                     <button class="btn-ghost red" (click)="del(u)" [disabled]="busy()">{{ 'delete' | t : 'Delete' }}</button>
-                  }
+                  }<app-audit-log entity="AppUser" [id]="u.id" [label]="u.username"></app-audit-log>
                 </td>
               </tr>
             } @empty { <tr><td colspan="6" class="empty" style="text-align:center;padding:24px">—</td></tr> }

@@ -8,6 +8,7 @@ import { ToastService } from '../../core/toast.service';
 import { TranslatePipe } from '../../core/i18n';
 import { InventoryItemDto, ItemTestLink, ManufacturerDto, TestLookup } from '../../core/models';
 import { INV_STYLES, ITEM_KINDS, Opt, qty } from './inventory.util';
+import { AuditLogButtonComponent } from '../../shared/audit-log-button.component';
 
 /**
  * Items — the catalogue of chemicals and consumables: code, name, kind, manufacturer, catalogue number, unit, stock limit
@@ -17,7 +18,7 @@ import { INV_STYLES, ITEM_KINDS, Opt, qty } from './inventory.util';
 @Component({
   selector: 'app-inventory-items',
   standalone: true,
-  imports: [FormsModule, TranslatePipe, FilterSelectComponent],
+  imports: [AuditLogButtonComponent, FormsModule, TranslatePipe, FilterSelectComponent],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'inventory' | t : 'Inventory' }} / {{ 'inv_items' | t : 'Items' }}</div><h1>{{ 'inv_items' | t : 'Items' }}</h1></div>
@@ -53,7 +54,7 @@ import { INV_STYLES, ITEM_KINDS, Opt, qty } from './inventory.util';
                 <td class="r mono">{{ i.expiryWarningDays }} d</td>
                 <td><div class="chip-list">@for (t of i.testLinks; track t.testCode + t.testType) { <span [title]="t.testName">{{ t.testCode }} × {{ qty(t.quantityPerTest) }}</span> }</div></td>
                 <td>{{ i.storageConditions || '—' }}</td><td>{{ i.isActive ? ('active' | t : 'Active') : ('inactive' | t : 'Inactive') }}</td>
-                <td class="ar actions">@if (canManage()) { <button class="icon-btn" title="Edit" (click)="openEdit(i)">✎</button> }</td>
+                <td class="ar actions">@if (canManage()) { <button class="icon-btn" title="Edit" (click)="openEdit(i)">✎</button> }<app-audit-log entity="InventoryItem" [id]="i.id" [label]="i.code + ' · ' + i.name"></app-audit-log></td>
               </tr>
             } @empty { <tr><td colspan="14" class="empty" style="text-align:center;padding:24px">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
           </tbody>

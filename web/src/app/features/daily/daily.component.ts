@@ -13,13 +13,14 @@ import { AppDatePipe } from '../../shared/app-date.pipe';
 import { ToastService } from '../../core/toast.service';
 import { AttachmentService } from '../../core/attachment.service';
 import { RecordVisitContext, RecordVisitDialogComponent } from '../../shared/record-visit-dialog.component';
+import { AuditLogButtonComponent } from '../../shared/audit-log-button.component';
 
 const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
 
 @Component({
   selector: 'app-daily',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, TranslatePipe, AppDatePipe, DateInputComponent, FilterSelectComponent, RecordVisitDialogComponent],
+  imports: [AuditLogButtonComponent, FormsModule, DecimalPipe, TranslatePipe, AppDatePipe, DateInputComponent, FilterSelectComponent, RecordVisitDialogComponent],
   template: `
     <div class="pagehead" style="display:flex;justify-content:space-between;align-items:center">
       <div><div class="breadcrumbs">Home / {{ 'daily' | t }}</div><h1>{{ 'daily_followup_board' | t : 'Daily Follow-up Board' }}</h1></div>
@@ -97,6 +98,7 @@ const STATUSES = ['All', 'Pending', 'Visited', 'Missed'];
                 @if (v.archived) {
                   <span class="badge b-neu" title="{{ 'archived_readonly' | t : 'Archived — read-only history' }}">{{ 'history' | t : 'History' }}</span>
                 } @else {
+                  <app-audit-log entity="DailyVisit" [id]="v.visitId"></app-audit-log>
                   @if (v.status === 'Pending') {
                     <button class="btn btn-mini btn-p" (click)="openRecord(v)" [disabled]="busy()">{{ 'record_visit' | t : 'Record visit' }}</button>
                     <button class="btn btn-mini btn-s" (click)="miss(v)" [disabled]="busy()">{{ 'miss' | t : 'missed' }}</button>

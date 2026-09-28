@@ -10,6 +10,7 @@ import { ToastService } from '../../core/toast.service';
 import { TranslatePipe } from '../../core/i18n';
 import { StockLotDto, StockTransferDto, StoreDto } from '../../core/models';
 import { INV_STYLES, Opt, TRANSFER_STATUSES, badge, firstOfMonth, label, qty } from './inventory.util';
+import { AuditLogButtonComponent } from '../../shared/audit-log-button.component';
 
 type TransferLineDraft = { lotId: string; quantity: number | null };
 
@@ -21,7 +22,7 @@ type TransferLineDraft = { lotId: string; quantity: number | null };
 @Component({
   selector: 'app-stock-transfers',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, TranslatePipe, DateInputComponent, FilterSelectComponent],
+  imports: [AuditLogButtonComponent, FormsModule, DecimalPipe, TranslatePipe, DateInputComponent, FilterSelectComponent],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'inventory' | t : 'Inventory' }} / {{ 'inv_transfers' | t : 'Stock Transfers' }}</div><h1>{{ 'inv_transfers' | t : 'Stock Transfers' }}</h1></div>
@@ -56,7 +57,7 @@ type TransferLineDraft = { lotId: string; quantity: number | null };
                 <td><span class="badge" [class]="'badge ' + badge(t.status)">{{ label(t.status) }}</span></td>
                 <td class="r mono">{{ t.lines.length }}</td><td class="r mono">{{ qty(sum(t, 'quantity')) }}</td><td class="r mono" [class.neg]="shortfall(t) > 0">{{ t.status === 'Received' ? qty(sum(t, 'receivedQuantity')) : '' }}</td>
                 <td>{{ t.receivedDate ? ddmy(t.receivedDate) : '—' }}</td><td>{{ t.notes || '' }} @if (t.receiveNotes) { <i class="muted">· {{ t.receiveNotes }}</i> }</td>
-                <td class="ar actions" (click)="$event.stopPropagation()">
+                <td class="ar actions" (click)="$event.stopPropagation()"><app-audit-log entity="StockTransfer" [id]="t.id"></app-audit-log>
                   @if (canManage() && t.status === 'InTransit') {
                     @if (t.canReceive) { <button class="btn btn-mini btn-p" (click)="openReceive(t)">{{ 'confirm_receipt' | t : 'Confirm receipt' }}</button> }
                     <button class="btn btn-mini red" (click)="cancel(t)">{{ 'cancel' | t : 'Cancel' }}</button>

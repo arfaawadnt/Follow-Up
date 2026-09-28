@@ -25,6 +25,10 @@
     <PackageVersion Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1" />
     <PackageVersion Include="System.Text.Json" Version="8.0.5" />
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.1" />
+    <!-- Server-side PDF (email report attachments, 2026-09-20): Skia draws the pages, HarfBuzz shapes Arabic text. -->
+    <PackageVersion Include="SkiaSharp" Version="2.88.9" />
+    <PackageVersion Include="SkiaSharp.HarfBuzz" Version="2.88.9" />
+    <PackageVersion Include="SkiaSharp.NativeAssets.Win32" Version="2.88.9" />
     <!-- Background jobs -->
     <PackageVersion Include="Hangfire.AspNetCore" Version="1.8.14" />
     <PackageVersion Include="Hangfire.PostgreSql" Version="1.20.10" />

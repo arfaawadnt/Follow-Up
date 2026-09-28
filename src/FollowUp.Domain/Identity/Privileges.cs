@@ -90,6 +90,8 @@ public static class Privileges
     public const string SetupRefs = nameof(SetupRefs);
     public const string SetupCities = nameof(SetupCities);
     public const string SetupAreas = nameof(SetupAreas);
+    /// <summary>Audit trail (2026-09-20): the Audit Trail page and the per-record "log" button on every page. ManageUsers implies it.</summary>
+    public const string ViewAuditTrail = nameof(ViewAuditTrail);
 
     /// <summary>Every privilege name (the ~45 leaves plus the coarse Manage* grants).</summary>
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -105,7 +107,7 @@ public static class Privileges
         ManageLoyalty, ManageCommissions,
         ViewLabStats, ViewTeststats, ViewAreaStats, ViewDetailedStats, AddGroups, UpdateGroups, DeleteGroups,
         AddTestsetup, UpdateTestsetup, DeleteTestsetup, AddTeststats, AddLabStats, AddAreaStats,
-        ManageUsers, OracleIntegration, ManageEmailReports, SetupRefs, SetupCities, SetupAreas,
+        ManageUsers, OracleIntegration, ManageEmailReports, SetupRefs, SetupCities, SetupAreas, ViewAuditTrail,
         ViewAccounting, ManageAccounting,
         ViewInventory, ManageInventory,
     };
@@ -120,6 +122,7 @@ public static class Privileges
         [ViewReports] = new[] { ViewLabStats, ViewTeststats, ViewAreaStats, ViewDetailedStats },
         [ManageAccounting] = new[] { ViewAccounting },
         [ManageInventory] = new[] { ViewInventory },
+        [ManageUsers] = new[] { ViewAuditTrail },
     };
 
     /// <summary>

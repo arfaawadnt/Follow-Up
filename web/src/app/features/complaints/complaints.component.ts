@@ -8,6 +8,7 @@ import { FilterSelectComponent } from '../../shared/filter-select.component';
 import { EsignPanelComponent } from '../../shared/esign-panel.component';
 import { TranslatePipe } from '../../core/i18n';
 import { ToastService } from '../../core/toast.service';
+import { AuditLogButtonComponent } from '../../shared/audit-log-button.component';
 
 const CATEGORIES = ['Representative Issue', 'Call Center Issue', 'Result Quality', 'Data Entry Mistake'];
 const CHANNELS = ['WhatsApp', 'Phone Call', 'Email', 'In-person'];
@@ -29,7 +30,7 @@ type StageForm = 'ack' | 'validity' | 'investigation' | 'outcome' | 'resolve';
 @Component({
   selector: 'app-complaints',
   standalone: true,
-  imports: [DatePipe, SlicePipe, FormsModule, ReactiveFormsModule, EsignPanelComponent, TranslatePipe, FilterSelectComponent],
+  imports: [AuditLogButtonComponent, DatePipe, SlicePipe, FormsModule, ReactiveFormsModule, EsignPanelComponent, TranslatePipe, FilterSelectComponent],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'complaint_logs' | t : 'Complaints' }}</div><h1>{{ 'complaint_logs' | t : 'Complaints' }}</h1></div>
@@ -79,7 +80,7 @@ type StageForm = 'ack' | 'validity' | 'investigation' | 'outcome' | 'resolve';
                   } @else {
                     @if (auth.has('UpdateComplaints')) { <button class="btn-mini on" (click)="investigate(c)" [disabled]="busy()">{{ 'investigate' | t : 'Investigate' }}</button> }
                     @else { <button class="btn-mini on" (click)="openDetail(c.id)">{{ 'details' | t : 'Details' }}</button> }
-                  }
+                  }<app-audit-log entity="Complaint" [id]="c.id" [label]="c.reference"></app-audit-log>
                 </td>
               </tr>
             } @empty { <tr><td colspan="8" class="empty" style="text-align:center;padding:24px">{{ 'no_complaints_match' | t : 'No complaints match.' }}</td></tr> }

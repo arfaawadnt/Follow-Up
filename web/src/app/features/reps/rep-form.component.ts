@@ -7,6 +7,7 @@ import { AuthService } from '../../core/auth.service';
 import { TranslatePipe } from '../../core/i18n';
 import { RepDetail } from '../../core/models';
 import { ToastService } from '../../core/toast.service';
+import { AuditLogButtonComponent } from '../../shared/audit-log-button.component';
 
 interface Ref { nameEn: string; }
 interface City { id: string; name: string; governorate: string; }
@@ -21,14 +22,14 @@ const DURATIONS = ['Monthly', 'Quarterly'];
 @Component({
   selector: 'app-rep-form',
   standalone: true,
-  imports: [FormsModule, RouterLink, TranslatePipe, DateInputComponent],
+  imports: [AuditLogButtonComponent, FormsModule, RouterLink, TranslatePipe, DateInputComponent],
   template: `
     @if (loading()) { <div class="card sect">{{ 'loading' | t : 'Loading…' }}</div> }
     @else {
       <div class="pagehead"><div>
         <div class="breadcrumbs">Home / <a routerLink="/reps" class="crumb">{{ 'representative_profiles' | t : 'Representative Profiles' }}</a> / {{ isEdit ? loadedName() : ('new_representative' | t : 'New representative') }}</div>
         <h1>@if (isEdit) { {{ 'edit_representative' | t : 'Edit Representative' }} — {{ loadedName() }} } @else { {{ 'new_representative_title' | t : 'New Representative' }} }</h1>
-      </div></div>
+      </div>@if (isEdit && id) { <div class="pagehead-actions"><app-audit-log entity="Representative" [id]="id" [label]="loadedName()"></app-audit-log></div> }</div>
 
       <section class="card sect"><h3>{{ 'identity_employment' | t : 'Identity & Employment' }}</h3>
         <div class="grid4">
@@ -104,7 +105,7 @@ export class RepFormComponent {
     goalType: '', target: null as number | null, metric: '', goalDuration: 'Monthly',
   };
 
-  private readonly id: string | null;
+  readonly id: string | null;
   private rowVersion = 0;
   // The reference form has no Branch field; keep the loaded value so an edit never wipes it.
   private branch: string | null = null;

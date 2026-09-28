@@ -11,6 +11,7 @@ import { UiService } from '../../core/ui.service';
 import { TranslatePipe } from '../../core/i18n';
 import { DeductionAutomationResult, DeductionDto, DeductionSuggestion } from '../../core/models';
 import { ACC_STYLES, DEDUCTION_REASONS, dayName, firstOfMonth, money } from './accounting.util';
+import { AuditLogButtonComponent } from '../../shared/audit-log-button.component';
 
 type Opt = { value: string; label: string };
 interface AreaOpt { id: string; name: string; percentageDeal: boolean; percentage: number | null; }
@@ -25,7 +26,7 @@ interface AreaOpt { id: string; name: string; percentageDeal: boolean; percentag
 @Component({
   selector: 'app-acc-deductions',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, TranslatePipe, DateInputComponent, FilterSelectComponent],
+  imports: [AuditLogButtonComponent, FormsModule, DecimalPipe, TranslatePipe, DateInputComponent, FilterSelectComponent],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'accounting' | t : 'Accounting' }} / {{ 'acc_deductions' | t : 'Deductions' }}</div><h1>{{ 'acc_deductions' | t : 'Deductions' }}</h1></div>
@@ -76,7 +77,7 @@ interface AreaOpt { id: string; name: string; percentageDeal: boolean; percentag
                 @if (canManage()) {
                   <td class="ar actions">
                     <button class="icon-btn" title="Edit" (click)="openEdit(d)">✎</button>
-                    <button class="icon-btn del" title="Delete" (click)="remove(d, i + 1)">🗑</button>
+                    <button class="icon-btn del" title="Delete" (click)="remove(d, i + 1)">🗑</button><app-audit-log entity="Deduction" [id]="d.id" [label]="'Deduction · ' + d.areaName"></app-audit-log>
                   </td>
                 }
               </tr>

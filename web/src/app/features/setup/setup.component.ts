@@ -7,6 +7,7 @@ import { ToastService } from '../../core/toast.service';
 import { PagedResult, RepListItem } from '../../core/models';
 import { FilterSelectComponent } from '../../shared/filter-select.component';
 import { TranslatePipe } from '../../core/i18n';
+import { AuditLogButtonComponent } from '../../shared/audit-log-button.component';
 
 interface RefItem { id: string; type: string; code: string; nameEn: string; nameAr: string | null; realName: string | null; sortOrder: number; source: string; targetIncomeFrom: number | null; targetIncomeTo: number | null; }
 interface City { id: string; name: string; governorate: string; realName: string | null; source: string; }
@@ -45,7 +46,7 @@ const TABS: { key: Tab; label: string }[] = [
 @Component({
   selector: 'app-setup',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, FilterSelectComponent, TranslatePipe],
+  imports: [AuditLogButtonComponent, FormsModule, DecimalPipe, FilterSelectComponent, TranslatePipe],
   template: `
     <div class="pagehead" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
       <div><div class="breadcrumbs">Home / Setup & Configuration</div><h1>Setup &amp; Configuration</h1></div>
@@ -103,7 +104,7 @@ const TABS: { key: Tab; label: string }[] = [
                         <button class="btn btn-mini btn-s" (click)="cancelEdit()">Cancel</button>
                       } @else {
                         <button class="icon-btn" title="Edit" (click)="startEdit(r.id, r.nameEn, r.realName, r.targetIncomeFrom, r.targetIncomeTo)">✎</button>
-                        <button class="icon-btn del" title="Delete" (click)="delRef(r)">🗑</button>
+                        <button class="icon-btn del" title="Delete" (click)="delRef(r)">🗑</button><app-audit-log entity="RefItem" [id]="r.id" [label]="r.nameEn"></app-audit-log>
                       }
                     }
                   </td>
@@ -158,7 +159,7 @@ const TABS: { key: Tab; label: string }[] = [
                         <button class="btn btn-mini btn-s" (click)="cancelEdit()">Cancel</button>
                       } @else {
                         <button class="icon-btn" title="Edit" (click)="startEditCity(c)">✎</button>
-                        <button class="icon-btn del" title="Delete" (click)="delCity(c)">🗑</button>
+                        <button class="icon-btn del" title="Delete" (click)="delCity(c)">🗑</button><app-audit-log entity="City" [id]="c.id" [label]="c.name"></app-audit-log>
                       }
                     }
                   </td>
@@ -226,7 +227,7 @@ const TABS: { key: Tab; label: string }[] = [
                         <button class="btn btn-mini btn-s" (click)="cancelEdit()">Cancel</button>
                       } @else {
                         <button class="icon-btn" title="Edit" (click)="startEditArea(a)">✎</button>
-                        <button class="icon-btn del" title="Delete" (click)="delArea(a)">🗑</button>
+                        <button class="icon-btn del" title="Delete" (click)="delArea(a)">🗑</button><app-audit-log entity="Area" [id]="a.id" [label]="a.name"></app-audit-log>
                       }
                     }
                   </td>

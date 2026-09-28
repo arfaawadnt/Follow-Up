@@ -7,13 +7,14 @@ import { AuthService } from '../../core/auth.service';
 import { PagedResult, RepListItem } from '../../core/models';
 import { TranslatePipe } from '../../core/i18n';
 import { ToastService } from '../../core/toast.service';
+import { AuditLogButtonComponent } from '../../shared/audit-log-button.component';
 
 const TYPES = ['Collector', 'Marketing', 'Transfer', 'Scanning'];
 
 @Component({
   selector: 'app-reps',
   standalone: true,
-  imports: [DecimalPipe, TranslatePipe, FormsModule],
+  imports: [AuditLogButtonComponent, DecimalPipe, TranslatePipe, FormsModule],
   template: `
     <div class="pagehead" style="display:flex;justify-content:space-between;align-items:center;gap:12px">
       <div><div class="breadcrumbs">Home / {{ 'reps_2' | t : 'Representative Profiles' }}</div><h1>{{ 'representative_profiles' | t : 'Representative Profiles' }}</h1></div>
@@ -47,7 +48,7 @@ const TYPES = ['Collector', 'Marketing', 'Transfer', 'Scanning'];
                 <td class="mono">EGP {{ r.salary | number:'1.0-0' }}</td>
                 <td class="mono" style="font-weight:700">{{ r.assignedCount }}</td>
                 <td>@if (r.source === 'Oracle') { <span class="src-b src-o">Oracle</span> } @else { <span class="src-b src-m">Manual</span> }</td>
-                <td class="actions">@if (canEdit()) { <button class="btn-ghost" (click)="openEdit(r.id)">{{ 'edit' | t : 'Edit' }}</button> }</td>
+                <td class="actions">@if (canEdit()) { <button class="btn-ghost" (click)="openEdit(r.id)">{{ 'edit' | t : 'Edit' }}</button> }<app-audit-log entity="Representative" [id]="r.id" [label]="r.fullName"></app-audit-log></td>
               </tr>
             } @empty { <tr><td colspan="10" class="empty" style="text-align:center;padding:24px">—</td></tr> }
           </tbody>

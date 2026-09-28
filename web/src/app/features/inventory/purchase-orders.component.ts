@@ -10,6 +10,7 @@ import { ToastService } from '../../core/toast.service';
 import { TranslatePipe } from '../../core/i18n';
 import { InventoryItemDto, PurchaseOrderDto, StoreDto, SupplierDto } from '../../core/models';
 import { INV_STYLES, Opt, PO_STATUSES, badge, firstOfMonth, label, money, qty } from './inventory.util';
+import { AuditLogButtonComponent } from '../../shared/audit-log-button.component';
 
 type LineDraft = { itemId: string; orderedQuantity: number | null; unitPrice: number | null; notes: string };
 type ReceiptDraft = { orderLineId: string; itemCode: string; itemName: string; unit: string; outstanding: number; quantity: number | null; lotNumber: string; expiryDate: string; unitCost: number | null };
@@ -23,7 +24,7 @@ type ReceiptDraft = { orderLineId: string; itemCode: string; itemName: string; u
 @Component({
   selector: 'app-purchase-orders',
   standalone: true,
-  imports: [FormsModule, DecimalPipe, TranslatePipe, DateInputComponent, FilterSelectComponent],
+  imports: [AuditLogButtonComponent, FormsModule, DecimalPipe, TranslatePipe, DateInputComponent, FilterSelectComponent],
   template: `
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'inventory' | t : 'Inventory' }} / {{ 'inv_purchase_orders' | t : 'Purchase Orders' }}</div><h1>{{ 'inv_purchase_orders' | t : 'Purchase Orders' }}</h1></div>
@@ -68,7 +69,7 @@ type ReceiptDraft = { orderLineId: string; itemCode: string; itemName: string; u
                 <td class="r mono">{{ p.lines.length }}</td><td class="r mono">{{ qty(p.orderedQuantity) }}</td><td class="r mono" [class.pos]="p.receivedQuantity > 0">{{ qty(p.receivedQuantity) }}</td>
                 <td class="r mono">{{ p.total | number:'1.2-2' }}</td><td [class.neg]="isLate(p)">{{ p.expectedDate ? ddmy(p.expectedDate) : '—' }}</td><td class="mono">{{ p.reference || '—' }}</td>
                 <td class="ar actions">
-                  <button class="btn btn-mini btn-s" (click)="openView(p)">{{ 'view_details' | t : 'View' }}</button>
+                  <button class="btn btn-mini btn-s" (click)="openView(p)">{{ 'view_details' | t : 'View' }}</button><app-audit-log entity="PurchaseOrder" [id]="p.id"></app-audit-log>
                   @if (canManage()) {
                     @if (p.status === 'Draft') {
                       <button class="icon-btn" title="Edit" (click)="openEdit(p)">✎</button>

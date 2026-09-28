@@ -6,6 +6,7 @@ import { AuthService } from '../../core/auth.service';
 import { ToastService } from '../../core/toast.service';
 import { FilterSelectComponent } from '../../shared/filter-select.component';
 import { TranslatePipe } from '../../core/i18n';
+import { AuditLogButtonComponent } from '../../shared/audit-log-button.component';
 
 interface TestGroup { id: string; code: string; nameEn: string; }
 interface TestSetup {
@@ -16,7 +17,7 @@ interface TestSetup {
 @Component({
   selector: 'app-testsetup',
   standalone: true,
-  imports: [FormsModule, TranslatePipe, DecimalPipe, FilterSelectComponent],
+  imports: [AuditLogButtonComponent, FormsModule, TranslatePipe, DecimalPipe, FilterSelectComponent],
   template: `
     <div class="pagehead" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
       <div><div class="breadcrumbs">Home / {{ 'testsetup' | t : 'Test setup' }}</div><h1>{{ 'testsetup' | t : 'Test setup' }}</h1></div>
@@ -67,7 +68,7 @@ interface TestSetup {
                   <td>@if (s.source === 'Oracle') { <span class="src-badge src-oracle">Oracle</span> } @else { <span class="src-badge src-manual">Manual</span> }</td>
                   <td class="actions">
                     @if (auth.has('UpdateTestsetup')) { <button class="btn-ghost" (click)="edit(s)">{{ 'edit_2' | t : 'Edit' }}</button> }
-                    @if (auth.has('DeleteTestsetup')) { <button class="btn-ghost red" (click)="del(s)" [disabled]="busy()">{{ 'delete' | t : 'Delete' }}</button> }
+                    @if (auth.has('DeleteTestsetup')) { <button class="btn-ghost red" (click)="del(s)" [disabled]="busy()">{{ 'delete' | t : 'Delete' }}</button> }<app-audit-log entity="TestSetup" [id]="s.id"></app-audit-log>
                   </td></tr>
               } @empty { <tr><td colspan="7" class="empty" style="text-align:center;padding:24px">—</td></tr> }
             </tbody>
