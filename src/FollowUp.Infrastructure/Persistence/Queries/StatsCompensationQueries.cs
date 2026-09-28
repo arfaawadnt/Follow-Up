@@ -163,7 +163,7 @@ internal sealed class DetailedStatsQueries : IDetailedStatsQueries
             var regBranch = s.RegBranchCode != null && branchName.TryGetValue(s.RegBranchCode, out var bn) ? bn : s.RegBranchCode;
             return new DetailedStatDto(s.Date, l?.Governorate, l?.City, l?.Area, l?.Category, l?.Branch, regBranch,
                 s.LabCode, l?.Name, s.AccNo, s.PatientName, s.TestCode, s.TestType, s.TestName, s.PatientFee + s.InsuranceFee,
-                s.SampleStatus, s.TestStatus);
+                s.SampleStatus, s.TestStatus, s.RegCreatedAt, s.TestCreatedAt, s.TestAddition.ToString());
         }).ToList();
     }
 

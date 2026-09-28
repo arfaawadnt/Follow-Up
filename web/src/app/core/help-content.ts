@@ -78,8 +78,8 @@ const EN: Record<string, HelpPage> = {
     title: 'Detailed Statistics', purpose: 'Transaction-level registrations from LDM: every Acc No with its lab, branch, status and test lines.',
     business: 'The drill-down behind the aggregates, and the source the Penalty Report validates Acc Nos against.',
     steps: [s('Sync', 'The detailed feed is pulled per day.'), s('Search', 'By Acc No, lab, branch, status, period.'), s('Inspect', 'Open a registration to see its test lines.')],
-    how: ['Large periods are paged; narrow the filters first.'],
-    tips: ['If the Penalty Report says "Acc No not in LDM", check whether that day was synced here.'], privileges: ['ViewDetailedStats'],
+    how: ['Large periods are paged; narrow the filters first.', 'Reg Created is when the Acc No was created in LDM; Test Created is when each test was added to it.', 'A test added after the registration is flagged blue when within 3 hours and red when more than 3 hours later; the Test Addition Status filter lists only those cases.'],
+    tips: ['If the Penalty Report says "Acc No not in LDM", check whether that day was synced here.', 'Days synced before 28/09/2026 have no creation times until they are synced again.'], privileges: ['ViewDetailedStats'],
   },
   '/reports': {
     title: 'Reports', purpose: 'The printable operational reports: visits, samples, transfers and collectors over a period.',
@@ -343,8 +343,8 @@ const AR: Record<string, HelpPage> = {
     title: 'الإحصاءات التفصيلية', purpose: 'تسجيلات LDM على مستوى المعاملة: كل رقم حساب مع معمله وفرعه وحالته وسطور تحاليله.',
     business: 'التفصيل خلف الإجماليات، والمصدر الذي يتحقق تقرير الجزاءات من أرقام الحسابات مقابله.',
     steps: [s('المزامنة', 'التغذية التفصيلية تُسحب لكل يوم.'), s('البحث', 'برقم الحساب والمعمل والفرع والحالة والفترة.'), s('الفحص', 'افتح التسجيل لرؤية سطور تحاليله.')],
-    how: ['الفترات الكبيرة مقسمة صفحات؛ ضيّق الفلاتر أولًا.'],
-    tips: ['إن قال تقرير الجزاءات "رقم الحساب غير موجود في LDM" فتحقق هنا هل زومن ذلك اليوم.'], privileges: ['ViewDetailedStats'],
+    how: ['الفترات الكبيرة مقسمة صفحات؛ ضيّق الفلاتر أولًا.', 'وقت التسجيل هو وقت إنشاء رقم الحساب في LDM، ووقت إضافة التحليل هو وقت إضافة كل تحليل إليه.', 'التحليل المضاف بعد التسجيل يُعلَّم بالأزرق إن كان خلال 3 ساعات وبالأحمر إن تجاوزها؛ وفلتر حالة إضافة التحليل يعرض هذه الحالات فقط.'],
+    tips: ['إن قال تقرير الجزاءات "رقم الحساب غير موجود في LDM" فتحقق هنا هل زومن ذلك اليوم.', 'الأيام المزامنة قبل 28/09/2026 بلا أوقات إنشاء حتى تُزامن مجددًا.'], privileges: ['ViewDetailedStats'],
   },
   '/reports': {
     title: 'التقارير', purpose: 'التقارير التشغيلية القابلة للطباعة: الزيارات والعينات والنقل والمحصّلون خلال فترة.',

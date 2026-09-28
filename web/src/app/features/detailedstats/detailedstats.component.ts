@@ -1,4 +1,4 @@
-import { exportXlsx, localToday, printTable, SheetCell } from '../../shared/export.util';
+import { ddmy, exportXlsx, localToday, printTable, SheetCell } from '../../shared/export.util';
 import { Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -14,14 +14,20 @@ interface DetailRow {
   category: string | null; branch: string | null; regBranch: string | null; labCode: string | null; labName: string | null;
   accNo: string; patientName: string; testCode: string; testType: number; testName: string | null; fee: number;
   sampleStatus: string | null; testStatus: string | null;
+  /** LDM creation times (wall-clock, no zone) of the registration and of this test line, and the server's
+   *  classification of the gap: 'None' | 'Within3Hours' | 'Over3Hours' (2026-09-28). */
+  regCreatedAt: string | null; testCreatedAt: string | null; testAddition: string;
 }
 /** A grid row with repeated group cells blanked (grouped look); the raw values stay for export. */
 interface GridRow {
   gov: string; city: string; area: string; lab: string; date: string; labTotal: number | '';
   patient: string; accession: string; patientTotal: number | ''; test: string; fee: number;
   sampleStatus: string; testStatus: string;
+  regCreated: string; testCreated: string; addition: string;
   newLab: boolean; newPatient: boolean;
 }
+const WITHIN = 'Within3Hours';
+const OVER = 'Over3Hours';
 const DASH = '—';
 const NOLAB = 'No lab';
 
@@ -63,6 +69,7 @@ const NOLAB = 'No lab';
         <div class="field"><label>{{ 'test_name_2' | t : 'Test Name' }}</label><app-filter-select [multiple]="true" [options]="testNames()" [ngModel]="testName()" (ngModelChange)="testName.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><label>{{ 'sample_status' | t : 'Sample Status' }}</label><app-filter-select [multiple]="true" [options]="sampleStatuses()" [ngModel]="sampleStatus()" (ngModelChange)="sampleStatus.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><label>{{ 'test_status' | t : 'Test Status' }}</label><app-filter-select [multiple]="true" [options]="testStatuses()" [ngModel]="testStatus()" (ngModelChange)="testStatus.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
+        <div class="field"><label>{{ 'test_addition' | t : 'Test Addition Status' }}</label><app-filter-select [multiple]="true" [options]="additionOptions()" [ngModel]="testAddition()" (ngModelChange)="testAddition.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><label>{{ 'acc_no' | t : 'Accession' }}</label><input class="input" [ngModel]="acc()" (ngModelChange)="acc.set($event)" placeholder="{{ 'accession_search' | t : 'Accession no.' }}"></div>
         <div class="field"><button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply_filters' | t : 'Apply Filters' }}</button></div>
       </div>
@@ -76,20 +83,22 @@ const NOLAB = 'No lab';
             <th class="stick">{{ 'governorate_2' | t : 'Governorate' }}</th>
             <th>{{ 'city' | t : 'City' }}</th><th>{{ 'area_2' | t : 'Area' }}</th><th>{{ 'lab_name' | t : 'Lab' }}</th>
             <th>{{ 'reg_date' | t : 'Reg Date' }}</th><th class="r">{{ 'lab_total_required' | t : 'Lab Total' }}</th>
-            <th>{{ 'patient_name' | t : 'Patient' }}</th><th>{{ 'acc_no' | t : 'Accession' }}</th><th class="r">{{ 'patient_total_required' | t : 'Patient Total' }}</th>
-            <th>{{ 'test_name_2' | t : 'Test' }}</th><th class="r">{{ 'test_fee' | t : 'Test Fee' }}</th><th>{{ 'sample_status' | t : 'Sample Status' }}</th><th>{{ 'test_status' | t : 'Test Status' }}</th>
+            <th>{{ 'patient_name' | t : 'Patient' }}</th><th>{{ 'acc_no' | t : 'Accession' }}</th><th>{{ 'reg_created' | t : 'Reg Created' }}</th><th class="r">{{ 'patient_total_required' | t : 'Patient Total' }}</th>
+            <th>{{ 'test_name_2' | t : 'Test' }}</th><th>{{ 'test_created' | t : 'Test Created' }}</th><th>{{ 'test_addition' | t : 'Test Addition' }}</th><th class="r">{{ 'test_fee' | t : 'Test Fee' }}</th><th>{{ 'sample_status' | t : 'Sample Status' }}</th><th>{{ 'test_status' | t : 'Test Status' }}</th>
           </tr></thead>
           <tbody>
             @for (r of paged(); track $index) {
-              <tr [class.lab-row]="r.newLab">
+              <tr [class.lab-row]="r.newLab" [class.add-blue]="r.addition === 'Within3Hours'" [class.add-red]="r.addition === 'Over3Hours'">
                 <td class="stick">{{ r.gov }}</td><td>{{ r.city }}</td><td>{{ r.area }}</td><td>{{ r.lab }}</td>
                 <td class="mono">{{ r.date }}</td><td class="r mono tot">{{ r.labTotal === '' ? '' : (r.labTotal | number:'1.0-2') }}</td>
-                <td>{{ r.patient }}</td><td class="mono">{{ r.accession }}</td><td class="r mono">{{ r.patientTotal === '' ? '' : (r.patientTotal | number:'1.0-2') }}</td>
-                <td>{{ r.test }}</td><td class="r mono">{{ r.fee | number:'1.0-2' }}</td>
+                <td>{{ r.patient }}</td><td class="mono">{{ r.accession }}</td><td class="mono small">{{ r.regCreated }}</td><td class="r mono">{{ r.patientTotal === '' ? '' : (r.patientTotal | number:'1.0-2') }}</td>
+                <td>{{ r.test }}</td><td class="mono small">{{ r.testCreated }}</td>
+                <td>@if (r.addition !== 'None') { <span class="badge" [class]="'badge ' + (r.addition === 'Over3Hours' ? 'b-bad' : 'b-info')">{{ additionLabel(r.addition) }}</span> }</td>
+                <td class="r mono">{{ r.fee | number:'1.0-2' }}</td>
                 <td><span class="badge" [class]="'badge ' + statusClass(r.sampleStatus)">{{ r.sampleStatus }}</span></td>
                 <td><span class="badge" [class]="'badge ' + statusClass(r.testStatus)">{{ r.testStatus }}</span></td>
               </tr>
-            } @empty { <tr><td colspan="13" class="empty" style="text-align:center;padding:24px">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
+            } @empty { <tr><td colspan="16" class="empty" style="text-align:center;padding:24px">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
           </tbody>
         </table></div>
         @if (grid().length) {
@@ -135,6 +144,9 @@ const NOLAB = 'No lab';
     td.tot,th.tot{border-inline-start:2px solid var(--slate-150,#edebe9)}
     tr.lab-row td{border-top:2px solid var(--slate-150,#edebe9)}
     tr.lab-row td.stick{font-weight:700}
+    /* Tests added after the registration: blue within 3 hours, red beyond (2026-09-28). */
+    tr.add-blue td{background:#eff6ff;color:#1d4ed8}
+    tr.add-red td{background:#fef2f2;color:#b91c1c}
     .fu-pager{display:flex;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid var(--slate-150,#edebe9);font-size:12.5px;color:var(--slate-700,#605e5c)}
     .ds-overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:1000}
     .ds-dlg{background:var(--white,#fff);border-radius:12px;box-shadow:0 16px 48px rgba(0,0,0,.25);width:min(94vw,460px)}
@@ -160,6 +172,8 @@ export class DetailedStatsComponent {
   readonly testName = signal<string[]>([]);
   readonly sampleStatus = signal<string[]>([]); // status labels, multi-select (2026-09-28)
   readonly testStatus = signal<string[]>([]);
+  /** 'Test Addition Status' filter: labels of Within3Hours / Over3Hours; empty = All (2026-09-28). */
+  readonly testAddition = signal<string[]>([]);
   readonly acc = signal('');
   readonly page = signal(1);
   readonly pageSize = signal(100);
@@ -185,6 +199,15 @@ export class DetailedStatsComponent {
   readonly testNames = computed(() => [...new Set(this.rows().map((s) => s.testName ?? s.testCode))].sort());
   readonly sampleStatuses = computed(() => [...new Set(this.rows().map((s) => this.sampleLabel(s.sampleStatus)))].sort());
   readonly testStatuses = computed(() => [...new Set(this.rows().map((s) => this.testLabel(s.testStatus)))].sort());
+  readonly additionOptions = computed(() => [this.additionLabel(WITHIN), this.additionLabel(OVER)]);
+
+  /** Server classification of test-created − reg-created: within 3 hours (blue) or more than 3 hours (red). */
+  additionLabel(status: string): string {
+    return status === WITHIN ? this.i18n.t('add_within_3h', 'Within 3 Hours')
+      : status === OVER ? this.i18n.t('add_over_3h', 'More than 3 Hours') : DASH;
+  }
+  /** LDM wall-clock timestamp (no zone) → dd/MM/yyyy HH:mm, never shifted. */
+  private stamp(v: string | null): string { return v ? ddmy(v, true) : DASH; }
 
   /** LDM sample status codes: 1 = ordered, 2 = collected, 3 = received (the feed stores the code as text). */
   sampleLabel(code: string | null): string {
@@ -222,6 +245,7 @@ export class DetailedStatsComponent {
       (!this.testName().length || this.testName().includes(s.testName ?? s.testCode)) &&
       (!this.sampleStatus().length || this.sampleStatus().includes(this.sampleLabel(s.sampleStatus))) &&
       (!this.testStatus().length || this.testStatus().includes(this.testLabel(s.testStatus))) &&
+      (!this.testAddition().length || this.testAddition().includes(this.additionLabel(s.testAddition))) &&
       (!acc || s.accNo.toLowerCase().includes(acc));
   }
 
@@ -260,7 +284,8 @@ export class DetailedStatsComponent {
         gov: newLab ? (s.governorate ?? NOLAB) : '', city: newLab ? (s.city ?? DASH) : '', area: newLab ? (s.area ?? DASH) : '',
         lab: newLab ? labName : '', date: newLab ? s.date : '', labTotal: newLab ? (labT[labKey] ?? 0) : '',
         patient: newPat ? s.patientName : '', accession: newPat ? s.accNo : '', patientTotal: newPat ? (patT[patKey] ?? 0) : '',
-        test: s.testName ?? s.testCode, fee: s.fee, sampleStatus: this.sampleLabel(s.sampleStatus), testStatus: this.testLabel(s.testStatus), newLab, newPatient: newPat,
+        test: s.testName ?? s.testCode, fee: s.fee, sampleStatus: this.sampleLabel(s.sampleStatus), testStatus: this.testLabel(s.testStatus),
+        regCreated: newPat ? this.stamp(s.regCreatedAt) : '', testCreated: this.stamp(s.testCreatedAt), addition: s.testAddition ?? 'None', newLab, newPatient: newPat,
       };
     });
   });
@@ -309,7 +334,7 @@ export class DetailedStatsComponent {
   }
 
   private exportHeaders(): string[] {
-    return ['Governorate', 'City', 'Area', 'Lab', 'Reg Date', 'Lab Total', 'Patient', 'Accession', 'Patient Total', 'Test', 'Test Fee', 'Sample Status', 'Test Status'];
+    return ['Governorate', 'City', 'Area', 'Lab', 'Reg Date', 'Lab Total', 'Patient', 'Accession', 'Reg Created', 'Patient Total', 'Test', 'Test Created', 'Test Addition', 'Test Fee', 'Sample Status', 'Test Status'];
   }
   /** Export rows: full values on every line (no blanking) so Excel/PDF can be filtered and pivoted. */
   private exportRows(): SheetCell[][] {
@@ -320,7 +345,8 @@ export class DetailedStatsComponent {
       const patKey = labKey + '|' + s.accNo;
       const labName = s.labName ? `${s.labName}${s.labCode ? ' (' + s.labCode + ')' : ''}` : (s.labCode ?? NOLAB);
       return [s.governorate ?? NOLAB, s.city ?? DASH, s.area ?? DASH, labName, s.date, dec(labT[labKey] ?? 0),
-        s.patientName, s.accNo, dec(patT[patKey] ?? 0), s.testName ?? s.testCode, dec(s.fee), this.sampleLabel(s.sampleStatus), this.testLabel(s.testStatus)];
+        s.patientName, s.accNo, this.stamp(s.regCreatedAt), dec(patT[patKey] ?? 0), s.testName ?? s.testCode, this.stamp(s.testCreatedAt),
+        s.testAddition === 'None' ? '' : this.additionLabel(s.testAddition), dec(s.fee), this.sampleLabel(s.sampleStatus), this.testLabel(s.testStatus)];
     });
   }
   exportExcel(): void { exportXlsx(`detailed-statistics-${this.today}.xlsx`, this.exportHeaders(), this.exportRows()); }

@@ -374,6 +374,9 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
         row.Values.TryGetValue(col, out var v) && v is not null ? Convert.ToInt32(v) : 0;
     private static decimal Dec(OracleRow row, string col) =>
         row.Values.TryGetValue(col, out var v) && v is not null ? Convert.ToDecimal(v) : 0m;
+    /// <summary>Oracle DATE → wall-clock DateTime (no zone); null when the column is absent or NULL.</summary>
+    private static DateTime? Dt(OracleRow row, string col) =>
+        row.Values.TryGetValue(col, out var v) && v is not null ? Convert.ToDateTime(v) : null;
 
     /// <summary>
     /// Runs ONLY the TestStats feed over an explicit inclusive date range and upserts the results into
@@ -534,7 +537,8 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
                 date, Str(row, OracleColumns.LabCode), Str(row, OracleColumns.RegBranchCode), Str(row, OracleColumns.AccessionNo), Str(row, OracleColumns.PatientName),
                 Str(row, OracleColumns.TestCode), Int(row, OracleColumns.TestType), Str(row, OracleColumns.TestName),
                 Dec(row, OracleColumns.PatientFee), Dec(row, OracleColumns.InsuranceFee),
-                Str(row, OracleColumns.SampleStatus), Str(row, OracleColumns.TestStatus)));
+                Str(row, OracleColumns.SampleStatus), Str(row, OracleColumns.TestStatus),
+                Dt(row, OracleColumns.RegCreated), Dt(row, OracleColumns.TestCreated)));
         }
         _detailed.AddRange(mapped);
         config.RecordStatsSyncResult($"detailedstats:ok:{mapped.Count} [{from:yyyy-MM-dd}..{to:yyyy-MM-dd}]", _clock.UtcNow); // finding STAT-011

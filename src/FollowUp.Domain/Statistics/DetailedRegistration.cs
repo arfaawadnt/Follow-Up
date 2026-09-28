@@ -2,6 +2,13 @@ using FollowUp.Domain.Common;
 
 namespace FollowUp.Domain.Statistics;
 
+/// <summary>
+/// How long after its registration a test line was added (2026-09-28): <see cref="None"/> when the test was created
+/// with (or before) the registration or either timestamp is unknown; <see cref="Within3Hours"/> when it was added
+/// later but within 3 hours; <see cref="Over3Hours"/> when it was added more than 3 hours after registration.
+/// </summary>
+public enum TestAdditionStatus { None, Within3Hours, Over3Hours }
+
 public readonly record struct DetailedRegistrationId(Guid Value)
 {
     public static DetailedRegistrationId New() => new(Guid.NewGuid());
@@ -36,13 +43,31 @@ public sealed class DetailedRegistration : AggregateRoot<DetailedRegistrationId>
     /// <summary>Plain-text sample/test statuses from <c>reg_lines</c> — stored for a separate page.</summary>
     public string? SampleStatus { get; private set; }
     public string? TestStatus { get; private set; }
+    /// <summary>When the registration (Acc No) was created in LDM — Oracle <c>reg.created_date</c>, LDM local time.</summary>
+    public DateTime? RegCreatedAt { get; private set; }
+    /// <summary>When this test line was added to the registration — Oracle <c>reg_selected_services.created_date</c>, LDM local time.</summary>
+    public DateTime? TestCreatedAt { get; private set; }
 
     /// <summary>Combined fee shown by the page (cash + insurance).</summary>
     public decimal Fee => PatientFee + InsuranceFee;
 
+    /// <summary>Tests added after the registration within this window are "late but acceptable" (flagged blue); later ones are flagged red.</summary>
+    public static readonly TimeSpan LateAdditionWindow = TimeSpan.FromHours(3);
+
+    /// <summary>How long after the registration this test was added; null when either timestamp is unknown.</summary>
+    public TimeSpan? TestAdditionDelay => RegCreatedAt is { } r && TestCreatedAt is { } t ? t - r : null;
+
+    /// <summary>Classification of <see cref="TestAdditionDelay"/> (see <see cref="TestAdditionStatus"/>).</summary>
+    public TestAdditionStatus TestAddition => Classify(TestAdditionDelay);
+
+    public static TestAdditionStatus Classify(TimeSpan? delay) =>
+        delay is not { } d || d <= TimeSpan.Zero ? TestAdditionStatus.None
+        : d <= LateAdditionWindow ? TestAdditionStatus.Within3Hours
+        : TestAdditionStatus.Over3Hours;
+
     public static DetailedRegistration Create(DateOnly date, string? labCode, string? regBranchCode, string? accNo,
         string? patientName, string? testCode, int testType, string? testName, decimal patientFee, decimal insuranceFee,
-        string? sampleStatus, string? testStatus) =>
+        string? sampleStatus, string? testStatus, DateTime? regCreatedAt = null, DateTime? testCreatedAt = null) =>
         new(DetailedRegistrationId.New())
         {
             Date = date,
@@ -57,5 +82,8 @@ public sealed class DetailedRegistration : AggregateRoot<DetailedRegistrationId>
             InsuranceFee = insuranceFee < 0 ? 0 : insuranceFee,
             SampleStatus = string.IsNullOrWhiteSpace(sampleStatus) ? null : sampleStatus.Trim(),
             TestStatus = string.IsNullOrWhiteSpace(testStatus) ? null : testStatus.Trim(),
+            // Oracle DATE values are LDM local wall-clock time with no zone: keep them unspecified (stored as timestamp without time zone).
+            RegCreatedAt = regCreatedAt is { } rc ? DateTime.SpecifyKind(rc, DateTimeKind.Unspecified) : null,
+            TestCreatedAt = testCreatedAt is { } tc ? DateTime.SpecifyKind(tc, DateTimeKind.Unspecified) : null,
         };
 }
