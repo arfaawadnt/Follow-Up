@@ -7,7 +7,7 @@ import { FilterSelectComponent } from '../../shared/filter-select.component';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { ToastService } from '../../core/toast.service';
-import { TranslatePipe } from '../../core/i18n';
+import { I18nService, TranslatePipe } from '../../core/i18n';
 
 interface DetailRow {
   date: string; governorate: string | null; city: string | null; area: string | null;
@@ -19,6 +19,7 @@ interface DetailRow {
 interface GridRow {
   gov: string; city: string; area: string; lab: string; date: string; labTotal: number | '';
   patient: string; accession: string; patientTotal: number | ''; test: string; fee: number;
+  sampleStatus: string; testStatus: string;
   newLab: boolean; newPatient: boolean;
 }
 const DASH = '—';
@@ -60,6 +61,8 @@ const NOLAB = 'No lab';
         <div class="field"><label>{{ 'reg_branch' | t : 'Reg branch' }}</label><app-filter-select [multiple]="true" [options]="regBranches()" [ngModel]="regBranch()" (ngModelChange)="regBranch.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><label>{{ 'lab_name' | t : 'Lab name' }}</label><app-filter-select [multiple]="true" [options]="labNames()" [ngModel]="labName()" (ngModelChange)="labName.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><label>{{ 'test_name_2' | t : 'Test Name' }}</label><app-filter-select [multiple]="true" [options]="testNames()" [ngModel]="testName()" (ngModelChange)="testName.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
+        <div class="field"><label>{{ 'sample_status' | t : 'Sample Status' }}</label><app-filter-select [multiple]="true" [options]="sampleStatuses()" [ngModel]="sampleStatus()" (ngModelChange)="sampleStatus.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
+        <div class="field"><label>{{ 'test_status' | t : 'Test Status' }}</label><app-filter-select [multiple]="true" [options]="testStatuses()" [ngModel]="testStatus()" (ngModelChange)="testStatus.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><label>{{ 'acc_no' | t : 'Accession' }}</label><input class="input" [ngModel]="acc()" (ngModelChange)="acc.set($event)" placeholder="{{ 'accession_search' | t : 'Accession no.' }}"></div>
         <div class="field"><button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply_filters' | t : 'Apply Filters' }}</button></div>
       </div>
@@ -74,7 +77,7 @@ const NOLAB = 'No lab';
             <th>{{ 'city' | t : 'City' }}</th><th>{{ 'area_2' | t : 'Area' }}</th><th>{{ 'lab_name' | t : 'Lab' }}</th>
             <th>{{ 'reg_date' | t : 'Reg Date' }}</th><th class="r">{{ 'lab_total_required' | t : 'Lab Total' }}</th>
             <th>{{ 'patient_name' | t : 'Patient' }}</th><th>{{ 'acc_no' | t : 'Accession' }}</th><th class="r">{{ 'patient_total_required' | t : 'Patient Total' }}</th>
-            <th>{{ 'test_name_2' | t : 'Test' }}</th><th class="r">{{ 'test_fee' | t : 'Test Fee' }}</th>
+            <th>{{ 'test_name_2' | t : 'Test' }}</th><th class="r">{{ 'test_fee' | t : 'Test Fee' }}</th><th>{{ 'sample_status' | t : 'Sample Status' }}</th><th>{{ 'test_status' | t : 'Test Status' }}</th>
           </tr></thead>
           <tbody>
             @for (r of paged(); track $index) {
@@ -83,8 +86,10 @@ const NOLAB = 'No lab';
                 <td class="mono">{{ r.date }}</td><td class="r mono tot">{{ r.labTotal === '' ? '' : (r.labTotal | number:'1.0-2') }}</td>
                 <td>{{ r.patient }}</td><td class="mono">{{ r.accession }}</td><td class="r mono">{{ r.patientTotal === '' ? '' : (r.patientTotal | number:'1.0-2') }}</td>
                 <td>{{ r.test }}</td><td class="r mono">{{ r.fee | number:'1.0-2' }}</td>
+                <td><span class="badge" [class]="'badge ' + statusClass(r.sampleStatus)">{{ r.sampleStatus }}</span></td>
+                <td><span class="badge" [class]="'badge ' + statusClass(r.testStatus)">{{ r.testStatus }}</span></td>
               </tr>
-            } @empty { <tr><td colspan="11" class="empty" style="text-align:center;padding:24px">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
+            } @empty { <tr><td colspan="13" class="empty" style="text-align:center;padding:24px">{{ 'no_records_found' | t : 'No records.' }}</td></tr> }
           </tbody>
         </table></div>
         @if (grid().length) {
@@ -142,6 +147,7 @@ export class DetailedStatsComponent {
   private readonly api = inject(ApiService);
   readonly auth = inject(AuthService);
   private readonly toast = inject(ToastService);
+  private readonly i18n = inject(I18nService);
   readonly loading = signal(true);
   readonly rows = signal<DetailRow[]>([]);
   readonly gov = signal<string[]>([]);
@@ -152,6 +158,8 @@ export class DetailedStatsComponent {
   readonly regBranch = signal<string[]>([]);
   readonly labName = signal<string[]>([]);
   readonly testName = signal<string[]>([]);
+  readonly sampleStatus = signal<string[]>([]); // status labels, multi-select (2026-09-28)
+  readonly testStatus = signal<string[]>([]);
   readonly acc = signal('');
   readonly page = signal(1);
   readonly pageSize = signal(100);
@@ -175,6 +183,32 @@ export class DetailedStatsComponent {
   readonly regBranches = computed(() => [...new Set(this.rows().map((s) => s.regBranch ?? DASH))].sort());
   readonly labNames = computed(() => [...new Set(this.rows().map((s) => s.labName ?? s.labCode ?? NOLAB))].sort());
   readonly testNames = computed(() => [...new Set(this.rows().map((s) => s.testName ?? s.testCode))].sort());
+  readonly sampleStatuses = computed(() => [...new Set(this.rows().map((s) => this.sampleLabel(s.sampleStatus)))].sort());
+  readonly testStatuses = computed(() => [...new Set(this.rows().map((s) => this.testLabel(s.testStatus)))].sort());
+
+  /** LDM sample status codes: 1 = ordered, 2 = collected, 3 = received (the feed stores the code as text). */
+  sampleLabel(code: string | null): string {
+    switch (Number.parseInt(code ?? '', 10)) {
+      case 1: return this.i18n.t('st_ordered', 'Ordered');
+      case 2: return this.i18n.t('st_collected', 'Collected');
+      case 3: return this.i18n.t('st_received', 'Received');
+      default: return code?.trim() || DASH;
+    }
+  }
+  /** LDM test status codes: 1 or 2 = ordered, 3 = completed, 4 = reviewed, 5 = verified. */
+  testLabel(code: string | null): string {
+    switch (Number.parseInt(code ?? '', 10)) {
+      case 1: case 2: return this.i18n.t('st_ordered', 'Ordered');
+      case 3: return this.i18n.t('st_completed', 'Completed');
+      case 4: return this.i18n.t('st_reviewed', 'Reviewed');
+      case 5: return this.i18n.t('st_verified', 'Verified');
+      default: return code?.trim() || DASH;
+    }
+  }
+  statusClass(label: string): string {
+    return label === this.i18n.t('st_verified', 'Verified') || label === this.i18n.t('st_received', 'Received') ? 'b-ok'
+      : label === this.i18n.t('st_ordered', 'Ordered') || label === DASH ? 'b-neu' : 'b-info';
+  }
 
   private matches(s: DetailRow): boolean {
     const acc = this.acc().trim().toLowerCase();
@@ -186,6 +220,8 @@ export class DetailedStatsComponent {
       (!this.regBranch().length || this.regBranch().includes(s.regBranch ?? DASH)) &&
       (!this.labName().length || this.labName().includes(s.labName ?? s.labCode ?? NOLAB)) &&
       (!this.testName().length || this.testName().includes(s.testName ?? s.testCode)) &&
+      (!this.sampleStatus().length || this.sampleStatus().includes(this.sampleLabel(s.sampleStatus))) &&
+      (!this.testStatus().length || this.testStatus().includes(this.testLabel(s.testStatus))) &&
       (!acc || s.accNo.toLowerCase().includes(acc));
   }
 
@@ -224,7 +260,7 @@ export class DetailedStatsComponent {
         gov: newLab ? (s.governorate ?? NOLAB) : '', city: newLab ? (s.city ?? DASH) : '', area: newLab ? (s.area ?? DASH) : '',
         lab: newLab ? labName : '', date: newLab ? s.date : '', labTotal: newLab ? (labT[labKey] ?? 0) : '',
         patient: newPat ? s.patientName : '', accession: newPat ? s.accNo : '', patientTotal: newPat ? (patT[patKey] ?? 0) : '',
-        test: s.testName ?? s.testCode, fee: s.fee, newLab, newPatient: newPat,
+        test: s.testName ?? s.testCode, fee: s.fee, sampleStatus: this.sampleLabel(s.sampleStatus), testStatus: this.testLabel(s.testStatus), newLab, newPatient: newPat,
       };
     });
   });
@@ -273,7 +309,7 @@ export class DetailedStatsComponent {
   }
 
   private exportHeaders(): string[] {
-    return ['Governorate', 'City', 'Area', 'Lab', 'Reg Date', 'Lab Total', 'Patient', 'Accession', 'Patient Total', 'Test', 'Test Fee'];
+    return ['Governorate', 'City', 'Area', 'Lab', 'Reg Date', 'Lab Total', 'Patient', 'Accession', 'Patient Total', 'Test', 'Test Fee', 'Sample Status', 'Test Status'];
   }
   /** Export rows: full values on every line (no blanking) so Excel/PDF can be filtered and pivoted. */
   private exportRows(): SheetCell[][] {
@@ -284,7 +320,7 @@ export class DetailedStatsComponent {
       const patKey = labKey + '|' + s.accNo;
       const labName = s.labName ? `${s.labName}${s.labCode ? ' (' + s.labCode + ')' : ''}` : (s.labCode ?? NOLAB);
       return [s.governorate ?? NOLAB, s.city ?? DASH, s.area ?? DASH, labName, s.date, dec(labT[labKey] ?? 0),
-        s.patientName, s.accNo, dec(patT[patKey] ?? 0), s.testName ?? s.testCode, dec(s.fee)];
+        s.patientName, s.accNo, dec(patT[patKey] ?? 0), s.testName ?? s.testCode, dec(s.fee), this.sampleLabel(s.sampleStatus), this.testLabel(s.testStatus)];
     });
   }
   exportExcel(): void { exportXlsx(`detailed-statistics-${this.today}.xlsx`, this.exportHeaders(), this.exportRows()); }

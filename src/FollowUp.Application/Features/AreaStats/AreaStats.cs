@@ -8,11 +8,12 @@ namespace FollowUp.Application.Features.AreaStats;
 /// <summary>
 /// Daily test volumes rolled up to the geography grain (date, governorate, city, area). Derived at read time
 /// from <c>DailyLabStatistic</c> joined to each lab's stamped geography — there is no separate area-statistics
-/// table or Oracle feed; the nightly lab-stats sync keeps the underlying rows current. City is carried for
-/// filtering; the page groups by governorate → area.
+/// table or Oracle feed; the nightly lab-stats sync keeps the underlying rows current. City, branch and (2026-09-28) the
+/// lab segment are carried as extra grain for filtering; the page groups by governorate → area.
 /// </summary>
 public sealed record AreaStatDto(DateOnly Date, string? Governorate, string? City, string? Area, string? Branch,
-    string? GovernorateRealName, string? AreaRealName, int TestCount, decimal Income);
+    string? GovernorateRealName, string? AreaRealName, int TestCount, decimal Income,
+    string? Segment = null);
 
 public interface IAreaStatsQueries
 {

@@ -56,7 +56,7 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
         <div class="field"><label>{{ 'governorate_2' | t : 'Governorate' }}</label><app-filter-select [multiple]="true" [options]="govs()" [ngModel]="gov()" (ngModelChange)="gov.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><label>{{ 'city' | t : 'City' }}</label><app-filter-select [multiple]="true" [options]="cities()" [ngModel]="city()" (ngModelChange)="city.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><label>{{ 'area_2' | t : 'Area' }}</label><app-filter-select [multiple]="true" [options]="areas()" [ngModel]="area()" (ngModelChange)="area.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
-        <div class="field"><label>{{ 'segment' | t : 'Segment' }}</label><app-filter-select [options]="segments()" [ngModel]="segment()" (ngModelChange)="segment.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
+        <div class="field"><label>{{ 'segment' | t : 'Segment' }}</label><app-filter-select [multiple]="true" [options]="segments()" [ngModel]="segment()" (ngModelChange)="segment.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><label>{{ 'lab_status' | t : 'Lab Status' }}</label><app-filter-select [options]="statuses()" [ngModel]="status()" (ngModelChange)="status.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><label>{{ 'category' | t : 'Category' }}</label><app-filter-select [multiple]="true" [options]="categories()" [ngModel]="category()" (ngModelChange)="category.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><label>{{ 'serving_branch' | t : 'Serving branch' }}</label><app-filter-select [multiple]="true" [options]="branches()" [ngModel]="branch()" (ngModelChange)="branch.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
@@ -164,7 +164,7 @@ export class LabStatsComponent {
   readonly gov = signal<string[]>([]);
   readonly city = signal<string[]>([]);
   readonly area = signal<string[]>([]);
-  readonly segment = signal('');
+  readonly segment = signal<string[]>([]); // multi-select (2026-09-28)
   readonly status = signal('');
   readonly category = signal<string[]>([]);
   readonly branch = signal<string[]>([]);
@@ -197,7 +197,7 @@ export class LabStatsComponent {
       (!this.gov().length || this.gov().includes(s.governorate ?? '')) &&
       (!this.city().length || this.city().includes(s.city ?? '')) &&
       (!this.area().length || this.area().includes(s.area ?? '')) &&
-      (!this.segment() || s.segment === this.segment()) &&
+      (!this.segment().length || this.segment().includes(s.segment ?? '')) &&
       (!this.status() || s.status === this.status()) &&
       (!this.category().length || this.category().includes(s.category ?? '')) &&
       (!this.branch().length || this.branch().includes(s.branch ?? '')) &&

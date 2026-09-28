@@ -9,7 +9,7 @@ import { AuthService } from '../../core/auth.service';
 import { ToastService } from '../../core/toast.service';
 import { TranslatePipe } from '../../core/i18n';
 
-interface AreaStat { date: string; governorate: string | null; city: string | null; area: string | null; branch: string | null; governorateRealName: string | null; areaRealName: string | null; testCount: number; income: number; }
+interface AreaStat { date: string; governorate: string | null; city: string | null; area: string | null; branch: string | null; segment: string | null; governorateRealName: string | null; areaRealName: string | null; testCount: number; income: number; }
 interface Cell { count: number; income: number; }
 interface AreaRow { area: string; realName: string | null; cells: Record<string, Cell>; total: number; income: number; refCount: number; refIncome: number; }
 interface GovGroup { gov: string; realName: string | null; areas: AreaRow[]; cells: Record<string, Cell>; total: number; income: number; refCount: number; refIncome: number; }
@@ -52,6 +52,7 @@ const DASH = '—';
         <div class="field"><label>{{ 'governorate_2' | t : 'Governorate' }}</label><app-filter-select [multiple]="true" [options]="govs()" [ngModel]="gov()" (ngModelChange)="gov.set($event); city.set([]); area.set([])" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><label>{{ 'city' | t : 'City' }}</label><app-filter-select [multiple]="true" [options]="cities()" [ngModel]="city()" (ngModelChange)="city.set($event); area.set([])" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><label>{{ 'area_2' | t : 'Area' }}</label><app-filter-select [multiple]="true" [options]="areas()" [ngModel]="area()" (ngModelChange)="area.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
+        <div class="field"><label>{{ 'segment' | t : 'Segment' }}</label><app-filter-select [multiple]="true" [options]="segments()" [ngModel]="segment()" (ngModelChange)="segment.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><label>{{ 'serving_branch' | t : 'Serving branch' }}</label><app-filter-select [multiple]="true" [options]="branches()" [ngModel]="branch()" (ngModelChange)="branch.set($event)" [placeholder]="'all' | t : 'All'"></app-filter-select></div>
         <div class="field"><label>{{ 'sort_by' | t : 'Sort By' }}</label><select class="select" [ngModel]="sortDir()" (ngModelChange)="sortDir.set($event)"><option value="desc">{{ 'sort_count_desc' | t : 'Test Count (High → Low)' }}</option><option value="asc">{{ 'sort_count_asc' | t : 'Test Count (Low → High)' }}</option></select></div>
         <div class="field"><button class="btn btn-p" (click)="load()" style="height:36px">{{ 'apply_filters' | t : 'Apply Filters' }}</button></div>
@@ -161,6 +162,7 @@ export class AreaStatsComponent {
   readonly city = signal<string[]>([]);
   readonly area = signal<string[]>([]);
   readonly branch = signal<string[]>([]);
+  readonly segment = signal<string[]>([]); // lab segment, multi-select (2026-09-28)
   readonly view = signal<View>('monthly');
   readonly metric = signal<Metric>('count');
   readonly numFmt = computed(() => (this.metric() === 'income' ? '1.0-1' : '1.0-0'));
@@ -189,12 +191,14 @@ export class AreaStatsComponent {
     .filter((s) => (!this.gov().length || this.gov().includes(s.governorate ?? DASH)) && (!this.city().length || this.city().includes(s.city ?? DASH)))
     .map((s) => s.area ?? DASH))].sort());
   readonly branches = computed(() => [...new Set(this.rows().map((s) => s.branch ?? DASH))].sort());
+  readonly segments = computed(() => [...new Set(this.rows().map((s) => s.segment ?? DASH))].sort());
 
   private matches(s: AreaStat): boolean {
     return (!this.gov().length || this.gov().includes(s.governorate ?? DASH)) &&
       (!this.city().length || this.city().includes(s.city ?? DASH)) &&
       (!this.area().length || this.area().includes(s.area ?? DASH)) &&
-      (!this.branch().length || this.branch().includes(s.branch ?? DASH));
+      (!this.branch().length || this.branch().includes(s.branch ?? DASH)) &&
+      (!this.segment().length || this.segment().includes(s.segment ?? DASH));
   }
   readonly filtered = computed(() => this.rows().filter((s) => this.matches(s)));
 
