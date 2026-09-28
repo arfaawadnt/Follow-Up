@@ -126,6 +126,10 @@ internal sealed class PenaltyRecordConfiguration : IEntityTypeConfiguration<Pena
         b.HasOne<Representative>().WithMany().HasForeignKey(x => x.PerformedByRepId).OnDelete(DeleteBehavior.Restrict);
         b.HasIndex(x => x.PerformedByUserId);
         b.HasIndex(x => x.PerformedByRepId);
+        // Reviewer of a DataEntry penalty (2026-09-19): exactly for that type (domain invariant + ck_penalty_record_reviewed_by).
+        b.Property(x => x.ReviewedByUserId);
+        b.HasOne<AppUser>().WithMany().HasForeignKey(x => x.ReviewedByUserId).OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(x => x.ReviewedByUserId);
         b.Ignore(x => x.PenaltyAmount); // derived: wrong − right
         b.HasOne<Laboratory>().WithMany().HasForeignKey(x => x.LaboratoryId).OnDelete(DeleteBehavior.Restrict);
         b.HasIndex(x => new { x.LaboratoryId, x.Date });
@@ -175,7 +179,13 @@ internal sealed class CollectionConfiguration : IEntityTypeConfiguration<Collect
         b.Property(x => x.Bank);
         b.Property(x => x.DoneBy).HasMaxLength(200);
         b.Property(x => x.Notes).HasMaxLength(500);
+        // 2026-09-19: out-source income (≤ cash + bank, ck_collection_outsource_within_total) and the bank transfer's
+        // reference number (only with a bank amount, ck_collection_reference_iff_bank).
+        b.Property(x => x.OutsourceIncome).HasDefaultValueSql("0");
+        b.Property(x => x.ReferenceNumber).HasMaxLength(100);
+        b.HasIndex(x => x.ReferenceNumber);
         b.Ignore(x => x.Total); // derived: cash + bank
+        b.Ignore(x => x.NetIncome); // derived: total − out-source
         b.Ignore(x => x.RepIds); // derived from Shares
         // Per-rep shares as jsonb (a collection belongs to its reps; there is no lab). Like the former rep_ids list there is
         // no FK to representative (jsonb) — reps are never deleted, only deactivated.

@@ -229,6 +229,8 @@ export interface PenaltyDto {
   responsibleRepId: string | null; responsibleRepName: string | null;
   /** LDM validation of the Acc No against the synced registration lines: Valid | AccNotFound | LabMismatch | TestMissing. */
   ldmStatus: string; ldmNote: string | null;
+  /** DataEntry only (2026-09-19): the user who reviewed the entry — the penalty is charged to both on the Penalty Report. */
+  reviewedById: string | null; reviewedByName: string | null;
 }
 /** A person a penalty can be attributed to (GET /accounting/penalty-actors?userType=…); `detail` = rep type for reps. */
 export interface PenaltyActorDto { id: string; name: string; detail: string | null; }
@@ -254,6 +256,8 @@ export interface CollectionDto {
   id: string; serial: number; date: string; type: string; shares: CollectionShare[];
   repIds: string[]; repNames: string[]; cash: number; bank: number; total: number;
   iban: string | null; doneBy: string | null; notes: string | null;
+  /** Out-source income handed in with the money (not the reps' income): statement credit = cash + bank − out-source. */
+  outsourceIncome: number; referenceNumber: string | null; netIncome: number;
 }
 export interface RepStatementRow { date: string; kind: string; debit: number; credit: number; notes: string | null; balance: number; sourceId: string | null; }
 export interface RepStatement { representativeId: string; repName: string; rows: RepStatementRow[]; totalDebit: number; totalCredit: number; balance: number; }

@@ -85,10 +85,10 @@ VALUES ({Guid.NewGuid()}, {D}, {lab.Id.Value}, 'X', 'P', 'T1', 'W', 1, 'T2', 'R'
                 (await both.Should().ThrowAsync<Npgsql.PostgresException>()).Which.SqlState.Should().Be("23514");
 
                 // The "User" picker: reps for Rep (active, in scope), system users otherwise.
-                var repActors = await queries.PenaltyActorsAsync(PenaltyUser.Rep, OrgScope.Global, CancellationToken.None);
+                var repActors = await queries.PenaltyActorsAsync(PenaltyUser.Rep, null, null, null, OrgScope.Global, CancellationToken.None);
                 repActors.Should().Contain(a => a.Id == rep.Id.Value && a.Name == rep.FullName && a.Detail == "Collector");
                 repActors.Should().NotContain(a => a.Id == clerk.Id.Value);
-                var userActors = await queries.PenaltyActorsAsync(PenaltyUser.Technician, OrgScope.Global, CancellationToken.None);
+                var userActors = await queries.PenaltyActorsAsync(PenaltyUser.Technician, null, null, null, OrgScope.Global, CancellationToken.None);
                 userActors.Should().Contain(a => a.Id == clerk.Id.Value && a.Name == clerk.Username);
                 userActors.Should().NotContain(a => a.Id == rep.Id.Value);
 
@@ -96,7 +96,7 @@ VALUES ({Guid.NewGuid()}, {D}, {lab.Id.Value}, 'X', 'P', 'T1', 'W', 1, 'T2', 'R'
                 var tracked = await db.Users.SingleAsync(x => x.Id == clerk.Id);
                 tracked.Deactivate();
                 await db.SaveChangesAsync();
-                (await queries.PenaltyActorsAsync(PenaltyUser.DataEntry, OrgScope.Global, CancellationToken.None))
+                (await queries.PenaltyActorsAsync(PenaltyUser.DataEntry, null, null, null, OrgScope.Global, CancellationToken.None))
                     .Should().NotContain(a => a.Id == clerk.Id.Value);
             }
         }
