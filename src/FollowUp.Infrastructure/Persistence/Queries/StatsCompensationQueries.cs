@@ -83,7 +83,7 @@ internal sealed class AreaStatsQueries : IAreaStatsQueries
 
         // Resolve each lab's stamped geography by code (the geography lives on the lab, not the stats row).
         var geoByCode = (await _db.Laboratories.AsNoTracking()
-                .Select(l => new { l.Code, l.Governorate, l.City, l.Area, l.Branch }).ToListAsync(ct))
+                .Select(l => new { l.Code, l.Governorate, l.City, l.Area, l.Branch, l.Segment }).ToListAsync(ct))
             .GroupBy(l => l.Code.Value).ToDictionary(g => g.Key, g => g.First());
 
         // Operator-maintained real names (independent of Oracle sync): governorate by RefItem name, area by name.
@@ -97,13 +97,13 @@ internal sealed class AreaStatsQueries : IAreaStatsQueries
             .GroupBy(a => a.Name).ToDictionary(g => g.Key, g => g.First().RealName, StringComparer.OrdinalIgnoreCase);
 
         // Aggregate to (date, governorate, city, area). Unmapped labs fall into a null bucket the page renders as "—".
-        // Branch is carried as an extra grouping dimension so the page can filter by serving branch; the page
-        // still groups by governorate → area (summing across branches), so display is unchanged.
-        var agg = new Dictionary<(DateOnly, string?, string?, string?, string?), (int test, decimal income)>();
+        // Branch and segment are carried as extra grouping dimensions so the page can filter by serving branch and by
+        // lab segment (2026-09-28); the page still groups by governorate → area (summing across them), so display is unchanged.
+        var agg = new Dictionary<(DateOnly, string?, string?, string?, string?, string?), (int test, decimal income)>();
         foreach (var s in rows)
         {
             geoByCode.TryGetValue(s.LabCode, out var g);
-            var key = (s.Date, g?.Governorate, g?.City, g?.Area, g?.Branch);
+            var key = (s.Date, g?.Governorate, g?.City, g?.Area, g?.Branch, g?.Segment);
             var cur = agg.TryGetValue(key, out var x) ? x : default;
             agg[key] = (cur.test + s.TestCount, cur.income + s.Income.Amount);
         }
@@ -112,7 +112,7 @@ internal sealed class AreaStatsQueries : IAreaStatsQueries
         string? AreaReal(string? name) => name != null && areaRealName.TryGetValue(name, out var v) ? v : null;
         return agg
             .Select(kv => new AreaStatDto(kv.Key.Item1, kv.Key.Item2, kv.Key.Item3, kv.Key.Item4, kv.Key.Item5,
-                GovReal(kv.Key.Item2), AreaReal(kv.Key.Item4), kv.Value.test, kv.Value.income))
+                GovReal(kv.Key.Item2), AreaReal(kv.Key.Item4), kv.Value.test, kv.Value.income, kv.Key.Item6))
             .OrderBy(d => d.Date).ThenBy(d => d.Governorate).ThenBy(d => d.Area)
             .ToList();
     }
