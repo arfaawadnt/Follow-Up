@@ -74,7 +74,11 @@ public sealed record CollectionShareInput(Guid RepId, decimal Amount);
 /// <summary>One statement line. Kind: OracleIncome (derived from the rep's labs' synced income), ManualIncome (a
 /// RepIncomeEntry, deletable via SourceId — legacy, superseded by the sheet), RealIncome (Σ Paid + DelayedPayment of the
 /// rep's real-income sheet for the date), or Collection (Credit). Balance is the running Debit − Credit.</summary>
-public sealed record RepStatementRowDto(DateOnly Date, string Kind, decimal Debit, decimal Credit, string? Notes, decimal Balance, Guid? SourceId);
+public sealed record RepStatementRowDto(DateOnly Date, string Kind, decimal Debit, decimal Credit, string? Notes, decimal Balance, Guid? SourceId,
+    decimal? LdmIncome = null);
+/// <summary>One synced registration line behind a statement debit (the "LDM income" details, 2026-09-28).</summary>
+public sealed record StatementLdmDetailDto(string LabDisplayCode, string LabName, string AccNo, string PatientName, string TestCode, string? TestName,
+    decimal Fee, string? SampleStatus, string? TestStatus);
 /// <summary>A Lab Responsible linked to the area (responsible for at least one of its labs), for the sheet's rep picker.</summary>
 public sealed record RealIncomeRepDto(Guid Id, string FullName, int LabCount);
 /// <summary>A lab of the area, for adding a row the visits did not produce.</summary>
@@ -125,6 +129,9 @@ public interface IAccountingQueries
     Task<RepStatementDto?> RepStatementAsync(Guid repId, DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct);
     /// <summary>Statement by <see cref="StatementBy"/> dimension; null when the subject is not visible in scope.</summary>
     Task<StatementDto?> StatementAsync(string by, Guid id, DateOnly from, DateOnly to, OrgScope scope, CancellationToken ct);
+    /// <summary>The registration lines behind a statement debit line: the subject's labs on the date with a Rep Income entry
+    /// (kind TotalRequired) or without one (kind LdmIncome).</summary>
+    Task<IReadOnlyList<StatementLdmDetailDto>> StatementLdmDetailsAsync(string by, Guid id, DateOnly date, string kind, OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
     /// <summary>Lab Responsibles responsible for at least one (in-scope) lab of the area.</summary>
     Task<IReadOnlyList<RealIncomeRepDto>> RealIncomeRepsAsync(Guid areaId, OrgScope scope, CancellationToken ct);
     /// <summary>The area's (in-scope) labs, for adding a sheet row by hand.</summary>
@@ -314,6 +321,26 @@ public sealed class GetStatementHandler : IQueryHandler<GetStatementQuery, State
             throw new Common.Exceptions.ValidationException(new Dictionary<string, string[]> { ["by"] = new[] { "View by must be Responsible, Area or Lab." } });
         return await _q.StatementAsync(r.By, r.Id, r.From, r.To, _user.Scope, ct) ?? throw new NotFoundException(r.By, r.Id);
     }
+}
+
+/// <summary>The "Details" button of a statement debit line (2026-09-28): the LDM registrations of that day for the labs the line covers.</summary>
+public sealed record GetStatementLdmDetailsQuery(string By, Guid Id, DateOnly Date, string Kind) : IQuery<IReadOnlyList<StatementLdmDetailDto>>, IAuthorizedRequest
+{ public IReadOnlyCollection<string> RequiredPrivileges { get; } = new[] { Privileges.ViewAccounting }; }
+public sealed class GetStatementLdmDetailsValidator : AbstractValidator<GetStatementLdmDetailsQuery>
+{
+    public GetStatementLdmDetailsValidator()
+    {
+        RuleFor(x => x.By).Must(b => StatementBy.All.Contains(b)).WithMessage("View by must be Responsible, Area or Lab.");
+        RuleFor(x => x.Kind).Must(k => k is "TotalRequired" or "LdmIncome").WithMessage("Kind must be TotalRequired or LdmIncome.");
+        RuleFor(x => x.Id).NotEmpty();
+    }
+}
+public sealed class GetStatementLdmDetailsHandler : IQueryHandler<GetStatementLdmDetailsQuery, IReadOnlyList<StatementLdmDetailDto>>
+{
+    private readonly IAccountingQueries _q; private readonly ICurrentUser _user;
+    public GetStatementLdmDetailsHandler(IAccountingQueries q, ICurrentUser user) { _q = q; _user = user; }
+    public Task<IReadOnlyList<StatementLdmDetailDto>> Handle(GetStatementLdmDetailsQuery r, CancellationToken ct) =>
+        _q.StatementLdmDetailsAsync(r.By, r.Id, r.Date, r.Kind, _user.Scope, _user.Has(Privileges.ShowEncryptedLabs), ct);
 }
 
 public sealed record GetRepStatementQuery(Guid RepresentativeId, DateOnly From, DateOnly To) : IQuery<RepStatementDto>, IAuthorizedRequest
