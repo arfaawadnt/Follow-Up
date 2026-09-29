@@ -133,6 +133,8 @@ public interface IAccountingQueries
     /// <summary>The registration lines behind a statement debit line: the subject's labs on the date with a Rep Income entry
     /// (kind TotalRequired) or without one (kind LdmIncome).</summary>
     Task<IReadOnlyList<StatementLdmDetailDto>> StatementLdmDetailsAsync(string by, Guid id, DateOnly date, string kind, OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
+    /// <summary>The closed months of a Lab Responsible's statement, latest first (empty when the rep is out of scope).</summary>
+    Task<IReadOnlyList<StatementMonthCloseDto>> MonthClosesAsync(Guid representativeId, OrgScope scope, CancellationToken ct);
     /// <summary>Lab Responsibles responsible for at least one (in-scope) lab of the area.</summary>
     Task<IReadOnlyList<RealIncomeRepDto>> RealIncomeRepsAsync(Guid areaId, OrgScope scope, CancellationToken ct);
     /// <summary>The area's (in-scope) labs, for adding a sheet row by hand.</summary>
@@ -655,13 +657,15 @@ public sealed class CreatePenaltyHandler : ICommandHandler<CreatePenaltyCommand,
 {
     private readonly IPenaltyRecordRepository _repo; private readonly ILaboratoryRepository _labs;
     private readonly IRepresentativeRepository _reps; private readonly IAppUserRepository _users; private readonly ICurrentUser _user;
-    public CreatePenaltyHandler(IPenaltyRecordRepository repo, ILaboratoryRepository labs, IRepresentativeRepository reps, IAppUserRepository users, ICurrentUser user)
-    { _repo = repo; _labs = labs; _reps = reps; _users = users; _user = user; }
+    private readonly IStatementCloseGuard _closed;
+    public CreatePenaltyHandler(IPenaltyRecordRepository repo, ILaboratoryRepository labs, IRepresentativeRepository reps, IAppUserRepository users, ICurrentUser user, IStatementCloseGuard? closed = null)
+    { _repo = repo; _labs = labs; _reps = reps; _users = users; _user = user; _closed = closed ?? NoStatementCloseGuard.Instance; }
     public async Task<Guid> Handle(CreatePenaltyCommand r, CancellationToken ct)
     {
         var lab = await _labs.GetByIdAsync(new LaboratoryId(r.LaboratoryId), ct) ?? throw new NotFoundException("Laboratory", r.LaboratoryId);
         _user.EnsureInScope(lab);
         var (userId, repId, reviewerId) = await PenaltyActorSupport.ResolveAsync(r.PerformedByUserId, r.PerformedByRepId, r.ReviewedByUserId, _reps, _users, _user, ct);
+        await _closed.EnsureOpenForPenaltyAsync(lab.Id, repId, r.Date, ct);
         var p = PenaltyRecord.Create(lab.Id, r.Date, r.AccNo, r.PatientName, r.WrongTestCode, r.WrongTestName, r.WrongValue,
             r.RightTestCode, r.RightTestName, r.RightValue, EnumParse.Name<PenaltyUser>(r.UserType, nameof(r.UserType)), userId, repId, reviewerId);
         _repo.Add(p); // posts to the rep statement at read time (right = debit, wrong = credit); no deduction is mirrored
@@ -691,14 +695,17 @@ public sealed class UpdatePenaltyHandler : ICommandHandler<UpdatePenaltyCommand>
 {
     private readonly IPenaltyRecordRepository _repo; private readonly ILaboratoryRepository _labs;
     private readonly IRepresentativeRepository _reps; private readonly IAppUserRepository _users; private readonly ICurrentUser _user;
-    public UpdatePenaltyHandler(IPenaltyRecordRepository repo, ILaboratoryRepository labs, IRepresentativeRepository reps, IAppUserRepository users, ICurrentUser user)
-    { _repo = repo; _labs = labs; _reps = reps; _users = users; _user = user; }
+    private readonly IStatementCloseGuard _closed;
+    public UpdatePenaltyHandler(IPenaltyRecordRepository repo, ILaboratoryRepository labs, IRepresentativeRepository reps, IAppUserRepository users, ICurrentUser user, IStatementCloseGuard? closed = null)
+    { _repo = repo; _labs = labs; _reps = reps; _users = users; _user = user; _closed = closed ?? NoStatementCloseGuard.Instance; }
     public async Task<Unit> Handle(UpdatePenaltyCommand r, CancellationToken ct)
     {
         var p = await _repo.GetByIdAsync(new PenaltyRecordId(r.Id), ct) ?? throw new NotFoundException("PenaltyRecord", r.Id);
         var lab = await _labs.GetByIdAsync(p.LaboratoryId, ct) ?? throw new NotFoundException("Laboratory", p.LaboratoryId.Value);
         _user.EnsureInScope(lab);
         var (userId, repId, reviewerId) = await PenaltyActorSupport.ResolveAsync(r.PerformedByUserId, r.PerformedByRepId, r.ReviewedByUserId, _reps, _users, _user, ct);
+        await _closed.EnsureOpenForPenaltyAsync(p.LaboratoryId, p.PerformedByRepId, p.Date, ct); // the month it leaves
+        await _closed.EnsureOpenForPenaltyAsync(lab.Id, repId, r.Date, ct);                       // the month it enters
         p.Update(r.Date, r.AccNo, r.PatientName, r.WrongTestCode, r.WrongTestName, r.WrongValue,
             r.RightTestCode, r.RightTestName, r.RightValue, EnumParse.Name<PenaltyUser>(r.UserType, nameof(r.UserType)), userId, repId, reviewerId);
         return Unit.Value;
@@ -797,13 +804,15 @@ public sealed class DeletePenaltyValidator : AbstractValidator<DeletePenaltyComm
 public sealed class DeletePenaltyHandler : ICommandHandler<DeletePenaltyCommand>
 {
     private readonly IPenaltyRecordRepository _repo; private readonly ILaboratoryRepository _labs; private readonly ICurrentUser _user;
-    public DeletePenaltyHandler(IPenaltyRecordRepository repo, ILaboratoryRepository labs, ICurrentUser user)
-    { _repo = repo; _labs = labs; _user = user; }
+    private readonly IStatementCloseGuard _closed;
+    public DeletePenaltyHandler(IPenaltyRecordRepository repo, ILaboratoryRepository labs, ICurrentUser user, IStatementCloseGuard? closed = null)
+    { _repo = repo; _labs = labs; _user = user; _closed = closed ?? NoStatementCloseGuard.Instance; }
     public async Task<Unit> Handle(DeletePenaltyCommand r, CancellationToken ct)
     {
         var p = await _repo.GetByIdAsync(new PenaltyRecordId(r.Id), ct) ?? throw new NotFoundException("PenaltyRecord", r.Id);
         var lab = await _labs.GetByIdAsync(p.LaboratoryId, ct);
         if (lab is not null) _user.EnsureInScope(lab);
+        await _closed.EnsureOpenForPenaltyAsync(p.LaboratoryId, p.PerformedByRepId, p.Date, ct);
         _repo.Remove(p);
         return Unit.Value;
     }
@@ -829,11 +838,14 @@ public sealed class CreateDeductionValidator : AbstractValidator<CreateDeduction
 public sealed class CreateDeductionHandler : ICommandHandler<CreateDeductionCommand, Guid>
 {
     private readonly IDeductionRepository _repo; private readonly IAreaRepository _areas; private readonly ICurrentUser _user;
-    public CreateDeductionHandler(IDeductionRepository repo, IAreaRepository areas, ICurrentUser user) { _repo = repo; _areas = areas; _user = user; }
+    private readonly IStatementCloseGuard _closed;
+    public CreateDeductionHandler(IDeductionRepository repo, IAreaRepository areas, ICurrentUser user, IStatementCloseGuard? closed = null)
+    { _repo = repo; _areas = areas; _user = user; _closed = closed ?? NoStatementCloseGuard.Instance; }
     public async Task<Guid> Handle(CreateDeductionCommand r, CancellationToken ct)
     {
         var area = await _areas.GetByIdAsync(new AreaId(r.AreaId), ct) ?? throw new NotFoundException("Area", r.AreaId);
         _user.EnsureAreaInScope(area.Name);
+        await _closed.EnsureOpenForAreaAsync(area.Id, r.Date, ct);
         var d = Deduction.Create(area.Id, r.Date, EnumParse.Name<DeductionReason>(r.Reason, nameof(r.Reason)), r.Value, r.Notes, r.PeriodFrom, r.PeriodTo);
         _repo.Add(d);
         return d.Id.Value;
@@ -863,12 +875,16 @@ public sealed class UpdateDeductionValidator : AbstractValidator<UpdateDeduction
 public sealed class UpdateDeductionHandler : ICommandHandler<UpdateDeductionCommand>
 {
     private readonly IDeductionRepository _repo; private readonly IAreaRepository _areas; private readonly ICurrentUser _user;
-    public UpdateDeductionHandler(IDeductionRepository repo, IAreaRepository areas, ICurrentUser user) { _repo = repo; _areas = areas; _user = user; }
+    private readonly IStatementCloseGuard _closed;
+    public UpdateDeductionHandler(IDeductionRepository repo, IAreaRepository areas, ICurrentUser user, IStatementCloseGuard? closed = null)
+    { _repo = repo; _areas = areas; _user = user; _closed = closed ?? NoStatementCloseGuard.Instance; }
     public async Task<Unit> Handle(UpdateDeductionCommand r, CancellationToken ct)
     {
         var d = await _repo.GetByIdAsync(new DeductionId(r.Id), ct) ?? throw new NotFoundException("Deduction", r.Id);
         var area = await _areas.GetByIdAsync(d.AreaId, ct) ?? throw new NotFoundException("Area", d.AreaId.Value);
         _user.EnsureAreaInScope(area.Name);
+        await _closed.EnsureOpenForAreaAsync(area.Id, d.Date, ct);
+        if (r.Date != d.Date) await _closed.EnsureOpenForAreaAsync(area.Id, r.Date, ct);
         if (d.Origin == DeductionOrigin.Manual)
             d.Update(r.Date, EnumParse.Name<DeductionReason>(r.Reason, nameof(r.Reason)), r.Value, r.Notes, r.PeriodFrom, r.PeriodTo);
         else
@@ -883,12 +899,15 @@ public sealed class DeleteDeductionValidator : AbstractValidator<DeleteDeduction
 public sealed class DeleteDeductionHandler : ICommandHandler<DeleteDeductionCommand>
 {
     private readonly IDeductionRepository _repo; private readonly IAreaRepository _areas; private readonly ICurrentUser _user;
-    public DeleteDeductionHandler(IDeductionRepository repo, IAreaRepository areas, ICurrentUser user) { _repo = repo; _areas = areas; _user = user; }
+    private readonly IStatementCloseGuard _closed;
+    public DeleteDeductionHandler(IDeductionRepository repo, IAreaRepository areas, ICurrentUser user, IStatementCloseGuard? closed = null)
+    { _repo = repo; _areas = areas; _user = user; _closed = closed ?? NoStatementCloseGuard.Instance; }
     public async Task<Unit> Handle(DeleteDeductionCommand r, CancellationToken ct)
     {
         var d = await _repo.GetByIdAsync(new DeductionId(r.Id), ct) ?? throw new NotFoundException("Deduction", r.Id);
         var area = await _areas.GetByIdAsync(d.AreaId, ct);
         if (area is not null) _user.EnsureAreaInScope(area.Name);
+        await _closed.EnsureOpenForAreaAsync(d.AreaId, d.Date, ct);
         _repo.Remove(d);
         return Unit.Value;
     }
@@ -955,13 +974,15 @@ public sealed class CreateCollectionHandler : ICommandHandler<CreateCollectionCo
 {
     private readonly ICollectionRepository _repo; private readonly IRepresentativeRepository _reps; private readonly ICollectionRouting _routing;
     private readonly ITreasuryRepository _treasuries; private readonly ITreasuryEntryRepository _entries; private readonly ICurrentUser _user;
+    private readonly IStatementCloseGuard _closed;
     public CreateCollectionHandler(ICollectionRepository repo, IRepresentativeRepository reps, ICollectionRouting routing,
-        ITreasuryRepository treasuries, ITreasuryEntryRepository entries, ICurrentUser user)
-    { _repo = repo; _reps = reps; _routing = routing; _treasuries = treasuries; _entries = entries; _user = user; }
+        ITreasuryRepository treasuries, ITreasuryEntryRepository entries, ICurrentUser user, IStatementCloseGuard? closed = null)
+    { _repo = repo; _reps = reps; _routing = routing; _treasuries = treasuries; _entries = entries; _user = user; _closed = closed ?? NoStatementCloseGuard.Instance; }
 
     public async Task<Guid> Handle(CreateCollectionCommand r, CancellationToken ct)
     {
         var shares = await CollectionSupport.ResolveSharesAsync(r.Shares, _reps, _user, ct);
+        await _closed.EnsureOpenForRepsAsync(shares.Select(s => s.RepId), r.Date, ct);
         var c = Collection.Create(r.Date, EnumParse.Name<CollectionType>(r.Type, nameof(r.Type)), shares, r.Cash, r.Bank,
             r.Bank > 0 ? EnumParse.Name<IbanOption>(r.Iban!, nameof(r.Iban)) : null, r.DoneBy, r.Notes, r.OutsourceIncome, r.ReferenceNumber);
         _repo.Add(c);
@@ -985,15 +1006,18 @@ public sealed class UpdateCollectionHandler : ICommandHandler<UpdateCollectionCo
 {
     private readonly ICollectionRepository _repo; private readonly IRepresentativeRepository _reps; private readonly ICollectionRouting _routing;
     private readonly ITreasuryRepository _treasuries; private readonly ITreasuryEntryRepository _entries; private readonly ICurrentUser _user;
+    private readonly IStatementCloseGuard _closed;
     public UpdateCollectionHandler(ICollectionRepository repo, IRepresentativeRepository reps, ICollectionRouting routing,
-        ITreasuryRepository treasuries, ITreasuryEntryRepository entries, ICurrentUser user)
-    { _repo = repo; _reps = reps; _routing = routing; _treasuries = treasuries; _entries = entries; _user = user; }
+        ITreasuryRepository treasuries, ITreasuryEntryRepository entries, ICurrentUser user, IStatementCloseGuard? closed = null)
+    { _repo = repo; _reps = reps; _routing = routing; _treasuries = treasuries; _entries = entries; _user = user; _closed = closed ?? NoStatementCloseGuard.Instance; }
 
     public async Task<Unit> Handle(UpdateCollectionCommand r, CancellationToken ct)
     {
         var c = await _repo.GetByIdAsync(new CollectionId(r.Id), ct) ?? throw new NotFoundException("Collection", r.Id);
         await CollectionSupport.EnsureRepsInScopeAsync(c, _reps, _user, ct); // the existing reps gate the edit (fail-closed)
         var shares = await CollectionSupport.ResolveSharesAsync(r.Shares, _reps, _user, ct);
+        await _closed.EnsureOpenForRepsAsync(c.RepIds, c.Date, ct);                     // the month it leaves
+        await _closed.EnsureOpenForRepsAsync(shares.Select(s => s.RepId), r.Date, ct); // the month it enters
         c.Update(r.Date, EnumParse.Name<CollectionType>(r.Type, nameof(r.Type)), shares, r.Cash, r.Bank,
             r.Bank > 0 ? EnumParse.Name<IbanOption>(r.Iban!, nameof(r.Iban)) : null, r.DoneBy, r.Notes, r.OutsourceIncome, r.ReferenceNumber);
         await CollectionTreasurySync.UpsertAsync(c, _routing, _treasuries, _entries, _reps, ct);
@@ -1007,12 +1031,14 @@ public sealed class DeleteCollectionValidator : AbstractValidator<DeleteCollecti
 public sealed class DeleteCollectionHandler : ICommandHandler<DeleteCollectionCommand>
 {
     private readonly ICollectionRepository _repo; private readonly IRepresentativeRepository _reps; private readonly ITreasuryEntryRepository _entries; private readonly ICurrentUser _user;
-    public DeleteCollectionHandler(ICollectionRepository repo, IRepresentativeRepository reps, ITreasuryEntryRepository entries, ICurrentUser user)
-    { _repo = repo; _reps = reps; _entries = entries; _user = user; }
+    private readonly IStatementCloseGuard _closed;
+    public DeleteCollectionHandler(ICollectionRepository repo, IRepresentativeRepository reps, ITreasuryEntryRepository entries, ICurrentUser user, IStatementCloseGuard? closed = null)
+    { _repo = repo; _reps = reps; _entries = entries; _user = user; _closed = closed ?? NoStatementCloseGuard.Instance; }
     public async Task<Unit> Handle(DeleteCollectionCommand r, CancellationToken ct)
     {
         var c = await _repo.GetByIdAsync(new CollectionId(r.Id), ct) ?? throw new NotFoundException("Collection", r.Id);
         await CollectionSupport.EnsureRepsInScopeAsync(c, _reps, _user, ct);
+        await _closed.EnsureOpenForRepsAsync(c.RepIds, c.Date, ct);
         await CollectionTreasurySync.RemoveAsync(c, _entries, ct); // refuses once the treasury has validated the cash
         _repo.Remove(c);
         return Unit.Value;
@@ -1108,11 +1134,14 @@ public sealed class CreateRepIncomeEntryValidator : AbstractValidator<CreateRepI
 public sealed class CreateRepIncomeEntryHandler : ICommandHandler<CreateRepIncomeEntryCommand, Guid>
 {
     private readonly IRepIncomeEntryRepository _repo; private readonly IRepresentativeRepository _reps; private readonly ICurrentUser _user;
-    public CreateRepIncomeEntryHandler(IRepIncomeEntryRepository repo, IRepresentativeRepository reps, ICurrentUser user) { _repo = repo; _reps = reps; _user = user; }
+    private readonly IStatementCloseGuard _closed;
+    public CreateRepIncomeEntryHandler(IRepIncomeEntryRepository repo, IRepresentativeRepository reps, ICurrentUser user, IStatementCloseGuard? closed = null)
+    { _repo = repo; _reps = reps; _user = user; _closed = closed ?? NoStatementCloseGuard.Instance; }
     public async Task<Guid> Handle(CreateRepIncomeEntryCommand r, CancellationToken ct)
     {
         var rep = await _reps.GetByIdAsync(new RepresentativeId(r.RepresentativeId), ct) ?? throw new NotFoundException("Representative", r.RepresentativeId);
         _user.EnsureInScope(rep);
+        await _closed.EnsureOpenForRepsAsync(new[] { rep.Id }, r.Date, ct);
         var e = RepIncomeEntry.Create(rep.Id, r.Date, r.Amount, r.Notes);
         _repo.Add(e);
         return e.Id.Value;
@@ -1147,8 +1176,9 @@ public sealed class SaveRealIncomeSheetValidator : AbstractValidator<SaveRealInc
 public sealed class SaveRealIncomeSheetHandler : ICommandHandler<SaveRealIncomeSheetCommand>
 {
     private readonly IRepLabIncomeRepository _repo; private readonly IRepresentativeRepository _reps; private readonly ILaboratoryRepository _labs; private readonly ICurrentUser _user;
-    public SaveRealIncomeSheetHandler(IRepLabIncomeRepository repo, IRepresentativeRepository reps, ILaboratoryRepository labs, ICurrentUser user)
-    { _repo = repo; _reps = reps; _labs = labs; _user = user; }
+    private readonly IStatementCloseGuard _closed;
+    public SaveRealIncomeSheetHandler(IRepLabIncomeRepository repo, IRepresentativeRepository reps, ILaboratoryRepository labs, ICurrentUser user, IStatementCloseGuard? closed = null)
+    { _repo = repo; _reps = reps; _labs = labs; _user = user; _closed = closed ?? NoStatementCloseGuard.Instance; }
 
     public async Task<Unit> Handle(SaveRealIncomeSheetCommand r, CancellationToken ct)
     {
@@ -1156,6 +1186,7 @@ public sealed class SaveRealIncomeSheetHandler : ICommandHandler<SaveRealIncomeS
         _user.EnsureInScope(rep);
         if (rep.Type != RepresentativeType.LabResponsible)
             throw new Common.Exceptions.ValidationException(new Dictionary<string, string[]> { ["representativeId"] = new[] { "Real income is recorded per Lab Responsible." } });
+        await _closed.EnsureOpenForRepsAsync(new[] { rep.Id }, r.Date, ct); // a closed month's sheet is read-only
         var existing = (await _repo.GetForRepDateAsync(rep.Id, r.Date, ct)).ToDictionary(e => e.LaboratoryId);
         foreach (var row in r.Rows)
         {
@@ -1195,12 +1226,15 @@ public sealed class DeleteRepIncomeEntryValidator : AbstractValidator<DeleteRepI
 public sealed class DeleteRepIncomeEntryHandler : ICommandHandler<DeleteRepIncomeEntryCommand>
 {
     private readonly IRepIncomeEntryRepository _repo; private readonly IRepresentativeRepository _reps; private readonly ICurrentUser _user;
-    public DeleteRepIncomeEntryHandler(IRepIncomeEntryRepository repo, IRepresentativeRepository reps, ICurrentUser user) { _repo = repo; _reps = reps; _user = user; }
+    private readonly IStatementCloseGuard _closed;
+    public DeleteRepIncomeEntryHandler(IRepIncomeEntryRepository repo, IRepresentativeRepository reps, ICurrentUser user, IStatementCloseGuard? closed = null)
+    { _repo = repo; _reps = reps; _user = user; _closed = closed ?? NoStatementCloseGuard.Instance; }
     public async Task<Unit> Handle(DeleteRepIncomeEntryCommand r, CancellationToken ct)
     {
         var e = await _repo.GetByIdAsync(new RepIncomeEntryId(r.Id), ct) ?? throw new NotFoundException("RepIncomeEntry", r.Id);
         var rep = await _reps.GetByIdAsync(e.RepresentativeId, ct);
         if (rep is not null) _user.EnsureInScope(rep);
+        await _closed.EnsureOpenForRepsAsync(new[] { e.RepresentativeId }, e.Date, ct);
         _repo.Remove(e);
         return Unit.Value;
     }

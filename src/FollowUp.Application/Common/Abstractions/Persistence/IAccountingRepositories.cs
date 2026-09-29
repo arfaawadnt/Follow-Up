@@ -74,3 +74,11 @@ public interface IRepLabIncomeRepository
     void Add(RepLabIncome entry);
     void Remove(RepLabIncome entry);
 }
+
+/// <summary>Aggregate repository for <see cref="StatementMonthClose"/> (a Lab Responsible's closed months).</summary>
+public interface IStatementMonthCloseRepository
+{
+    Task<IReadOnlyList<StatementMonthClose>> ForRepAsync(FollowUp.Domain.Representatives.RepresentativeId repId, CancellationToken ct);
+    void Add(StatementMonthClose close);
+    void Remove(StatementMonthClose close);
+}

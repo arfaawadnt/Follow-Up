@@ -266,6 +266,8 @@ export interface RepStatementRow { date: string; kind: string; debit: number; cr
 export interface StatementLdmDetail { labDisplayCode: string; labName: string; accNo: string; patientName: string; testCode: string; testName: string | null; fee: number; sampleStatus: string | null; testStatus: string | null;
   /** 'None' (created with the registration) | 'Within3Hours' | 'Over3Hours' — when the test was added to its registration (2026-09-28). */
   testAddition: string; }
+/** One closed month of a Lab Responsible's statement (GET /accounting/statement/closes?repId). Only the latest can be reopened. */
+export interface StatementMonthClose { id: string; representativeId: string; year: number; month: number; closingBalance: number; closedAt: string; closedBy: string; notes: string | null; isLatest: boolean; }
 export interface RepStatement { representativeId: string; repName: string; rows: RepStatementRow[]; totalDebit: number; totalCredit: number; balance: number; }
 /** Statement by dimension (Responsible | Area | Lab). */
 export interface Statement { by: string; subjectId: string; subjectName: string; rows: RepStatementRow[]; totalDebit: number; totalCredit: number; balance: number; }

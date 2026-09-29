@@ -786,3 +786,55 @@ public sealed class RepLabIncome : AggregateRoot<RepLabIncomeId>, IAuditable
         Notes = AccountingGuards.Optional(notes, 500);
     }
 }
+
+// ---- Statement month close (operator decisions, 2026-09-28) ----
+
+public readonly record struct StatementMonthCloseId(Guid Value) { public static StatementMonthCloseId New() => new(Guid.NewGuid()); public override string ToString() => Value.ToString(); }
+
+/// <summary>
+/// One closed month of a Lab Responsible's statement. Closing is manual and only at the Lab Responsible level; the stored
+/// <see cref="ClosingBalance"/> (Σ debit − Σ credit up to the month's last day, negative when the balance is in the rep's
+/// favour) is what the statement carries into the next month as its opening balance — a debit when positive, a credit
+/// when negative. Months close in order and only the latest close can be reopened (rules enforced by the handlers); a
+/// closed month refuses every accounting write dated inside it (IStatementCloseGuard). The Rep Income sheet's
+/// "previous remaining" is deliberately untouched — the statement recomputes the balance its own way.
+/// </summary>
+public sealed class StatementMonthClose : AggregateRoot<StatementMonthCloseId>, IAuditable
+{
+    private StatementMonthClose() { } // EF
+    private StatementMonthClose(StatementMonthCloseId id, RepresentativeId repId, int year, int month) : base(id)
+    { RepresentativeId = repId; Year = year; Month = month; }
+
+    public RepresentativeId RepresentativeId { get; private set; }
+    public int Year { get; private set; }
+    public int Month { get; private set; }
+    public Money ClosingBalance { get; private set; }
+    public DateTimeOffset ClosedAtUtc { get; private set; }
+    public AppUserId ClosedByUserId { get; private set; }
+    public string? Notes { get; private set; }
+
+    public DateTimeOffset CreatedAt { get; private set; }
+    public string CreatedBy { get; private set; } = null!;
+    public DateTimeOffset? UpdatedAt { get; private set; }
+    public string? UpdatedBy { get; private set; }
+
+    public DateOnly MonthStart => new(Year, Month, 1);
+    public DateOnly MonthEnd => MonthStart.AddMonths(1).AddDays(-1);
+    public bool Contains(DateOnly date) => date.Year == Year && date.Month == Month;
+
+    public static StatementMonthClose Close(RepresentativeId repId, int year, int month, decimal closingBalance, AppUserId closedBy, DateTimeOffset closedAtUtc, string? notes)
+    {
+        if (month is < 1 or > 12) throw new DomainException("Month must be between 1 and 12.");
+        if (year is < 2000 or > 2100) throw new DomainException("Year is out of range.");
+        return new StatementMonthClose(StatementMonthCloseId.New(), repId, year, month)
+        {
+            ClosingBalance = new Money(closingBalance), // may be negative: the balance is in the rep's favour
+            ClosedByUserId = closedBy,
+            ClosedAtUtc = closedAtUtc,
+            Notes = AccountingGuards.Optional(notes, 500),
+        };
+    }
+
+    /// <summary>The month that follows (year, month) — the only month that may be closed after it.</summary>
+    public static (int Year, int Month) NextMonth(int year, int month) => month == 12 ? (year + 1, 1) : (year, month + 1);
+}

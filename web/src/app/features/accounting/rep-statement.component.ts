@@ -10,7 +10,7 @@ import { AuthService } from '../../core/auth.service';
 import { ToastService } from '../../core/toast.service';
 import { UiService } from '../../core/ui.service';
 import { I18nService, TranslatePipe } from '../../core/i18n';
-import { LabLookup, PagedResult, RepListItem, RepStatementRow, Statement, StatementLdmDetail } from '../../core/models';
+import { LabLookup, PagedResult, RepListItem, RepStatementRow, Statement, StatementLdmDetail, StatementMonthClose } from '../../core/models';
 import { ACC_STYLES, dayName, firstOfMonth, money } from './accounting.util';
 
 type Opt = { value: string; label: string };
@@ -37,6 +37,7 @@ interface ViewRow { label: string; day: string; kind: string; debit: number; cre
     <div class="pagehead">
       <div><div class="breadcrumbs">Home / {{ 'accounting' | t : 'Accounting' }} / {{ 'acc_rep_statement' | t : 'Rep Statement' }}</div><h1>{{ 'acc_rep_statement' | t : 'Rep Statement' }}</h1></div>
       <div class="pagehead-actions">
+        @if (bySig() === 'Responsible' && st() && canManage()) { <button class="btn btn-p" (click)="openClose()">{{ 'close_month' | t : 'Close month' }}</button> }
         <a class="btn btn-s" routerLink="/accounting/rep-income">{{ 'acc_rep_income' | t : 'Rep Income' }}</a>
         <button class="btn btn-s" [disabled]="!st()" (click)="exportExcel()">{{ 'export_excel' | t : 'Export Excel' }}</button>
         <button class="btn btn-s" [disabled]="!st()" (click)="exportPdf()">{{ 'export_pdf' | t : 'Export PDF' }}</button>
@@ -73,6 +74,26 @@ interface ViewRow { label: string; day: string; kind: string; debit: number; cre
       <div class="small muted" style="margin-top:8px">{{ 'statement_by_hint' | t : 'Debit = total required entered on Rep Income + the right test of each penalty. Credit = the actual collections (Lab Responsible view), the area deductions (Area and Lab Responsible views) and the wrong test of each penalty, each noted with its record.' }}</div>
     </div>
 
+    @if (bySig() === 'Responsible' && st()) {
+      <div class="card" style="padding:12px 16px;margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <div><b>{{ 'month_closes' | t : 'Month closes' }}</b> <span class="small muted">· {{ 'month_closes_hint' | t : 'Each closed month ends with a closing-balance line and the next month opens with the same balance; records dated in a closed month are read-only.' }}</span></div>
+          @if (canManage()) { <button class="btn btn-mini btn-p" (click)="openClose()">{{ 'close_month' | t : 'Close month' }}</button> }
+        </div>
+        @if (closes().length) {
+          <div class="grid-scroll" style="margin-top:8px"><table class="grid-table" style="margin:0;border:none">
+            <thead><tr><th>{{ 'month' | t : 'Month' }}</th><th class="r">{{ 'closing_balance' | t : 'Closing balance' }}</th><th>{{ 'closed_by' | t : 'Closed by' }}</th><th>{{ 'closed_at' | t : 'Closed at' }}</th><th>{{ 'notes' | t : 'Notes' }}</th>@if (canManage()) { <th class="ar">{{ 'actions' | t : 'Actions' }}</th> }</tr></thead>
+            <tbody>
+              @for (c of closes(); track c.id) {
+                <tr><td>{{ monthLabel(c.year, c.month) }}</td><td class="r mono" [class.neg]="c.closingBalance < 0" style="font-weight:700">{{ c.closingBalance | number:'1.2-2' }}</td><td>{{ c.closedBy }}</td><td class="mono small">{{ ddmy(c.closedAt, true) }}</td><td>{{ c.notes || '—' }}</td>
+                @if (canManage()) { <td class="ar actions">@if (c.isLatest) { <button class="btn btn-mini btn-s" (click)="reopen(c)">{{ 'reopen_month' | t : 'Reopen' }}</button> }</td> }</tr>
+              }
+            </tbody>
+          </table></div>
+        } @else { <div class="small muted" style="margin-top:6px">{{ 'no_month_closes' | t : 'No month has been closed yet for this Lab Responsible.' }}</div> }
+      </div>
+    }
+
     <div class="card" style="padding:10px 0;overflow-x:auto">
       @if (!subjectId) { <div class="empty" style="padding:24px;text-align:center">{{ 'select_rep_first' | t : 'Select a subject to view the statement.' }}</div> }
       @else if (loading()) { <div class="empty" style="padding:24px">{{ 'loading' | t : 'Loading…' }}</div> }
@@ -86,7 +107,7 @@ interface ViewRow { label: string; day: string; kind: string; debit: number; cre
           </tr></thead>
           <tbody>
             @for (r of view(); track $index) {
-              <tr>
+              <tr [class.close-row]="r.source?.kind === 'OpeningBalance' || r.source?.kind === 'ClosingBalance'">
                 <td>{{ r.label }}</td><td>{{ r.day }}</td><td>{{ r.kind }}</td>
                 <td class="r mono pos">{{ r.debit ? (r.debit | number:'1.2-2') : '' }}</td><td class="r mono neg">{{ r.credit ? (r.credit | number:'1.2-2') : '' }}</td>
                 <td class="r mono" style="white-space:nowrap">@if (r.ldmIncome !== null) { {{ r.ldmIncome | number:'1.2-2' }}@if (r.source) { <button class="btn btn-mini btn-s" style="margin-inline-start:6px" (click)="openDetails(r.source)">{{ 'details_btn' | t : 'Details' }}</button> } }</td>
@@ -101,6 +122,20 @@ interface ViewRow { label: string; day: string; kind: string; debit: number; cre
         </table></div>
       }
     </div>
+
+    @if (closeOpen()) {
+      <div class="as-overlay" (click)="closeOpen.set(false)">
+        <div class="as-dlg" style="width:min(94vw,480px)" (click)="$event.stopPropagation()">
+          <div class="as-dlg-head"><div><h2>{{ 'close_month' | t : 'Close month' }}</h2><div class="small muted">{{ st()?.subjectName }}</div></div><button class="btn btn-mini btn-s" (click)="closeOpen.set(false)">✕</button></div>
+          <div style="padding:16px">
+            <div class="small muted" style="margin-bottom:12px">{{ 'close_month_hint' | t : 'The month must have ended and months close in order. The closing balance is the statement balance at the last day of the month; it is carried into the next month as its opening balance — a debit when the rep owes, a credit when the balance is in the rep\'s favour. Records dated in a closed month cannot be added or changed until it is reopened.' }}</div>
+            <div class="field"><label>{{ 'month' | t : 'Month' }}</label><input class="input" type="month" [(ngModel)]="closeMonth"></div>
+            <div class="field" style="margin-top:10px"><label>{{ 'notes' | t : 'Notes' }}</label><input class="input" [(ngModel)]="closeNotes" maxlength="500"></div>
+          </div>
+          <div class="as-dlg-foot"><button class="btn btn-s" (click)="closeOpen.set(false)">{{ 'cancel' | t : 'Cancel' }}</button><button class="btn btn-p" [disabled]="closing() || !closeMonth" (click)="submitClose()">{{ closing() ? ('saving' | t : 'Saving…') : ('close_month' | t : 'Close month') }}</button></div>
+        </div>
+      </div>
+    }
 
     @if (details()) {
       <div class="as-overlay" (click)="details.set(null)">
@@ -128,7 +163,7 @@ interface ViewRow { label: string; day: string; kind: string; debit: number; cre
       </div>
     }
   `,
-  styles: [ACC_STYLES, `tr.grp td{background:var(--slate-100,#f3f2f1)} tr.nv td{background:#fef2f2;color:#b91c1c} .nv-note{color:#b91c1c;font-weight:600} .late-note{color:#1d4ed8;font-weight:600}`],
+  styles: [ACC_STYLES, `tr.grp td{background:var(--slate-100,#f3f2f1)} tr.nv td{background:#fef2f2;color:#b91c1c} .nv-note{color:#b91c1c;font-weight:600} .late-note{color:#1d4ed8;font-weight:600} tr.close-row td{background:var(--slate-100,#f3f2f1);font-weight:700}`],
 })
 export class RepStatementComponent {
   private readonly api = inject(ApiService);
@@ -140,6 +175,11 @@ export class RepStatementComponent {
 
   readonly loading = signal(false);
   readonly st = signal<Statement | null>(null);
+  /** Month closes of the Lab Responsible on screen (Responsible view only), latest first. */
+  readonly closes = signal<StatementMonthClose[]>([]);
+  readonly closeOpen = signal(false);
+  readonly closing = signal(false);
+  closeMonth = ''; closeNotes = '';
   /** The debit line whose LDM registrations are open in the details dialog. */
   readonly details = signal<RepStatementRow | null>(null);
   readonly detailsLoading = signal(false);
@@ -218,8 +258,34 @@ export class RepStatementComponent {
 
   canManage(): boolean { return this.auth.has('ManageAccounting'); }
   day(d: string | null): string { return dayName(d, this.ui.lang()); }
+  monthLabel(y: number, m: number): string { return new Date(y, m - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }); }
+  loadCloses(): void {
+    if (this.by !== 'Responsible' || !this.subjectId) { this.closes.set([]); return; }
+    this.api.get<StatementMonthClose[]>('/accounting/statement/closes', { repId: this.subjectId }).subscribe({ next: (r) => this.closes.set(r), error: () => this.closes.set([]) });
+  }
+  /** Default month to close: the one after the latest close, else last month. */
+  openClose(): void {
+    const latest = this.closes()[0];
+    const d = latest ? new Date(latest.year, latest.month, 1) : new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1);
+    this.closeMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; this.closeNotes = '';
+    this.closeOpen.set(true);
+  }
+  submitClose(): void {
+    const m = /^(\d{4})-(\d{2})$/.exec(this.closeMonth); if (!m) return;
+    this.closing.set(true);
+    this.api.post<StatementMonthClose>('/accounting/statement/closes', { representativeId: this.subjectId, year: +m[1], month: +m[2], notes: this.closeNotes || null }).subscribe({
+      next: (c) => { this.closing.set(false); this.closeOpen.set(false); this.toast.success(`${this.monthLabel(c.year, c.month)} closed · closing balance ${money(c.closingBalance).toFixed(2)}`); this.load(); },
+      error: () => this.closing.set(false),
+    });
+  }
+  reopen(c: StatementMonthClose): void {
+    if (!confirm(`Reopen ${this.monthLabel(c.year, c.month)} for ${this.st()?.subjectName ?? ''}? Its closing / opening lines disappear and the month accepts changes again.`)) return;
+    this.api.post('/accounting/statement/closes/reopen', { representativeId: this.subjectId, year: c.year, month: c.month, notes: null }).subscribe({ next: () => { this.toast.success(`${this.monthLabel(c.year, c.month)} reopened.`); this.load(); } });
+  }
   kindLabel(k: string): string {
     switch (k) {
+      case 'OpeningBalance': return 'Opening balance (carried from the closed month)';
+      case 'ClosingBalance': return 'Closing balance (month close)';
       case 'TotalRequired': return 'Total required (Rep Income)';
       case 'LdmIncome': return 'LDM income (labs without a Rep Income entry)';
       case 'PenaltyRight': return 'Penalty · right test';
@@ -258,6 +324,7 @@ export class RepStatementComponent {
     this.loading.set(true);
     this.api.get<Statement>('/accounting/statement', { by: this.by, id: this.subjectId, from: this.from, to: this.to })
       .subscribe({ next: (r) => { this.st.set(r); this.loading.set(false); }, error: () => { this.st.set(null); this.loading.set(false); } });
+    this.loadCloses();
   }
   remove(r: RepStatementRow): void {
     if (!r.sourceId || !confirm(`Delete the legacy real-income line of ${ddmy(r.date)}?`)) return;

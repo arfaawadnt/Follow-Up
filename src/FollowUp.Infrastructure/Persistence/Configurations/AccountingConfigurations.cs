@@ -240,3 +240,24 @@ internal sealed class RepIncomeEntryConfiguration : IEntityTypeConfiguration<Rep
         b.HasIndex(x => x.Serial).IsUnique();
     }
 }
+
+internal sealed class StatementMonthCloseConfiguration : IEntityTypeConfiguration<StatementMonthClose>
+{
+    public void Configure(EntityTypeBuilder<StatementMonthClose> b)
+    {
+        b.ToTable("statement_month_close");
+        b.HasKey(x => x.Id);
+        b.IgnoreDomainEvents();
+        b.MapAuditable();
+        b.Property(x => x.Year);
+        b.Property(x => x.Month);
+        b.Property(x => x.ClosingBalance);
+        b.Property(x => x.ClosedAtUtc);
+        b.Property(x => x.Notes).HasMaxLength(500);
+        b.Ignore(x => x.MonthStart);
+        b.Ignore(x => x.MonthEnd);
+        b.HasOne<Representative>().WithMany().HasForeignKey(x => x.RepresentativeId).OnDelete(DeleteBehavior.Restrict);
+        b.Property(x => x.ClosedByUserId); // who closed it — kept as a plain id (no FK) so a later user clean-up can never block the close history
+        b.HasIndex(x => new { x.RepresentativeId, x.Year, x.Month }).IsUnique(); // one close per rep × month
+    }
+}
