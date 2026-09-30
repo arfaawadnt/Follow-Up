@@ -130,6 +130,7 @@ export class ShellComponent implements AfterViewChecked, OnDestroy {
       { id: 'acc_collections', key: 'acc_collections', icon: 'wallet', path: '/accounting/collections', privilege: 'ViewAccounting' },
       { id: 'acc_rep_statement', key: 'acc_rep_statement', icon: 'file-text', path: '/accounting/rep-statement', privilege: 'ViewAccounting' },
       { id: 'acc_rep_income', key: 'acc_rep_income', icon: 'coins', path: '/accounting/rep-income', privilege: 'ViewAccounting' },
+      { id: 'acc_rep_income_revision', key: 'acc_rep_income_revision', icon: 'check-square', path: '/accounting/rep-income-revision', privilege: 'ViewAccounting' },
     ]},
     // Inventory — chemicals & consumables: stock, items, stores/partners, purchase orders, transfers, ledger, utilization
     // (ViewInventory; recording needs ManageInventory).

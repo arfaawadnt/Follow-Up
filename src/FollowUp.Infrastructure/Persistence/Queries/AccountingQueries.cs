@@ -431,6 +431,83 @@ internal sealed class AccountingQueries : IAccountingQueries
         return new StatementDto(by, id, subjectName, rows, totalDebit, totalCredit, balance);
     }
 
+    /// <summary>
+    /// Rep Income Revision lines (2026-09-30). Rows = the entered sheet lines in the range on the scoped labs (optionally one
+    /// rep / one lab) ∪, when a rep is chosen, that rep's labs with LDM income on a day but no entry (so a missed sheet shows
+    /// up). The LDM side per lab × day: income (daily_lab_statistic) and, from the synced registrations, distinct accessions,
+    /// tests, tests not verified (status ≠ 5) and tests added late to their registration (the Detailed Statistics rule:
+    /// > 5 min grace, ≤ 3 h within / > 3 h after) — aggregated in SQL, only the totals travel.
+    /// </summary>
+    public async Task<IReadOnlyList<RepIncomeRevisionRowDto>> RepIncomeRevisionAsync(DateOnly from, DateOnly to, Guid? representativeId, Guid? laboratoryId, OrgScope scope, bool canSeeEncrypted, CancellationToken ct)
+    {
+        if (to < from) (from, to) = (to, from);
+        var labsQ = _db.Laboratories.ApplyScope(scope).AsNoTracking();
+        if (laboratoryId is { } onlyLab) { var lid = new LaboratoryId(onlyLab); labsQ = labsQ.Where(l => l.Id == lid); }
+        var labs = await labsQ.Select(l => new { l.Id, l.Code, l.IsEncrypted, l.Name, l.Governorate, l.City, l.Area, l.ResponsibleRepId }).ToListAsync(ct);
+        if (labs.Count == 0) return Array.Empty<RepIncomeRevisionRowDto>();
+        var labById = labs.ToDictionary(l => l.Id);
+        var labIds = labs.Select(l => l.Id).ToList();
+        RepresentativeId? rid = representativeId is { } r ? new RepresentativeId(r) : null;
+
+        var entriesQ = _db.RepLabIncomes.AsNoTracking().Where(e => e.Date >= from && e.Date <= to && labIds.Contains(e.LaboratoryId));
+        if (rid is { } er) entriesQ = entriesQ.Where(e => e.RepresentativeId == er);
+        var entries = await entriesQ.ToListAsync(ct);
+        var entryByKey = entries.ToDictionary(e => (e.RepresentativeId, e.LaboratoryId, e.Date));
+        var keys = new HashSet<(RepresentativeId Rep, LaboratoryId Lab, DateOnly Date)>(entryByKey.Keys);
+
+        // Lab codes whose LDM side is needed: the entered labs, plus (rep chosen) every lab of that rep.
+        var wantedLabIds = keys.Select(k => k.Lab).ToHashSet();
+        if (rid is { } rr) foreach (var l in labs.Where(l => l.ResponsibleRepId == rr)) wantedLabIds.Add(l.Id);
+        var codeToLab = labs.Where(l => wantedLabIds.Contains(l.Id)).GroupBy(l => l.Code.Value.ToUpperInvariant())
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+        var codes = codeToLab.Keys.ToList();
+        if (codes.Count == 0) return Array.Empty<RepIncomeRevisionRowDto>();
+
+        var ldm = (await _db.DailyLabStatistics.AsNoTracking().Where(s => s.Date >= from && s.Date <= to && codes.Contains(s.LabCode.ToUpper()))
+                .Select(s => new { s.Date, s.LabCode, s.Income }).ToListAsync(ct))
+            .GroupBy(s => (Code: s.LabCode.ToUpperInvariant(), s.Date)).ToDictionary(g => g.Key, g => g.Sum(x => x.Income.Amount));
+        if (rid is { } rr2)
+            foreach (var kv in ldm)
+                if (kv.Value != 0m && codeToLab.TryGetValue(kv.Key.Code, out var l) && l.ResponsibleRepId == rr2) keys.Add((rr2, l.Id, kv.Key.Date));
+
+        var graceMinutes = DetailedRegistration.GraceWindow.TotalMinutes; var lateHours = DetailedRegistration.LateAdditionWindow.TotalHours;
+        var regs = await _db.DetailedRegistrations.AsNoTracking()
+            .Where(x => x.Date >= from && x.Date <= to && x.LabCode != null && codes.Contains(x.LabCode.ToUpper()))
+            .GroupBy(x => new { x.LabCode, x.Date })
+            .Select(g => new
+            {
+                g.Key.LabCode,
+                g.Key.Date,
+                Accessions = g.Select(x => x.AccNo).Distinct().Count(),
+                Tests = g.Count(),
+                NotVerified = g.Count(x => x.TestStatus != "5"),
+                Within = g.Count(x => x.RegCreatedAt != null && x.TestCreatedAt != null
+                    && x.TestCreatedAt > x.RegCreatedAt.Value.AddMinutes(graceMinutes) && x.TestCreatedAt <= x.RegCreatedAt.Value.AddHours(lateHours)),
+                After = g.Count(x => x.RegCreatedAt != null && x.TestCreatedAt != null && x.TestCreatedAt > x.RegCreatedAt.Value.AddHours(lateHours)),
+            }).ToListAsync(ct);
+        var regByKey = regs.ToDictionary(x => (Code: x.LabCode!.ToUpperInvariant(), x.Date));
+
+        var wanted = wantedLabIds.ToList();
+        var revisionsQ = _db.RepIncomeRevisions.AsNoTracking().Where(v => v.Date >= from && v.Date <= to && wanted.Contains(v.LaboratoryId));
+        if (rid is { } vr) revisionsQ = revisionsQ.Where(v => v.RepresentativeId == vr);
+        var revisionByKey = (await revisionsQ.ToListAsync(ct)).ToDictionary(v => (v.RepresentativeId, v.LaboratoryId, v.Date));
+        var repIds = keys.Select(k => k.Rep).Distinct().ToList();
+        var repNames = await _db.Representatives.AsNoTracking().Where(x => repIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName, ct);
+
+        return keys.Select(k =>
+        {
+            var lab = labById[k.Lab];
+            var code = lab.Code.Value.ToUpperInvariant();
+            entryByKey.TryGetValue(k, out var e); revisionByKey.TryGetValue(k, out var v); regByKey.TryGetValue((code, k.Date), out var s);
+            return new RepIncomeRevisionRowDto(lab.Id.Value, DisplayCode.For(lab.Code.Value, lab.IsEncrypted, canSeeEncrypted), lab.Name, lab.Governorate, lab.City, lab.Area,
+                k.Rep.Value, repNames.GetValueOrDefault(k.Rep, "—"), k.Date, e is null ? null : (e.UpdatedAt ?? e.CreatedAt), e?.Id.Value,
+                e?.Samples ?? 0, e?.TotalRequired.Amount ?? 0m, e?.Paid.Amount ?? 0m, e?.Remaining.Amount ?? 0m, e?.DelayedPayment.Amount ?? 0m, e?.Notes,
+                ldm.GetValueOrDefault((code, k.Date)), s?.Accessions ?? 0, s?.Tests ?? 0, s?.NotVerified ?? 0, s?.Within ?? 0, s?.After ?? 0,
+                v?.Id.Value, v?.ActualIncome.Amount, v?.ActualPaid.Amount, v?.ActualRemaining.Amount, v?.ActualDelayedPayment.Amount,
+                v?.Notes, v is null ? null : (v.UpdatedAt ?? v.CreatedAt), v is null ? null : (v.UpdatedBy ?? v.CreatedBy));
+        }).OrderBy(x => x.LabName).ThenBy(x => x.Date).ThenBy(x => x.RepName).ToList();
+    }
+
     /// <summary>The closed months of a Lab Responsible's statement, latest first; empty when the rep is out of scope.</summary>
     public async Task<IReadOnlyList<StatementMonthCloseDto>> MonthClosesAsync(Guid representativeId, OrgScope scope, CancellationToken ct)
     {

@@ -85,6 +85,7 @@ public sealed class FollowUpDbContext : DbContext
     public DbSet<Domain.Accounting.RepIncomeEntry> RepIncomeEntries => Set<Domain.Accounting.RepIncomeEntry>();
     public DbSet<Domain.Accounting.RepLabIncome> RepLabIncomes => Set<Domain.Accounting.RepLabIncome>();
     public DbSet<Domain.Accounting.StatementMonthClose> StatementMonthCloses => Set<Domain.Accounting.StatementMonthClose>();
+    public DbSet<Domain.Accounting.RepIncomeRevision> RepIncomeRevisions => Set<Domain.Accounting.RepIncomeRevision>();
 
     // Inventory module
     public DbSet<Domain.Inventory.Manufacturer> Manufacturers => Set<Domain.Inventory.Manufacturer>();
@@ -175,6 +176,7 @@ public sealed class FollowUpDbContext : DbContext
         c.Properties<Domain.Accounting.RepIncomeEntryId>().HaveConversion<RepIncomeEntryIdConverter>();
         c.Properties<Domain.Accounting.RepLabIncomeId>().HaveConversion<RepLabIncomeIdConverter>();
         c.Properties<Domain.Accounting.StatementMonthCloseId>().HaveConversion<StatementMonthCloseIdConverter>();
+        c.Properties<Domain.Accounting.RepIncomeRevisionId>().HaveConversion<RepIncomeRevisionIdConverter>();
         c.Properties<Domain.Inventory.ManufacturerId>().HaveConversion<ManufacturerIdConverter>();
         c.Properties<Domain.Inventory.SupplierId>().HaveConversion<SupplierIdConverter>();
         c.Properties<Domain.Inventory.StoreId>().HaveConversion<StoreIdConverter>();

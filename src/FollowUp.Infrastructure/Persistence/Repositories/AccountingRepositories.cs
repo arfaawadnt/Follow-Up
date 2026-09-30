@@ -105,3 +105,13 @@ internal sealed class StatementMonthCloseRepository : IStatementMonthCloseReposi
     public void Add(StatementMonthClose close) => _db.StatementMonthCloses.Add(close);
     public void Remove(StatementMonthClose close) => _db.StatementMonthCloses.Remove(close);
 }
+
+internal sealed class RepIncomeRevisionRepository : IRepIncomeRevisionRepository
+{
+    private readonly FollowUpDbContext _db;
+    public RepIncomeRevisionRepository(FollowUpDbContext db) => _db = db;
+    public Task<RepIncomeRevision?> GetAsync(FollowUp.Domain.Representatives.RepresentativeId repId, FollowUp.Domain.Laboratories.LaboratoryId labId, DateOnly date, CancellationToken ct) =>
+        _db.RepIncomeRevisions.FirstOrDefaultAsync(x => x.RepresentativeId == repId && x.LaboratoryId == labId && x.Date == date, ct);
+    public void Add(RepIncomeRevision revision) => _db.RepIncomeRevisions.Add(revision);
+    public void Remove(RepIncomeRevision revision) => _db.RepIncomeRevisions.Remove(revision);
+}
