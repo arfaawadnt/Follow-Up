@@ -54,3 +54,11 @@ public interface ITestSetupRepository
     void Add(TestSetup setup);
     void Remove(TestSetup setup);
 }
+
+/// <summary>Aggregate repository for <see cref="RegistrationChange"/> — synced wholesale per modification-date window.</summary>
+public interface IRegistrationChangeRepository
+{
+    /// <summary>Deletes every synced change whose modification date falls in the inclusive range (window replace).</summary>
+    Task<int> DeleteModifiedRangeAsync(DateOnly from, DateOnly to, CancellationToken ct);
+    void AddRange(IEnumerable<RegistrationChange> rows);
+}

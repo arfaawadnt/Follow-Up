@@ -39,6 +39,7 @@ public static class BackgroundJobsRegistration
         services.AddScoped<NotificationDeliveryRetryJob>();
         services.AddScoped<OracleSyncJob>();
         services.AddScoped<NightlyStatsSyncJob>();
+        services.AddScoped<RegistrationChangesSyncJob>();
         services.AddScoped<RetentionJob>();
         services.AddScoped<MonthlySegmentAssignmentJob>();
         services.AddScoped<DeductionAutomationJob>();
@@ -83,6 +84,8 @@ public sealed class RecurringJobsInitializer : IHostedService
         _jobs.RemoveIfExists("teststats-sync");
         _jobs.RemoveIfExists("labstats-sync");
         _jobs.RemoveIfExists("detailedstats-sync");
+        // 00:20 Cairo: yesterday's registration edits (REG_LOG), after the stats pull so the doctor→lab mapping is fresh.
+        _jobs.AddOrUpdate<RegistrationChangesSyncJob>("regchanges-sync", j => j.RunAsync(CancellationToken.None), "20 0 * * *", cairoOptions);
         _jobs.AddOrUpdate<RetentionJob>("retention-purge", j => j.RunAsync(CancellationToken.None), "0 3 * * *", cairoOptions);
         // Month-start segment auto-assignment — 02:00 on the 1st (Cairo), after that night's stats pull has synced
         // the previous month's final day, so the just-ended month's achieved income is complete.

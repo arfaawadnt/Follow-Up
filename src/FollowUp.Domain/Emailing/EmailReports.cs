@@ -76,6 +76,8 @@ public sealed class StatsEmailSubscription : AggregateRoot<StatsEmailSubscriptio
     public bool IncludeAreaStats { get; private set; }
     /// <summary>The live "No-Lab Tests" report — registrations whose doctor resolves to no lab (management alert).</summary>
     public bool IncludeNoLab { get; private set; }
+    /// <summary>The Registration Changes section (LDM REG_LOG edits of the window's modification dates, 2026-09-30).</summary>
+    public bool IncludeRegChanges { get; private set; }
     /// <summary>Opaque saved-filter payload (governorates/cities/areas/categories/segments/groups), applied in memory.</summary>
     public string FiltersJson { get; private set; } = "{}";
     public IReadOnlyCollection<Guid> UserIds => _userIds.AsReadOnly();
@@ -101,10 +103,10 @@ public sealed class StatsEmailSubscription : AggregateRoot<StatsEmailSubscriptio
     public void Rename(string name) =>
         Name = string.IsNullOrWhiteSpace(name) ? throw new DomainException("Report name is required.") : name.Trim();
 
-    public void SetReports(bool lab, bool test, bool area, bool noLab)
+    public void SetReports(bool lab, bool test, bool area, bool noLab, bool regChanges = false)
     {
-        if (!lab && !test && !area && !noLab) throw new DomainException("Select at least one report.");
-        IncludeLabStats = lab; IncludeTestStats = test; IncludeAreaStats = area; IncludeNoLab = noLab;
+        if (!lab && !test && !area && !noLab && !regChanges) throw new DomainException("Select at least one report.");
+        IncludeLabStats = lab; IncludeTestStats = test; IncludeAreaStats = area; IncludeNoLab = noLab; IncludeRegChanges = regChanges;
     }
 
     public void SetFilters(string? json) => FiltersJson = string.IsNullOrWhiteSpace(json) ? "{}" : json.Trim();

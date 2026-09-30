@@ -284,6 +284,13 @@ const EN: Record<string, HelpPage> = {
     steps: [s('Filter', 'Period, entity, user, action, record id.'), s('Expand', 'A row shows the changed fields before → after.'), s('Per record', 'The 🕓 button on any page opens one record\'s history.')],
     how: ['Retention purges old rows only through the configured retention policy, itself audited.'], tips: [], privileges: ['ViewAuditTrail'],
   },
+  '/auditing/registration-changes': {
+    title: 'Registration Changes', purpose: 'Every edit made to a registration in LDM: which field, the old and new value, who made it and when.',
+    business: 'LDM logs each change to a registration (REG_LOG). Seen beside the registration it touched — accession, patient, lab, creation time — the log shows what was corrected and how long after the registration; the edits made yesterday are synced every night and can be mailed daily from Email Reports.',
+    steps: [s('Range', 'Registration-date range and / or modification-date range (each at most a year).'), s('Filter', 'Change type, user, governorate, area, lab, delay after registration, accession / patient.'), s('Review', 'Old value → new value per edit; the cards and the summary row follow the filters.'), s('Sync', 'Pull a modification-date window from Oracle (at most three months).')],
+    how: ['Delay = modification time − registration creation time, bucketed: within an hour, same day (≤ 24 h), later within a week, after more than a week. Lines edited on a later day are marked.', 'A registration whose doctor resolves to no lab shows as "No lab" and is visible to a global scope only.', 'The daily Email Reports can attach this list (Excel + PDF) for the edits made in the report window.'],
+    tips: ['Filter the change type to "Patient Name" and the delay to "Later" to find corrections made long after registration.'], privileges: ['ViewRegistrationChanges'],
+  },
 };
 
 const AR: Record<string, HelpPage> = {
@@ -560,6 +567,13 @@ const AR: Record<string, HelpPage> = {
     business: 'المساءلة. يكتب الخادم السجل في نفس معاملة التغيير، للمستخدمين والمهام الآلية على السواء؛ ولا يمكن تعديله لاحقًا.',
     steps: [s('الفلترة', 'الفترة والكيان والمستخدم والإجراء ومعرّف السجل.'), s('التوسيع', 'الصف يعرض الحقول المتغيرة قبل ← بعد.'), s('لكل سجل', 'زر 🕓 في أي صفحة يفتح تاريخ سجل واحد.')],
     how: ['الاحتفاظ يحذف الصفوف القديمة فقط عبر سياسة الاحتفاظ المضبوطة، وهي نفسها مدققة.'], tips: [], privileges: ['ViewAuditTrail'],
+  },
+  '/auditing/registration-changes': {
+    title: 'تعديلات التسجيلات', purpose: 'كل تعديل أُجري على تسجيل في LDM: أي حقل، والقيمة القديمة والجديدة، ومن عدّله ومتى.',
+    business: 'يسجل LDM كل تغيير على التسجيل (REG_LOG). وبعرضه بجانب التسجيل الذي مسّه (رقم الحساب والمريض والمعمل ووقت الإنشاء) يظهر ما صُحّح وبعد كم من التسجيل؛ وتعديلات الأمس تُزامن كل ليلة ويمكن إرسالها يوميًا من تقارير البريد.',
+    steps: [s('الفترة', 'فترة تاريخ التسجيل و/أو فترة تاريخ التعديل (كل فترة سنة على الأكثر).'), s('الفلترة', 'نوع التعديل والمستخدم والمحافظة والمنطقة والمعمل والتأخير بعد التسجيل ورقم الحساب / المريض.'), s('المراجعة', 'القيمة القديمة ← الجديدة لكل تعديل؛ والبطاقات وصف الملخص تتبع الفلاتر.'), s('المزامنة', 'سحب فترة تاريخ تعديل من Oracle (ثلاثة أشهر على الأكثر).')],
+    how: ['التأخير = وقت التعديل − وقت إنشاء التسجيل، مصنفًا: خلال ساعة، نفس اليوم (≤ 24 س)، لاحقًا خلال أسبوع، بعد أكثر من أسبوع. السطور المعدلة في يوم لاحق معلَّمة.', 'التسجيل الذي لا يُحل طبيبه إلى معمل يظهر "بلا معمل" ويراه النطاق الشامل فقط.', 'تقارير البريد اليومية يمكنها إرفاق هذه القائمة (إكسل + PDF) للتعديلات التي أُجريت في فترة التقرير.'],
+    tips: ['فلتر نوع التعديل "اسم المريض" مع التأخير "لاحقًا" يكشف التصحيحات المتأخرة عن التسجيل.'], privileges: ['ViewRegistrationChanges'],
   },
 };
 

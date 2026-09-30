@@ -55,6 +55,7 @@ public sealed class ComplaintIdConverter : ValueConverter<ComplaintId, Guid> { p
 public sealed class MonthlySampleIdConverter : ValueConverter<MonthlySampleId, Guid> { public MonthlySampleIdConverter() : base(x => x.Value, v => new MonthlySampleId(v)) { } }
 public sealed class DailyLabStatisticIdConverter : ValueConverter<DailyLabStatisticId, Guid> { public DailyLabStatisticIdConverter() : base(x => x.Value, v => new DailyLabStatisticId(v)) { } }
 public sealed class TestStatisticIdConverter : ValueConverter<TestStatisticId, Guid> { public TestStatisticIdConverter() : base(x => x.Value, v => new TestStatisticId(v)) { } }
+public sealed class RegistrationChangeIdConverter : ValueConverter<RegistrationChangeId, Guid> { public RegistrationChangeIdConverter() : base(x => x.Value, v => new RegistrationChangeId(v)) { } }
 public sealed class DetailedRegistrationIdConverter : ValueConverter<DetailedRegistrationId, Guid> { public DetailedRegistrationIdConverter() : base(x => x.Value, v => new DetailedRegistrationId(v)) { } }
 public sealed class TestGroupIdConverter : ValueConverter<TestGroupId, Guid> { public TestGroupIdConverter() : base(x => x.Value, v => new TestGroupId(v)) { } }
 public sealed class TestSetupIdConverter : ValueConverter<TestSetupId, Guid> { public TestSetupIdConverter() : base(x => x.Value, v => new TestSetupId(v)) { } }

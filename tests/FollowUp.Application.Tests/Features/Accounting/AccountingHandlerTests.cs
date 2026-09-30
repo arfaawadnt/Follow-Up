@@ -507,6 +507,7 @@ public class AccountingHandlerTests
         public Task<OracleSyncResult> RunAsync(bool manual, CancellationToken ct) => throw new NotSupportedException();
         public Task<OracleSyncResult> RunTestStatsAsync(DateOnly from, DateOnly to, bool manual, CancellationToken ct) => throw new NotSupportedException();
         public Task<OracleSyncResult> RunDetailedStatsAsync(DateOnly from, DateOnly to, bool manual, CancellationToken ct) => throw new NotSupportedException();
+        public Task<OracleSyncResult> RunRegistrationChangesAsync(DateOnly from, DateOnly to, bool manual, CancellationToken ct) => throw new NotSupportedException();
         public Task<OracleSyncResult> RunNightlyStatsAsync(DateOnly from, DateOnly to, bool manual, CancellationToken ct) => throw new NotSupportedException();
     }
 

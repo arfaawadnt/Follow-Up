@@ -92,6 +92,8 @@ public static class Privileges
     public const string SetupAreas = nameof(SetupAreas);
     /// <summary>Audit trail (2026-09-20): the Audit Trail page and the per-record "log" button on every page. ManageUsers implies it.</summary>
     public const string ViewAuditTrail = nameof(ViewAuditTrail);
+    /// <summary>Auditing → Registration Changes (the LDM REG_LOG edits page + its sync + its email section), 2026-09-30.</summary>
+    public const string ViewRegistrationChanges = nameof(ViewRegistrationChanges);
 
     /// <summary>Every privilege name (the ~45 leaves plus the coarse Manage* grants).</summary>
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -107,7 +109,7 @@ public static class Privileges
         ManageLoyalty, ManageCommissions,
         ViewLabStats, ViewTeststats, ViewAreaStats, ViewDetailedStats, AddGroups, UpdateGroups, DeleteGroups,
         AddTestsetup, UpdateTestsetup, DeleteTestsetup, AddTeststats, AddLabStats, AddAreaStats,
-        ManageUsers, OracleIntegration, ManageEmailReports, SetupRefs, SetupCities, SetupAreas, ViewAuditTrail,
+        ManageUsers, OracleIntegration, ManageEmailReports, SetupRefs, SetupCities, SetupAreas, ViewAuditTrail, ViewRegistrationChanges,
         ViewAccounting, ManageAccounting,
         ViewInventory, ManageInventory,
     };
@@ -122,7 +124,7 @@ public static class Privileges
         [ViewReports] = new[] { ViewLabStats, ViewTeststats, ViewAreaStats, ViewDetailedStats },
         [ManageAccounting] = new[] { ViewAccounting },
         [ManageInventory] = new[] { ViewInventory },
-        [ManageUsers] = new[] { ViewAuditTrail },
+        [ManageUsers] = new[] { ViewAuditTrail, ViewRegistrationChanges },
     };
 
     /// <summary>

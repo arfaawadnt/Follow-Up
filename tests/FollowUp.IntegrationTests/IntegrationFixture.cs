@@ -71,6 +71,7 @@ DELETE FROM outsource_sample;
 DELETE FROM marketing_visit;
 DELETE FROM complaint;
 DELETE FROM detailed_registration; -- window-replaced Oracle lines; a rerun on the same DB must not accumulate them
+DELETE FROM registration_change;   -- same for the synced REG_LOG edits (unique trans_id)
 -- Accounting ledgers hold Restrict FKs to laboratory / representative / area — clear them before the labs so the
 -- delete below stays FK-safe (treasury + treasury_reason are configuration and, like reference rows, are left in place).
 DELETE FROM deduction;       -- before penalty_record: AutoPenalty rows RESTRICT their penalty

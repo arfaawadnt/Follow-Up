@@ -76,6 +76,7 @@ export const routes: Routes = [
       { path: 'notifications', loadComponent: () => import('./features/notifications/notifications.component').then((m) => m.NotificationsComponent) },
       { path: 'sessions', loadComponent: () => import('./features/sessions/sessions.component').then((m) => m.SessionsComponent) },
       { path: 'audit', loadComponent: () => import('./features/audit/audit.component').then((m) => m.AuditComponent) },
+      { path: 'auditing/registration-changes', loadComponent: () => import('./features/auditing/registration-changes.component').then((m) => m.RegistrationChangesComponent) },
     ],
   },
   { path: '**', redirectTo: '' },

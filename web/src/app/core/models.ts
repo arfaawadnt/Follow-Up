@@ -288,6 +288,12 @@ export interface RepIncomeRevisionRow {
   revisionId: string | null; actualIncome: number | null; actualPaid: number | null; actualRemaining: number | null; actualDelayedPayment: number | null;
   revisionNotes: string | null; revisedAt: string | null; revisedBy: string | null;
 }
+/** One LDM registration edit (GET /registration-changes): the REG_LOG row joined to its registration; delayMinutes = minutes after the registration was created. */
+export interface RegistrationChange {
+  transId: number; regKey: number; accNo: string; patientName: string; regCreatedAt: string | null; regDate: string | null;
+  regBranch: string | null; labCode: string | null; labName: string | null; governorate: string | null; city: string | null; area: string | null;
+  column: string; oldValue: string | null; newValue: string | null; modifiedBy: string; modifiedAt: string; delayMinutes: number | null;
+}
 export interface RealIncomeSheet { date: string; areaId: string; areaName: string; representativeId: string; repName: string; rows: RealIncomeRow[]; }
 
 // ---- Inventory module ----

@@ -210,3 +210,12 @@ internal sealed class ElectronicSignatureRepository : IElectronicSignatureReposi
         _db.Signatures.Where(x => x.Module == module && x.RecordId == recordId)
             .OrderByDescending(x => x.SignedAt).FirstOrDefaultAsync(ct);
 }
+
+internal sealed class RegistrationChangeRepository : IRegistrationChangeRepository
+{
+    private readonly FollowUpDbContext _db;
+    public RegistrationChangeRepository(FollowUpDbContext db) => _db = db;
+    public Task<int> DeleteModifiedRangeAsync(DateOnly from, DateOnly to, CancellationToken ct) =>
+        _db.RegistrationChanges.Where(x => x.ModifiedDate >= from && x.ModifiedDate <= to).ExecuteDeleteAsync(ct);
+    public void AddRange(IEnumerable<RegistrationChange> rows) => _db.RegistrationChanges.AddRange(rows);
+}

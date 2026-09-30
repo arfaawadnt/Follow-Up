@@ -36,4 +36,8 @@ public interface IOracleSyncRunner
     /// Detailed-Statistics lines always cover identical dates and are pulled from Oracle back-to-back (no cross-job
     /// window or timing drift). Drives the nightly stats job.</summary>
     Task<OracleSyncResult> RunNightlyStatsAsync(DateOnly from, DateOnly to, bool manual, CancellationToken ct);
+
+    /// <summary>Runs the RegLog feed (LDM REG_LOG registration edits, 2026-09-30) over an inclusive MODIFICATION-date range,
+    /// replacing the synced rows of that window. Drives the nightly "yesterday" job and the Registration Changes page button.</summary>
+    Task<OracleSyncResult> RunRegistrationChangesAsync(DateOnly from, DateOnly to, bool manual, CancellationToken ct);
 }

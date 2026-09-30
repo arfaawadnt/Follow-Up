@@ -50,6 +50,23 @@ public sealed class OracleSyncJob
 }
 
 /// <summary>
+/// Nightly registration-changes pull (2026-09-30): refreshes the REG_LOG edits MADE the previous (Cairo) day (window on
+/// the modification date), for the Auditing → Registration Changes page and the email section. Runs after the stats pull.
+/// </summary>
+[DisableConcurrentExecution(timeoutInSeconds: 600)]
+public sealed class RegistrationChangesSyncJob
+{
+    private readonly IOracleSyncRunner _runner;
+    private readonly IClock _clock;
+    public RegistrationChangesSyncJob(IOracleSyncRunner runner, IClock clock) { _runner = runner; _clock = clock; }
+    public Task RunAsync(CancellationToken ct)
+    {
+        var yesterday = _clock.CairoToday.AddDays(-1);
+        return _runner.RunRegistrationChangesAsync(yesterday, yesterday, manual: false, ct);
+    }
+}
+
+/// <summary>
 /// Nightly statistics pull — refreshes just the previous (Cairo) day from Oracle for ALL three stats pages: the
 /// aggregate Test Statistics, the per-lab Lab Statistics, and the transaction-level Detailed Statistics, over the
 /// same window in one pass so the pages can never drift on coverage or snapshot timing (they were previously three

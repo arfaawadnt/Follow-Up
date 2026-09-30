@@ -132,3 +132,33 @@ internal sealed class TestSetupConfiguration : IEntityTypeConfiguration<TestSetu
         b.HasIndex(x => x.GroupId);
     }
 }
+
+internal sealed class RegistrationChangeConfiguration : IEntityTypeConfiguration<RegistrationChange>
+{
+    public void Configure(EntityTypeBuilder<RegistrationChange> b)
+    {
+        b.ToTable("registration_change");
+        b.HasKey(x => x.Id);
+        b.IgnoreDomainEvents();
+        b.Property(x => x.TransId);
+        b.Property(x => x.RegKey);
+        b.Property(x => x.AccNo).HasMaxLength(64).IsRequired();
+        b.Property(x => x.PatientName).HasMaxLength(256).IsRequired();
+        // LDM wall-clock timestamps (Oracle DATE, no zone) — stored as-is, never shifted.
+        b.Property(x => x.RegCreatedAt).HasColumnType("timestamp without time zone");
+        b.Property(x => x.RegDate);
+        b.Property(x => x.RegBranchCode).HasMaxLength(32);
+        b.Property(x => x.LabCode).HasMaxLength(32);
+        b.Property(x => x.Column).HasMaxLength(128).IsRequired();
+        b.Property(x => x.OldValue);
+        b.Property(x => x.NewValue);
+        b.Property(x => x.ModifiedBy).HasMaxLength(128).IsRequired();
+        b.Property(x => x.ModifiedAt).HasColumnType("timestamp without time zone");
+        b.Property(x => x.ModifiedDate);
+        b.Ignore(x => x.DelayFromCreation);
+        b.HasIndex(x => x.TransId).IsUnique();
+        b.HasIndex(x => x.ModifiedDate);   // window replace + modification-date filter
+        b.HasIndex(x => x.RegDate);        // registration-date filter
+        b.HasIndex(x => new { x.LabCode, x.ModifiedDate });
+    }
+}

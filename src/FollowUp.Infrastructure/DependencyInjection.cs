@@ -165,6 +165,8 @@ public static class DependencyInjection
         services.AddScoped<IUserSessionRepository, UserSessionRepository>();
         services.AddScoped<IDailyLabStatisticRepository, DailyLabStatisticRepository>();
         services.AddScoped<IDetailedRegistrationRepository, DetailedRegistrationRepository>();
+        services.AddScoped<IRegistrationChangeRepository, RegistrationChangeRepository>();
+        services.AddScoped<Application.Features.RegistrationChanges.IRegistrationChangeQueries, Persistence.Queries.RegistrationChangeQueries>();
         services.AddScoped<ITestStatisticRepository, TestStatisticRepository>();
         services.AddScoped<ITestGroupRepository, TestGroupRepository>();
         services.AddScoped<ITestSetupRepository, TestSetupRepository>();

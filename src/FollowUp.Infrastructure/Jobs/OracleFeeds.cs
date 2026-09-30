@@ -18,7 +18,7 @@ public static class OracleFeeds
     /// <summary>Statistics feeds pulled on explicit date windows (nightly job / page buttons), not the general sync.</summary>
     public static readonly string[] DateScoped =
     {
-        "TestStats", "LabStats", "DetailedStats", "NoLabTests",
+        "TestStats", "LabStats", "DetailedStats", "NoLabTests", "RegLog",
     };
 
     /// <summary>Every allow-listed feed — the reader's run-time tamper guard.</summary>

@@ -141,6 +141,36 @@ public static class OracleDefaultQueries
         "WHERE r.reg_date >= :from_date AND r.reg_date < :to_date " +
         "ORDER BY dl.lab_code, r.reg_date, r.lab_no";
 
+    /// <summary>
+    /// Registration edits (REG_LOG, 2026-09-30): one row per changed REG column (old / new value, who, when) joined to the
+    /// registration — accession (lab_no), patient, creation time, reg date, branch — and to the same doctor→lab mapping
+    /// LabStats uses (NULL = "No lab"). Windowed on the MODIFICATION date; synced wholesale per window into
+    /// <c>registration_change</c> for the Auditing → Registration Changes page and its email section.
+    /// </summary>
+    public const string RegLog =
+        "SELECT l.trans_id, " +
+        "l.reg_key, " +
+        "l.reg_column, " +
+        "l.old_value, " +
+        "l.new_value, " +
+        "l.modified_by, " +
+        "l.modified_date, " +
+        "r.lab_no AS acc_no, " +
+        "r.patient_name AS patient_name, " +
+        "r.created_date AS reg_created, " +
+        "r.reg_date AS reg_dt, " +
+        "r.branch_code AS reg_branch_code, " +
+        "dl.lab_code AS lab_code " +
+        "FROM reg_log l " +
+        "JOIN reg r ON r.reg_key = l.reg_key " +
+        "LEFT JOIN (" +
+        "SELECT UPPER(TRIM(d.doctor_name)) AS dname, MIN(l2.lab_code) AS lab_code " +
+        "FROM doctors d JOIN lab l2 ON l2.doctor_code = d.doctor_code " +
+        "GROUP BY UPPER(TRIM(d.doctor_name))" +
+        ") dl ON dl.dname = UPPER(TRIM(r.doctor)) " +
+        "WHERE l.modified_date >= :from_date AND l.modified_date < :to_date " +
+        "ORDER BY l.modified_date, l.trans_id";
+
     /// <summary>Active test-group master (maps to <c>TestGroup</c>: code, name). Only VISIBLE=1; mirrored by the sync.</summary>
     public const string Groups =
         "SELECT group_code, group_name FROM groups WHERE visible = 1";
