@@ -838,3 +838,54 @@ public sealed class StatementMonthClose : AggregateRoot<StatementMonthCloseId>, 
     /// <summary>The month that follows (year, month) — the only month that may be closed after it.</summary>
     public static (int Year, int Month) NextMonth(int year, int month) => month == 12 ? (year + 1, 1) : (year, month + 1);
 }
+
+// ---- Rep Income Revision (2026-09-30) ----
+
+public readonly record struct RepIncomeRevisionId(Guid Value) { public static RepIncomeRevisionId New() => new(Guid.NewGuid()); public override string ToString() => Value.ToString(); }
+
+/// <summary>
+/// The reviewer's ACTUAL figures for one Lab Responsible × lab × day, recorded beside the entered Rep Income sheet line
+/// after comparing it with LDM (Rep Income Revision page): actual income, actual paid, actual delayed payment and notes;
+/// actual remaining = income − paid is derived. A review record only — the statement keeps posting the entered figures.
+/// One revision per rep × lab × date (unique index); an all-zero revision with no notes is removed rather than kept.
+/// </summary>
+public sealed class RepIncomeRevision : AggregateRoot<RepIncomeRevisionId>, IAuditable
+{
+    private RepIncomeRevision() { } // EF
+    private RepIncomeRevision(RepIncomeRevisionId id, RepresentativeId repId, LaboratoryId labId, DateOnly date) : base(id)
+    { RepresentativeId = repId; LaboratoryId = labId; Date = date; }
+
+    public RepresentativeId RepresentativeId { get; private set; }
+    public LaboratoryId LaboratoryId { get; private set; }
+    public DateOnly Date { get; private set; }
+    public Money ActualIncome { get; private set; }
+    public Money ActualPaid { get; private set; }
+    public Money ActualDelayedPayment { get; private set; }
+    public string? Notes { get; private set; }
+
+    public DateTimeOffset CreatedAt { get; private set; }
+    public string CreatedBy { get; private set; } = null!;
+    public DateTimeOffset? UpdatedAt { get; private set; }
+    public string? UpdatedBy { get; private set; }
+
+    /// <summary>Derived: what the lab still owes on the reviewer's figures.</summary>
+    public Money ActualRemaining => ActualIncome - ActualPaid;
+    public bool IsEmpty => ActualIncome.Amount == 0 && ActualPaid.Amount == 0 && ActualDelayedPayment.Amount == 0 && Notes is null;
+
+    public static RepIncomeRevision Create(RepresentativeId repId, LaboratoryId labId, DateOnly date, decimal actualIncome, decimal actualPaid, decimal actualDelayedPayment, string? notes)
+    {
+        var v = new RepIncomeRevision(RepIncomeRevisionId.New(), repId, labId, date);
+        v.Update(actualIncome, actualPaid, actualDelayedPayment, notes);
+        return v;
+    }
+
+    public void Update(decimal actualIncome, decimal actualPaid, decimal actualDelayedPayment, string? notes)
+    {
+        var income = AccountingGuards.NonNegative(actualIncome, "Actual income");
+        var paid = AccountingGuards.NonNegative(actualPaid, "Actual paid");
+        var delayed = AccountingGuards.NonNegative(actualDelayedPayment, "Actual delayed payment");
+        if (paid > income) throw new DomainException("Actual paid cannot exceed the actual income.");
+        ActualIncome = income; ActualPaid = paid; ActualDelayedPayment = delayed;
+        Notes = AccountingGuards.Optional(notes, 500);
+    }
+}

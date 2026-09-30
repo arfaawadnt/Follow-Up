@@ -82,3 +82,11 @@ public interface IStatementMonthCloseRepository
     void Add(StatementMonthClose close);
     void Remove(StatementMonthClose close);
 }
+
+/// <summary>Aggregate repository for <see cref="RepIncomeRevision"/> (one per rep × lab × date).</summary>
+public interface IRepIncomeRevisionRepository
+{
+    Task<RepIncomeRevision?> GetAsync(FollowUp.Domain.Representatives.RepresentativeId repId, FollowUp.Domain.Laboratories.LaboratoryId labId, DateOnly date, CancellationToken ct);
+    void Add(RepIncomeRevision revision);
+    void Remove(RepIncomeRevision revision);
+}

@@ -78,6 +78,7 @@ public sealed class DeductionIdConverter : ValueConverter<FollowUp.Domain.Accoun
 public sealed class CollectionIdConverter : ValueConverter<FollowUp.Domain.Accounting.CollectionId, Guid> { public CollectionIdConverter() : base(x => x.Value, v => new FollowUp.Domain.Accounting.CollectionId(v)) { } }
 public sealed class RepIncomeEntryIdConverter : ValueConverter<FollowUp.Domain.Accounting.RepIncomeEntryId, Guid> { public RepIncomeEntryIdConverter() : base(x => x.Value, v => new FollowUp.Domain.Accounting.RepIncomeEntryId(v)) { } }
 public sealed class RepLabIncomeIdConverter : ValueConverter<FollowUp.Domain.Accounting.RepLabIncomeId, Guid> { public RepLabIncomeIdConverter() : base(x => x.Value, v => new FollowUp.Domain.Accounting.RepLabIncomeId(v)) { } }
+public sealed class RepIncomeRevisionIdConverter : ValueConverter<FollowUp.Domain.Accounting.RepIncomeRevisionId, Guid> { public RepIncomeRevisionIdConverter() : base(x => x.Value, v => new FollowUp.Domain.Accounting.RepIncomeRevisionId(v)) { } }
 public sealed class StatementMonthCloseIdConverter : ValueConverter<FollowUp.Domain.Accounting.StatementMonthCloseId, Guid> { public StatementMonthCloseIdConverter() : base(x => x.Value, v => new FollowUp.Domain.Accounting.StatementMonthCloseId(v)) { } }
 // Inventory module
 public sealed class ManufacturerIdConverter : ValueConverter<FollowUp.Domain.Inventory.ManufacturerId, Guid> { public ManufacturerIdConverter() : base(x => x.Value, v => new FollowUp.Domain.Inventory.ManufacturerId(v)) { } }

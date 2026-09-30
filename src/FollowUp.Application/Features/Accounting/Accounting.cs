@@ -135,6 +135,9 @@ public interface IAccountingQueries
     Task<IReadOnlyList<StatementLdmDetailDto>> StatementLdmDetailsAsync(string by, Guid id, DateOnly date, string kind, OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
     /// <summary>The closed months of a Lab Responsible's statement, latest first (empty when the rep is out of scope).</summary>
     Task<IReadOnlyList<StatementMonthCloseDto>> MonthClosesAsync(Guid representativeId, OrgScope scope, CancellationToken ct);
+    /// <summary>Rep Income Revision lines (2026-09-30): every entered sheet line in the range (plus, when a rep is chosen, the
+    /// rep's labs with LDM income but no entry), each with its LDM side and the recorded revision.</summary>
+    Task<IReadOnlyList<RepIncomeRevisionRowDto>> RepIncomeRevisionAsync(DateOnly from, DateOnly to, Guid? representativeId, Guid? laboratoryId, OrgScope scope, bool canSeeEncrypted, CancellationToken ct);
     /// <summary>Lab Responsibles responsible for at least one (in-scope) lab of the area.</summary>
     Task<IReadOnlyList<RealIncomeRepDto>> RealIncomeRepsAsync(Guid areaId, OrgScope scope, CancellationToken ct);
     /// <summary>The area's (in-scope) labs, for adding a sheet row by hand.</summary>
