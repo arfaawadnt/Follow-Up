@@ -154,7 +154,10 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
     /// subscription that predates a filter (e.g. Branches, added 2026-09-15) deserialises with that filter "off".</summary>
     private sealed record Filters(string[]? Governorates = null, string[]? Cities = null, string[]? Areas = null,
         string[]? Branches = null, string[]? Categories = null, string[]? Segments = null, string[]? Groups = null,
-        string? RefMonth = null, string? CompareBy = null);
+        string? RefMonth = null, string? CompareBy = null,
+        // Registration Changes section only (2026-10-03): the REG_LOG change types to include (empty = all) and the minimum
+        // delay between the registration's creation and the edit, in hours (null / 0 = all edits).
+        string[]? RegChangeTypes = null, double? RegChangeMinDelayHours = null);
     private static bool Match(string[]? filter, string? value) =>
         filter is null || filter.Length == 0 || (value != null && filter.Contains(value));
     private static bool IsIncome(Filters f) => string.Equals(f.CompareBy, "income", StringComparison.OrdinalIgnoreCase);
@@ -519,8 +522,12 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
     /// the old → new value; the summary counts edits, registrations, users and the most edited columns.</summary>
     private async Task<ReportSection> RenderRegChangesAsync(string dateTag, DateOnly from, DateOnly to, Filters f, OrgScope scope, CancellationToken ct)
     {
+        var minDelay = f.RegChangeMinDelayHours is { } h && h > 0 ? h * 60 : (double?)null;
         var rows = (await _regChanges.ListAsync(null, null, from, to, scope, ct))
-            .Where(r => Match(f.Governorates, r.Governorate) && Match(f.Cities, r.City) && Match(f.Areas, r.Area)).ToList();
+            .Where(r => Match(f.Governorates, r.Governorate) && Match(f.Cities, r.City) && Match(f.Areas, r.Area)
+                     && Match(f.RegChangeTypes, r.Column)
+                     // "later than N hours after registration": an edit whose creation time is unknown cannot qualify.
+                     && (minDelay is null || (r.DelayMinutes is { } d && d > minDelay))).ToList();
         var headers = new[] { "Modified at", "Modified by", "Acc No", "Patient", "Reg created", "Delay", "Lab", "Area", "Change type", "Old value", "New value" };
         static string Delay(double? minutes) => minutes is not { } m ? Dash : m < 60 ? $"{m:N0} min" : m < 1440 ? $"{m / 60:N1} h" : $"{m / 1440:N1} d";
         var htmlRows = rows.Select(r => new[]
@@ -532,7 +539,11 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
         var registrations = rows.Select(r => r.RegKey).Distinct().Count();
         var users = rows.Select(r => r.ModifiedBy).Distinct().Count();
         var top = string.Join(" &middot; ", rows.GroupBy(r => r.Column).OrderByDescending(g => g.Count()).Take(5).Select(g => $"{Enc(g.Key)} {g.Count():N0}"));
-        var summary = $"<b>Changes:</b> {rows.Count:N0} &middot; <b>Registrations:</b> {registrations:N0} &middot; <b>Users:</b> {users:N0}" + (top.Length > 0 ? $" &middot; <b>By type:</b> {top}" : "");
+        var applied = new List<string>();
+        if (f.RegChangeTypes is { Length: > 0 }) applied.Add($"change type: {Enc(string.Join(", ", f.RegChangeTypes))}");
+        if (minDelay is not null) applied.Add($"edited later than {f.RegChangeMinDelayHours:0.##} h after registration");
+        var summary = $"<b>Changes:</b> {rows.Count:N0} &middot; <b>Registrations:</b> {registrations:N0} &middot; <b>Users:</b> {users:N0}" + (top.Length > 0 ? $" &middot; <b>By type:</b> {top}" : "")
+            + (applied.Count > 0 ? $"<br><span style=\"color:#555\">Filters: {string.Join(" &middot; ", applied)}</span>" : "");
         return new ReportSection("Registration Changes", $"Registration-Changes-{dateTag}.xlsx", summary, headers, htmlRows, headers, xlsxRows);
     }
 

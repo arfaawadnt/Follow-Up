@@ -267,7 +267,7 @@ const EN: Record<string, HelpPage> = {
     title: 'Email Reports', purpose: 'Scheduled statistics emails: SMTP settings and subscriptions with recipients, reports and filters.',
     business: 'Management receives the Lab, Test, Area and No-Lab statistics without opening the app. Each report is attached as an Excel file and as a PDF.',
     steps: [s('SMTP', 'Host, port, sender, credentials; test it.'), s('Subscription', 'Name, recipients, reports, scope, filters, schedule.'), s('Send', 'Automatically on schedule, or Send now.')],
-    how: ['The email body holds a compact preview; the full data is in the attachments.'], tips: [], privileges: ['ManageEmailReports'],
+    how: ['The email body holds a compact preview; the full data is in the attachments.', 'The Registration Changes section can be narrowed to chosen change types and to edits made later than N hours after registration (the other filters apply to the statistics sections).'], tips: [], privileges: ['ManageEmailReports'],
   },
   '/notifications': {
     title: 'Notifications', purpose: 'Your in-app notifications and the notification preferences and templates.',
@@ -288,7 +288,7 @@ const EN: Record<string, HelpPage> = {
     title: 'Registration Changes', purpose: 'Every edit made to a registration in LDM: which field, the old and new value, who made it and when.',
     business: 'LDM logs each change to a registration (REG_LOG). Seen beside the registration it touched — accession, patient, lab, creation time — the log shows what was corrected and how long after the registration; the edits made yesterday are synced every night and can be mailed daily from Email Reports.',
     steps: [s('Range', 'Registration-date range and / or modification-date range (each at most a year).'), s('Filter', 'Change type, user, governorate, area, lab, delay after registration, accession / patient.'), s('Review', 'Old value → new value per edit; the cards and the summary row follow the filters.'), s('Sync', 'Pull a modification-date window from Oracle (at most three months).')],
-    how: ['Delay = modification time − registration creation time, bucketed: within an hour, same day (≤ 24 h), later within a week, after more than a week. Lines edited on a later day are marked.', 'A registration whose doctor resolves to no lab shows as "No lab" and is visible to a global scope only.', 'The daily Email Reports can attach this list (Excel + PDF) for the edits made in the report window.'],
+    how: ['Delay = modification time − registration creation time, bucketed: within an hour, same day (≤ 24 h), later within a week, after more than a week. Lines edited on a later day are marked.', 'A registration whose doctor resolves to no lab shows as "No lab" and is visible to a global scope only.', 'The daily Email Reports can attach this list (Excel + PDF) for the edits made in the report window; the subscription can narrow it to chosen change types and to edits made later than N hours after registration.'],
     tips: ['Filter the change type to "Patient Name" and the delay to "Later" to find corrections made long after registration.'], privileges: ['ViewRegistrationChanges'],
   },
 };
@@ -551,7 +551,7 @@ const AR: Record<string, HelpPage> = {
     title: 'تقارير البريد الإلكتروني', purpose: 'رسائل الإحصاءات المجدولة: إعدادات SMTP والاشتراكات بالمستلمين والتقارير والفلاتر.',
     business: 'تصل الإدارة إحصاءات المعامل والتحاليل والمناطق وبدون معمل دون فتح التطبيق. كل تقرير يُرفق كملف إكسل وكملف PDF.',
     steps: [s('SMTP', 'المضيف والمنفذ والمرسل والبيانات؛ اختبره.'), s('الاشتراك', 'الاسم والمستلمون والتقارير والنطاق والفلاتر والجدول.'), s('الإرسال', 'تلقائيًا حسب الجدول أو "أرسل الآن".')],
-    how: ['نص الرسالة يحمل معاينة مختصرة؛ البيانات الكاملة في المرفقات.'], tips: [], privileges: ['ManageEmailReports'],
+    how: ['نص الرسالة يحمل معاينة مختصرة؛ البيانات الكاملة في المرفقات.', 'قسم تعديلات التسجيلات يمكن قصره على أنواع تعديل محددة وعلى التعديلات التي جاءت بعد أكثر من N ساعة من التسجيل (بقية الفلاتر تخص أقسام الإحصاءات).'], tips: [], privileges: ['ManageEmailReports'],
   },
   '/notifications': {
     title: 'الإشعارات', purpose: 'إشعاراتك داخل التطبيق وتفضيلات الإشعارات والقوالب.',
@@ -572,7 +572,7 @@ const AR: Record<string, HelpPage> = {
     title: 'تعديلات التسجيلات', purpose: 'كل تعديل أُجري على تسجيل في LDM: أي حقل، والقيمة القديمة والجديدة، ومن عدّله ومتى.',
     business: 'يسجل LDM كل تغيير على التسجيل (REG_LOG). وبعرضه بجانب التسجيل الذي مسّه (رقم الحساب والمريض والمعمل ووقت الإنشاء) يظهر ما صُحّح وبعد كم من التسجيل؛ وتعديلات الأمس تُزامن كل ليلة ويمكن إرسالها يوميًا من تقارير البريد.',
     steps: [s('الفترة', 'فترة تاريخ التسجيل و/أو فترة تاريخ التعديل (كل فترة سنة على الأكثر).'), s('الفلترة', 'نوع التعديل والمستخدم والمحافظة والمنطقة والمعمل والتأخير بعد التسجيل ورقم الحساب / المريض.'), s('المراجعة', 'القيمة القديمة ← الجديدة لكل تعديل؛ والبطاقات وصف الملخص تتبع الفلاتر.'), s('المزامنة', 'سحب فترة تاريخ تعديل من Oracle (ثلاثة أشهر على الأكثر).')],
-    how: ['التأخير = وقت التعديل − وقت إنشاء التسجيل، مصنفًا: خلال ساعة، نفس اليوم (≤ 24 س)، لاحقًا خلال أسبوع، بعد أكثر من أسبوع. السطور المعدلة في يوم لاحق معلَّمة.', 'التسجيل الذي لا يُحل طبيبه إلى معمل يظهر "بلا معمل" ويراه النطاق الشامل فقط.', 'تقارير البريد اليومية يمكنها إرفاق هذه القائمة (إكسل + PDF) للتعديلات التي أُجريت في فترة التقرير.'],
+    how: ['التأخير = وقت التعديل − وقت إنشاء التسجيل، مصنفًا: خلال ساعة، نفس اليوم (≤ 24 س)، لاحقًا خلال أسبوع، بعد أكثر من أسبوع. السطور المعدلة في يوم لاحق معلَّمة.', 'التسجيل الذي لا يُحل طبيبه إلى معمل يظهر "بلا معمل" ويراه النطاق الشامل فقط.', 'تقارير البريد اليومية يمكنها إرفاق هذه القائمة (إكسل + PDF) للتعديلات التي أُجريت في فترة التقرير؛ ويمكن للاشتراك قصرها على أنواع تعديل محددة وعلى التعديلات التي جاءت بعد أكثر من N ساعة من التسجيل.'],
     tips: ['فلتر نوع التعديل "اسم المريض" مع التأخير "لاحقًا" يكشف التصحيحات المتأخرة عن التسجيل.'], privileges: ['ViewRegistrationChanges'],
   },
 };

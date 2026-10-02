@@ -97,6 +97,20 @@ public sealed class RegistrationChangesTests
             run.Status.Should().StartWith("sent=1");
             sender.Sent.Should().ContainSingle().Which.Html.Should().Contain("Registration Changes").And.Contain("91967763");
             sender.Sent.Single().Attachments.Should().Be(2, "Registration-Changes xlsx + pdf");
+
+            // The section-only filters (2026-10-03): change type and "later than N hours after registration".
+            sub.SetFilters("{\"regChangeTypes\":[\"Doctor\"],\"regChangeMinDelayHours\":12}");
+            await db.SaveChangesAsync();
+            sender.Sent.Clear();
+            (await runner.RunAsync(sub.Id, CancellationToken.None)).Status.Should().StartWith("sent=1");
+            var html = sender.Sent.Single().Html;
+            html.Should().Contain("91967764", "the Doctor edit came 24 h 5 min after its registration").And.NotContain("91967763", "a Patient Name edit is filtered out")
+                .And.Contain("later than 12 h");
+            sub.SetFilters("{\"regChangeMinDelayHours\":30}");
+            await db.SaveChangesAsync();
+            sender.Sent.Clear();
+            await runner.RunAsync(sub.Id, CancellationToken.None);
+            sender.Sent.Single().Attachments.Should().Be(0, "no edit came more than 30 h after its registration → no data, nothing attached");
         }
     }
 
