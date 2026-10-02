@@ -48,6 +48,14 @@ internal static class OracleColumns
 
     // Detailed-statistics feed (transaction-level registration lines).
     public const string RegDate = "REG_DT";
+    // RegLog feed (registration edits, 2026-09-30).
+    public const string TransId = "TRANS_ID";
+    public const string RegKey = "REG_KEY";
+    public const string RegColumn = "REG_COLUMN";
+    public const string OldValue = "OLD_VALUE";
+    public const string NewValue = "NEW_VALUE";
+    public const string ModifiedBy = "MODIFIED_BY";
+    public const string ModifiedDate = "MODIFIED_DATE";
     public const string RegBranchCode = "REG_BRANCH_CODE";
     public const string AccessionNo = "ACC_NO";
     public const string PatientName = "PATIENT_NAME";

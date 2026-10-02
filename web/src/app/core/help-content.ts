@@ -145,6 +145,15 @@ const EN: Record<string, HelpPage> = {
     how: ['The LDM income column comes from the synced lab statistics; "Sync LDM" pulls the day now.', 'The Penalty column is right − wrong of every penalty on the lab that day.'],
     tips: ['Add a lab by hand when the visit was not recorded.'], privileges: ['ViewAccounting', 'ManageAccounting'],
   },
+  '/accounting/rep-income-revision': {
+    title: 'Rep Income Revision', purpose: 'Review every entered Rep Income line (lab × day) against LDM and record the actual figures beside it.',
+    business: 'The reviewer compares what the Lab Responsible entered (samples, total required, paid, remaining, delayed payment, notes) with LDM — the synced income, the accessions and tests of the day, the tests not yet verified and the tests added late to their registration — then records the actual income, actual paid, actual remaining (= income − paid), actual delayed payment and notes. The revision is a review record: the statement keeps posting the entered figures.',
+    steps: [s('Filter', 'Period, Lab Responsible, geography, lab, review state, entered-vs-LDM variance.'), s('Compare', 'Rep data vs the LDM columns; Details opens the registrations behind the LDM figures.'), s('Enter', 'Actual income, paid, delayed payment, notes beside each line.'), s('Save', 'Per line, or Save revisions for every changed line.')],
+    how: ['Lines are the Rep Income sheet entries of the period by lab and date (with the time the entry was saved). Choosing a Lab Responsible also lists that rep\'s labs with LDM income but no sheet entry, flagged "No sheet entry".',
+      'Entered − LDM is the entered total required minus the LDM income of the lab that day; the cards count the lines below, above and matching LDM. Not verified = tests whose LDM status is not Verified; Within 3 Hours / After 3 Hours = tests added to their registration more than 5 minutes later (the Detailed Statistics rule).',
+      'The sum row at the end totals the filtered lines; the cards follow the same filters. An all-zero revision with no notes clears the revision.'],
+    tips: ['Use the review state filter to work through the pending lines; a reviewed line shows who revised it and when, with its audit log.'], privileges: ['ViewAccounting', 'ManageAccounting'],
+  },
   '/inventory/stock': {
     title: 'Stock', purpose: 'Current stock per item and store, by lot with expiry, against the minimum stock limits.',
     business: 'Chemicals and consumables must never run out or expire unnoticed. The daily alert job notifies the inventory users of low stock, out-of-stock and expiring lots.',
@@ -258,7 +267,7 @@ const EN: Record<string, HelpPage> = {
     title: 'Email Reports', purpose: 'Scheduled statistics emails: SMTP settings and subscriptions with recipients, reports and filters.',
     business: 'Management receives the Lab, Test, Area and No-Lab statistics without opening the app. Each report is attached as an Excel file and as a PDF.',
     steps: [s('SMTP', 'Host, port, sender, credentials; test it.'), s('Subscription', 'Name, recipients, reports, scope, filters, schedule.'), s('Send', 'Automatically on schedule, or Send now.')],
-    how: ['The email body holds a compact preview; the full data is in the attachments.'], tips: [], privileges: ['ManageEmailReports'],
+    how: ['The email body holds a compact preview; the full data is in the attachments.', 'The Registration Changes section can be narrowed to chosen change types and to edits made later than N hours after registration (the other filters apply to the statistics sections).'], tips: [], privileges: ['ManageEmailReports'],
   },
   '/notifications': {
     title: 'Notifications', purpose: 'Your in-app notifications and the notification preferences and templates.',
@@ -274,6 +283,13 @@ const EN: Record<string, HelpPage> = {
     business: 'Accountability. The server writes the trail inside the same transaction as the change, for users and automated jobs alike; nothing can be edited afterwards.',
     steps: [s('Filter', 'Period, entity, user, action, record id.'), s('Expand', 'A row shows the changed fields before → after.'), s('Per record', 'The 🕓 button on any page opens one record\'s history.')],
     how: ['Retention purges old rows only through the configured retention policy, itself audited.'], tips: [], privileges: ['ViewAuditTrail'],
+  },
+  '/auditing/registration-changes': {
+    title: 'Registration Changes', purpose: 'Every edit made to a registration in LDM: which field, the old and new value, who made it and when.',
+    business: 'LDM logs each change to a registration (REG_LOG). Seen beside the registration it touched — accession, patient, lab, creation time — the log shows what was corrected and how long after the registration; the edits made yesterday are synced every night and can be mailed daily from Email Reports.',
+    steps: [s('Range', 'Registration-date range and / or modification-date range (each at most a year).'), s('Filter', 'Change type, user, governorate, area, lab, delay after registration, accession / patient.'), s('Review', 'Old value → new value per edit; the cards and the summary row follow the filters.'), s('Sync', 'Pull a modification-date window from Oracle (at most three months).')],
+    how: ['Delay = modification time − registration creation time, bucketed: within an hour, same day (≤ 24 h), later within a week, after more than a week. Lines edited on a later day are marked.', 'A registration whose doctor resolves to no lab shows as "No lab" and is visible to a global scope only.', 'The daily Email Reports can attach this list (Excel + PDF) for the edits made in the report window; the subscription can narrow it to chosen change types and to edits made later than N hours after registration.'],
+    tips: ['Filter the change type to "Patient Name" and the delay to "Later" to find corrections made long after registration.'], privileges: ['ViewRegistrationChanges'],
   },
 };
 
@@ -413,6 +429,15 @@ const AR: Record<string, HelpPage> = {
     how: ['عمود دخل LDM من إحصاءات المعامل المزامنة؛ "مزامنة LDM" تسحب اليوم الآن.', 'عمود الجزاء = الصحيح − الخاطئ لكل جزاء على المعمل في ذلك اليوم.'],
     tips: ['أضف معملًا يدويًا إن لم تُسجَّل الزيارة.'], privileges: ['ViewAccounting', 'ManageAccounting'],
   },
+  '/accounting/rep-income-revision': {
+    title: 'مراجعة دخل المندوب', purpose: 'مراجعة كل سطر مدخل في دخل المندوب (معمل × يوم) مقابل LDM وتسجيل الأرقام الفعلية بجانبه.',
+    business: 'يقارن المراجع ما أدخله مسؤول المعمل (العينات والإجمالي المطلوب والمدفوع والمتبقي والدفع المؤجل والملاحظات) مع LDM: الدخل المزامن وأرقام الحسابات وتحاليل اليوم والتحاليل غير المعتمدة والتحاليل المضافة متأخرًا للتسجيل، ثم يسجل الدخل الفعلي والمدفوع الفعلي والمتبقي الفعلي (= الدخل − المدفوع) والدفع المؤجل الفعلي والملاحظات. المراجعة سجل للمراجعة فقط؛ وكشف الحساب يستمر على الأرقام المدخلة.',
+    steps: [s('الفلترة', 'الفترة ومسؤول المعمل والجغرافيا والمعمل وحالة المراجعة والفرق بين المدخل وLDM.'), s('المقارنة', 'بيانات المندوب مقابل أعمدة LDM؛ زر التفاصيل يفتح التسجيلات خلف أرقام LDM.'), s('الإدخال', 'الدخل الفعلي والمدفوع والدفع المؤجل والملاحظات بجانب كل سطر.'), s('الحفظ', 'لكل سطر، أو "حفظ المراجعات" لكل السطور المعدلة.')],
+    how: ['السطور هي إدخالات شيت دخل المندوب في الفترة بالمعمل والتاريخ (مع وقت حفظ الإدخال). واختيار مسؤول معمل يعرض أيضًا معامله التي لها دخل LDM بلا إدخال، معلَّمة "بلا إدخال في الشيت".',
+      '"المدخل − LDM" هو الإجمالي المطلوب المدخل ناقص دخل LDM للمعمل في ذلك اليوم؛ والبطاقات تعد السطور الأقل والأكثر والمطابقة. غير معتمد = تحاليل حالتها في LDM ليست معتمدة؛ خلال 3 ساعات / بعد 3 ساعات = تحاليل أُضيفت للتسجيل بعد أكثر من 5 دقائق (قاعدة الإحصاءات التفصيلية).',
+      'صف الإجمالي في نهاية الجدول يجمع السطور المفلترة؛ والبطاقات تتبع الفلاتر نفسها. المراجعة الصفرية بلا ملاحظات تُمسح.'],
+    tips: ['استخدم فلتر حالة المراجعة للمرور على السطور المعلقة؛ السطر المراجَع يعرض من راجعه ومتى مع سجل التدقيق.'], privileges: ['ViewAccounting', 'ManageAccounting'],
+  },
   '/inventory/stock': {
     title: 'المخزون', purpose: 'المخزون الحالي لكل صنف ومخزن، حسب اللوط وتاريخ الانتهاء، مقابل حدود الحد الأدنى.',
     business: 'الكيماويات والمستهلكات لا يجب أن تنفد أو تنتهي دون انتباه. مهمة التنبيه اليومية تخطر مستخدمي المخزون بالنقص والنفاد واللوطات القاربة على الانتهاء.',
@@ -526,7 +551,7 @@ const AR: Record<string, HelpPage> = {
     title: 'تقارير البريد الإلكتروني', purpose: 'رسائل الإحصاءات المجدولة: إعدادات SMTP والاشتراكات بالمستلمين والتقارير والفلاتر.',
     business: 'تصل الإدارة إحصاءات المعامل والتحاليل والمناطق وبدون معمل دون فتح التطبيق. كل تقرير يُرفق كملف إكسل وكملف PDF.',
     steps: [s('SMTP', 'المضيف والمنفذ والمرسل والبيانات؛ اختبره.'), s('الاشتراك', 'الاسم والمستلمون والتقارير والنطاق والفلاتر والجدول.'), s('الإرسال', 'تلقائيًا حسب الجدول أو "أرسل الآن".')],
-    how: ['نص الرسالة يحمل معاينة مختصرة؛ البيانات الكاملة في المرفقات.'], tips: [], privileges: ['ManageEmailReports'],
+    how: ['نص الرسالة يحمل معاينة مختصرة؛ البيانات الكاملة في المرفقات.', 'قسم تعديلات التسجيلات يمكن قصره على أنواع تعديل محددة وعلى التعديلات التي جاءت بعد أكثر من N ساعة من التسجيل (بقية الفلاتر تخص أقسام الإحصاءات).'], tips: [], privileges: ['ManageEmailReports'],
   },
   '/notifications': {
     title: 'الإشعارات', purpose: 'إشعاراتك داخل التطبيق وتفضيلات الإشعارات والقوالب.',
@@ -542,6 +567,13 @@ const AR: Record<string, HelpPage> = {
     business: 'المساءلة. يكتب الخادم السجل في نفس معاملة التغيير، للمستخدمين والمهام الآلية على السواء؛ ولا يمكن تعديله لاحقًا.',
     steps: [s('الفلترة', 'الفترة والكيان والمستخدم والإجراء ومعرّف السجل.'), s('التوسيع', 'الصف يعرض الحقول المتغيرة قبل ← بعد.'), s('لكل سجل', 'زر 🕓 في أي صفحة يفتح تاريخ سجل واحد.')],
     how: ['الاحتفاظ يحذف الصفوف القديمة فقط عبر سياسة الاحتفاظ المضبوطة، وهي نفسها مدققة.'], tips: [], privileges: ['ViewAuditTrail'],
+  },
+  '/auditing/registration-changes': {
+    title: 'تعديلات التسجيلات', purpose: 'كل تعديل أُجري على تسجيل في LDM: أي حقل، والقيمة القديمة والجديدة، ومن عدّله ومتى.',
+    business: 'يسجل LDM كل تغيير على التسجيل (REG_LOG). وبعرضه بجانب التسجيل الذي مسّه (رقم الحساب والمريض والمعمل ووقت الإنشاء) يظهر ما صُحّح وبعد كم من التسجيل؛ وتعديلات الأمس تُزامن كل ليلة ويمكن إرسالها يوميًا من تقارير البريد.',
+    steps: [s('الفترة', 'فترة تاريخ التسجيل و/أو فترة تاريخ التعديل (كل فترة سنة على الأكثر).'), s('الفلترة', 'نوع التعديل والمستخدم والمحافظة والمنطقة والمعمل والتأخير بعد التسجيل ورقم الحساب / المريض.'), s('المراجعة', 'القيمة القديمة ← الجديدة لكل تعديل؛ والبطاقات وصف الملخص تتبع الفلاتر.'), s('المزامنة', 'سحب فترة تاريخ تعديل من Oracle (ثلاثة أشهر على الأكثر).')],
+    how: ['التأخير = وقت التعديل − وقت إنشاء التسجيل، مصنفًا: خلال ساعة، نفس اليوم (≤ 24 س)، لاحقًا خلال أسبوع، بعد أكثر من أسبوع. السطور المعدلة في يوم لاحق معلَّمة.', 'التسجيل الذي لا يُحل طبيبه إلى معمل يظهر "بلا معمل" ويراه النطاق الشامل فقط.', 'تقارير البريد اليومية يمكنها إرفاق هذه القائمة (إكسل + PDF) للتعديلات التي أُجريت في فترة التقرير؛ ويمكن للاشتراك قصرها على أنواع تعديل محددة وعلى التعديلات التي جاءت بعد أكثر من N ساعة من التسجيل.'],
+    tips: ['فلتر نوع التعديل "اسم المريض" مع التأخير "لاحقًا" يكشف التصحيحات المتأخرة عن التسجيل.'], privileges: ['ViewRegistrationChanges'],
   },
 };
 

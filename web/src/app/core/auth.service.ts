@@ -29,7 +29,7 @@ export class AuthService {
   /** Client-side mirror of the server's coarse → fine implications for privileges added after a session was issued (the
    *  server re-reads the role on every call, so a session signed in before a release lacks the new leaf in its cached
    *  list although the API already allows it). Keep in step with Privileges.Expansions. */
-  private static readonly IMPLIES: Record<string, string[]> = { ManageUsers: ['ViewAuditTrail'] };
+  private static readonly IMPLIES: Record<string, string[]> = { ManageUsers: ['ViewAuditTrail', 'ViewRegistrationChanges'] };
 
   has(privilege: string): boolean {
     const p = this.privileges();

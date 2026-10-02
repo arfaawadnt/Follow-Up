@@ -91,8 +91,8 @@ export class ShellComponent implements AfterViewChecked, OnDestroy {
 
   private static readonly COLLAPSE_KEY = 'fu.sidebarCollapsed';
   readonly collapsed = signal(ShellComponent.readCollapsed());
-  // Groups collapsed by default, by index. Accounting (2) and Inventory (3) shifted B2B / System to 5,6.
-  private readonly collapsedGroups = signal<Record<number, boolean>>({ 5: true, 6: true });
+  // Groups collapsed by default, by index: 0 Core, 1 Statistics, 2 Accounting, 3 Inventory, 4 Field, 5 B2B, 6 Auditing (2026-09-30), 7 System.
+  private readonly collapsedGroups = signal<Record<number, boolean>>({ 5: true, 7: true });
 
   private static readCollapsed(): boolean {
     try { return localStorage.getItem(ShellComponent.COLLAPSE_KEY) === '1'; } catch { return false; }
@@ -130,6 +130,7 @@ export class ShellComponent implements AfterViewChecked, OnDestroy {
       { id: 'acc_collections', key: 'acc_collections', icon: 'wallet', path: '/accounting/collections', privilege: 'ViewAccounting' },
       { id: 'acc_rep_statement', key: 'acc_rep_statement', icon: 'file-text', path: '/accounting/rep-statement', privilege: 'ViewAccounting' },
       { id: 'acc_rep_income', key: 'acc_rep_income', icon: 'coins', path: '/accounting/rep-income', privilege: 'ViewAccounting' },
+      { id: 'acc_rep_income_revision', key: 'acc_rep_income_revision', icon: 'check-square', path: '/accounting/rep-income-revision', privilege: 'ViewAccounting' },
     ]},
     // Inventory — chemicals & consumables: stock, items, stores/partners, purchase orders, transfers, ledger, utilization
     // (ViewInventory; recording needs ManageInventory).
@@ -153,6 +154,9 @@ export class ShellComponent implements AfterViewChecked, OnDestroy {
       { id: 'testsetup', key: 'testsetup', icon: 'flask-conical', path: '/test-setups', privilege: 'ViewTeststats' },
       { id: 'loyalty', key: 'loyalty', icon: 'award', path: '/loyalty', privilege: 'ManageLoyalty' },
       { id: 'commissions', key: 'commissions', icon: 'dollar-sign', path: '/commissions', privilege: 'ManageCommissions' },
+    ]},
+    { titleKey: 'auditing', items: [
+      { id: 'reg_changes', key: 'reg_changes', icon: 'file-search', path: '/auditing/registration-changes', privilege: 'ViewRegistrationChanges' },
     ]},
     { titleKey: 'system_and_admin', items: [
       { id: 'users', key: 'users', icon: 'settings', path: '/users', privilege: 'ManageUsers' },

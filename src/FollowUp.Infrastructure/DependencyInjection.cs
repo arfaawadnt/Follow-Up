@@ -165,6 +165,8 @@ public static class DependencyInjection
         services.AddScoped<IUserSessionRepository, UserSessionRepository>();
         services.AddScoped<IDailyLabStatisticRepository, DailyLabStatisticRepository>();
         services.AddScoped<IDetailedRegistrationRepository, DetailedRegistrationRepository>();
+        services.AddScoped<IRegistrationChangeRepository, RegistrationChangeRepository>();
+        services.AddScoped<Application.Features.RegistrationChanges.IRegistrationChangeQueries, Persistence.Queries.RegistrationChangeQueries>();
         services.AddScoped<ITestStatisticRepository, TestStatisticRepository>();
         services.AddScoped<ITestGroupRepository, TestGroupRepository>();
         services.AddScoped<ITestSetupRepository, TestSetupRepository>();
@@ -192,6 +194,7 @@ public static class DependencyInjection
         services.AddScoped<IRepIncomeEntryRepository, RepIncomeEntryRepository>();
         services.AddScoped<IRepLabIncomeRepository, RepLabIncomeRepository>();
         services.AddScoped<IStatementMonthCloseRepository, StatementMonthCloseRepository>();
+        services.AddScoped<IRepIncomeRevisionRepository, RepIncomeRevisionRepository>();
         services.AddScoped<Application.Features.Accounting.IStatementCloseGuard, Persistence.Queries.StatementCloseGuard>();
         // Inventory module
         services.AddScoped<IManufacturerRepository, ManufacturerRepository>();

@@ -3,6 +3,7 @@ using System;
 using FollowUp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace FollowUp.Infrastructure.Migrations
 {
     [DbContext(typeof(FollowUpDbContext))]
-    partial class FollowUpDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260930073726_RepIncomeRevision")]
+    partial class RepIncomeRevision
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1400,12 +1403,6 @@ namespace FollowUp.Infrastructure.Migrations
                     b.Property<bool>("IncludeNoLab")
                         .HasColumnType("boolean")
                         .HasColumnName("include_no_lab");
-
-                    b.Property<bool>("IncludeRegChanges")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false)
-                        .HasColumnName("include_reg_changes");
 
                     b.Property<bool>("IncludeTestStats")
                         .HasColumnType("boolean")
@@ -4089,97 +4086,6 @@ namespace FollowUp.Infrastructure.Migrations
                         .HasDatabaseName("ix_monthly_sample_laboratory_id_period");
 
                     b.ToTable("monthly_sample", (string)null);
-                });
-
-            modelBuilder.Entity("FollowUp.Domain.Statistics.RegistrationChange", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<string>("AccNo")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("acc_no");
-
-                    b.Property<string>("Column")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)")
-                        .HasColumnName("column");
-
-                    b.Property<string>("LabCode")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasColumnName("lab_code");
-
-                    b.Property<DateTime>("ModifiedAt")
-                        .HasColumnType("timestamp without time zone")
-                        .HasColumnName("modified_at");
-
-                    b.Property<string>("ModifiedBy")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)")
-                        .HasColumnName("modified_by");
-
-                    b.Property<DateOnly>("ModifiedDate")
-                        .HasColumnType("date")
-                        .HasColumnName("modified_date");
-
-                    b.Property<string>("NewValue")
-                        .HasColumnType("text")
-                        .HasColumnName("new_value");
-
-                    b.Property<string>("OldValue")
-                        .HasColumnType("text")
-                        .HasColumnName("old_value");
-
-                    b.Property<string>("PatientName")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("patient_name");
-
-                    b.Property<string>("RegBranchCode")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasColumnName("reg_branch_code");
-
-                    b.Property<DateTime?>("RegCreatedAt")
-                        .HasColumnType("timestamp without time zone")
-                        .HasColumnName("reg_created_at");
-
-                    b.Property<DateOnly?>("RegDate")
-                        .HasColumnType("date")
-                        .HasColumnName("reg_date");
-
-                    b.Property<long>("RegKey")
-                        .HasColumnType("bigint")
-                        .HasColumnName("reg_key");
-
-                    b.Property<long>("TransId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("trans_id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_registration_change");
-
-                    b.HasIndex("ModifiedDate")
-                        .HasDatabaseName("ix_registration_change_modified_date");
-
-                    b.HasIndex("RegDate")
-                        .HasDatabaseName("ix_registration_change_reg_date");
-
-                    b.HasIndex("TransId")
-                        .IsUnique()
-                        .HasDatabaseName("ix_registration_change_trans_id");
-
-                    b.HasIndex("LabCode", "ModifiedDate")
-                        .HasDatabaseName("ix_registration_change_lab_code_modified_date");
-
-                    b.ToTable("registration_change", (string)null);
                 });
 
             modelBuilder.Entity("FollowUp.Domain.Statistics.TestGroup", b =>

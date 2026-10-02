@@ -15,19 +15,21 @@ interface Area { name: string; }
 interface Group { nameEn: string; }
 interface UserLookup { id: string; username: string; }
 interface Subscription {
-  id: string; name: string; includeLabStats: boolean; includeTestStats: boolean; includeAreaStats: boolean; includeNoLab: boolean;
+  id: string; name: string; includeLabStats: boolean; includeTestStats: boolean; includeAreaStats: boolean; includeNoLab: boolean; includeRegChanges: boolean;
   filtersJson: string; userIds: string[]; emails: string[]; sendHour: number; sendMinute: number;
   windowDays: number; enabled: boolean; lastStatus: string | null; lastRunAt: string | null;
 }
 /** Mirrors the runner's saved-filter payload (StatsEmailRunner.Filters); `branches` = the labs' serving branch. */
-interface Filters { governorates: string[]; cities: string[]; areas: string[]; branches: string[]; categories: string[]; segments: string[]; groups: string[]; refMonth: string; compareBy: string; }
+interface Filters { governorates: string[]; cities: string[]; areas: string[]; branches: string[]; categories: string[]; segments: string[]; groups: string[]; refMonth: string; compareBy: string;
+  /** Registration Changes section only (2026-10-03): change types to include (empty = all) and the minimum delay after registration in hours (null = all). */
+  regChangeTypes: string[]; regChangeMinDelayHours: number | null; }
 interface Editor {
-  id: string | null; name: string; includeLabStats: boolean; includeTestStats: boolean; includeAreaStats: boolean; includeNoLab: boolean;
+  id: string | null; name: string; includeLabStats: boolean; includeTestStats: boolean; includeAreaStats: boolean; includeNoLab: boolean; includeRegChanges: boolean;
   filters: Filters; userIds: string[]; emailsText: string; sendHour: number; sendMinute: number; windowDays: number; enabled: boolean;
 }
 
-const EMPTY_FILTERS = (): Filters => ({ governorates: [], cities: [], areas: [], branches: [], categories: [], segments: [], groups: [], refMonth: '', compareBy: 'count' });
-const NEW_EDITOR = (): Editor => ({ id: null, name: '', includeLabStats: true, includeTestStats: false, includeAreaStats: false, includeNoLab: false,
+const EMPTY_FILTERS = (): Filters => ({ governorates: [], cities: [], areas: [], branches: [], categories: [], segments: [], groups: [], refMonth: '', compareBy: 'count', regChangeTypes: [], regChangeMinDelayHours: null });
+const NEW_EDITOR = (): Editor => ({ id: null, name: '', includeLabStats: true, includeTestStats: false, includeAreaStats: false, includeNoLab: false, includeRegChanges: false,
   filters: EMPTY_FILTERS(), userIds: [], emailsText: '', sendHour: 6, sendMinute: 0, windowDays: 1, enabled: true });
 
 @Component({
@@ -85,6 +87,7 @@ const NEW_EDITOR = (): Editor => ({ id: null, name: '', includeLabStats: true, i
             <label class="chk"><input type="checkbox" [(ngModel)]="ed.includeTestStats"> {{ 'teststats' | t : 'Test Statistics' }}</label>
             <label class="chk"><input type="checkbox" [(ngModel)]="ed.includeAreaStats"> {{ 'areastats' | t : 'Area Statistics' }}</label>
             <label class="chk"><input type="checkbox" [(ngModel)]="ed.includeNoLab"> {{ 'no_lab_report' | t : 'No-Lab Tests' }}</label>
+            <label class="chk"><input type="checkbox" [(ngModel)]="ed.includeRegChanges"> {{ 'reg_changes' | t : 'Registration Changes' }}</label>
           </div>
 
           <label class="lbl" style="margin-top:14px">{{ 'filters_optional' | t : 'Filters (optional — leave empty for all)' }}</label>
@@ -98,6 +101,13 @@ const NEW_EDITOR = (): Editor => ({ id: null, name: '', includeLabStats: true, i
             <div class="field"><label>{{ 'group' | t : 'Test Group' }}</label><app-filter-select [multiple]="true" [options]="groups()" [(ngModel)]="ed.filters.groups"></app-filter-select></div>
             <div class="field"><label>{{ 'reference_month' | t : 'Reference Month' }} <span class="small muted">({{ 'areastats' | t : 'Area statistics' }})</span></label><input class="input" type="month" [(ngModel)]="ed.filters.refMonth"></div>
             <div class="field"><label>{{ 'compare_by' | t : 'Compare By' }}</label><select class="select" [(ngModel)]="ed.filters.compareBy"><option value="count">{{ 'compare_test_count' | t : 'Test Count' }}</option><option value="income">{{ 'compare_test_income' | t : 'Test Income' }}</option></select></div>
+            @if (ed.includeRegChanges) {
+              <div class="field"><label>{{ 'change_type' | t : 'Change type' }} <span class="small muted">({{ 'reg_changes' | t : 'Registration Changes' }})</span></label>
+                @if (changeTypes().length) { <app-filter-select [multiple]="true" [options]="changeTypes()" [(ngModel)]="ed.filters.regChangeTypes" [placeholder]="'all' | t : 'All'"></app-filter-select> }
+                @else { <input class="input" [ngModel]="ed.filters.regChangeTypes.join(', ')" (ngModelChange)="ed.filters.regChangeTypes = splitTypes($event)" placeholder="Patient Name, Doctor, …"> }
+              </div>
+              <div class="field"><label>{{ 'reg_change_min_delay' | t : 'Edited later than (hours after registration)' }} <span class="small muted">({{ 'reg_changes' | t : 'Registration Changes' }})</span></label><input class="input mono" type="number" min="0" step="0.5" [(ngModel)]="ed.filters.regChangeMinDelayHours" placeholder="0 = all"></div>
+            }
           </div>
           <div class="small muted" style="margin-top:4px">{{ 'ref_month_email_hint' | t : 'The Area Statistics sheet is colour-coded against this reference month (green beats its daily average, red falls short). Leave empty to use the previous month.' }}</div>
 
@@ -125,6 +135,7 @@ const NEW_EDITOR = (): Editor => ({ id: null, name: '', includeLabStats: true, i
                 @if (s.includeTestStats) { <span class="badge b-info">Test</span> }
                 @if (s.includeAreaStats) { <span class="badge b-info">Area</span> }
                 @if (s.includeNoLab) { <span class="badge b-warn">No-Lab</span> }
+                @if (s.includeRegChanges) { <span class="badge b-info">Reg changes</span> }
               </td>
               <td>{{ s.userIds.length + s.emails.length }}</td>
               <td class="mono">{{ pad(s.sendHour) }}:{{ pad(s.sendMinute) }}</td>
@@ -170,6 +181,8 @@ export class EmailReportsComponent {
   readonly categories = signal<string[]>([]);
   readonly segments = signal<string[]>([]);
   readonly groups = signal<string[]>([]);
+  /** Distinct REG_LOG change types seen in the last 90 days (empty when the caller cannot read Registration Changes → free text fallback). */
+  readonly changeTypes = signal<string[]>([]);
   readonly users = signal<UserLookup[]>([]);
   readonly userOptions = computed(() => this.users().map((u) => ({ value: u.id, label: u.username })));
 
@@ -184,6 +197,10 @@ export class EmailReportsComponent {
     this.api.get<RefItem[]>('/setup/refs', { type: 'LabCategory' }).subscribe({ next: (r) => this.categories.set(r.map((x) => x.nameEn).sort()) });
     this.api.get<RefItem[]>('/setup/refs', { type: 'Segment' }).subscribe({ next: (r) => this.segments.set(r.map((x) => x.nameEn).sort()) });
     this.api.get<Group[]>('/test-groups').subscribe({ next: (r) => this.groups.set(r.map((x) => x.nameEn).sort()) });
+    const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const back = new Date(); back.setDate(back.getDate() - 90);
+    this.api.get<{ column: string }[]>('/registration-changes', { modFrom: ymd(back), modTo: ymd(new Date()) })
+      .subscribe({ next: (r) => this.changeTypes.set([...new Set(r.map((x) => x.column))].sort()), error: () => this.changeTypes.set([]) });
     this.api.get<UserLookup[]>('/users/lookup').subscribe({ next: (u) => this.users.set(u) });
   }
 
@@ -206,11 +223,12 @@ export class EmailReportsComponent {
   }
 
   startNew(): void { this.ed = NEW_EDITOR(); this.editing.set(true); }
+  splitTypes(text: string): string[] { return text.split(',').map((t) => t.trim()).filter(Boolean); }
   startEdit(s: Subscription): void {
     let filters = EMPTY_FILTERS();
     try { filters = { ...EMPTY_FILTERS(), ...JSON.parse(s.filtersJson || '{}') }; } catch { /* ignore */ }
     this.ed = { id: s.id, name: s.name, includeLabStats: s.includeLabStats, includeTestStats: s.includeTestStats,
-      includeAreaStats: s.includeAreaStats, includeNoLab: s.includeNoLab, filters, userIds: [...s.userIds], emailsText: s.emails.join(', '),
+      includeAreaStats: s.includeAreaStats, includeNoLab: s.includeNoLab, includeRegChanges: !!s.includeRegChanges, filters, userIds: [...s.userIds], emailsText: s.emails.join(', '),
       sendHour: s.sendHour, sendMinute: s.sendMinute, windowDays: s.windowDays, enabled: s.enabled };
     this.editing.set(true);
   }
@@ -218,7 +236,7 @@ export class EmailReportsComponent {
     const emails = this.ed.emailsText.split(/[,\n;]+/).map((e) => e.trim()).filter(Boolean);
     const body = {
       name: this.ed.name.trim(), includeLabStats: this.ed.includeLabStats, includeTestStats: this.ed.includeTestStats,
-      includeAreaStats: this.ed.includeAreaStats, includeNoLab: this.ed.includeNoLab, filtersJson: JSON.stringify(this.ed.filters), userIds: this.ed.userIds,
+      includeAreaStats: this.ed.includeAreaStats, includeNoLab: this.ed.includeNoLab, includeRegChanges: this.ed.includeRegChanges, filtersJson: JSON.stringify(this.ed.filters), userIds: this.ed.userIds,
       emails, sendHour: +this.ed.sendHour, sendMinute: +this.ed.sendMinute, windowDays: +this.ed.windowDays, enabled: this.ed.enabled,
     };
     const req = this.ed.id ? this.api.put(`/email/subscriptions/${this.ed.id}`, body) : this.api.post('/email/subscriptions', body);

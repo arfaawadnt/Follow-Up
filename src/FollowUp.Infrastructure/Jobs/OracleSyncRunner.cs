@@ -23,6 +23,7 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
     private readonly ITestStatisticRepository _testStats;
     private readonly IDailyLabStatisticRepository _labStats;
     private readonly IDetailedRegistrationRepository _detailed;
+    private readonly IRegistrationChangeRepository _regChanges;
     private readonly ITestGroupRepository _groups;
     private readonly ITestSetupRepository _setups;
     private readonly IRefItemRepository _refs;
@@ -36,7 +37,7 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
 
     public OracleSyncRunner(IOracleConfigRepository configRepo, IOracleReader reader,
         ITestStatisticRepository testStats, IDailyLabStatisticRepository labStats,
-        IDetailedRegistrationRepository detailed,
+        IDetailedRegistrationRepository detailed, IRegistrationChangeRepository regChanges,
         ITestGroupRepository groups, ITestSetupRepository setups,
         IRefItemRepository refs, ICityRepository cities, IAreaRepository areas,
         IRepresentativeRepository repsRepo, ILaboratoryRepository labs,
@@ -46,7 +47,7 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
         _reader = reader;
         _testStats = testStats;
         _labStats = labStats;
-        _detailed = detailed;
+        _detailed = detailed; _regChanges = regChanges;
         _groups = groups;
         _setups = setups;
         _refs = refs;
@@ -372,6 +373,8 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
         row.Values.TryGetValue(col, out var v) && v is not null ? Convert.ToString(v) : null;
     private static int Int(OracleRow row, string col) =>
         row.Values.TryGetValue(col, out var v) && v is not null ? Convert.ToInt32(v) : 0;
+    private static long Lng(OracleRow row, string col) =>
+        row.Values.TryGetValue(col, out var v) && v is not null ? Convert.ToInt64(v) : 0L;
     private static decimal Dec(OracleRow row, string col) =>
         row.Values.TryGetValue(col, out var v) && v is not null ? Convert.ToDecimal(v) : 0m;
     /// <summary>Oracle DATE → wall-clock DateTime (no zone); null when the column is absent or NULL.</summary>
@@ -495,6 +498,50 @@ public sealed class OracleSyncRunner : IOracleSyncRunner
 
         return new OracleSyncResult(true, "ok", LabsUpserted: upserted, StatsUpserted: 0,
             Upserts: new Dictionary<string, int> { ["LabStats"] = upserted, ["LabStatus"] = restatused });
+    }
+
+    /// <summary>
+    /// Runs the RegLog feed (2026-09-30) over an inclusive MODIFICATION-date range and replaces the synced registration
+    /// changes of that window (delete the window, bulk-insert the freshly read rows). Same guards as the detailed sync: an
+    /// empty read never wipes the window; a manual run joins the command's ambient transaction.
+    /// </summary>
+    public async Task<OracleSyncResult> RunRegistrationChangesAsync(DateOnly from, DateOnly to, bool manual, CancellationToken ct)
+    {
+        var config = await _configRepo.GetAsync(ct);
+        if (config is null || !config.Enabled)
+            return new OracleSyncResult(false, "disabled", 0, 0);
+        if (to < from) (from, to) = (to, from);
+
+        var window = new OracleDateWindow(from.ToDateTime(TimeOnly.MinValue), to.AddDays(1).ToDateTime(TimeOnly.MinValue));
+        var rows = await _reader.ExecuteAsync("RegLog", window, ct);
+        if (rows.Count == 0)
+            return new OracleSyncResult(true, "no-rows", LabsUpserted: 0, StatsUpserted: 0);
+
+        var ownsTx = _db.Database.CurrentTransaction is null;
+        await using var tx = ownsTx ? await _db.Database.BeginTransactionAsync(ct) : (Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction?)null;
+        await _regChanges.DeleteModifiedRangeAsync(from, to, ct);
+        var mapped = new List<RegistrationChange>(rows.Count);
+        var seen = new HashSet<long>();
+        foreach (var row in rows)
+        {
+            var modified = Dt(row, OracleColumns.ModifiedDate);
+            if (modified is null) continue;
+            var transId = Lng(row, OracleColumns.TransId);
+            if (transId <= 0 || !seen.Add(transId)) continue; // TRANS_ID is unique in Oracle; guard the unique index anyway
+            var regDt = Dt(row, OracleColumns.RegDate);
+            mapped.Add(RegistrationChange.Create(transId, Lng(row, OracleColumns.RegKey), Str(row, OracleColumns.AccessionNo), Str(row, OracleColumns.PatientName),
+                Dt(row, OracleColumns.RegCreated), regDt is { } rd ? DateOnly.FromDateTime(rd) : null, Str(row, OracleColumns.RegBranchCode), Str(row, OracleColumns.LabCode),
+                Str(row, OracleColumns.RegColumn), Str(row, OracleColumns.OldValue), Str(row, OracleColumns.NewValue), Str(row, OracleColumns.ModifiedBy), modified.Value));
+        }
+        _regChanges.AddRange(mapped);
+        config.RecordStatsSyncResult($"reglog:ok:{mapped.Count} [{from:yyyy-MM-dd}..{to:yyyy-MM-dd}]", _clock.UtcNow);
+        await _db.SaveChangesAsync(ct);
+        if (tx is not null) await tx.CommitAsync(ct);
+
+        _logger.LogInformation("RegLog sync ({Mode}) {From:yyyy-MM-dd}..{To:yyyy-MM-dd}: {Rows} changes",
+            manual ? "manual" : "scheduled", from, to, mapped.Count);
+        return new OracleSyncResult(true, "ok", LabsUpserted: 0, StatsUpserted: mapped.Count,
+            Upserts: new Dictionary<string, int> { ["RegLog"] = mapped.Count });
     }
 
     /// <summary>

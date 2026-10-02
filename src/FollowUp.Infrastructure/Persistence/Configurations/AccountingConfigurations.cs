@@ -261,3 +261,25 @@ internal sealed class StatementMonthCloseConfiguration : IEntityTypeConfiguratio
         b.HasIndex(x => new { x.RepresentativeId, x.Year, x.Month }).IsUnique(); // one close per rep × month
     }
 }
+
+internal sealed class RepIncomeRevisionConfiguration : IEntityTypeConfiguration<RepIncomeRevision>
+{
+    public void Configure(EntityTypeBuilder<RepIncomeRevision> b)
+    {
+        b.ToTable("rep_income_revision");
+        b.HasKey(x => x.Id);
+        b.IgnoreDomainEvents();
+        b.MapAuditable();
+        b.Property(x => x.Date);
+        b.Property(x => x.ActualIncome);
+        b.Property(x => x.ActualPaid);
+        b.Property(x => x.ActualDelayedPayment);
+        b.Property(x => x.Notes).HasMaxLength(500);
+        b.Ignore(x => x.ActualRemaining); // derived: actual income − actual paid
+        b.Ignore(x => x.IsEmpty);
+        b.HasOne<Representative>().WithMany().HasForeignKey(x => x.RepresentativeId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne<Laboratory>().WithMany().HasForeignKey(x => x.LaboratoryId).OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(x => new { x.RepresentativeId, x.LaboratoryId, x.Date }).IsUnique(); // one revision per rep × lab × date
+        b.HasIndex(x => new { x.LaboratoryId, x.Date });
+    }
+}

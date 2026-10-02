@@ -6,6 +6,7 @@ using FollowUp.Application.Common.Abstractions.Persistence;
 using FollowUp.Application.Features.AreaStats;
 using FollowUp.Application.Features.EmailReports;
 using FollowUp.Application.Features.LabStats;
+using FollowUp.Application.Features.RegistrationChanges;
 using FollowUp.Application.Features.TestCatalogue;
 using FollowUp.Domain.Emailing;
 using FollowUp.Domain.Identity;
@@ -63,7 +64,7 @@ internal sealed class StatsEmailSubscriptionQueries : IStatsEmailSubscriptionQue
         var rows = await _db.StatsEmailSubscriptions.AsNoTracking().OrderBy(s => s.Name).ToListAsync(ct);
         return rows.Select(s => new StatsEmailSubscriptionDto(s.Id.Value, s.Name, s.IncludeLabStats, s.IncludeTestStats,
             s.IncludeAreaStats, s.IncludeNoLab, s.FiltersJson, s.UserIds.ToList(), s.Emails.ToList(), s.SendHour, s.SendMinute,
-            s.WindowDays, s.Enabled, s.LastStatus, s.LastRunAt)).ToList();
+            s.WindowDays, s.Enabled, s.LastStatus, s.LastRunAt, s.IncludeRegChanges)).ToList();
     }
 }
 
@@ -134,6 +135,7 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
     private readonly ITestCatalogueQueries _testStats;
     private readonly IAreaStatsQueries _areaStats;
     private readonly INoLabTestsQueries _noLab;
+    private readonly IRegistrationChangeQueries _regChanges;
     private readonly IEmailSender _email;
     private readonly IClock _clock;
     private readonly ILogger<StatsEmailRunner> _logger;
@@ -142,17 +144,20 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
 
     public StatsEmailRunner(FollowUpDbContext db, IStatsEmailSubscriptionRepository subs, ILabStatsQueries labStats,
         ITestCatalogueQueries testStats, IAreaStatsQueries areaStats, INoLabTestsQueries noLab, IEmailSender email,
-        IClock clock, ILogger<StatsEmailRunner> logger)
+        IClock clock, ILogger<StatsEmailRunner> logger, IRegistrationChangeQueries regChanges)
     {
         _db = db; _subs = subs; _labStats = labStats; _testStats = testStats; _areaStats = areaStats;
-        _noLab = noLab; _email = email; _clock = clock; _logger = logger;
+        _noLab = noLab; _email = email; _clock = clock; _logger = logger; _regChanges = regChanges;
     }
 
     /// <summary>The saved-filter payload (stats_email_subscription.filters_json). Every member is optional so an older
     /// subscription that predates a filter (e.g. Branches, added 2026-09-15) deserialises with that filter "off".</summary>
     private sealed record Filters(string[]? Governorates = null, string[]? Cities = null, string[]? Areas = null,
         string[]? Branches = null, string[]? Categories = null, string[]? Segments = null, string[]? Groups = null,
-        string? RefMonth = null, string? CompareBy = null);
+        string? RefMonth = null, string? CompareBy = null,
+        // Registration Changes section only (2026-10-03): the REG_LOG change types to include (empty = all) and the minimum
+        // delay between the registration's creation and the edit, in hours (null / 0 = all edits).
+        string[]? RegChangeTypes = null, double? RegChangeMinDelayHours = null);
     private static bool Match(string[]? filter, string? value) =>
         filter is null || filter.Length == 0 || (value != null && filter.Contains(value));
     private static bool IsIncome(Filters f) => string.Equals(f.CompareBy, "income", StringComparison.OrdinalIgnoreCase);
@@ -219,6 +224,7 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
         if (sub.IncludeTestStats) sections.Add(await RenderTestAsync(dateTag, from, to, f, sub.Scope, ct));
         if (sub.IncludeAreaStats) sections.Add(await RenderAreaAsync(dateTag, from, to, f, sub.Scope, ct));
         if (sub.IncludeNoLab) sections.Add(await RenderNoLabAsync(dateTag, from, to, ct));
+        if (sub.IncludeRegChanges) sections.Add(await RenderRegChangesAsync(dateTag, from, to, f, sub.Scope, ct));
 
         var sb = new StringBuilder();
         sb.Append("<div style=\"font:14px system-ui,Arial,sans-serif;color:#1a1a1a\">");
@@ -511,6 +517,36 @@ internal sealed class StatsEmailRunner : IStatsEmailRunner
     /// to no lab, over the window — a management alert. Pulled live from Oracle; ignores the geography/compare-by
     /// filters (a no-lab registration has no lab and therefore no geography).
     /// </summary>
+    /// <summary>Registration Changes (2026-09-30): the LDM REG_LOG edits MADE in the window (modification date), each with
+    /// its registration (accession, patient, lab, creation time and how long after it the edit came), the changed column and
+    /// the old → new value; the summary counts edits, registrations, users and the most edited columns.</summary>
+    private async Task<ReportSection> RenderRegChangesAsync(string dateTag, DateOnly from, DateOnly to, Filters f, OrgScope scope, CancellationToken ct)
+    {
+        var minDelay = f.RegChangeMinDelayHours is { } h && h > 0 ? h * 60 : (double?)null;
+        var rows = (await _regChanges.ListAsync(null, null, from, to, scope, ct))
+            .Where(r => Match(f.Governorates, r.Governorate) && Match(f.Cities, r.City) && Match(f.Areas, r.Area)
+                     && Match(f.RegChangeTypes, r.Column)
+                     // "later than N hours after registration": an edit whose creation time is unknown cannot qualify.
+                     && (minDelay is null || (r.DelayMinutes is { } d && d > minDelay))).ToList();
+        var headers = new[] { "Modified at", "Modified by", "Acc No", "Patient", "Reg created", "Delay", "Lab", "Area", "Change type", "Old value", "New value" };
+        static string Delay(double? minutes) => minutes is not { } m ? Dash : m < 60 ? $"{m:N0} min" : m < 1440 ? $"{m / 60:N1} h" : $"{m / 1440:N1} d";
+        var htmlRows = rows.Select(r => new[]
+        {
+            r.ModifiedAt.ToString("yyyy-MM-dd HH:mm"), r.ModifiedBy, r.AccNo, r.PatientName, r.RegCreatedAt?.ToString("yyyy-MM-dd HH:mm") ?? Dash, Delay(r.DelayMinutes),
+            r.LabName ?? r.LabCode ?? "No lab", r.Area ?? Dash, r.Column, r.OldValue ?? Dash, r.NewValue ?? Dash,
+        }).ToList();
+        var xlsxRows = htmlRows.Select(hr => hr.Select(v => new XlsxCell(v)).ToArray()).ToList();
+        var registrations = rows.Select(r => r.RegKey).Distinct().Count();
+        var users = rows.Select(r => r.ModifiedBy).Distinct().Count();
+        var top = string.Join(" &middot; ", rows.GroupBy(r => r.Column).OrderByDescending(g => g.Count()).Take(5).Select(g => $"{Enc(g.Key)} {g.Count():N0}"));
+        var applied = new List<string>();
+        if (f.RegChangeTypes is { Length: > 0 }) applied.Add($"change type: {Enc(string.Join(", ", f.RegChangeTypes))}");
+        if (minDelay is not null) applied.Add($"edited later than {f.RegChangeMinDelayHours:0.##} h after registration");
+        var summary = $"<b>Changes:</b> {rows.Count:N0} &middot; <b>Registrations:</b> {registrations:N0} &middot; <b>Users:</b> {users:N0}" + (top.Length > 0 ? $" &middot; <b>By type:</b> {top}" : "")
+            + (applied.Count > 0 ? $"<br><span style=\"color:#555\">Filters: {string.Join(" &middot; ", applied)}</span>" : "");
+        return new ReportSection("Registration Changes", $"Registration-Changes-{dateTag}.xlsx", summary, headers, htmlRows, headers, xlsxRows);
+    }
+
     private async Task<ReportSection> RenderNoLabAsync(string dateTag, DateOnly from, DateOnly to, CancellationToken ct)
     {
         var rows = (await _noLab.ListAsync(from, to, ct)).OrderByDescending(r => r.RegDate).ToList();

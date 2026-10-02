@@ -3,6 +3,7 @@ using FollowUp.Application.Features.DetailedStats;
 using FollowUp.Application.Features.Compensation;
 using FollowUp.Application.Features.Integration;
 using FollowUp.Application.Features.LabStats;
+using FollowUp.Application.Features.RegistrationChanges;
 using FollowUp.Application.Features.TestCatalogue;
 using MediatR;
 
@@ -74,6 +75,11 @@ public static class AnalyticsEndpoints
 
         api.MapGet("/detailed-statistics", async (DateOnly from, DateOnly to, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new GetDetailedStatsQuery(from, to), ct))).WithTags("DetailedStats");
+        // Auditing → Registration Changes (LDM REG_LOG, 2026-09-30): list by registration and/or modification date; sync a modification-date window.
+        api.MapGet("/registration-changes", async (DateOnly? regFrom, DateOnly? regTo, DateOnly? modFrom, DateOnly? modTo, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new GetRegistrationChangesQuery(regFrom, regTo, modFrom, modTo), ct))).WithTags("RegistrationChanges");
+        api.MapPost("/registration-changes/sync", async (SyncStatsBody b, IMediator m, CancellationToken ct) =>
+            Results.Ok(await m.Send(new SyncRegistrationChangesCommand(b.From, b.To), ct))).WithTags("RegistrationChanges");
         api.MapPost("/detailed-statistics/sync", async (SyncStatsBody b, IMediator m, CancellationToken ct) =>
             Results.Ok(await m.Send(new SyncDetailedStatsCommand(b.From, b.To), ct))).WithTags("DetailedStats");
 
